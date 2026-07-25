@@ -3,6 +3,7 @@ package io.github.stoicswe.eyeandsickle.server.economy.ledger;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.github.stoicswe.eyeandsickle.protocol.game.CharacterDid;
 import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.server.economy.account.Account;
 import io.github.stoicswe.eyeandsickle.server.economy.account.FakeAccountRepository;
@@ -19,26 +20,46 @@ import org.junit.jupiter.api.Test;
  * that already exists and physically refuses the faucet type. A crack seizure that could mint would
  * inflate the economy every time a miner was cracked, so the interesting tests are the refusals and the
  * conservation of supply.
+ *
+ * <p>Every local party is a <strong>character</strong> — the counterparty strings here are character DIDs
+ * ({@code did:eyeandsickle:<slot>:<accountDid>}), not raw account DIDs, and NPC counterparties are plain
+ * DIDs that are not characters at all. The separation this buys — two characters of one account with two
+ * balances — is proved directly in {@link CharacterSeparation}.
  */
 class LedgerServiceTest {
 
-    private static final String ALICE = "did:plc:alice000000000000000000";
-    private static final String BOB = "did:plc:bob00000000000000000000";
+    private static final String ALICE_ACCOUNT = "did:plc:alice000000000000000000";
+    private static final String BOB_ACCOUNT = "did:plc:bob00000000000000000000";
+
+    // Character DIDs, not account DIDs: this is what the ledger stores and what a balance keys on.
+    private static final String ALICE = CharacterDid.of(ALICE_ACCOUNT, 1);
+    // A second character of Alice's SAME account — a distinct save game, a distinct balance.
+    private static final String ALICE_SLOT_2 = CharacterDid.of(ALICE_ACCOUNT, 2);
+    private static final String BOB = CharacterDid.of(BOB_ACCOUNT, 1);
     private static final String NPC_HOST = "did:npc:crackedhost";
     private static final String NPC_VENDOR = "did:npc:blackmarket";
-    private static final String GHOST = "did:plc:ghost000000000000000000";
+    private static final String GHOST = CharacterDid.of("did:plc:ghost000000000000000000", 1);
 
     private final FakeAccountRepository accounts = new FakeAccountRepository();
     private final FakeLedgerRepository ledger = new FakeLedgerRepository();
     private final LedgerService service = new LedgerService(accounts, ledger);
 
-    private static Account account(String did, long balanceMinor) {
-        return new Account(UUID.randomUUID(), did, Ethecoin.ofMinorUnits(balanceMinor), java.math.BigDecimal.ZERO, 0L);
+    private static Account account(String characterDid, long balanceMinor) {
+        CharacterDid character = CharacterDid.from(characterDid);
+        return new Account(
+                UUID.randomUUID(),
+                character.accountDid(),
+                character.slot(),
+                Ethecoin.ofMinorUnits(balanceMinor),
+                java.math.BigDecimal.ZERO,
+                0L);
     }
 
     private long localSupply() {
         return accounts.balanceOf(ALICE).minorUnits()
-                + (accounts.currentByDid(BOB).map(a -> a.balance().minorUnits()).orElse(0L));
+                + (accounts.currentByCharacter(BOB)
+                        .map(a -> a.balance().minorUnits())
+                        .orElse(0L));
     }
 
     // ------------------------------------------------------------------ mint (the faucet)
@@ -206,6 +227,40 @@ class LedgerServiceTest {
             assertThat(row.traceable()).isFalse();
             assertThat(ledger.appended).hasSize(1);
             assertThat(ledger.appended.get(0).traceable()).isFalse();
+        }
+    }
+
+    // ------------------------------------------------------------------ two characters, one account
+
+    @Nested
+    @DisplayName("two characters of one account are separate money holders (09 §9)")
+    class CharacterSeparation {
+
+        @Test
+        @DisplayName("the two characters of one account have separate balances — the headline of the fix")
+        void separateBalances() {
+            accounts.with(account(ALICE, 1_000)).with(account(ALICE_SLOT_2, 50));
+
+            // Same account DID, different slots: two save games, two balances. Keying on the account DID
+            // (the old bug) would have made these one shared balance.
+            assertThat(service.balanceOf(ALICE)).isEqualTo(Ethecoin.ofMinorUnits(1_000));
+            assertThat(service.balanceOf(ALICE_SLOT_2)).isEqualTo(Ethecoin.ofMinorUnits(50));
+        }
+
+        @Test
+        @DisplayName("a transfer between two characters of ONE account moves ethecoin from one to the other")
+        void transferBetweenOwnCharacters() {
+            accounts.with(account(ALICE, 1_000)).with(account(ALICE_SLOT_2, 0));
+
+            LedgerTransaction row = service.transfer(
+                    ALICE, ALICE_SLOT_2, Ethecoin.ofMinorUnits(300), LedgerEntryType.TRADE, true, null);
+
+            // Only reachable because the two characters are distinct money holders: the debit lands on one,
+            // the credit on the other, and the ledger records the character DIDs as the two parties.
+            assertThat(service.balanceOf(ALICE)).isEqualTo(Ethecoin.ofMinorUnits(700));
+            assertThat(service.balanceOf(ALICE_SLOT_2)).isEqualTo(Ethecoin.ofMinorUnits(300));
+            assertThat(row.fromDid()).isEqualTo(ALICE);
+            assertThat(row.toDid()).isEqualTo(ALICE_SLOT_2);
         }
     }
 

@@ -2,6 +2,7 @@ package io.github.stoicswe.eyeandsickle.server.economy.account;
 
 import static org.mockito.Mockito.mock;
 
+import io.github.stoicswe.eyeandsickle.protocol.game.CharacterDid;
 import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -24,22 +25,29 @@ import org.springframework.jdbc.core.simple.JdbcClient;
  * superclass demands is a Mockito stub that is never touched — every method that would reach SQL is
  * overridden to read and write this fake's own maps instead.
  *
+ * <p>It keys on the <strong>character DID</strong>, exactly as the real repository now does: two
+ * characters of one account are two distinct entries with two distinct balances. Only
+ * {@link #findByCharacter(CharacterDid)}, {@link #lockForUpdate(Collection)} and
+ * {@link #writeBalance(UUID, Ethecoin, long)} are overridden; the inherited
+ * {@link #findByCharacterDid(String)} parses and then calls the overridden {@code findByCharacter}, so it
+ * needs no override of its own.
+ *
  * <p>It deliberately mirrors two behaviours the real repository has that the services depend on: a
  * balance write is guarded by the {@code row_version} it was read at (a stale write throws
  * {@link OptimisticLockingFailureException}, exactly as {@code Mutations.requireUpdated} would), and
- * {@link #lockForUpdate(Collection)} returns only the DIDs that resolve to a local account — an NPC or
- * remote counterparty simply is not there, which is the case the ledger's sink/source logic turns on.
+ * {@link #lockForUpdate(Collection)} returns only the characters that resolve to a local account — an NPC
+ * or remote counterparty simply is not there, which is the case the ledger's sink/source logic turns on.
  */
 public final class FakeAccountRepository extends AccountRepository {
 
     private final Map<UUID, Account> byId = new LinkedHashMap<>();
-    private final Map<String, UUID> didToId = new LinkedHashMap<>();
+    private final Map<String, UUID> characterDidToId = new LinkedHashMap<>();
 
     /** Every {@code (playerId, newBalance, expectedVersion)} write, in order — for "reads move nothing". */
     public final List<BalanceWrite> writes = new ArrayList<>();
 
-    /** How many times {@link #findByDid(String)} was called — for "the account is read once". */
-    public int findByDidCalls;
+    /** How many times {@link #findByCharacter(CharacterDid)} was called — for "the account is read once". */
+    public int findByCharacterCalls;
 
     /** How many times {@link #lockForUpdate(Collection)} was called. */
     public int lockCalls;
@@ -51,31 +59,32 @@ public final class FakeAccountRepository extends AccountRepository {
     /** A recorded balance write. */
     public record BalanceWrite(UUID playerId, Ethecoin newBalance, long expectedRowVersion) {}
 
-    /** Adds or replaces an account. */
+    /** Adds or replaces a character. */
     public FakeAccountRepository with(Account account) {
         Objects.requireNonNull(account, "account");
         byId.put(account.playerId(), account);
-        if (account.did() != null) {
-            didToId.put(account.did(), account.playerId());
+        if (account.characterDid() != null) {
+            characterDidToId.put(account.characterDid().value(), account.playerId());
         }
         return this;
     }
 
     @Override
-    public Optional<Account> findByDid(String did) {
-        Objects.requireNonNull(did, "did");
-        findByDidCalls++;
-        return currentByDid(did);
+    public Optional<Account> findByCharacter(CharacterDid character) {
+        Objects.requireNonNull(character, "character");
+        findByCharacterCalls++;
+        return currentByCharacter(character.value());
     }
 
     @Override
-    public List<Account> lockForUpdate(Collection<String> dids) {
-        Objects.requireNonNull(dids, "dids");
+    public List<Account> lockForUpdate(Collection<CharacterDid> characters) {
+        Objects.requireNonNull(characters, "characters");
         lockCalls++;
-        // Mirror the real repository: only DIDs that resolve to a local account come back, ordered by
+        // Mirror the real repository: only characters that resolve to a local account come back, ordered by
         // player_id, and each at most once even if the caller named it twice.
-        return dids.stream()
-                .map(didToId::get)
+        return characters.stream()
+                .map(CharacterDid::value)
+                .map(characterDidToId::get)
                 .filter(Objects::nonNull)
                 .distinct()
                 .map(byId::get)
@@ -101,20 +110,21 @@ public final class FakeAccountRepository extends AccountRepository {
                 playerId,
                 new Account(
                         current.playerId(),
-                        current.did(),
+                        current.accountDid(),
+                        current.slot(),
                         newBalance,
                         current.personalHeat(),
                         current.rowVersion() + 1));
     }
 
-    /** The account currently stored for a DID, for a post-condition assertion. */
-    public Optional<Account> currentByDid(String did) {
-        UUID id = didToId.get(did);
+    /** The account currently stored for a character DID string, for a post-condition assertion. */
+    public Optional<Account> currentByCharacter(String characterDid) {
+        UUID id = characterDidToId.get(characterDid);
         return Optional.ofNullable(id == null ? null : byId.get(id));
     }
 
-    /** The current balance stored for a DID. */
-    public Ethecoin balanceOf(String did) {
-        return currentByDid(did).orElseThrow().balance();
+    /** The current balance stored for a character DID string. */
+    public Ethecoin balanceOf(String characterDid) {
+        return currentByCharacter(characterDid).orElseThrow().balance();
     }
 }

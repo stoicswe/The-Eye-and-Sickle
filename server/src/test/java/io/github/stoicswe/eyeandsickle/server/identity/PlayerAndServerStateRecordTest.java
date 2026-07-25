@@ -1,8 +1,10 @@
 package io.github.stoicswe.eyeandsickle.server.identity;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.github.stoicswe.eyeandsickle.protocol.game.CharacterDid;
 import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.protocol.game.Faction;
 import java.time.Instant;
@@ -21,6 +23,21 @@ class PlayerAndServerStateRecordTest {
 
     private static final Instant NOW = Instant.parse("2026-07-24T10:00:00Z");
     private static final Did DID = Did.of("did:plc:aaaaaaaaaaaaaaaaaaaaaaaa");
+
+    private static Player boundCharacter(int slot) {
+        return new Player(
+                UUID.randomUUID(),
+                DID,
+                slot,
+                "alice.bsky.social",
+                CharacterStatus.ACTIVE,
+                Faction.NONE,
+                Heat.ZERO,
+                Ethecoin.ZERO,
+                NOW,
+                NOW,
+                0);
+    }
 
     @Nested
     @DisplayName("Player")
@@ -143,7 +160,16 @@ class PlayerAndServerStateRecordTest {
                     .isInstanceOf(NullPointerException.class);
             // heat is required
             assertThatThrownBy(() -> new Player(
-                            id, null, null, null, CharacterStatus.ACTIVE, Faction.NONE, null, Ethecoin.ZERO, NOW, null,
+                            id,
+                            null,
+                            null,
+                            null,
+                            CharacterStatus.ACTIVE,
+                            Faction.NONE,
+                            null,
+                            Ethecoin.ZERO,
+                            NOW,
+                            null,
                             0))
                     .isInstanceOf(NullPointerException.class);
             // balance is required
@@ -152,9 +178,54 @@ class PlayerAndServerStateRecordTest {
                     .isInstanceOf(NullPointerException.class);
             // createdAt is required
             assertThatThrownBy(() -> new Player(
-                            id, null, null, null, CharacterStatus.ACTIVE, Faction.NONE, Heat.ZERO, Ethecoin.ZERO, null,
-                            null, 0))
+                            id,
+                            null,
+                            null,
+                            null,
+                            CharacterStatus.ACTIVE,
+                            Faction.NONE,
+                            Heat.ZERO,
+                            Ethecoin.ZERO,
+                            null,
+                            null,
+                            0))
                     .isInstanceOf(NullPointerException.class);
+        }
+
+        @Test
+        @DisplayName("characterDid() derives a per-character DID for a DID-bound character")
+        void characterDidForBoundCharacter() {
+            // The derived actor game state keys on (09 §9): did:eyeandsickle:<slot>:<accountDid>. Two
+            // characters of one account differ only by slot, so they get distinct character DIDs — which is
+            // exactly why items/ledger/miners must scope on this and not the shared account DID.
+            Player slot1 = boundCharacter(1);
+            Player slot2 = boundCharacter(2);
+
+            assertThat(slot1.characterDid()).isEqualTo(new CharacterDid(DID.value(), 1));
+            assertThat(slot1.characterDid().value()).isEqualTo("did:eyeandsickle:1:" + DID.value());
+            assertThat(slot1.characterDid()).isNotEqualTo(slot2.characterDid());
+            assertThat(slot1.characterDid().accountDid()).isEqualTo(DID.value());
+        }
+
+        @Test
+        @DisplayName("characterDid() is null for a local, DID-less character — exempt from the economy")
+        void characterDidNullForLocal() {
+            // Documented choice (09 §1): a local character has no account DID, so no character DID; it is
+            // outside the federated economy entirely. Mirrors isLocal().
+            Player local = new Player(
+                    UUID.randomUUID(),
+                    null,
+                    null,
+                    null,
+                    CharacterStatus.ACTIVE,
+                    Faction.NONE,
+                    Heat.ZERO,
+                    Ethecoin.ZERO,
+                    NOW,
+                    null,
+                    0);
+            assertThat(local.isLocal()).isTrue();
+            assertThat(local.characterDid()).isNull();
         }
 
         @Test

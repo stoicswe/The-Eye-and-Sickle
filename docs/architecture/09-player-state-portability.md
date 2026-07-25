@@ -99,6 +99,11 @@ Moving to a home server you do **not** control, and which does **not** trust you
 
 ## 9. Open questions
 
+- **Q-item-keying (load-bearing — surfaced by implementation, needs a decision).** §1 says each character has *its own* ethecoin, items, and heat. `personal_heat`, `faction`, and `ethecoin_balance` sit on the character row and are already per-character. But `items.holder_did`, `ledger_transactions.from_did`/`to_did`, and `deployed_miners.deployer_did` key on the **DID** — which is now the *account*, not the character. As built, an account's characters therefore **share** their items, ledger, and deployed miners, which contradicts "separate save games." Three resolutions:
+  1. **Per-character identity for game state.** Re-key items/ledger/miners on `character_id`, and make the provenance *holder* a character-scoped identity rather than the raw account DID. Truest to "separate characters," but it touches the **Established** provenance model (`04`, holder is a DID) and cross-server portability, so it is a real design change, not a refactor.
+  2. **Account-shared inventory/economy.** Accept that the three characters share items and balance, differing only in heat/faction/progression. Smallest change; weakest realization of the feature.
+  3. **Derived per-character DID.** Give each character a stable sub-identity (e.g. a DID fragment or `did:eyeandsickle:<account>/<slot>`) used everywhere game state currently keys on the DID, keeping the account DID for auth and the directory. Preserves provenance portability *and* per-character separation, at the cost of a new identity primitive.
+  Until this is decided, the migration export is exact only for single-character accounts, and `AccountRepository.findByDid` (economy) will return the wrong result — or throw — once an account holds more than one character. **Recommend option 3**, but it is the user's call.
 - **Q-cap-race** (§2): converging a simultaneous over-creation to ≤3 recognized characters, and telling the loser.
 - **Q-home-auth** (§4): whether the account DID co-signs its home bindings, or the home-server signature alone suffices.
 - **Q-slot-scope:** is the cap strictly network-wide, or per-federation-directory? Two disjoint federations that never gossip cannot see each other's counts; a DID could hold 3 in each. Probably acceptable (they are different worlds), but state it.

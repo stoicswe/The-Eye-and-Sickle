@@ -31,8 +31,9 @@ class CharacterSlotsMigrationTest {
     @Test
     @DisplayName("the status CHECK lists exactly the CharacterStatus db spellings")
     void statusVocabularyMatches() {
-        Set<String> expected =
-                Arrays.stream(CharacterStatus.values()).map(CharacterStatus::dbValue).collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<String> expected = Arrays.stream(CharacterStatus.values())
+                .map(CharacterStatus::dbValue)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
         assertThat(inList("status")).isEqualTo(expected);
     }
 
@@ -71,7 +72,9 @@ class CharacterSlotsMigrationTest {
         int pairing = body.indexOf("(did IS NULL) = (slot IS NULL)");
         assertThat(backfill).as("backfill present").isNotNegative();
         assertThat(pairing).as("pairing CHECK present").isNotNegative();
-        assertThat(backfill).as("backfill runs before the pairing CHECK is added").isLessThan(pairing);
+        assertThat(backfill)
+                .as("backfill runs before the pairing CHECK is added")
+                .isLessThan(pairing);
     }
 
     // ------------------------------------------------------------------ helpers
@@ -79,7 +82,9 @@ class CharacterSlotsMigrationTest {
     private static Set<String> inList(String column) {
         Matcher matcher = Pattern.compile(Pattern.quote(column) + "\\s+IN\\s*\\(([^)]*)\\)")
                 .matcher(stripComments(SQL));
-        assertThat(matcher.find()).as("%s should be constrained by a CHECK ... IN (...)", column).isTrue();
+        assertThat(matcher.find())
+                .as("%s should be constrained by a CHECK ... IN (...)", column)
+                .isTrue();
         Set<String> values = new LinkedHashSet<>();
         for (String literal : matcher.group(1).split(",")) {
             String trimmed = literal.strip();

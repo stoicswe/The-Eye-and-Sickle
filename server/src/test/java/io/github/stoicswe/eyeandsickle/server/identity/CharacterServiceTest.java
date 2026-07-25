@@ -34,7 +34,8 @@ class CharacterServiceTest {
         return new IdentityProperties(new Operator(null, null, null), new DevSignin(false), Duration.ofHours(24), null);
     }
 
-    private record Harness(CharacterService service, FakePlayerRepository players, InMemoryPlayerSessionStore sessions) {}
+    private record Harness(
+            CharacterService service, FakePlayerRepository players, InMemoryPlayerSessionStore sessions) {}
 
     /** Wires a service with the given cap and recognized-count seam. */
     private static Harness harness(int maxCharacters, RecognizedCharacterCount recognized) {
@@ -154,7 +155,30 @@ class CharacterServiceTest {
 
             assertThat(session.playerId()).isEqualTo(character.playerId());
             assertThat(session.did()).isEqualTo(DID);
+            // The selected character's DID is available to callers as the actor game state stamps (09 §9).
+            assertThat(session.characterDid()).isEqualTo(character.characterDid());
+            assertThat(session.characterDid().accountDid()).isEqualTo(DID.value());
+            assertThat(session.characterDid().slot()).isEqualTo(character.slot());
             assertThat(h.sessions().resolve(session.token())).isPresent();
+        }
+
+        @Test
+        @DisplayName("two characters of one account select to distinct character DIDs — separate save games")
+        void distinctCharacterDidsPerSlot() {
+            // The point of the whole feature (09 §9): two characters of ONE account must not collapse to
+            // one game identity. Same account DID, different slot, therefore different character DID — the
+            // key items, the ledger and miners will scope their state by.
+            Harness h = harness(3);
+            Player first = h.service().createCharacter(DID, "alice"); // slot 1
+            Player second = h.service().createCharacter(DID, "alice"); // slot 2
+
+            PlayerSession firstSession = h.service().selectCharacter(DID, first.playerId());
+            PlayerSession secondSession = h.service().selectCharacter(DID, second.playerId());
+
+            assertThat(firstSession.did()).isEqualTo(secondSession.did()); // one account
+            assertThat(firstSession.characterDid()).isNotEqualTo(secondSession.characterDid()); // two characters
+            assertThat(firstSession.characterDid().slot()).isEqualTo(1);
+            assertThat(secondSession.characterDid().slot()).isEqualTo(2);
         }
 
         @Test
@@ -201,7 +225,10 @@ class CharacterServiceTest {
 
             h.service().retireCharacter(DID, character.playerId());
 
-            assertThat(h.players().findCharacter(character.playerId()).orElseThrow().status())
+            assertThat(h.players()
+                            .findCharacter(character.playerId())
+                            .orElseThrow()
+                            .status())
                     .isEqualTo(CharacterStatus.RETIRED);
         }
 
@@ -213,7 +240,10 @@ class CharacterServiceTest {
 
             h.service().markMigrated(character.playerId());
 
-            assertThat(h.players().findCharacter(character.playerId()).orElseThrow().status())
+            assertThat(h.players()
+                            .findCharacter(character.playerId())
+                            .orElseThrow()
+                            .status())
                     .isEqualTo(CharacterStatus.MIGRATED);
         }
 
@@ -262,9 +292,7 @@ class CharacterServiceTest {
         h.service().createCharacter(DID, "alice"); // slot 3
         h.service().retireCharacter(DID, toRetire.playerId());
 
-        assertThat(h.service().listCharacters(DID))
-                .extracting(Player::slot)
-                .containsExactly(1, 3);
+        assertThat(h.service().listCharacters(DID)).extracting(Player::slot).containsExactly(1, 3);
     }
 
     @Test

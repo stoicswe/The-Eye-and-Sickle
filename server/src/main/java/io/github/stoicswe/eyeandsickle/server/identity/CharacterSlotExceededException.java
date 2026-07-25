@@ -23,7 +23,8 @@ public class CharacterSlotExceededException extends RuntimeException {
      */
     public CharacterSlotExceededException(Did accountDid, int recognized, int maxCharacters) {
         super("Account " + accountDid + " already holds " + recognized + " recognized characters, at the cap of "
-                + maxCharacters + "; creating another is refused (docs/architecture/09-player-state-portability.md §2). "
+                + maxCharacters
+                + "; creating another is refused (docs/architecture/09-player-state-portability.md §2). "
                 + "The cap is a soft, product limit — raise eyeandsickle.characters.max-characters to change it.");
     }
 }

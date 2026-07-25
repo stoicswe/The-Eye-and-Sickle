@@ -43,8 +43,10 @@ class SchemaIT extends PostgresIntegrationTestBase {
                 .list();
 
         // The core and federation directories share one history and one version namespace, with
-        // disjoint ranges so that turning federation on later only ever appends.
-        assertThat(applied).containsExactly("1", "2", "1001");
+        // disjoint ranges so that turning federation on later only ever appends. Core: 1 (baseline),
+        // 2 (core schema), 3 (character slots). Federation: 1001 (federation schema), 1002 (character
+        // directory).
+        assertThat(applied).containsExactly("1", "2", "3", "1001", "1002");
     }
 
     @Test
@@ -541,12 +543,16 @@ class SchemaIT extends PostgresIntegrationTestBase {
     }
 
     @Test
-    @DisplayName("a DID appears at most once in the allowlist and at most once as a player")
+    @DisplayName("a DID+slot is unique among characters, and a DID appears at most once in the allowlist")
     void identitiesAreUnique() {
+        // A DID is an ACCOUNT that may hold several characters (docs/architecture/09 §1), so the old
+        // one-player-per-DID rule (uq_players_did) is gone. Uniqueness is now per (did, slot): the same
+        // account cannot occupy the same slot twice. Both helper inserts use slot 1, so the second
+        // collides.
         insertPlayer(DID_A);
         assertThatThrownBy(() -> insertPlayer(DID_A))
                 .isInstanceOf(DuplicateKeyException.class)
-                .hasMessageContaining("uq_players_did");
+                .hasMessageContaining("uq_players_did_slot");
 
         insertAllowlistEntry(DID_A);
         assertThatThrownBy(() -> insertAllowlistEntry(DID_A))
@@ -825,9 +831,14 @@ class SchemaIT extends PostgresIntegrationTestBase {
     private UUID insertPlayer(String did) {
         UUID playerId = UUID.randomUUID();
         jdbcClient()
-                .sql("INSERT INTO players (player_id, did, handle) VALUES (:id, :did, :handle)")
+                // slot pairs with did (the (did IS NULL) = (slot IS NULL) check, V3): a DID-bound
+                // character gets slot 1, a local (DID-less) one gets NULL. Reusing slot 1 makes two
+                // inserts of the SAME DID collide on uq_players_did_slot (identitiesAreUnique relies on
+                // that), while two DID-less inserts both get (NULL, NULL) and coexist.
+                .sql("INSERT INTO players (player_id, did, slot, handle) VALUES (:id, :did, :slot, :handle)")
                 .param("id", playerId)
                 .param("did", did)
+                .param("slot", did == null ? null : 1)
                 .param("handle", "operator")
                 .update();
         return playerId;

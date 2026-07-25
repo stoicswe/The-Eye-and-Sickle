@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.server.economy.ledger;
 
+import io.github.stoicswe.eyeandsickle.protocol.game.CharacterDid;
 import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.server.economy.account.Account;
 import io.github.stoicswe.eyeandsickle.server.economy.account.AccountRepository;
@@ -10,6 +11,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,15 +46,23 @@ import org.springframework.transaction.annotation.Transactional;
  * The ledger table is append-only at the database level, so a half-written transfer cannot be tidied
  * up afterwards; the transaction boundary is what guarantees there is never one to tidy.
  *
+ * <h2>Counterparties are characters — and the ledger stores character DIDs</h2>
+ *
+ * Money is per-character ({@code docs/architecture/09-player-state-portability.md} §9): the {@code from_did}
+ * and {@code to_did} on a ledger row, and the recipient of a mint, are <strong>character DIDs</strong>
+ * ({@code did:eyeandsickle:<slot>:<accountDid>}) for local parties — never the raw account DID, or two
+ * characters of one account would share a balance. A local party is resolved by parsing its counterparty
+ * string as a character DID and finding the active character it names.
+ *
  * <h2>Local and non-local counterparties</h2>
  *
- * A balance is materialised only for players on <em>this</em> server. The ledger has no foreign key to
- * {@code players} because a counterparty may be an NPC or a remote DID. So a transfer adjusts the
- * materialised balance of whichever side is a local player and simply records the flow for a side that
- * is not: an NPC host paying out a cracked buffer has no balance here to debit (the mining slice
- * debited the buffer); a purchase from an NPC vendor debits the local buyer and lets the ethecoin
- * leave the local economy as a sink. At least one party must be local, or this server has no stake in
- * the transaction and records nothing.
+ * A balance is materialised only for characters on <em>this</em> server. The ledger has no foreign key to
+ * {@code players} because a counterparty may be an NPC or a remote DID — neither a character DID at all. So
+ * a transfer adjusts the materialised balance of whichever side resolves to a local character and simply
+ * records the flow for a side that does not: an NPC host paying out a cracked buffer has no balance here to
+ * debit (the mining slice debited the buffer); a purchase from an NPC vendor debits the local buyer and
+ * lets the ethecoin leave the local economy as a sink. At least one party must be a local character, or
+ * this server has no stake in the transaction and records nothing.
  *
  * <h2>This is an internal API, not a REST surface</h2>
  *
@@ -74,16 +84,16 @@ public class LedgerService {
     }
 
     /**
-     * The materialised balance of a local player.
+     * The materialised balance of a local character.
      *
-     * @param did the player's DID
+     * @param characterDid the character's DID ({@code did:eyeandsickle:<slot>:<accountDid>})
      * @return their balance
-     * @throws UnknownPlayerException if no local player has that DID
+     * @throws UnknownPlayerException if the string names no active local character
      */
-    public Ethecoin balanceOf(String did) {
-        Objects.requireNonNull(did, "did");
-        return accounts.findByDid(did)
-                .orElseThrow(() -> new UnknownPlayerException(did))
+    public Ethecoin balanceOf(String characterDid) {
+        Objects.requireNonNull(characterDid, "characterDid");
+        return accounts.findByCharacterDid(characterDid)
+                .orElseThrow(() -> new UnknownPlayerException(characterDid))
                 .balance();
     }
 
@@ -100,17 +110,19 @@ public class LedgerService {
     }
 
     /**
-     * Mints new ethecoin into a local player's balance — the faucet.
+     * Mints new ethecoin into a local character's balance — the faucet.
      *
      * <p>The one operation that grows total supply. No payer, {@link LedgerEntryType#MINING_REWARD}
-     * only. The recipient must be a local player: a faucet has to land in a real account, or it is
-     * minting into the void.
+     * only. The recipient must be a local character: a faucet has to land in a real character's balance,
+     * or it is minting into the void. Mining and hacking payouts go <em>to a character</em>, so the
+     * recorded {@code to_did} is that character's DID.
      *
-     * @param toDid the recipient's DID; must be a local player
+     * @param toDid the recipient's character DID ({@code did:eyeandsickle:<slot>:<accountDid>}); must name
+     *     an active local character
      * @param amount the amount to mint; must be positive
      * @param memo investigator-readable context (which mining block, which contract), or {@code null}
      * @return the ledger row written
-     * @throws UnknownPlayerException if the recipient is not a local player
+     * @throws UnknownPlayerException if the recipient is not an active local character
      * @throws IllegalArgumentException if the amount is zero
      */
     @Transactional
@@ -118,7 +130,9 @@ public class LedgerService {
         Objects.requireNonNull(toDid, "toDid");
         requirePositive(amount);
 
-        Account recipient = lockOne(toDid).orElseThrow(() -> new UnknownPlayerException(toDid));
+        CharacterDid recipientCharacter =
+                CharacterDid.parse(toDid).orElseThrow(() -> new UnknownPlayerException(toDid));
+        Account recipient = lockOne(recipientCharacter).orElseThrow(() -> new UnknownPlayerException(toDid));
         accounts.writeBalance(recipient.playerId(), recipient.balance().plus(amount), recipient.rowVersion());
 
         LedgerTransaction tx = new LedgerTransaction(
@@ -134,8 +148,10 @@ public class LedgerService {
      * local player, must be able to afford it — the affordability question is asked and answered here,
      * before the subtraction, never discovered from a negative balance.
      *
-     * @param fromDid the payer's DID; balance-checked and debited only if a local player
-     * @param toDid the payee's DID; credited only if a local player
+     * @param fromDid the payer's DID; a character DID is balance-checked and debited, a non-character
+     *     (NPC/remote) counterparty is only recorded
+     * @param toDid the payee's DID; a character DID is credited, a non-character counterparty is only
+     *     recorded
      * @param amount the amount to move; must be positive
      * @param type the transaction type; must not be a {@link LedgerEntryType#isFaucet() faucet}
      * @param traceable {@code false} for a Dead Drop — recorded, but visible only to the counterparties
@@ -143,7 +159,7 @@ public class LedgerService {
      * @return the ledger row written
      * @throws IllegalArgumentException if the amount is zero, the type is a faucet, or payer equals
      *     payee
-     * @throws UnknownPlayerException if neither party is a local player — this server has no stake
+     * @throws UnknownPlayerException if neither party is a local character — this server has no stake
      * @throws InsufficientFundsException if a local payer cannot cover the amount
      */
     @Transactional
@@ -168,11 +184,18 @@ public class LedgerService {
                     "A transfer needs two distinct parties; from and to were both " + fromDid);
         }
 
-        // Lock both rows in a consistent order (by player_id, inside AccountRepository) so two transfers
-        // touching the same pair in opposite directions serialise rather than deadlock.
-        List<Account> locked = accounts.lockForUpdate(List.of(fromDid, toDid));
-        Optional<Account> payer = find(locked, fromDid);
-        Optional<Account> payee = find(locked, toDid);
+        // A local party is the character a counterparty string names; an NPC or remote DID is not a
+        // character DID at all and simply does not parse — it has no row here to lock or move.
+        Optional<CharacterDid> payerCharacter = CharacterDid.parse(fromDid);
+        Optional<CharacterDid> payeeCharacter = CharacterDid.parse(toDid);
+
+        // Lock both character rows in a consistent order (by player_id, inside AccountRepository) so two
+        // transfers touching the same pair in opposite directions serialise rather than deadlock.
+        List<Account> locked = accounts.lockForUpdate(Stream.of(payerCharacter, payeeCharacter)
+                .flatMap(Optional::stream)
+                .toList());
+        Optional<Account> payer = payerCharacter.flatMap(character -> find(locked, character));
+        Optional<Account> payee = payeeCharacter.flatMap(character -> find(locked, character));
         if (payer.isEmpty() && payee.isEmpty()) {
             throw new UnknownPlayerException(fromDid);
         }
@@ -197,12 +220,12 @@ public class LedgerService {
         return tx;
     }
 
-    private Optional<Account> lockOne(String did) {
-        return find(accounts.lockForUpdate(List.of(did)), did);
+    private Optional<Account> lockOne(CharacterDid character) {
+        return find(accounts.lockForUpdate(List.of(character)), character);
     }
 
-    private static Optional<Account> find(List<Account> accounts, String did) {
-        return accounts.stream().filter(a -> did.equals(a.did())).findFirst();
+    private static Optional<Account> find(List<Account> accounts, CharacterDid character) {
+        return accounts.stream().filter(a -> character.equals(a.characterDid())).findFirst();
     }
 
     private static void requirePositive(Ethecoin amount) {

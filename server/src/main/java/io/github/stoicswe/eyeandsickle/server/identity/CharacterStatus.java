@@ -86,9 +86,11 @@ public enum CharacterStatus {
             case "active" -> ACTIVE;
             case "migrated" -> MIGRATED;
             case "retired" -> RETIRED;
-            default -> throw new IllegalArgumentException("players.status holds '" + value
-                    + "', which is not a recognized character status (active | migrated | retired). Either a "
-                    + "migration added a value this build predates, or the row was written outside CharacterStatus.");
+            default ->
+                throw new IllegalArgumentException(
+                        "players.status holds '" + value
+                                + "', which is not a recognized character status (active | migrated | retired). Either a "
+                                + "migration added a value this build predates, or the row was written outside CharacterStatus.");
         };
     }
 }

@@ -35,7 +35,16 @@ class FactionServiceTest {
 
     private static Player player(UUID id, Faction faction, Heat heat, long rowVersion) {
         return new Player(
-                id, DID, 1, "alice.bsky.social", CharacterStatus.ACTIVE, faction, heat, Ethecoin.ZERO, NOW, NOW,
+                id,
+                DID,
+                1,
+                "alice.bsky.social",
+                CharacterStatus.ACTIVE,
+                faction,
+                heat,
+                Ethecoin.ZERO,
+                NOW,
+                NOW,
                 rowVersion);
     }
 

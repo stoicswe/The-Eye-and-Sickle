@@ -36,8 +36,17 @@ class SignInServiceTest {
 
     private static Player retired(Did did, int slot) {
         return new Player(
-                UUID.randomUUID(), did, slot, "old", CharacterStatus.RETIRED, Faction.NONE, Heat.ZERO, Ethecoin.ZERO,
-                NOW, NOW, 0);
+                UUID.randomUUID(),
+                did,
+                slot,
+                "old",
+                CharacterStatus.RETIRED,
+                Faction.NONE,
+                Heat.ZERO,
+                Ethecoin.ZERO,
+                NOW,
+                NOW,
+                0);
     }
 
     /** Wires a sign-in service around a configurable provider and a controllable allowlist. */

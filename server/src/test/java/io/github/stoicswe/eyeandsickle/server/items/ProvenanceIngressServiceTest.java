@@ -87,6 +87,28 @@ class ProvenanceIngressServiceTest {
         }
 
         @Test
+        @DisplayName("records the incoming character-DID holder verbatim and lists it per-character (09 §9)")
+        void ingestedHolderIsACharacterDid() {
+            // A foreign server minted this item to a character DID; ingress verifies the issuer signature
+            // (indifferent to the holder string) and records the holder unchanged.
+            var chain = List.of(chains.singleIssuer(
+                    chains.genesisForHolder(TestChains.HOME_DID, TestChains.CHARACTER_SLOT_1.value())));
+
+            ingress().ingest(TestChains.documentsOf(chain));
+
+            Item item = items.find(TestChains.ITEM_ID).orElseThrow();
+            assertThat(item.holderDid())
+                    .as("the holder is the character DID the issuing server stamped, stored verbatim")
+                    .isEqualTo(TestChains.CHARACTER_SLOT_1.value());
+            // The character-scoped read finds it under the minting character, and not under another
+            // character of the same account.
+            assertThat(items.findByHolder(TestChains.CHARACTER_SLOT_1))
+                    .extracting(Item::itemId)
+                    .containsExactly(TestChains.ITEM_ID);
+            assertThat(items.findByHolder(TestChains.CHARACTER_SLOT_2)).isEmpty();
+        }
+
+        @Test
         @DisplayName("stores each envelope verbatim, so a client can re-verify offline (§6.2)")
         void envelopesAreStoredVerbatim() {
             List<String> documents = TestChains.documentsOf(chains.validChain(2));

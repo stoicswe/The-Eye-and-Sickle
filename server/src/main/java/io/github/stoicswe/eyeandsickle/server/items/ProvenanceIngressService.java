@@ -31,6 +31,16 @@ import org.springframework.transaction.annotation.Transactional;
  * recording what it was verified against, not a bare "valid" that has silently expired — the guidance
  * "if you cache a verdict, cache what it was verified against".
  *
+ * <h2>The incoming holder is a character, recorded verbatim</h2>
+ *
+ * Since {@code docs/architecture/09-player-state-portability.md} §9 (Q-item-keying option 3), an item's
+ * holder is a <em>character</em> DID ({@code did:eyeandsickle:<slot>:<accountDid>}), produced by the
+ * issuing server. Ingress does not change mechanically: the verifier checks the <em>issuer's</em>
+ * signature and is indifferent to what the holder string is, so a character-DID holder is verified and
+ * recorded exactly as any holder string was before. This service neither parses nor validates the holder
+ * beyond the chain checks — it stores the tip's holder verbatim onto the {@code items} row, and a
+ * character-scoped inventory read ({@code ItemStore.findByHolder}) then keys on that same character DID.
+ *
  * <h2>Scope: a new item, not a chain merge</h2>
  *
  * This ingests an item this server does not already hold. Reconciling an incoming chain against a
@@ -109,7 +119,8 @@ public class ProvenanceIngressService {
         ProvenancePayload tip = envelopes.getLast().payload();
 
         // The item projection mirrors the verified chain tip (04 §2). A transferred-in item lands in the
-        // configured tier ([PROPOSAL] — see ItemsProperties), never socketed.
+        // configured tier ([PROPOSAL] — see ItemsProperties), never socketed. tip.holderDid() is the
+        // character DID the issuing server stamped (09 §9); it is stored verbatim, not reinterpreted.
         items.insert(new Item(
                 tip.itemId(),
                 tip.itemType(),

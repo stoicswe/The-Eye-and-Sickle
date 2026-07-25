@@ -65,8 +65,16 @@ public final class InMemoryPlayerSessionStore implements PlayerSessionStore {
                     "Cannot open a session for a player with no DID; sign-in sessions are for authenticated identities");
         }
         Instant now = clock.instant();
-        PlayerSession session =
-                new PlayerSession(newToken(), player.playerId(), player.did(), player.handle(), now, now.plus(ttl));
+        // player.did() is non-null here (checked above), so characterDid() is non-null too — the session
+        // carries the selected character as its actor alongside the account identity (09 §9).
+        PlayerSession session = new PlayerSession(
+                newToken(),
+                player.playerId(),
+                player.did(),
+                player.characterDid(),
+                player.handle(),
+                now,
+                now.plus(ttl));
         // Astronomically unlikely, but a collision would silently hijack a session, so refuse rather
         // than overwrite. putIfAbsent makes the check-and-insert atomic.
         if (sessions.putIfAbsent(session.token(), session) != null) {

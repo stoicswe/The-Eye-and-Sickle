@@ -29,8 +29,17 @@ class InMemoryPlayerSessionStoreTest {
         // A DID-bound character has a slot; only DID-bound characters ever hold a session.
         Integer slot = did == null ? null : 1;
         return new Player(
-                UUID.randomUUID(), did, slot, "alice.bsky.social", CharacterStatus.ACTIVE, Faction.NONE, Heat.ZERO,
-                Ethecoin.ZERO, T0, T0, 0);
+                UUID.randomUUID(),
+                did,
+                slot,
+                "alice.bsky.social",
+                CharacterStatus.ACTIVE,
+                Faction.NONE,
+                Heat.ZERO,
+                Ethecoin.ZERO,
+                T0,
+                T0,
+                0);
     }
 
     @Nested
@@ -48,6 +57,10 @@ class InMemoryPlayerSessionStoreTest {
 
             assertThat(session.playerId()).isEqualTo(player.playerId());
             assertThat(session.did()).isEqualTo(DID);
+            // The session carries the selected character as the actor game state keys on (09 §9).
+            assertThat(session.characterDid()).isEqualTo(player.characterDid());
+            assertThat(session.characterDid().accountDid()).isEqualTo(DID.value());
+            assertThat(session.characterDid().slot()).isEqualTo(1);
             assertThat(session.handle()).isEqualTo("alice.bsky.social");
             assertThat(session.issuedAt()).isEqualTo(T0);
             assertThat(session.expiresAt()).isEqualTo(T0.plus(TTL));

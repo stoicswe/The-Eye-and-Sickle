@@ -37,7 +37,8 @@ public record CharacterProperties(@DefaultValue("3") int maxCharacters) {
         }
         if (maxCharacters > Player.MAX_SLOT) {
             throw new IllegalArgumentException("eyeandsickle.characters.max-characters cannot exceed the structural "
-                    + "slot bound of " + Player.MAX_SLOT + " (there would be no slot to assign the extra character), was "
+                    + "slot bound of " + Player.MAX_SLOT
+                    + " (there would be no slot to assign the extra character), was "
                     + maxCharacters);
         }
     }

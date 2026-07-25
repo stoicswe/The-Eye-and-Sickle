@@ -1,5 +1,7 @@
 package io.github.stoicswe.eyeandsickle.server.items;
 
+import io.github.stoicswe.eyeandsickle.protocol.game.CharacterDid;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -19,6 +21,20 @@ public interface ItemStore {
      * @return the item, or empty if this server does not hold it
      */
     Optional<Item> find(UUID itemId);
+
+    /**
+     * Lists the items a <em>character</em> holds.
+     *
+     * <p>Keyed on the {@link CharacterDid}, not the account DID, so two characters of one account see
+     * <em>different</em> inventories ({@code docs/architecture/09-player-state-portability.md} §9,
+     * Q-item-keying option 3). The parameter is a {@link CharacterDid} rather than a bare string precisely
+     * so a caller cannot re-introduce the account-shared bug by keying this read on an account DID — the
+     * only inventory you can ask for is a single character's.
+     *
+     * @param holder the character whose items to list
+     * @return that character's items, in no guaranteed order; empty if it holds none
+     */
+    List<Item> findByHolder(CharacterDid holder);
 
     /**
      * @param itemId the item's identity
@@ -43,8 +59,14 @@ public interface ItemStore {
      * ({@link ItemProvenanceService}); this is the item half. The version check turns two concurrent
      * transfers of the same item into a retryable failure rather than a lost write.
      *
+     * <p>{@code newHolderDid} is a holder string — for a local move, the character DID
+     * ({@code did:eyeandsickle:<slot>:<accountDid>}) that {@link ItemProvenanceService} derives from the
+     * new owning character (09 §9); for an ingested item, the holder string the verified chain tip carried.
+     * A plain {@code String} keeps this persistence primitive honest to the {@code holder_did} text column
+     * and able to store a foreign holder it does not parse.
+     *
      * @param itemId the item's identity
-     * @param newHolderDid the DID the item now belongs to
+     * @param newHolderDid the (character) DID string the item now belongs to
      * @param expectedRowVersion the version the caller read the item at
      * @return the item's new {@code rowVersion}
      * @throws org.springframework.dao.OptimisticLockingFailureException if no row matched the version

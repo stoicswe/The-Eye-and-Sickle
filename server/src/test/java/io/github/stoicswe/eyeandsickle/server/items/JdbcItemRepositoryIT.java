@@ -3,6 +3,7 @@ package io.github.stoicswe.eyeandsickle.server.items;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import io.github.stoicswe.eyeandsickle.protocol.game.CharacterDid;
 import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
 import io.github.stoicswe.eyeandsickle.server.persistence.PostgresIntegrationTestBase;
 import java.time.Instant;
@@ -29,6 +30,12 @@ class JdbcItemRepositoryIT extends PostgresIntegrationTestBase {
     private static final String OTHER_HOLDER = "did:plc:holder11111111111111";
     private static final Instant ACQUIRED = Instant.parse("2026-08-01T12:00:00Z");
 
+    /** One account with two characters in different slots — the 09 §9 separation the holder key must give. */
+    private static final String ACCOUNT_DID = "did:plc:account00000000000";
+
+    private static final CharacterDid CHARACTER_SLOT_1 = new CharacterDid(ACCOUNT_DID, 1);
+    private static final CharacterDid CHARACTER_SLOT_2 = new CharacterDid(ACCOUNT_DID, 2);
+
     private JdbcItemRepository repository;
 
     @BeforeEach
@@ -39,6 +46,18 @@ class JdbcItemRepositoryIT extends PostgresIntegrationTestBase {
     private Item stored(UUID id, StorageTier tier, UUID socketedIn) {
         return new Item(
                 id, "hacking_tool_tier2", Map.of("power", 42, "grade", "t2"), HOLDER, tier, socketedIn, ACQUIRED, 0L);
+    }
+
+    private Item storedFor(UUID id, CharacterDid holder) {
+        return new Item(
+                id,
+                "hacking_tool_tier2",
+                Map.of("power", 42, "grade", "t2"),
+                holder.value(),
+                StorageTier.VAULT,
+                null,
+                ACQUIRED,
+                0L);
     }
 
     // ------------------------------------------------------------------ round-trip
@@ -92,6 +111,41 @@ class JdbcItemRepositoryIT extends PostgresIntegrationTestBase {
 
         assertThatThrownBy(() -> repository.insert(stored(id, StorageTier.VAULT, null)))
                 .isInstanceOf(DataAccessException.class);
+    }
+
+    // ------------------------------------------------------------------ character-DID holder (09 §9)
+
+    @Test
+    @DisplayName("holder_did stores and reads a character DID intact (is_did accepts it, no schema change)")
+    void holderDidStoresAndReadsACharacterDid() {
+        UUID id = UUID.randomUUID();
+        // The insert only succeeds if ck_items_holder_shape's is_did() accepts the character DID string;
+        // that it round-trips proves the *_did column stores it as-is (09 §9, no schema/constraint change).
+        repository.insert(storedFor(id, CHARACTER_SLOT_1));
+
+        Item found = repository.find(id).orElseThrow();
+        assertThat(found.holderDid()).isEqualTo(CHARACTER_SLOT_1.value());
+        assertThat(CharacterDid.from(found.holderDid()))
+                .as("the stored holder parses back to the same account and slot")
+                .isEqualTo(CHARACTER_SLOT_1);
+    }
+
+    @Test
+    @DisplayName("findByHolder is per-character, so one account's characters do not share items (ix_items_holder)")
+    void findByHolderIsPerCharacter() {
+        UUID itemOfSlot1 = UUID.randomUUID();
+        UUID itemOfSlot2 = UUID.randomUUID();
+        // Both characters belong to the SAME account DID; only the slot differs.
+        repository.insert(storedFor(itemOfSlot1, CHARACTER_SLOT_1));
+        repository.insert(storedFor(itemOfSlot2, CHARACTER_SLOT_2));
+
+        assertThat(repository.findByHolder(CHARACTER_SLOT_1))
+                .as("the ix_items_holder read keyed on the character DID returns only that character's item")
+                .extracting(Item::itemId)
+                .containsExactly(itemOfSlot1);
+        assertThat(repository.findByHolder(CHARACTER_SLOT_2))
+                .extracting(Item::itemId)
+                .containsExactly(itemOfSlot2);
     }
 
     // ------------------------------------------------------------------ version-checked holder update

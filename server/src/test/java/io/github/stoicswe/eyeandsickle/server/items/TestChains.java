@@ -1,6 +1,7 @@
 package io.github.stoicswe.eyeandsickle.server.items;
 
 import io.github.stoicswe.eyeandsickle.protocol.crypto.Ed25519Signatures;
+import io.github.stoicswe.eyeandsickle.protocol.game.CharacterDid;
 import io.github.stoicswe.eyeandsickle.protocol.provenance.DuelCommitteeLookup;
 import io.github.stoicswe.eyeandsickle.protocol.provenance.ProvenanceEnvelope;
 import io.github.stoicswe.eyeandsickle.protocol.provenance.ProvenanceEventType;
@@ -40,6 +41,16 @@ final class TestChains {
     static final String ROGUE_DID = "did:plc:rogueserver000000000";
     static final String HOLDER = "did:plc:holder00000000000000";
     static final String OTHER_HOLDER = "did:plc:holder11111111111111";
+
+    /**
+     * One account DID with two characters in different slots. Their derived character DIDs differ, which is
+     * what lets a test show two characters of a single account holding <em>separate</em> items (09 §9). Item
+     * ownership keys on the character DID, so these — not {@link #HOLDER} — are what mint/grant/trade stamp.
+     */
+    static final String ACCOUNT_DID = "did:plc:account00000000000";
+
+    static final CharacterDid CHARACTER_SLOT_1 = new CharacterDid(ACCOUNT_DID, 1);
+    static final CharacterDid CHARACTER_SLOT_2 = new CharacterDid(ACCOUNT_DID, 2);
 
     /** The instant the verifier judges timestamps against. Fixed, so nothing here depends on today. */
     static final Instant NOW = Instant.parse("2026-08-01T12:00:00Z");
@@ -90,6 +101,14 @@ final class TestChains {
     }
 
     ProvenancePayload genesis(String issuerDid) {
+        return genesisForHolder(issuerDid, HOLDER);
+    }
+
+    /**
+     * A genesis payload minted to an arbitrary holder string — used to build a chain whose holder is a
+     * character DID ({@link #CHARACTER_SLOT_1}), showing ingress records a character holder verbatim (09 §9).
+     */
+    ProvenancePayload genesisForHolder(String issuerDid, String holderDid) {
         Map<String, Object> attrs = new LinkedHashMap<>();
         attrs.put("power", 42);
         attrs.put("durability", 0.87);
@@ -99,7 +118,7 @@ final class TestChains {
                 ITEM_TYPE,
                 attrs,
                 ProvenanceEventType.INITIAL_MINT,
-                HOLDER,
+                holderDid,
                 issuerDid,
                 null,
                 0,

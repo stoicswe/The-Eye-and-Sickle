@@ -1,6 +1,9 @@
 package io.github.stoicswe.eyeandsickle.server.items;
 
+import io.github.stoicswe.eyeandsickle.protocol.game.CharacterDid;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -22,6 +25,20 @@ final class FakeItemStore implements ItemStore {
     @Override
     public Optional<Item> find(UUID itemId) {
         return Optional.ofNullable(byId.get(itemId));
+    }
+
+    @Override
+    public List<Item> findByHolder(CharacterDid holder) {
+        String holderDid = holder.value();
+        List<Item> held = new ArrayList<>();
+        for (Item item : byId.values()) {
+            // Keyed on the character DID: two characters of one account (same account DID, different slot)
+            // have different character DIDs, so this returns only the queried character's items.
+            if (item.holderDid().equals(holderDid)) {
+                held.add(item);
+            }
+        }
+        return held;
     }
 
     @Override

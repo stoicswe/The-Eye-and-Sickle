@@ -55,7 +55,16 @@ final class FakePlayerRepository extends PlayerRepository {
     /** A freshly-created DID-bound character as {@link #createCharacter} makes one. */
     static Player active(UUID characterId, Did did, int slot, String handle, Instant now) {
         return new Player(
-                characterId, did, slot, handle, CharacterStatus.ACTIVE, Faction.NONE, Heat.ZERO, Ethecoin.ZERO, now, now,
+                characterId,
+                did,
+                slot,
+                handle,
+                CharacterStatus.ACTIVE,
+                Faction.NONE,
+                Heat.ZERO,
+                Ethecoin.ZERO,
+                now,
+                now,
                 0);
     }
 
@@ -106,8 +115,17 @@ final class FakePlayerRepository extends PlayerRepository {
         Objects.requireNonNull(now, "now");
         createLocalCalls.add(handle);
         Player created = new Player(
-                UUID.randomUUID(), null, null, handle, CharacterStatus.ACTIVE, Faction.NONE, Heat.ZERO, Ethecoin.ZERO,
-                now, now, 0);
+                UUID.randomUUID(),
+                null,
+                null,
+                handle,
+                CharacterStatus.ACTIVE,
+                Faction.NONE,
+                Heat.ZERO,
+                Ethecoin.ZERO,
+                now,
+                now,
+                0);
         byId.put(created.playerId(), created);
         return created;
     }

@@ -169,8 +169,7 @@ public class PlayerRepository {
                         INSERT INTO players (player_id, did, slot, handle, status, faction, personal_heat,
                                              ethecoin_balance_ec_minor, created_at, last_seen_at, row_version)
                         VALUES (:playerId, NULL, NULL, :handle, :status, 'none', 0, 0, :now, :now, 0)
-                        RETURNING """
-                        + " " + PlayerRows.COLUMNS)
+                        RETURNING """ + " " + PlayerRows.COLUMNS)
                 .param("playerId", UUID.randomUUID())
                 .param("handle", handle)
                 .param("status", CharacterStatus.ACTIVE.dbValue())

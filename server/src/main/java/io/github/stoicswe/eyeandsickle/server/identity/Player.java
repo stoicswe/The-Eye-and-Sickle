@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.server.identity;
 
+import io.github.stoicswe.eyeandsickle.protocol.game.CharacterDid;
 import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.protocol.game.Faction;
 import java.time.Instant;
@@ -113,5 +114,32 @@ public record Player(
      */
     public boolean isLocal() {
         return did == null;
+    }
+
+    /**
+     * This character's derived, per-character identity — the ownership/counterparty id that items, the
+     * ledger and (future) deployed miners key on, instead of the raw account {@link #did()}
+     * ({@code docs/architecture/09-player-state-portability.md} §9, Q-item-keying option 3).
+     *
+     * <h2>Why per-character and not the account DID</h2>
+     *
+     * The account DID is shared by all of an account's characters, so keying game state on it would make
+     * two characters share one inventory and one balance — the bug 09 §9 fixes. The character DID folds in
+     * the {@link #slot()}, so each character owns its own items and ledger while the account DID keeps
+     * doing auth and the directory. It is derived, not stored: {@code (did, slot)} is the source of truth
+     * and survives migration, which is why the holder is this stable DID rather than the freshly-minted
+     * {@link #playerId()} row id.
+     *
+     * <h2>Local characters have none</h2>
+     *
+     * A local, DID-less character (09 §1) has no account DID and is exempt from the federated economy, so
+     * it has no character DID: this returns {@code null} for one, mirroring {@link #isLocal()}. A caller
+     * that needs to stamp an actor must therefore be dealing with a DID-bound character — which every play
+     * session already is, since {@link InMemoryPlayerSessionStore} refuses to open one without a DID.
+     *
+     * @return the character DID for a DID-bound character, or {@code null} for a local one
+     */
+    public CharacterDid characterDid() {
+        return did == null ? null : new CharacterDid(did.value(), slot);
     }
 }

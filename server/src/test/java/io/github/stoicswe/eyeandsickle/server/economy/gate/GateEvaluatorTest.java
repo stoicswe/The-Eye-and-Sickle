@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
+import io.github.stoicswe.eyeandsickle.protocol.game.CharacterDid;
 import io.github.stoicswe.eyeandsickle.protocol.game.DifficultyTier;
 import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.protocol.game.Faction;
@@ -44,7 +45,12 @@ import org.springframework.jdbc.core.simple.JdbcClient;
  */
 class GateEvaluatorTest {
 
-    private static final String DID = "did:plc:player0000000000000000";
+    private static final String ACCOUNT = "did:plc:player0000000000000000";
+    // What the evaluator now keys on: the acting character's DID (09 §9), not the raw account DID. Two
+    // characters of one account are gated independently because each has its own character DID.
+    private static final String DID = CharacterDid.of(ACCOUNT, 1);
+    // A well-formed character DID that names no local character — the "not a local player" case.
+    private static final String GHOST = CharacterDid.of("did:plc:ghost00000000000000000", 1);
 
     private final FakeAccountRepository accounts = new FakeAccountRepository();
     private final FakeGateState gateState = new FakeGateState();
@@ -52,8 +58,15 @@ class GateEvaluatorTest {
 
     private final GateEvaluator evaluator = new GateEvaluator(accounts, gateState, schematics);
 
-    private static Account account(String did, long balanceMinor, String heat) {
-        return new Account(UUID.randomUUID(), did, Ethecoin.ofMinorUnits(balanceMinor), new BigDecimal(heat), 0L);
+    private static Account account(String characterDid, long balanceMinor, String heat) {
+        CharacterDid character = CharacterDid.from(characterDid);
+        return new Account(
+                UUID.randomUUID(),
+                character.accountDid(),
+                character.slot(),
+                Ethecoin.ofMinorUnits(balanceMinor),
+                new BigDecimal(heat),
+                0L);
     }
 
     private ConditionOutcome only(GateEvaluation evaluation) {
@@ -74,14 +87,13 @@ class GateEvaluatorTest {
             GatedOffering offering =
                     GatedOffering.single("x", new HeatStateRequirement(HeatDirection.COLD_GATED, BigDecimal.TEN));
 
-            assertThatThrownBy(() -> evaluator.evaluate("did:plc:ghost00000000000000000", offering))
-                    .isInstanceOf(UnknownPlayerException.class);
+            assertThatThrownBy(() -> evaluator.evaluate(GHOST, offering)).isInstanceOf(UnknownPlayerException.class);
         }
 
         @Test
         @DisplayName("evaluateAll also refuses an unknown player")
         void unknownPlayerIsRejectedInBatch() {
-            assertThatThrownBy(() -> evaluator.evaluateAll("did:plc:ghost00000000000000000", List.of()))
+            assertThatThrownBy(() -> evaluator.evaluateAll(GHOST, List.of()))
                     .isInstanceOf(UnknownPlayerException.class);
         }
 
@@ -420,7 +432,7 @@ class GateEvaluatorTest {
             List<GateEvaluation> results = evaluator.evaluateAll(DID, offerings);
 
             // The balance/heat snapshot is shared across every offering — one read, not three.
-            assertThat(accounts.findByDidCalls).isEqualTo(1);
+            assertThat(accounts.findByCharacterCalls).isEqualTo(1);
             assertThat(results).extracting(GateEvaluation::offeringId).containsExactly("a", "b", "c");
             assertThat(results).extracting(GateEvaluation::satisfied).containsExactly(true, false, true);
         }
@@ -430,7 +442,7 @@ class GateEvaluatorTest {
         void emptyOfferings() {
             accounts.with(account(DID, 0, "0"));
             assertThat(evaluator.evaluateAll(DID, List.of())).isEmpty();
-            assertThat(accounts.findByDidCalls).isEqualTo(1);
+            assertThat(accounts.findByCharacterCalls).isEqualTo(1);
         }
     }
 
@@ -446,22 +458,22 @@ class GateEvaluatorTest {
             super(mock(JdbcClient.class));
         }
 
-        void setStanding(String did, Faction faction, long standing) {
-            standings.put(did + "|" + faction, standing);
+        void setStanding(String characterDid, Faction faction, long standing) {
+            standings.put(characterDid + "|" + faction, standing);
         }
 
-        void setHighestLiveBreach(String did, PuzzleClass puzzleClass, int tier) {
-            highestLiveBreach.put(did + "|" + puzzleClass, DifficultyTier.of(tier));
-        }
-
-        @Override
-        public Optional<Long> factionStanding(String did, Faction faction) {
-            return Optional.ofNullable(standings.get(did + "|" + faction));
+        void setHighestLiveBreach(String characterDid, PuzzleClass puzzleClass, int tier) {
+            highestLiveBreach.put(characterDid + "|" + puzzleClass, DifficultyTier.of(tier));
         }
 
         @Override
-        public Optional<DifficultyTier> highestLiveBreachTier(String did, PuzzleClass puzzleClass) {
-            return Optional.ofNullable(highestLiveBreach.get(did + "|" + puzzleClass));
+        public Optional<Long> factionStanding(CharacterDid character, Faction faction) {
+            return Optional.ofNullable(standings.get(character.value() + "|" + faction));
+        }
+
+        @Override
+        public Optional<DifficultyTier> highestLiveBreachTier(CharacterDid character, PuzzleClass puzzleClass) {
+            return Optional.ofNullable(highestLiveBreach.get(character.value() + "|" + puzzleClass));
         }
     }
 

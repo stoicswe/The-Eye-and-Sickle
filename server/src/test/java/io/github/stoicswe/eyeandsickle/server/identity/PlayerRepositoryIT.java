@@ -208,6 +208,9 @@ class PlayerRepositoryIT extends PostgresIntegrationTestBase {
     }
 
     private long countPlayers() {
-        return jdbcClient().sql("SELECT count(*) FROM players").query(Long.class).single();
+        return jdbcClient()
+                .sql("SELECT count(*) FROM players")
+                .query(Long.class)
+                .single();
     }
 }

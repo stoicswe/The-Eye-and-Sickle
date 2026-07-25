@@ -245,10 +245,8 @@ public class CharacterService {
      * {@code uq_players_did_slot} still holds it, so a free slot must dodge them too.
      */
     private static int nextFreeSlot(List<Player> existing) {
-        Set<Integer> used = existing.stream()
-                .map(Player::slot)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
+        Set<Integer> used =
+                existing.stream().map(Player::slot).filter(Objects::nonNull).collect(Collectors.toSet());
         for (int slot = Player.MIN_SLOT; slot <= Player.MAX_SLOT; slot++) {
             if (!used.contains(slot)) {
                 return slot;

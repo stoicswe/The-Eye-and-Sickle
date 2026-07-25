@@ -26,8 +26,17 @@ class CharacterSummaryTest {
     void projectsDidBound() {
         UUID id = UUID.randomUUID();
         Player character = new Player(
-                id, DID, 2, "alice.bsky.social", CharacterStatus.ACTIVE, Faction.SICKLE, Heat.ZERO, Ethecoin.ZERO, NOW,
-                NOW, 0);
+                id,
+                DID,
+                2,
+                "alice.bsky.social",
+                CharacterStatus.ACTIVE,
+                Faction.SICKLE,
+                Heat.ZERO,
+                Ethecoin.ZERO,
+                NOW,
+                NOW,
+                0);
 
         CharacterSummary summary = CharacterSummary.from(character);
 
@@ -42,8 +51,17 @@ class CharacterSummaryTest {
     @DisplayName("a local, slot-less character cannot be summarized as an account character")
     void refusesLocal() {
         Player local = new Player(
-                UUID.randomUUID(), null, null, "solo", CharacterStatus.ACTIVE, Faction.NONE, Heat.ZERO, Ethecoin.ZERO,
-                NOW, NOW, 0);
+                UUID.randomUUID(),
+                null,
+                null,
+                "solo",
+                CharacterStatus.ACTIVE,
+                Faction.NONE,
+                Heat.ZERO,
+                Ethecoin.ZERO,
+                NOW,
+                NOW,
+                0);
 
         assertThatThrownBy(() -> CharacterSummary.from(local)).isInstanceOf(IllegalArgumentException.class);
     }

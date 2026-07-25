@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.server.identity;
 
+import io.github.stoicswe.eyeandsickle.protocol.game.CharacterDid;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
@@ -24,22 +25,49 @@ import java.util.UUID;
  * un-issued. On an allowlist-bounded home server the lookup cost is trivial and the revocability is
  * worth far more.
  *
+ * <h2>The selected character, carried as the actor (09 §9)</h2>
+ *
+ * A session is opened for one <em>selected</em> character (one authenticated account, one selected
+ * character, one session), so it carries that character's {@link CharacterDid} — the per-character
+ * identity that items, the ledger and (future) deployed miners stamp as the actor, rather than the raw
+ * account {@link #did()} which all of an account's characters share. Both are held: {@code did} is the
+ * account identity for auth/allowlist decisions, {@code characterDid} is the game-state owner. The
+ * constructor checks they agree ({@code characterDid.accountDid()} equals {@code did}), so a session can
+ * never stamp a character that belongs to a different account.
+ *
  * @param token the opaque bearer token; high-entropy and never derived from the player's identity, so
  *     it leaks nothing and guessing one is infeasible
- * @param playerId the authenticated player's server-local id
- * @param did the authenticated player's portable identity
+ * @param playerId the authenticated player's server-local id (the selected character's id)
+ * @param did the authenticated player's portable <em>account</em> identity
+ * @param characterDid the selected character's derived per-character identity — the actor game state keys
+ *     on (09 §9); its {@code accountDid()} always equals {@code did}
  * @param handle the display handle at issue time, for convenience; not authoritative
  * @param issuedAt when the session began
  * @param expiresAt when it stops being valid; a bounded lifetime limits the damage of a leaked token
  */
-public record PlayerSession(String token, UUID playerId, Did did, String handle, Instant issuedAt, Instant expiresAt) {
+public record PlayerSession(
+        String token,
+        UUID playerId,
+        Did did,
+        CharacterDid characterDid,
+        String handle,
+        Instant issuedAt,
+        Instant expiresAt) {
 
     public PlayerSession {
         Objects.requireNonNull(token, "token");
         Objects.requireNonNull(playerId, "playerId");
         Objects.requireNonNull(did, "did");
+        Objects.requireNonNull(characterDid, "characterDid");
         Objects.requireNonNull(issuedAt, "issuedAt");
         Objects.requireNonNull(expiresAt, "expiresAt");
+        // A session's character must belong to its account — otherwise it would stamp game state for a
+        // character on a different DID. The character DID is derived from (account DID, slot), so its
+        // account component must match the session's account identity.
+        if (!did.value().equals(characterDid.accountDid())) {
+            throw new IllegalArgumentException("session account DID " + did + " does not match the selected "
+                    + "character's account " + characterDid.accountDid());
+        }
         if (expiresAt.isBefore(issuedAt)) {
             throw new IllegalArgumentException("session expiresAt " + expiresAt + " precedes issuedAt " + issuedAt);
         }

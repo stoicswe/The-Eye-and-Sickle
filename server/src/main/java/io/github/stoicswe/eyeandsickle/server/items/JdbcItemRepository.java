@@ -1,9 +1,11 @@
 package io.github.stoicswe.eyeandsickle.server.items;
 
+import io.github.stoicswe.eyeandsickle.protocol.game.CharacterDid;
 import io.github.stoicswe.eyeandsickle.server.persistence.EnumColumns;
 import io.github.stoicswe.eyeandsickle.server.persistence.Jsonb;
 import io.github.stoicswe.eyeandsickle.server.persistence.Mutations;
 import io.github.stoicswe.eyeandsickle.server.persistence.Timestamps;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -39,6 +41,20 @@ public final class JdbcItemRepository implements ItemStore {
                 .param("itemId", itemId)
                 .query(ItemRows.MAPPER)
                 .optional();
+    }
+
+    @Override
+    public List<Item> findByHolder(CharacterDid holder) {
+        Objects.requireNonNull(holder, "holder");
+        // Reads by holder_did — the character DID string — served by ix_items_holder. Because holder_did
+        // now stores the character DID (09 §9), this returns exactly one character's items, so an account's
+        // characters never see a shared inventory.
+        return jdbcClient
+                .sql("SELECT " + ItemRows.COLUMNS + " FROM items WHERE " + ItemRows.HOLDER_DID
+                        + " = :holderDid ORDER BY " + ItemRows.ITEM_ID)
+                .param("holderDid", holder.value())
+                .query(ItemRows.MAPPER)
+                .list();
     }
 
     @Override
