@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.github.stoicswe.eyeandsickle</groupId>
+    <artifactId>eyeandsickle-parent</artifactId>
+    <version>${revision}</version>
+  </parent>
+
+  <artifactId>eyeandsickle-server</artifactId>
+  <name>The Eye and Sickle :: Home Server</name>
+  <description>
+    The self-hostable home server (docs/architecture/01 §2, 03).
+
+    Owns and validates ALL game state for its players in PostgreSQL. This module
+    is authoritative: anything a cheating client could lie about — item
+    ownership, ethecoin balances, compute allocation, duel outcomes — is decided
+    here (Invariants I14 / I15).
+
+    This module is, and must stay, a reactor LEAF. spring-boot-maven-plugin's
+    `repackage` goal rewrites the main artifact into a fat jar whose classes sit
+    under BOOT-INF/classes, which is not resolvable as a normal Maven
+    dependency. If something ever needs to depend on server code, split a plain
+    `server-core` jar out below this module rather than depending on the
+    repackaged artifact — the enforcer rule below makes that failure loud.
+  </description>
+
+  <dependencyManagement>
+    <dependencies>
+      <!--
+        Imported HERE and not in the root pom on purpose. An import-scope BOM in
+        the parent is inherited by every module, so a Spring Boot upgrade would
+        silently retarget the client's Jackson/SLF4J/JUnit versions too. Keeping
+        it local means Boot manages exactly the module that asked for it.
+      -->
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-dependencies</artifactId>
+        <version>${spring-boot.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <dependency>
+      <groupId>io.github.stoicswe.eyeandsickle</groupId>
+      <artifactId>eyeandsickle-protocol</artifactId>
+    </dependency>
+
+    <!-- REST for CRUD; WebSocket for live engagements (breaches, raid alerts,
+         join notifications) — docs/architecture/01 §5 [PROPOSAL]. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-websocket</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-validation</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+
+    <!--
+      All game state lives in this server's Postgres (Invariant I14).
+
+      RESOLVED (open question A-4, docs/design/15): Spring's JdbcClient over
+      hand-written SQL, mapping to Java records. NOT JPA/Hibernate, NOT jOOQ.
+
+      Three reasons, in order of weight:
+        1. The signed crypto payloads and item attrs are document-shaped jsonb
+           (docs/architecture/06 §4). JPA is awkward with jsonb; JdbcClient just
+           passes it through.
+        2. The manual-audit gameplay (docs/design/04 §3.1) runs against the
+           compute ledger, and Invariant I6 makes a *discrepancy* the signal a
+           player is hunting for. Queries that carry that meaning should be
+           legible SQL, not a derived ORM projection.
+        3. jOOQ was the close runner-up and is arguably the better fit for the
+           relational core — but its codegen wants a live database at build time,
+           which would break "mvn verify must never require Docker".
+
+      Flyway owns the schema; nothing here alters it.
+    -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-jdbc</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+    <!--
+      MUST be the STARTER, not a bare org.flywaydb:flyway-core.
+
+      Spring Boot 4 split spring-boot-autoconfigure into per-technology modules,
+      so FlywayAutoConfiguration now lives in org.springframework.boot:spring-boot-flyway
+      and nothing else drags it in. With only flyway-core on the classpath the
+      Flyway classes load fine, `mvn verify` is green, and every spring.flyway.*
+      key in application.yml binds to nothing — migrations simply never run. That
+      failure is invisible until a self-hoster's database is silently empty.
+    -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-flyway</artifactId>
+    </dependency>
+    <!-- Flyway 10+ moved per-database support into its own artifact; without
+         this one, Postgres migrations fail at runtime, not at build time. -->
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-database-postgresql</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+
+    <!-- AT Protocol OAuth, AUTHENTICATION ONLY (docs/architecture/02).
+         The player's DID is the portable ID; no game state is ever written to
+         a player's PDS. -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-security</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-oauth2-client</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!--
+      Only exercised under `mvn -Pit verify`; needs a Docker daemon.
+
+      NOTE the artifact names. Testcontainers 2.x renamed every module to a
+      `testcontainers-` prefix, so the 1.x coordinates `org.testcontainers:postgresql`
+      and `org.testcontainers:junit-jupiter` no longer resolve. Copying a 1.x
+      snippet off the internet will fail with a bare "version is missing".
+    -->
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers-postgresql</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers-junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <configuration>
+          <!--
+            Give the executable fat jar a classifier, so the PLAIN jar stays the module's default
+            artifact. Without this, repackage rewrites the one-and-only jar into the fat-jar layout
+            (classes under BOOT-INF/), and then a @SpringBootTest integration test run by failsafe —
+            which happens AFTER the package phase — cannot find the application class on its
+            classpath. This is the concrete form of the CLAUDE.md warning that repackage rewrites the
+            jar; the classifier keeps a normal jar around alongside the runnable one.
+            Run the server with: java -jar eyeandsickle-server-<version>-boot.jar
+          -->
+          <classifier>boot</classifier>
+        </configuration>
+        <executions>
+          <execution>
+            <goals><goal>repackage</goal></goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>server-has-no-ui</id>
+            <goals><goal>enforce</goal></goals>
+            <configuration>
+              <rules>
+                <bannedDependencies>
+                  <message>
+                    The home server must not depend on JavaFX or on the client
+                    module. Rendering belongs to the client; authority belongs
+                    to the server, and the boundary is one-directional.
+                  </message>
+                  <searchTransitive>true</searchTransitive>
+                  <excludes>
+                    <exclude>org.openjfx:*</exclude>
+                    <exclude>io.github.mkpaz:*</exclude>
+                    <exclude>io.github.stoicswe.eyeandsickle:eyeandsickle-client</exclude>
+                  </excludes>
+                </bannedDependencies>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

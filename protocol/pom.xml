@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.github.stoicswe.eyeandsickle</groupId>
+    <artifactId>eyeandsickle-parent</artifactId>
+    <version>${revision}</version>
+  </parent>
+
+  <artifactId>eyeandsickle-protocol</artifactId>
+  <name>The Eye and Sickle :: Protocol</name>
+  <description>
+    Wire types shared by client and server, plus the item-provenance verifier.
+
+    Named `protocol` rather than `common` on purpose: `common` is a junk drawer
+    that names no rule, so a heat threshold or a price constant can drift in
+    unnoticed. `protocol` names one — "this is what crosses the wire" — which
+    makes a game rule sitting here read as obviously wrong.
+
+    THE CHARTER (enforced by ArchitectureRulesTest, not just by good intentions):
+      * Records, enums and sealed interfaces describing what crosses the wire.
+      * The provenance chain verifier, which docs/architecture/04 §6.2 requires
+        to run client-side and offline, byte-identically to the server's copy.
+      * NO game rules. No thresholds, no prices, no yields, no recovery curves,
+        no gate evaluation. Those are authoritative state and belong to the
+        server (Invariant I14 — the client is never authoritative over anything
+        a cheater would forge).
+      * No Spring, no JavaFX, no persistence, no clock, no randomness.
+  </description>
+
+  <dependencies>
+    <!--
+      RFC 8785 JSON Canonicalization Scheme, the reference JVM implementation.
+      docs/architecture/04 §4 fixes JCS as the canonicalization. Zero compile
+      dependencies of its own (verified), which is what keeps this module's
+      resolved tree austere enough to jlink into the client later.
+    -->
+    <dependency>
+      <groupId>io.github.erdtman</groupId>
+      <artifactId>java-json-canonicalization</artifactId>
+      <version>${json-canonicalization.version}</version>
+    </dependency>
+
+    <!--
+      Jackson 3 (`tools.jackson.*`, NOT `com.fasterxml.jackson.*`). Pinned to
+      the same version Spring Boot 4.1 manages, so one Jackson serves the whole
+      reactor. Jackson 2 and 3 have different package names and CAN coexist —
+      which is exactly how a project ends up shipping both by accident.
+    -->
+    <dependency>
+      <groupId>tools.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>${jackson.version}</version>
+    </dependency>
+
+    <!--
+      NOTE: no crypto dependency. Ed25519 (EdDSA) is in java.base via the SunEC
+      provider on every JDK 15+; verified on the build JDK. BouncyCastle would
+      be a 5 MB dependency for an algorithm the platform already has, and it
+      would have to be jlinked into the client image for nothing.
+    -->
+
+    <dependency>
+      <groupId>com.tngtech.archunit</groupId>
+      <artifactId>archunit</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>protocol-stays-austere</id>
+            <goals><goal>enforce</goal></goals>
+            <configuration>
+              <rules>
+                <bannedDependencies>
+                  <message>
+                    eyeandsickle-protocol must not depend on Spring, JavaFX, a
+                    persistence provider, or a logging backend. It is shared by
+                    a JavaFX desktop client and a Spring Boot server, and it is
+                    a candidate for a jlink runtime image. If you need one of
+                    these, the code belongs in server or client, not here.
+                  </message>
+                  <searchTransitive>true</searchTransitive>
+                  <excludes>
+                    <exclude>org.springframework:*</exclude>
+                    <exclude>org.springframework.boot:*</exclude>
+                    <exclude>org.openjfx:*</exclude>
+                    <exclude>jakarta.persistence:*</exclude>
+                    <exclude>org.hibernate*:*</exclude>
+                    <exclude>ch.qos.logback:*</exclude>
+                    <exclude>org.apache.logging.log4j:*</exclude>
+                  </excludes>
+                </bannedDependencies>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

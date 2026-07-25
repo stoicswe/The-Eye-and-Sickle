@@ -1,0 +1,37 @@
+-- ===========================================================================
+-- V1 — baseline (intentionally empty)
+--
+-- The concrete game-state schema is NOT settled. docs/architecture/06-data-model.md
+-- is tagged [PROPOSAL]: it sketches players, rigs, compute_allocations, items,
+-- provenance_records, ledger_transactions, deployed_miners and breach_resolutions,
+-- but the doc itself says nothing depends on those specifics — only on the
+-- constraints in its §1.
+--
+-- Writing that proposal into a migration would silently promote it to a decision,
+-- which CLAUDE.md's working agreements explicitly warn against. Migrations are
+-- also the hardest kind of decision to walk back once a self-hosted server has
+-- run them against real player data.
+--
+-- So this file establishes the Flyway history table and nothing else.
+--
+-- The constraints any real V2 must satisfy (docs/architecture/06 §1 — these are
+-- firm, unlike the table sketches):
+--
+--   1. All game state lives here, in the server's Postgres — never in a player's
+--      PDS (Invariant I14).
+--   2. The public ledger is queryable: ethecoin transactions are first-class
+--      rows, not a derived view. Player and NPC investigators follow EC flows to
+--      build evidence, so this is a gameplay surface, not bookkeeping.
+--   3. Provenance chains are storable and queryable by item_id, with chain_depth
+--      range access for the player-facing item-history view.
+--   4. The compute ledger is reconstructable: every allocation must be
+--      attributable, because manual-audit gameplay runs against exactly this
+--      data — a discrepancy between allocated and reserved cycles is what a
+--      hidden hostile miner looks like.
+--   5. faction_reputation and validator_reputation are DIFFERENT THINGS. Separate
+--      tables, no shared column, and ideally no schema in which a join between
+--      them is expressible.
+--
+-- Federation tables (validators, duels, flagged_servers) belong under
+-- db/migration/federation, which only runs when the federation profile is active.
+-- ===========================================================================

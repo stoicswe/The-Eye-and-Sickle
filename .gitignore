@@ -1,0 +1,227 @@
+# ---------------------------------------------------------------------------
+# The Eye and Sickle — .gitignore
+#
+# Ordered most-damaging-first. Sections 1-2 are the ones that actually matter:
+# this project signs item provenance and validator-quorum outcomes with Ed25519
+# keys (docs/architecture/04, 05). A leaked private key is item-forging material
+# and cannot be un-leaked — rotation is the only remedy.
+# ---------------------------------------------------------------------------
+
+# --- 1. Keys and signing material ------------------------------------------
+# Ignore by extension, then un-ignore individual PUBLIC files by hand.
+*.pem
+*.key
+*.p8
+*.pkcs8
+*.jwk
+*.jwks
+*.der
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.truststore
+*.asc
+*.gpg
+id_ed25519*
+secring.*
+/keys/
+/secrets/
+**/server-signing-key*
+**/validator-key*
+# Public keys and test vectors are safe and SHOULD be committed:
+!**/*.pub.pem
+!**/*.public.jwk
+!**/testdata/**/*.pem
+
+# --- 2. Secrets and local configuration -------------------------------------
+# AT Proto OAuth client secrets, DB passwords, federation directory tokens.
+.env
+.env.*
+!.env.example
+*.local.yml
+*.local.yaml
+*.local.properties
+application-local.yml
+application-local.yaml
+application-local.properties
+application-secrets.*
+**/src/main/resources/application-local.*
+**/src/test/resources/application-local.*
+credentials.json
+*-credentials.json
+
+# --- 3. Maven build output ---------------------------------------------------
+target/
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+.flattened-pom.xml
+dependency-reduced-pom.xml
+pom.xml.versionsBackup
+pom.xml.releaseBackup
+pom.xml.next
+pom.xml.tag
+release.properties
+buildNumber.properties
+.maven-dockerignore
+# Commit these — they are what make `./mvnw` reproducible for contributors:
+!.mvn/wrapper/maven-wrapper.properties
+!.mvn/jvm.config
+!mvnw
+!mvnw.cmd
+
+# --- 4. Client packaging (jlink / jpackage, -Pdist) --------------------------
+# Self-contained runtime images and installers are build products, and the
+# platform-specific ones are large. See client/pom.xml profile `dist`.
+/client/target/app/
+/client/target/image/
+/client/target/installer/
+/client/target/jpackage/
+*.dmg
+*.pkg
+*.msi
+*.exe
+*.deb
+*.rpm
+*.app/
+*.AppImage
+
+# --- 5. Server runtime and container state ----------------------------------
+# Postgres volumes bind-mounted by deploy/docker-compose.yml.
+/deploy/pgdata/
+/deploy/data/
+pgdata/
+docker-compose.override.yml
+compose.override.yml
+.docker/
+
+# --- 6. JVM crash and diagnostic output --------------------------------------
+hs_err_pid*.log
+replay_pid*.log
+javacore.*.txt
+Snap.*.trc
+core.*.dmp
+jitdump.*.dmp
+*.hprof
+*.jfr
+*.heapdump
+/logs/
+*.log
+!**/src/**/*.log
+
+# --- 7. Test and coverage output ---------------------------------------------
+.surefire-*
+surefire-reports/
+failsafe-reports/
+/jacoco.exec
+*.exec
+.testcontainers*
+
+# --- 8. IntelliJ IDEA ---------------------------------------------------------
+# The dataSources files are the dangerous ones — they carry JDBC URLs and
+# sometimes passwords.
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/usage.statistics.xml
+.idea/shelf/
+.idea/httpRequests/
+.idea/dataSources/
+.idea/dataSources.xml
+.idea/dataSources.local.xml
+.idea/sqlDataSources.xml
+.idea/dynamic.xml
+.idea/modules.xml
+.idea/libraries/
+.idea/artifacts/
+.idea/compiler.xml
+.idea/jarRepositories.xml
+.idea/misc.xml
+*.iml
+*.ipr
+*.iws
+out/
+# Worth committing when the team agrees on them:
+#   .idea/codeStyles/  .idea/inspectionProfiles/  .idea/runConfigurations/
+#   .idea/encodings.xml  .idea/vcs.xml
+
+# --- 9. Eclipse / Spring Tool Suite ------------------------------------------
+.classpath
+.project
+.settings/
+.metadata/
+.factorypath
+.apt_generated/
+.apt_generated_tests/
+.springBeans
+.sts4-cache/
+# NOTE: Eclipse's default output folder is bin/. If a repo-level ./bin of shell
+# scripts is ever added, change this to */bin/ so those scripts stay tracked.
+bin/
+
+# --- 10. VS Code --------------------------------------------------------------
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.vscode/settings.local.json
+.vscode/.jdt_ws/
+*.code-workspace
+
+# --- 11. NetBeans -------------------------------------------------------------
+nbproject/private/
+nbbuild/
+nbdist/
+nbactions.xml
+nbactions-*.xml
+.netbeans_automatic_build
+
+# --- 12. macOS ----------------------------------------------------------------
+.DS_Store
+.DS_Store?
+._*
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.fseventsd
+.DocumentRevisions-V100
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# --- 13. Windows ---------------------------------------------------------------
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.stackdump
+*.lnk
+
+# --- 14. Linux -----------------------------------------------------------------
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# --- 15. Editor scratch and merge leftovers -------------------------------------
+*.swp
+*.swo
+.*.sw[a-p]
+\#*\#
+.\#*
+*.bak
+*.orig
+*.rej
+*.tmp
+*.temp
+
+# --- 16. Agent / local tooling state ---------------------------------------------
+# Commit: CLAUDE.md, .claude/settings.json, .claude/commands/, .claude/agents/
+.claude/settings.local.json
+.claude/*.local.json
+.claude/state/
+.claude/todos/
+CLAUDE.local.md

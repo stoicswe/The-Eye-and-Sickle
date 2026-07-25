@@ -1,0 +1,103 @@
+# ---------------------------------------------------------------------------
+# Home server configuration.
+#
+# Everything secret comes from the environment, never from this file. See
+# deploy/docker-compose.yml and deploy/.env.example. Anything you put here is
+# committed to git; .gitignore blocks application-local.yml for local overrides.
+# ---------------------------------------------------------------------------
+spring:
+  application:
+    name: eyeandsickle-server
+
+  datasource:
+    # All game state lives here (Invariant I14). No game data is ever written to
+    # a player's AT Protocol PDS.
+    url: ${EYEANDSICKLE_DB_URL:jdbc:postgresql://localhost:5432/eyeandsickle}
+    username: ${EYEANDSICKLE_DB_USER:eyeandsickle}
+    password: ${EYEANDSICKLE_DB_PASSWORD:}
+    hikari:
+      pool-name: eyeandsickle-pool
+      maximum-pool-size: ${EYEANDSICKLE_DB_POOL_MAX:10}
+
+  # No JPA. Data access is Spring's JdbcClient over hand-written SQL mapped to
+  # records (open question A-4, resolved — see server/pom.xml for the reasoning).
+  # Flyway owns the schema outright; nothing at runtime alters it, because an
+  # implicit schema change on a self-hosted server is an unreviewed migration
+  # running on someone else's data.
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration/core
+    baseline-on-migrate: false
+    # Federation tables only exist on servers that opted into federation, so
+    # their migrations live in a separate location that the `federation` profile
+    # below adds to this list.
+    #
+    # Both locations are scanned by ONE Flyway instance and therefore share one
+    # flyway_schema_history and one version namespace. That means version numbers
+    # must not collide across the two directories, so they get disjoint ranges:
+    #
+    #     db/migration/core        V1, V2, V3, ...
+    #     db/migration/federation  V1001, V1002, ...
+    #
+    # A federating server's history is then a superset of a non-federating one's,
+    # and turning federation on later only ever appends.
+
+  threads:
+    virtual:
+      enabled: true
+
+server:
+  port: ${EYEANDSICKLE_PORT:8080}
+  shutdown: graceful
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+logging:
+  level:
+    io.github.stoicswe.eyeandsickle: ${EYEANDSICKLE_LOG_LEVEL:INFO}
+
+eyeandsickle:
+  # Minecraft-style access control: a self-hosted server is private by default
+  # and the operator chooses who joins (docs/architecture/01 §2).
+  allowlist:
+    enabled: true
+    # Comma-separated AT Protocol DIDs, supplied by the operator. Empty means
+    # nobody joins — deliberately closed by default.
+    dids: ${EYEANDSICKLE_ALLOWLIST_DIDS:}
+
+  federation:
+    # Opt-in (docs/architecture/03 §2). Off means this is a purely local
+    # single-player or friends server: no directory, no validator duty, no
+    # cross-server item transfers.
+    enabled: ${EYEANDSICKLE_FEDERATION_ENABLED:false}
+
+---
+# Activated with: --spring.profiles.active=federation
+spring:
+  config:
+    activate:
+      on-profile: federation
+  flyway:
+    locations: classpath:db/migration/core,classpath:db/migration/federation
+
+eyeandsickle:
+  federation:
+    enabled: true
+    # Recommended starting points from docs/architecture/05 §2, §3. These are
+    # tuning knobs, not invariants — measure against real federation behaviour.
+    quorum:
+      committee-size: 7            # N = 7 -> f = 2 -> 5 of 7 must agree
+      reputation-increase-alpha: 0.05
+      reputation-decrease-beta: 0.25
+      uptime-decay-gamma: 0.10
+      equivocation-floor: 0.10     # hard slash; equivocation is provable
+      newcomer-reputation: 0.40    # cold-start floor, or new servers deadlock

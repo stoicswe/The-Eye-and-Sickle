@@ -1,0 +1,314 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!--
+    The Eye and Sickle — reactor root.
+
+    DELIBERATELY INHERITS FROM NOTHING. In particular it does NOT inherit
+    org.springframework.boot:spring-boot-starter-parent. Boot's parent carries
+    dependencyManagement AND plugin configuration that would silently apply to
+    the JavaFX client module, which must never see Spring on its classpath
+    (see the enforcer rules in client/pom.xml). The server imports the Boot BOM
+    in its own pom instead, which confines Boot's version management to the one
+    module that wants it.
+  -->
+  <groupId>io.github.stoicswe.eyeandsickle</groupId>
+  <artifactId>eyeandsickle-parent</artifactId>
+  <version>${revision}</version>
+  <packaging>pom</packaging>
+
+  <name>The Eye and Sickle</name>
+  <description>
+    A puzzle-centric hacking game in a surveillance-dystopia setting: The Eye
+    (the surveillance state) against The Sickle (a decentralized resistance).
+    Single-player by default, with opt-in real-loss multiplayer over a
+    federated, self-hostable server network. See docs/.
+  </description>
+  <url>https://github.com/stoicswe/The-Eye-and-Sickle</url>
+
+  <licenses>
+    <license>
+      <name>See LICENSE at the repository root</name>
+      <url>https://github.com/stoicswe/The-Eye-and-Sickle/blob/main/LICENSE</url>
+    </license>
+  </licenses>
+
+  <modules>
+    <module>protocol</module>
+    <module>server</module>
+    <module>client</module>
+  </modules>
+
+  <properties>
+    <!--
+      CI-friendly single-version scheme. Bump the version in ONE place here;
+      flatten-maven-plugin resolves ${revision} at install/deploy time so the
+      published pom never contains an unresolved property.
+    -->
+    <revision>0.1.0-SNAPSHOT</revision>
+
+    <!--
+      Java 25 is the current LTS. We deliberately target the LTS rather than the
+      newest release (26) even though the build JDK may be newer: self-hosters
+      run the server from a Docker base image, and LTS images are the ones with
+      long-term security updates. The compiler's `release` setting makes this
+      exact and checked, not merely aspirational.
+
+      Floor check: JavaFX 26.0.2 jars are Java 24 bytecode, so 25 clears them.
+    -->
+    <maven.compiler.release>25</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+    <!-- Dependency versions. Every one verified present on Maven Central. -->
+    <spring-boot.version>4.1.0</spring-boot.version>
+    <javafx.version>26.0.2</javafx.version>
+    <atlantafx.version>2.1.0</atlantafx.version>
+    <jackson.version>3.1.4</jackson.version>
+    <json-canonicalization.version>1.1</json-canonicalization.version>
+    <junit.version>6.1.2</junit.version>
+    <assertj.version>3.27.7</assertj.version>
+    <archunit.version>1.4.2</archunit.version>
+
+    <!-- Plugin versions — pinned so a fresh clone builds identically. -->
+    <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
+    <maven-surefire-plugin.version>3.5.6</maven-surefire-plugin.version>
+    <maven-failsafe-plugin.version>3.5.6</maven-failsafe-plugin.version>
+    <maven-enforcer-plugin.version>3.6.3</maven-enforcer-plugin.version>
+    <maven-jar-plugin.version>3.5.1</maven-jar-plugin.version>
+    <flatten-maven-plugin.version>1.7.3</flatten-maven-plugin.version>
+    <javafx-maven-plugin.version>0.0.8</javafx-maven-plugin.version>
+    <spotless-maven-plugin.version>3.8.0</spotless-maven-plugin.version>
+    <palantir-java-format.version>2.96.0</palantir-java-format.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <!-- Our own modules, so children never repeat a version. -->
+      <dependency>
+        <groupId>io.github.stoicswe.eyeandsickle</groupId>
+        <artifactId>eyeandsickle-protocol</artifactId>
+        <version>${revision}</version>
+      </dependency>
+
+      <dependency>
+        <groupId>org.junit</groupId>
+        <artifactId>junit-bom</artifactId>
+        <version>${junit.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.assertj</groupId>
+        <artifactId>assertj-core</artifactId>
+        <version>${assertj.version}</version>
+      </dependency>
+      <!--
+        Core ArchUnit, NOT archunit-junit5. The junit5 flavour ships its own
+        JUnit Platform TestEngine, and this project is on JUnit 6 (platform 6.x)
+        where that engine's platform 1.x baseline is a compatibility gamble.
+        Plain rules invoked from ordinary @Test methods need no engine and cost
+        nothing in expressiveness.
+      -->
+      <dependency>
+        <groupId>com.tngtech.archunit</groupId>
+        <artifactId>archunit</artifactId>
+        <version>${archunit.version}</version>
+        <scope>test</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <!-- Every module tests with JUnit 5/6 + AssertJ. -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.platform</groupId>
+      <artifactId>junit-platform-launcher</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.assertj</groupId>
+      <artifactId>assertj-core</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <pluginManagement>
+      <plugins>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <version>${maven-compiler-plugin.version}</version>
+          <configuration>
+            <compilerArgs>
+              <arg>-Xlint:all,-serial,-processing</arg>
+              <arg>-parameters</arg>
+            </compilerArgs>
+          </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-surefire-plugin</artifactId>
+          <version>${maven-surefire-plugin.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-failsafe-plugin</artifactId>
+          <version>${maven-failsafe-plugin.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-enforcer-plugin</artifactId>
+          <version>${maven-enforcer-plugin.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.apache.maven.plugins</groupId>
+          <artifactId>maven-jar-plugin</artifactId>
+          <version>${maven-jar-plugin.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.springframework.boot</groupId>
+          <artifactId>spring-boot-maven-plugin</artifactId>
+          <version>${spring-boot.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>org.openjfx</groupId>
+          <artifactId>javafx-maven-plugin</artifactId>
+          <version>${javafx-maven-plugin.version}</version>
+        </plugin>
+        <plugin>
+          <groupId>com.diffplug.spotless</groupId>
+          <artifactId>spotless-maven-plugin</artifactId>
+          <version>${spotless-maven-plugin.version}</version>
+          <configuration>
+            <java>
+              <palantirJavaFormat>
+                <version>${palantir-java-format.version}</version>
+              </palantirJavaFormat>
+              <removeUnusedImports/>
+              <importOrder/>
+            </java>
+            <!--
+              Java only. sortPom is deliberately NOT enabled: it reorders and
+              reflows the POMs, and several things in them are order-sensitive
+              in ways a sorter cannot know about (where the Spring Boot BOM
+              import sits relative to inherited management, for one). The
+              comments explaining those choices are worth more than mechanically
+              sorted XML.
+            -->
+          </configuration>
+        </plugin>
+      </plugins>
+    </pluginManagement>
+
+    <plugins>
+      <!-- Resolves ${revision} in the installed/deployed pom. -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>flatten-maven-plugin</artifactId>
+        <version>${flatten-maven-plugin.version}</version>
+        <configuration>
+          <updatePomFile>true</updatePomFile>
+          <flattenMode>resolveCiFriendliesOnly</flattenMode>
+        </configuration>
+        <executions>
+          <execution>
+            <id>flatten</id>
+            <phase>process-resources</phase>
+            <goals><goal>flatten</goal></goals>
+          </execution>
+          <execution>
+            <id>flatten-clean</id>
+            <phase>clean</phase>
+            <goals><goal>clean</goal></goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>enforce-build-environment</id>
+            <goals><goal>enforce</goal></goals>
+            <configuration>
+              <rules>
+                <requireMavenVersion>
+                  <version>[3.9.0,)</version>
+                </requireMavenVersion>
+                <requireJavaVersion>
+                  <!-- Build JDK must be at least the LTS we target. -->
+                  <version>[25,)</version>
+                </requireJavaVersion>
+                <banDuplicatePomDependencyVersions/>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <!--
+      Integration tests (Testcontainers + a real PostgreSQL) are OFF by default
+      so that `mvn verify` works on a machine with no Docker daemon — which
+      includes anyone who only wants to hack on the JavaFX client.
+          mvn -Pit verify
+    -->
+    <profile>
+      <id>it</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-failsafe-plugin</artifactId>
+            <executions>
+              <execution>
+                <goals>
+                  <goal>integration-test</goal>
+                  <goal>verify</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
+    <!--
+      Formatting is opt-in so it can never break a build for a contributor who
+      just wants to compile.
+          mvn -Pquality spotless:apply     (fix)
+          mvn -Pquality verify             (check)
+    -->
+    <profile>
+      <id>quality</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>com.diffplug.spotless</groupId>
+            <artifactId>spotless-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>spotless-check</id>
+                <phase>validate</phase>
+                <goals><goal>check</goal></goals>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>

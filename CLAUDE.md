@@ -1,0 +1,123 @@
+# CLAUDE.md — The Eye and Sickle
+
+Guidance for Claude Code (and humans) working in this repo. Read this first, every session.
+
+---
+
+## What this project is
+
+A **puzzle-centric hacking game** in a surveillance-dystopia setting. Two factions — **The Eye** (the surveillance state) and **The Sickle** (a decentralized resistance). Single-player by default; opt-in, real-loss multiplayer over a **federated, self-hostable** server network. The core loop is a hacking minigame; every surrounding system exists to give that puzzle stakes and consequence.
+
+**Tech stack (decided, end-to-end):** JavaFX multi-window desktop client (one OS window per tool) · Spring Boot + PostgreSQL self-hostable home servers (Docker Compose) · AT Protocol OAuth for identity (authentication only) · opt-in federation with a reputation-weighted validator quorum and cryptographically signed per-item provenance.
+
+## Where the design lives
+
+All design and architecture documentation is under `docs/`. **This is the source of truth — read it before implementing anything.**
+
+- **`docs/design/`** — game systems, economy, world. Start with `docs/design/README.md`.
+  - The spine is `00` (vision + invariants) → `01` (resources) → `02` (gates) → `03` (economy). Read those four before touching any system.
+- **`docs/architecture/`** — the technical stack. Start with `docs/architecture/README.md` and `00-overview.md`.
+- **`docs/design/glossary.md`** — canonical terms **and code-name conventions.** Use these names in code so docs and code stay searchable against each other.
+- **`docs/design/15-open-questions.md`** — everything undecided, with a resolution log. Check it before designing; update it when you decide something.
+
+## Established vs. [PROPOSAL] — the most important distinction
+
+Docs are tagged at the top and inline:
+
+- **Established** — decided in the game's design sessions (captured in the project's `ethecoin_design_doc.md`) or in the two technology chats. **Do not change these without explicit direction** — the rest of the system depends on them.
+- **[PROPOSAL]** — first-pass design filling a gap the source left open. Chiefly: the **core hacking minigame** (`design/05`), **player-facing multiplayer** (`design/13`), the **world/narrative** (`design/14`), and the **data model** (`architecture/06`). These are safe to change, replace, or reject. When you turn a proposal into a decision, drop the tag and log it in `design/15` §3.
+
+If you're unsure whether something is load-bearing, check whether it's an **invariant** (below).
+
+## The hard invariants — do not violate
+
+From `docs/design/00-vision-and-pillars.md` §4. Each one, if broken, collapses a specific system. If a change would violate one, the change is almost certainly wrong — stop and confirm with the user.
+
+1. **I1** — Compute is never purchasable with ethecoin.
+2. **I2** — Ethecoin never buys a ceiling (only breadth: consumables, replacements, horizontal options).
+3. **I3** — Every item sits behind exactly one unlock gate (assignment follows the rule in `design/02`, not taste).
+4. **I4** — Self-mining is immune to detection/seizure and generates zero heat (it's the income floor).
+5. **I5** — Self-mining and bots are online-only; deployed miners are the only offline income (buffer-capped).
+6. **I6** — A deployed miner consumes the *host's* compute, not the deployer's.
+7. **I7** — Proof-of-skill gates are tier-gated, never count-gated.
+8. **I8** — Zero-days are never reliably purchasable/farmable.
+9. **I9** — Defending your own rig never generates heat.
+10. **I10** — Bots assist, never substitute; a bot never solves the puzzle for the player.
+11. **I11** — Bot loss destroys instances + socketed tools, never blueprints.
+12. **I12** — Vault capacity scales sub-linearly and is never purchasable.
+13. **I13** — Salvage/partial-progress drops are gated on engagement tier.
+14. **I14** — Game state never lives in a player's PDS or player-controlled infrastructure — only in the server's Postgres. AT Proto is identity-only.
+15. **I15** — No single arbiter decides cross-server adversarial outcomes; trust comes from quorum + provenance.
+
+The two meta-rules behind most of these: **compute is the master scarcity** (never let anything create a compute-buys-compute loop) and **the puzzle is the game** (never let anything skip it wholesale).
+
+## Conventions
+
+- **Terminology:** follow `docs/design/glossary.md`. In particular, **`factionReputation` and `validatorReputation` are different things** — never share a field/column.
+- **Doc cross-refs** use relative paths and section anchors (e.g. `docs/design/04-mining.md` §5). Keep them working when you move things.
+- **When you make a design decision**, put it in the relevant system doc (the source of truth) and log it in `docs/design/15-open-questions.md` §3 — don't leave the answer only in a chat or a commit message.
+- **When you add an item/tool**, follow the checklist in `docs/design/02-unlock-gates.md` §5 (classify the gate, price against `03`, add to the right table + glossary).
+- **The client is never authoritative** over anything a cheater would forge — server validates (I14/I15).
+
+## Working agreements for Claude Code
+
+- Prefer editing the design docs over inventing undocumented mechanics. If a needed rule doesn't exist, add it as a clearly-marked **[PROPOSAL]** in the right doc and note it in `design/15`, rather than silently deciding it in code.
+- The economy numbers (`design/03`, `04`) are calibrated as a set. Changing one means re-checking the tables that depend on it — don't spot-edit a single value.
+- Big open design areas (minigame, multiplayer, narrative) are proposals for a reason — surface options to the user rather than hard-committing them in code.
+
+## Repo layout (current)
+
+```
+.
+├── CLAUDE.md            ← you are here
+├── README.md
+├── LICENSE
+├── pom.xml              ← reactor root; inherits from NOTHING (see below)
+├── protocol/            ← eyeandsickle-protocol — wire types + provenance verifier
+├── server/              ← eyeandsickle-server   — Spring Boot + Postgres home server
+├── client/              ← eyeandsickle-client   — JavaFX multi-window desktop client
+├── deploy/              ← Dockerfile, docker-compose.yml, .env.example
+└── docs/
+    ├── design/          ← game systems, economy, world (16 docs + glossary + README)
+    └── architecture/    ← tech stack, identity, federation, crypto (7 docs + README)
+```
+
+**Toolchain:** Java 25 (LTS) target, built with Maven. Spring Boot 4.1 · JavaFX 26 · AtlantaFX 2.1 · Flyway · JUnit 6 · ArchUnit.
+
+### Where does this class go?
+
+- **`protocol`** — a record, enum or sealed type that crosses the wire, the provenance verifier, or the secure transport. Nothing else. No thresholds, no prices, no yields, no gate evaluation. If a constant here changed and a player would gain something, it's a balance value and it belongs to the server. Its packages layer one way: `game → provenance → crypto ← channel`.
+- **`server`** — anything authoritative: rules, persistence, the ledger, PvP resolution, federation. When in doubt, it goes here.
+- **`client`** — rendering and input only.
+
+`protocol` is named that, and not `common`, on purpose: `common` names no rule, so a game rule can drift in unnoticed. `ArchitectureRulesTest` machine-checks the charter, because prose alone erodes under the constant reasonable-sounding pressure to move "just the gate check" in so the client can predict.
+
+### Build invariants worth not rediscovering
+
+- **The root pom deliberately does not inherit `spring-boot-starter-parent`.** Boot's parent would impose dependency management and plugin config on the JavaFX client too. The server imports the Boot BOM in its own pom instead, confining it to the one module that wants it.
+- **`server` must stay a reactor leaf.** `spring-boot:repackage` rewrites its jar into a fat jar that is not resolvable as a normal dependency. If something ever needs server code, split a plain `server-core` jar out below it.
+- **`mvn verify` must never require Docker.** Container-backed tests live behind `-Pit`, so a client-only contributor is never blocked.
+- **Enforcer rules are load-bearing, not decoration.** The client's ban on Spring/server is Invariant I14 made mechanical. Verified to actually fire.
+- **Boot 4 split `spring-boot-autoconfigure` into per-technology modules.** Depending on a raw library (e.g. `flyway-core`) instead of its starter gives you the classes without the auto-configuration: green build, dead config, feature silently absent. If you add a Boot integration, use its **starter**.
+- **Transport security is `[PROPOSAL]` and needs a cryptographer.** `docs/architecture/07-transport-security.md` §6 T-1. It is a hand-rolled Noise-IK-shaped protocol — reviewed patterns, unreviewed code. Do not let it guard a live federation until someone qualified has read it.
+- **Timestamps bind through `persistence/Timestamps.at(Instant)`, never a bare `Instant`.** The Postgres driver refuses a raw `java.time.Instant` ("Can't infer the SQL type"); `Row.instant()` reads them back as `OffsetDateTime`, and `Timestamps` is the matching write side. Unit tests with fakes cannot catch a raw bind — only the `-Pit` repository tests do.
+
+### Server implementation status
+
+The **Established spine is implemented and boots** (`ServerContextLoadsIT` starts the full context against a real Postgres): schema (Flyway core + federation), JdbcClient data layer, AT-Proto-auth + allowlist, compute ledger, ethecoin/public ledger + gates, provenance persistence & ingress verification, validator quorum (A-Res sampling + AIMD reputation), peer discovery, and the `Content-Digest` checksum filter. ~168 main + ~117 test classes; `mvn verify` and `mvn -Pit verify` both green.
+
+What is **stubbed at documented seams** (see `docs/design/15-open-questions.md` W-1…W-6): external DID→key resolution over the network, schematic ownership, gated-offering content, faction-tool forfeiture, and a production AT Proto provider — each a safe `@ConditionalOnMissingBean` default a real implementation supersedes. REST controllers exist only where a slice reached them; most surface is service-level. `[PROPOSAL]` game systems (minigame `05`, bots `10`, narrative `14`) are deliberately not implemented.
+
+### Commands
+
+```bash
+mvn verify                          # build + unit tests, no Docker needed
+mvn install -DskipTests             # publish protocol locally, needed before javafx:run
+mvn -pl client javafx:run           # launch the client
+mvn -Pit verify                     # + Testcontainers integration tests (needs Docker)
+mvn -Pquality spotless:apply        # format
+```
+
+Client packaging (jlink/jpackage) is **not wired up** — `jlink` cannot link the current graph (an automatic module in the dependency tree). See the closing comment in `client/pom.xml` before attempting it.
+
+Keep this file's stack summary, invariant list, and layout in sync with reality as the code grows.

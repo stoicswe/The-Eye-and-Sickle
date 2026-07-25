@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.github.stoicswe.eyeandsickle</groupId>
+    <artifactId>eyeandsickle-parent</artifactId>
+    <version>${revision}</version>
+  </parent>
+
+  <artifactId>eyeandsickle-client</artifactId>
+  <name>The Eye and Sickle :: Client</name>
+  <description>
+    The cross-platform JavaFX desktop client (docs/architecture/01 §1).
+
+    Multi-window by design: one javafx.stage.Stage per tool — map, terminal, rig
+    monitor, recon — so the player's screen ends up looking like an operator's
+    desk (docs/design/05 §5). A single-window docked fallback is REQUIRED for
+    accessibility, not optional (docs/architecture/01 §1, flagged for review).
+
+    The client is a view and input layer. It is never authoritative over
+    anything a cheater would forge (Invariant I14). It may mirror server state
+    for prediction and it may re-verify provenance chains offline against DID
+    public keys (docs/architecture/04 §6.2) — but it decides nothing.
+  </description>
+
+  <properties>
+    <client.main.class>io.github.stoicswe.eyeandsickle.client.Launcher</client.main.class>
+    <javafx.app.class>io.github.stoicswe.eyeandsickle.client.EyeAndSickleClient</javafx.app.class>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>io.github.stoicswe.eyeandsickle</groupId>
+      <artifactId>eyeandsickle-protocol</artifactId>
+    </dependency>
+
+    <!--
+      JavaFX platform natives resolve automatically: org.openjfx's parent pom
+      carries profiles keyed on os.name/os.arch that set ${javafx.platform} to
+      mac-aarch64 / mac / linux / linux-aarch64 / win, and each artifact pulls
+      its own classifier. No os-maven-plugin needed for local development.
+      Building for a different OS than the one you are on means pinning the
+      classifier explicitly; see the packaging note at the bottom of this file.
+    -->
+    <dependency>
+      <groupId>org.openjfx</groupId>
+      <artifactId>javafx-controls</artifactId>
+      <version>${javafx.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.openjfx</groupId>
+      <artifactId>javafx-fxml</artifactId>
+      <version>${javafx.version}</version>
+    </dependency>
+
+    <!-- Native-feeling theming across macOS / Linux / Windows so the client
+         doesn't read as a 2005 Swing app on any of them. -->
+    <dependency>
+      <groupId>io.github.mkpaz</groupId>
+      <artifactId>atlantafx-base</artifactId>
+      <version>${atlantafx.version}</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.openjfx</groupId>
+        <artifactId>javafx-maven-plugin</artifactId>
+        <configuration>
+          <mainClass>${javafx.app.class}</mainClass>
+          <options>
+            <!--
+              JavaFX loads native graphics libraries via System::load, which JDK
+              24+ reports as a restricted-method call and which a future JDK will
+              block outright. Granting it explicitly silences the warning now and
+              stops the client from breaking on a JDK bump later.
+            -->
+            <option>--enable-native-access=javafx.graphics</option>
+          </options>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <configuration>
+          <archive>
+            <manifest>
+              <mainClass>${client.main.class}</mainClass>
+            </manifest>
+          </archive>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>client-is-not-authoritative</id>
+            <goals><goal>enforce</goal></goals>
+            <configuration>
+              <rules>
+                <bannedDependencies>
+                  <message>
+                    INVARIANT I14. The client must not depend on the server
+                    module or on Spring, and must never reach a database driver.
+                    Server code on the client classpath is how "the client
+                    decided the outcome" bugs start. Talk to the server over
+                    REST/WebSocket using types from eyeandsickle-protocol.
+
+                    The absence of a &lt;dependency&gt; element is not
+                    self-defending — someone will add one. This rule is.
+                  </message>
+                  <searchTransitive>true</searchTransitive>
+                  <excludes>
+                    <exclude>io.github.stoicswe.eyeandsickle:eyeandsickle-server</exclude>
+                    <exclude>org.springframework:*</exclude>
+                    <exclude>org.springframework.boot:*</exclude>
+                    <exclude>org.postgresql:*</exclude>
+                    <exclude>org.flywaydb:*</exclude>
+                    <exclude>org.hibernate*:*</exclude>
+                  </excludes>
+                </bannedDependencies>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+
+  <!--
+    NO `dist` PROFILE YET — deliberately, and this is worth reading before you
+    add one back.
+
+    docs/architecture/01 §1 lists self-contained packaging (jlink/jpackage) as a
+    [PROPOSAL] so players never have to "install a JRE first". An earlier draft
+    of this pom wired `javafx:jlink` into a `dist` profile. It does not work, and
+    it fails for a structural reason rather than a configuration mistake:
+
+      jlink can only link EXPLICIT JPMS modules. This client runs from the
+      classpath and has no module-info.java, and — more stubbornly — the
+      provenance canonicalizer `io.github.erdtman:java-json-canonicalization`
+      is a plain Java 8 jar with no module descriptor, so it can only ever be
+      an AUTOMATIC module, and jlink refuses to link automatic modules.
+
+    So the two real options, whenever this is picked up:
+
+      1. jpackage in non-modular app-image mode (`type app-image`, `input <dir>`, `main-jar`). Works today with the classpath layout, produces a bundled
+         runtime, needs no module-info anywhere. Largest image, least friction.
+         This is the recommended first move.
+      2. Full JPMS: add module-info.java to protocol and client AND replace or
+         patch the canonicalizer with something modular. Smallest image, but it
+         is a real dependency-graph project, not an afternoon.
+
+    Shipping a profile whose documented command fails every time is worse than
+    shipping no profile, so there is no profile. `mvn verify` and `mvn
+    -pl client javafx:run` are the supported paths until this is built properly.
+  -->
+</project>
