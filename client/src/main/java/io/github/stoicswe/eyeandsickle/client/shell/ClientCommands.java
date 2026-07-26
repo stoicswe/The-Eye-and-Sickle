@@ -32,7 +32,8 @@ public final class ClientCommands {
             WindowRegistry windows,
             ThemeManager themes,
             ClientProfile profile,
-            java.util.function.Supplier<List<String>> history) {
+            java.util.function.Supplier<List<String>> history,
+            Runnable backToMenu) {
 
         registry.add(new Simple(
                 "help",
@@ -119,7 +120,7 @@ public final class ClientCommands {
                         List<String> out = new ArrayList<>();
                         out.add("Both families draw the same uOS. Only the skin changes.");
                         out.add("");
-                        for (ThemeId id : ThemeId.values()) {
+                        for (ThemeId id : ThemeId.selectable()) {
                             out.add((id == themes.current() ? "* " : "  ") + pad(id.id(), 20) + id.label());
                         }
                         return Command.Output.ok(out);
@@ -162,6 +163,18 @@ public final class ClientCommands {
                     profile.settings().teachingLevel = level;
                     profile.save();
                     return Command.Output.ok("teaching level is now " + level);
+                }));
+
+        registry.add(new Simple(
+                "menu",
+                List.of(),
+                "Leave this character and go back to the main menu. Saves first.",
+                true,
+                inv -> {
+                    // The session is persisted and closed by the handler before the menu appears —
+                    // "back to menu" must not leave a game ticking behind a screen that looks idle.
+                    backToMenu.run();
+                    return Command.Output.ok("saved; returning to the menu");
                 }));
 
         registry.add(new Simple(

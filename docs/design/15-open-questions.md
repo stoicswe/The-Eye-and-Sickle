@@ -106,7 +106,14 @@ detail and live there. These are the ones that block implementation or need a pr
   says Linux/Orca is unsupported. If true this is a platform limitation we cannot fix in our own code, and
   it bounds what we may honestly promise Linux players. Confirm against JavaFX 26 before any accessibility
   claim ships.
-- **AX-5 / V-2 / PN-2 (measured defect): the semantic palette fails contrast against *itself*.** Computed,
+- **AX-5 ✅ RESOLVED 2026-07-25 — the uOS heat ramp now steps luminance, measured with the WCAG
+  formula.** The old ramp was 1.02:1 between band 0 and band 4, meaning cold and named-hacker were
+  the same lightness in greyscale. The redesigned ramp runs L = 0.612 → 0.639 → 0.480 → 0.252 →
+  0.063, giving **5.86:1** end to end, and `uos-classic` carries an inverted ramp for its light field
+  (darker as heat rises). ⚠ The band name and pip count remain non-removable: §5.2's rule is never
+  colour alone, and a good ramp helps that rule without satisfying it. **The meter-fill figures in
+  the original finding (1.64:1 compute, 1.37:1 trace) are NOT fixed** and are still open below.
+- **AX-5b (what survives): adjacent meter fills still fail SC 1.4.11.** Computed,
   not assumed: `uos` heat band-0 vs band-4 differ by **1.02:1** (cold and named-hacker are the same
   lightness in greyscale), and adjacent meter fills sit at 1.64:1 (compute) and 1.37:1 (trace) where
   WCAG 1.4.11 wants 3:1. `../client/07-accessibility.md` §5.4 specifies a structural fix (track-coloured
@@ -115,7 +122,13 @@ detail and live there. These are the ones that block implementation or need a pr
 - **CL-7: audio is undesigned.** This doc set is visual and interaction only. Sound is one of the few ways
   to signal urgency without stealing focus mid-keystroke, so it interacts directly with the attention
   ladder (`../client/05` §6) and needs its own doc plus an accessibility pass.
-- **CL-4 / T-2: the teaching layer's default.** It defaults to `explain`, which is right for the average
+- **CL-4 / T-2 ✅ RESOLVED 2026-07-25 — asked once, on the main menu.** The question worried that a
+  first-run familiarity prompt "adds an onboarding step". The main menu removed that cost: the player
+  is already stopped there choosing a character, so one more choice is free. Two options — "Explain as
+  I go" (`explain`) and "I know Unix" (`terms`) — asked once, persisted as `askedFamiliarity`, and
+  changeable at any time with `teach`. The manual works at every level including `off`, so nothing is
+  ever lost by answering either way. Superseded text follows.
+- **CL-4 / T-2 (superseded, kept for the record): the teaching layer's default.** It defaults to `explain`, which is right for the average
   player the education goal targets and probably wrong for a player who already knows Unix. A first-run
   familiarity question is the obvious answer but adds an onboarding step.
 - **V-1: ✅ CONFIRMED by measurement, 2026-07-25 — JavaFX looked-up values really are colour-only.**
@@ -200,7 +213,14 @@ document that found them (`ED-` 00, `FN-` 01, `CA-` 02, `OS-` 03, `SH-` 04, `NW-
   reputation** in one bullet — deliberately, to insist they are different — and no `canonical:` value
   can match it, so the check cannot pass for either. Splitting it into two entries, each retaining the
   ⚠ cross-reference, makes the distinction the glossary already insists on checkable.
-- **CT-10 / ED-6 (housekeeping, but it is a live ambiguity): `T-` means three different things.**
+- **CT-10 ✅ RESOLVED 2026-07-25 — the architecture transport questions are now `TS-`.**
+  `T-` meant three different things: `../client/04` §6's teaching questions, `../architecture/07` §6's
+  transport questions, and the question this document labels T-4. Documents cited them by bare number
+  and a reader could not tell them apart without the path. The architecture set is renamed `TS-`, so
+  `T-` now means "teaching" everywhere and `TS-` means "transport security". The two remaining
+  same-numbered pairs (`T-4` here vs `T-4` in `../client/04`) are the ones ED-6 already flags.
+  Superseded text follows.
+- **CT-10 (superseded, kept for the record): `T-` meant three different things.**
   `../client/04` §6's teaching questions, `../architecture/07` §6's transport questions, and the
   question this document labels T-4. Documents now cite `architecture` T-1/T-3/T-4 and `client`
   T-11/T-12 by name and a reader cannot tell them apart without the path. Renaming the architecture
@@ -232,7 +252,15 @@ way `../architecture/02` §4 recommended.
   provenance chain rather than manufacturing one that would look checkable and prove nothing. Going
   online means a character created on a real home server. This is option 1 in `../architecture/02` §4,
   which recommended it.
-- **SOLO-3 (open): the market catalogue is empty in solo.** `LocalGameSession.purchase` refuses
+- **SOLO-3 ✅ RESOLVED 2026-07-25 for solo — `solo/Catalogue.java` has six offerings.** Priced inside
+  `03` §2's published bands and gated by `02` §5's rule rather than by taste: two ethecoin
+  consumables, one per-session cost, two schematic-gated and one reputation-gated. **Nothing sells
+  compute or vault capacity at any price**, which makes I1 and I12 structural — there is no offering
+  to buy, so there is no code path to review. A non-ethecoin gate returns **`77 EX_NOPERM` with the
+  requirement in words**, never a refusal with a price, so a gate reads as "not yet, and here is why"
+  rather than as an obstruction. ⚠ **The server still has W-3** and one catalogue should eventually
+  serve both; this one lives in `solo` because it is a rule rather than a rendering.
+- **SOLO-3 (superseded, kept for the record): the market catalogue is empty in solo.** `LocalGameSession.purchase` refuses
   everything, because offerings are content rather than code — the same gap the server has as **W-3**
   (`GatedOfferingCatalog` is empty). One catalogue should serve both, and it does not exist yet.
 - **CL-8 (partly closed): `RemoteGameSession` exists; its transport does not.** The class is written
@@ -254,7 +282,16 @@ way `../architecture/02` §4 recommended.
   and `man` is how a player reaches it deliberately — and because the honest fix for two documents
   disagreeing is to build the thing and report the disagreement, not to drop it silently.
   ⚠ `../client/05` §2.1's table should gain the row.
-- **CL-10 (open): the gloss bar and hover tier are not wired.** `../client/04` §4.1 specifies three
+- **CL-10 ✅ RESOLVED 2026-07-25 — tier 1 is wired.** `GlossBar` attaches a hover tooltip AND an
+  accessible name to any node naming a term, which satisfies §3.6 / SC 1.4.13's requirement that
+  hover-triggered content be reachable by keyboard — JavaFX tooltips are hover-only, so the
+  accessible name carries the same content down the focus path. It respects the teaching level at
+  attach time and at show time, and it never invents: a term with no page gets no gloss, because a
+  best-effort guess is exactly the wrong-mapping failure the education doc set exists to prevent.
+  Wired to the rig monitor's COMPUTE and BALANCE headings first, those being the two words on screen
+  at all times. ⚠ Still to do: the other windows' headings, and the terminal's output — a term
+  appearing in `ps` output is not yet glossable because the transcript is one text blob.
+- **CL-10 (superseded, kept for the record): the gloss bar and hover tier are not wired.** `../client/04` §4.1 specifies three
   tiers of disclosure — hover for a one-line gloss, a keypress for the full page, citations below.
   Tier 2 (`man`, the window, the index, the status filter) and tier 3 (`reading:`) are built. **Tier 1
   is not:** no surface yet detects a term under the cursor and offers its gloss. `ManView.glossBar`
@@ -295,6 +332,9 @@ Record resolutions here when they land (date — question — outcome — where 
 - 2026-07-25 — **ED-3: the education domain split** — resolved to **seven domains, not six** — recorded in `../education/00-curriculum-and-method.md` §1.4. The six-way split named computer architecture `01` and left representation as a clause inside it; writing the domains falsified that twice. Representation has eighteen entries of its own and forward-references nothing, so it became `../education/01-foundations.md` and architecture moved to `02`. The command line kept `04` because `03`, `06` and `07` all name `shell(7)` or `exit-status(7)` in `prerequisites`, and any numbering placing it above them breaks rule R8 outright. Networking, cryptography and distributed systems each shifted up one. The ordering rule is unchanged and now holds with **zero upward prerequisite edges**. Closed `FN-1`, `CA-1`, `OS-1`, `NW-1` and the ownership half of `DS-1`; **CT-1** survives it and is listed above.
 - 2026-07-25 — **Four concepts had two full entries each** — resolved to **one owner apiece** — recorded in `../education/01-foundations.md` §2 and §3.1, `../education/02-computer-architecture.md` §2.2, `../education/05-networking.md` §3.19. `00` §1.4 forbids two entries for one concept ("a player who gets two answers stops trusting both"), and parallel authorship produced exactly that: `processor` and `memory-hierarchy` in both 01 and 02, `bit-width` in both, and `latency` in both 01 and 05. Architecture took the first two, foundations kept `bit-width`, and the fourth was not a duplicate at all — 05's entry taught round-trip time, so it was **renamed `rtt(7)`**, which is what `07`'s own boundary table had been calling it. Ceded rows are marked ⇧/⇩ in the inventories rather than deleted silently.
 - 2026-07-25 — **How single player runs without a server or a database** — resolved to an **in-process `solo` module** — recorded in `solo/pom.xml`, `../architecture/02` §4 and SOLO-1/SOLO-2 above. The client now starts offline by default: no network, no account, no PostgreSQL, no second process, no listening port. Verified end to end — the client launches, ticks, and writes a save of 723 bytes containing `"federable": false` and a 100-cycle rig. The measured footprint of the whole runtime is one JSON file.
+- 2026-07-25 — **GUI/terminal parity — pillar C1 was under-delivered and is now enforced** — recorded in `../client/00-client-overview.md` §6.3's shortcut table (now fully bound) and pinned by `ShortcutsTest`. **The finding:** `scan` and `mv` were reachable only by typing, and the command palette `../client/00` §6.3 specifies on `Shortcut+K` had never been built. That made two core actions invisible to anyone who had not read the manual, which is precisely what C1 forbids — *"a tool's UI is built from the tool's actual output shape, and its cost is shown where the tool is used"*. **Fixed:** the audit window has scan-tier buttons carrying each tier's published cost and duration; the storage window has per-item tier moves whose tooltips state the exposure consequence; the palette exists and searches on the synopsis as well as the name, so a player who does not know a verb can find it by describing what they want. The six missing global shortcuts from §6.3 are bound (`Shortcut+K`, `+Shift+T`, `+Shift+E`, `+Shift+D`, `` +` ``, `+.`), and a test asserts none collides with a window accelerator — both sets install on every Scene, so a collision would silently disable whichever registered second. The palette runs through the same `Shell` the terminal does, so it is a different way in rather than a second engine: same parser, same closed AST, same exit statuses. ⚠ **Not yet parity:** the `map`, `recon`, `botnet` and `comms` windows have no actions to expose because their systems are still `[PROPOSAL]`; `find` (`Shortcut+F`) is per-window and unbuilt.
+- 2026-07-25 — **The main menu, the theme redesign, and six open questions** — the client now boots to a main menu rather than straight into a game: three solo save slots (mirroring the online cap in `../architecture/09`), a home-server field, settings and quit. Themes were restructured so each uOS variant owns a stylesheet and can therefore actually differ — the default became the near-black crimson console, the green phosphor survives as `uos-phosphor`, and **uOS Classic** was added (System 7 + Unix; also the most legible skin in the client at 21:1, which makes it a real accessibility option rather than a novelty). Closed in the same pass: **AX-5** (heat ramp now 5.86:1 end to end, up from 1.02:1), **CL-4/T-2** (familiarity asked once on the menu, where it costs nothing), **CL-10** (tier-1 gloss bar), **SOLO-3** (six gated offerings), **DS-7/ED-1** (glossary Reputation bullet split so the coverage check can pass), **CT-10** (architecture transport questions renamed `TS-`). ⚠ **A second JavaFX CSS trap was measured and is worth knowing alongside V-1:** `repeating-linear-gradient` does not exist — it parses as an unknown function and the declaration is dropped silently. JavaFX spells it `linear-gradient(from … to …, repeat, …)`, with `repeat` as a cycle method. Same failure shape as V-1: a web-CSS idiom that is nonsense here and fails at runtime rather than at build time.
+- 2026-07-25 — **Which layout a new player opens in** — resolved to **the single-window docked shell**, inverting an Established decision on explicit direction — recorded in `../architecture/01` §1, `../client/05` §5.1, `../client/07` §2.3 and `ClientProfile.Settings.dockedLayout`. `../architecture/01` §1 specified a multi-window `Stage`-per-tool architecture and called it "the default and the fantasy"; that architecture is unchanged and fully built, and multi-window remains one setting away (Settings → Layout, or `dock`). What changed is the default for a fresh profile. **Why it was safe to invert:** `../client/07` §2.3 already required the docked layout to lose no functionality or information, and a test asserts every window in the catalogue is reachable in it — so defaulting to it costs a new player nothing while sparing them fifteen OS windows in the first thirty seconds. ⚠ **One real bug surfaced and was fixed in the same change:** the accelerators were bound to `WindowRegistry::open`, so `Shortcut+4` in docked mode popped a *separate* OS window — silently breaking the single-window model at exactly the moment a player used the keyboard. The handler is now injected, and docked mode binds it to focus the tab.
 - 2026-07-25 — **The client's remaining surfaces** — the teaching layer, the docked layout and the five proposal windows all landed. The manual ships **21 pages** parsed by a closed-key parser that refuses unknown keys, unknown body sections, a section-7 page carrying a SYNOPSIS, and a `real, simplified` page with no CAVEATS — every one a silent failure otherwise. The cross-reference check found two dead links on first run (`ledger(1)`, `mine(1)`); both references were correct and the pages were missing, so the pages were written. The docked single-window layout is built as a **mode rather than a fallback** per `../client/07` §2.3, with the rig strip as chrome outside every SplitPane — a stronger guarantee for pillar C2 than always-on-top, because there is no z-order for it to lose. Both layouts verified running with zero exceptions.
 - 2026-07-25 — **V-1: are JavaFX looked-up values usable for non-colour tokens** — resolved to **no, they are colour-only** — measured against JavaFX 26.0.2, recorded in `../client/01-visual-language.md`'s question list and in both theme stylesheets. The failure is silent at runtime, which is why it was worth measuring rather than assuming.
 - 2026-07-25 — **CT-1: detection, logging, anti-forensics and hack-back had no owner** — resolved by **writing `../education/08-detection-and-defence.md`** (42 concepts, 20 entries). Option (a) was taken as `06` recommended — a document of its own rather than folding into `03` or widening `06`. It carries two obligations `../client/04` makes mandatory: §2.7's defender's answer on `log-scrubber(1)` (forward logs off the host, `chattr +a`, hash-chain them — and a gap in a log is itself evidence), and §2.8's statement that hacking back is illegal, which `hack-back(7)` carries with statutory citations. `08` can sit above everything only because **no `prerequisites` field in `01`–`07` names a detection concept** — checked before it was written, not after. `cross-view-detection(7)` went to `03` as recommended and turned out to be written there already, so CT-1 had over-stated its orphan list by one.

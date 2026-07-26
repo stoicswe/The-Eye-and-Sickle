@@ -315,6 +315,22 @@ public final class BuiltinCommands {
                     return Command.Output.of(inv.session().moveItem(item, to));
                 }));
 
+        r.add(action("abort", List.of(), "Withdraw from the current operation. Always confirms first.",
+                inv -> {
+                    // 130 is 128 + 2, and signal 2 is SIGINT — what Ctrl-C sends. That is not a
+                    // coincidence or a flavour number: it is what a real machine reports when you
+                    // interrupt something, and exit-status(7) teaches exactly this.
+                    //
+                    // There is nothing to abort yet because the breach minigame is [PROPOSAL]
+                    // (docs/design/05). Saying so beats reporting a successful abort of nothing.
+                    return new Command.Output(
+                            List.of("Nothing to abort — no operation is running.",
+                                    "",
+                                    "When there is one, this reports 130: that is 128 + 2, signal 2 is",
+                                    "SIGINT, and SIGINT is what Ctrl-C sends. See exit-status(7)."),
+                            ExitStatus.OK);
+                }));
+
         // ---------------------------------------------------------------- information
         r.add(source("id", List.of("whoami"), "Who you are on this rig.",
                 inv -> List.of(

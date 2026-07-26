@@ -181,9 +181,36 @@ public final class LocalGameSession implements GameSession {
 
     @Override
     public Outcome purchase(String offeringId) {
-        // Content, not code: the solo catalogue is deliberately small and lives in the market view.
-        // W-3 in docs/design/15-open-questions.md tracks the same gap on the server side.
-        return Outcome.refused("nothing is offered under that name");
+        var offering = io.github.stoicswe.eyeandsickle.solo.Catalogue.byId(offeringId);
+        if (offering.isEmpty()) {
+            return Outcome.refused("nothing is offered under that name");
+        }
+        var o = offering.get();
+
+        // A gate that is not ethecoin is reported as EX_NOPERM with the requirement in words, never
+        // as a refusal with a price. docs/client/04 §3.5: 77 means "a gate blocks this, and the
+        // requirement is printed" — and printing the requirement is what makes the gate legible
+        // rather than merely obstructive.
+        if (!o.purchasable()) {
+            return Outcome.gated(o.name() + " is behind the "
+                    + o.gate().name().toLowerCase(Locale.ROOT).replace('_', '-')
+                    + " gate. " + o.gateRequirement());
+        }
+        if (!game.debit(o.priceMinorUnits(), "MARKET", "Bought " + o.name())) {
+            return Outcome.refused("not enough ethecoin — " + o.name() + " costs "
+                    + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.ofMinorUnits(o.priceMinorUnits())
+                    + ", you have " + balance());
+        }
+        ItemState item = new ItemState();
+        item.displayName = o.name();
+        item.itemType = o.id();
+        item.tier = StorageTier.VAULT.name();
+        item.origin = "bought";
+        item.equippedCycles = o.equippedCycles();
+        item.acquiredAt = game.now();
+        game.state().items.add(item);
+
+        return changed(Outcome.ok("bought " + o.name() + "; it is in the vault"));
     }
 
     /** Standing reservations from {@code docs/design/09-defense-and-hardening.md} §1. */

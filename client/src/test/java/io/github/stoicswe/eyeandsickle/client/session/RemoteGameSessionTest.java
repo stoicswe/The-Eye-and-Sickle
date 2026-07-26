@@ -94,6 +94,17 @@ class RemoteGameSessionTest {
         }
 
         @Test
+        @DisplayName("a fresh profile opens in the docked layout")
+        void dockedIsTheDefault() {
+            // Inverts docs/architecture/01 §1's "multi-window is the default", on explicit
+            // direction, logged in docs/design/15 §3. Pinned here because a default that flips back
+            // by accident during a refactor is the kind of change nobody notices in review and every
+            // new player notices immediately.
+            assertThat(new io.github.stoicswe.eyeandsickle.client.profile.ClientProfile.Settings().dockedLayout)
+                    .isTrue();
+        }
+
+        @Test
         @DisplayName("three columns is the ceiling, and the reason is arithmetic")
         void columnCeiling() {
             // A fourth column on a 1440px window gives each pane 340px, below every tool's minimum.

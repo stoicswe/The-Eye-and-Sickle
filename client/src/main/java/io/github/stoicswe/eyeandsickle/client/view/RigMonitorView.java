@@ -1,6 +1,9 @@
 package io.github.stoicswe.eyeandsickle.client.view;
 
+import io.github.stoicswe.eyeandsickle.client.profile.ClientProfile;
 import io.github.stoicswe.eyeandsickle.client.session.GameSession;
+import io.github.stoicswe.eyeandsickle.client.teaching.GlossBar;
+import io.github.stoicswe.eyeandsickle.client.teaching.TermDatabase;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeAllocation;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeBudget;
 import java.util.Locale;
@@ -42,12 +45,26 @@ public final class RigMonitorView {
     private RigMonitorView() {}
 
     public static Region create(GameSession session) {
+        return create(session, null, null);
+    }
+
+    /**
+     * With a term database attached, the headings gloss themselves on hover and on focus.
+     *
+     * <p>This is tier 1 of the teaching layer reaching the surface a player looks at most. COMPUTE
+     * and BALANCE are the two words on screen at all times, so they are the two most worth
+     * explaining without being asked.
+     */
+    public static Region create(GameSession session, TermDatabase terms, ClientProfile profile) {
         VBox root = new VBox(10);
         root.setPadding(new Insets(14));
         root.getStyleClass().add("es-panel");
 
         Label title = new Label("COMPUTE");
         title.getStyleClass().add("es-panel-title");
+        if (terms != null && profile != null) {
+            GlossBar.attach(title, "compute", terms, profile);
+        }
 
         Label headline = new Label();
         headline.getStyleClass().addAll("es-numeric", "es-compute");
@@ -74,9 +91,13 @@ public final class RigMonitorView {
         mode.getStyleClass().add("es-text-secondary");
         mode.setWrapText(true);
 
+        Label balanceHeading = new Label("BALANCE");
+        if (terms != null && profile != null) {
+            GlossBar.attach(balanceHeading, "ethecoin", terms, profile);
+        }
         root.getChildren()
                 .addAll(title, headline, gauge, breakdown, new Label("BY CONSUMER"), consumers, warning,
-                        new Label("BALANCE"), balance, mode);
+                        balanceHeading, balance, mode);
         VBox.setVgrow(consumers, Priority.ALWAYS);
 
         Runnable refresh = () -> {

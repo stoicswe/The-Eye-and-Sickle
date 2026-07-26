@@ -100,11 +100,11 @@ Sequence numbers must increase by exactly one. Equal is a replay, lower is a reo
 
 ## 6. Open questions
 
-- **T-1: Should this be replaced by a reviewed Noise library?** This is a hand-rolled implementation of a well-understood pattern — safer than inventing a protocol, still not the same as audited code. **Get a cryptographer to review it, or swap in a real Noise implementation, before it protects a live federation.** Recorded as the highest-priority item here.
-- **T-2: Rekeying.** Sessions currently have a hard frame cap and must reconnect. Long-lived federation links may want in-session rekeying instead.
-- **T-3: Transport key rotation and revocation.** Attestations have a validity window, which bounds damage but does not revoke. Does a compromised transport key need a revocation path, or is a short window enough?
-- **T-4: Post-quantum.** X25519 alone is not PQ-safe; harvest-now-decrypt-later applies to any recorded traffic. A hybrid X25519+ML-KEM handshake is the standard answer when it matters. Probably not urgent for a game, but the decision should be conscious.
-- **T-5: Does client↔server need this at all, or is TLS plus per-message signing enough?** The full channel is more machinery than a REST API strictly needs. The argument for it is the untrusted TLS terminator; if that threat is judged out of scope for client links, signed requests inside TLS would be simpler.
+- **TS-1: Should this be replaced by a reviewed Noise library?** This is a hand-rolled implementation of a well-understood pattern — safer than inventing a protocol, still not the same as audited code. **Get a cryptographer to review it, or swap in a real Noise implementation, before it protects a live federation.** Recorded as the highest-priority item here.
+- **TS-2: Rekeying.** Sessions currently have a hard frame cap and must reconnect. Long-lived federation links may want in-session rekeying instead.
+- **TS-3: Transport key rotation and revocation.** Attestations have a validity window, which bounds damage but does not revoke. Does a compromised transport key need a revocation path, or is a short window enough?
+- **TS-4: Post-quantum.** X25519 alone is not PQ-safe; harvest-now-decrypt-later applies to any recorded traffic. A hybrid X25519+ML-KEM handshake is the standard answer when it matters. Probably not urgent for a game, but the decision should be conscious.
+- **TS-5: Does client↔server need this at all, or is TLS plus per-message signing enough?** The full channel is more machinery than a REST API strictly needs. The argument for it is the untrusted TLS terminator; if that threat is judged out of scope for client links, signed requests inside TLS would be simpler.
 
 ## 7. Cross-references
 

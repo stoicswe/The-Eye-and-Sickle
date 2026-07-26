@@ -73,10 +73,19 @@ public final class DockedShell {
     private final List<TabPane> columns = new ArrayList<>();
     private final VBox rail = new VBox(4);
     private final BorderPane root = new BorderPane();
+    private final Runnable openPalette;
 
     public DockedShell(GameSession session, Map<WindowSpec, Function<WindowSpec, Region>> factories) {
+        this(session, factories, null);
+    }
+
+    public DockedShell(
+            GameSession session,
+            Map<WindowSpec, Function<WindowSpec, Region>> factories,
+            Runnable openPalette) {
         this.session = session;
         this.factories = new EnumMap<>(factories);
+        this.openPalette = openPalette;
         build();
     }
 
@@ -89,9 +98,24 @@ public final class DockedShell {
         root.setTop(RigStripView.create(session));
 
         // ---- rail
+        rail.setPadding(new Insets(10));
+
+        // The palette, as a visible control rather than only a keystroke. Pillar C1: the interface
+        // is the toolset, and a shortcut nobody can discover is a hidden feature.
+        if (openPalette != null) {
+            Button palette = new Button("Run a command…");
+            palette.setMaxWidth(Double.MAX_VALUE);
+            palette.setMinHeight(30);
+            palette.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
+            palette.setTooltip(new javafx.scene.control.Tooltip(
+                    "Every command, searchable by what it does. Shortcut+K."));
+            palette.setAccessibleText("Open the command palette. Every command, searchable.");
+            palette.setOnAction(e -> openPalette.run());
+            rail.getChildren().addAll(palette, new javafx.scene.control.Separator());
+        }
+
         Label railHeading = new Label("TOOLS");
         railHeading.getStyleClass().add("es-panel-title");
-        rail.setPadding(new Insets(10));
         rail.getChildren().add(railHeading);
         for (WindowSpec spec : WindowSpec.values()) {
             if (spec == WindowSpec.RIG_MONITOR || spec == WindowSpec.SWITCHER) {

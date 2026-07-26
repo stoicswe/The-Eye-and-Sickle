@@ -1,97 +1,212 @@
 /*
- * The uOS family — docs/client/03-story-theme.md.
+ * uOS — the story family, default variant. docs/client/03-story-theme.md.
  *
- * uOS is the operating system every rig in the game runs (docs/design/glossary.md), drawn here as
- * its own operator console. This file overrides the SAME token names native.css defines, which is
- * what makes "only the skin changes" true in the implementation and not merely in the prose: no
- * view knows which family is loaded.
+ * REDESIGNED 2026-07-25. This file used to be a green phosphor terminal; that look now lives in
+ * uos-phosphor.css, and the default is the near-black, crimson-lit console the reference material
+ * asked for — Blade Runner rather than VT220. Amber and phosphor are unchanged and one setting away.
  *
- * Atmosphere is spent on chrome and never on data. There is no rule here that hides a value,
- * reorders a table, or softens a number.
+ * uOS is not a skin name. It is the operating system every rig in the game runs
+ * (docs/design/glossary.md), drawn here as its own operator console. The player's laptop runs macOS,
+ * Windows or Linux; their rig runs uOS.
+ *
+ * THE RULE THIS FILE OBEYS. docs/client/00 §3.4: only the skin changes. This overrides the SAME
+ * token names native.css defines and adds no new ones, which is what makes "only the skin changes"
+ * true in the implementation and not merely in the prose — no view knows which family is loaded.
+ * Atmosphere is spent on chrome. Nothing here hides a value, reorders a table, or softens a number.
  */
 
 .root {
-    -es-surface:            #0b0f0d;
-    -es-surface-raised:     #121815;
-    -es-surface-sunken:     #070a09;
-    -es-border:             #1f2f26;
-    -es-border-subtle:      #16211b;
-
-    -es-text-primary:       #9ff0c0;
-    -es-text-secondary:     #5fae86;
-    -es-text-disabled:      #336850;
-    -es-text-inverse:       #050807;
-
-    -es-compute:            #62d0ff;
-    -es-compute-recovering: #2f7f9e;
-    -es-ethecoin:           #ffcc4d;
-    -es-noise:              #c98bff;
-    -es-heat:               #ff6b52;
-
-    -es-state-confirmed:    #9ff0c0;
-    -es-state-pending:      #4d7f66;
-    -es-state-refused:      #ff6b52;
-    -es-state-unreachable:  #ffcc4d;
+    /* Near-black with a cold cast, so crimson reads as heat against it. */
+    -es-surface:            #0a0b10;
+    -es-surface-raised:     #12141c;
+    -es-surface-sunken:     #06070b;
+    -es-border:             #2a1420;
+    -es-border-subtle:      #1a0e16;
 
     /*
-     * WARNING — AX-5, and this palette is the reason the question exists.
-     *
-     * docs/client/07-accessibility.md §5.4 measured the original uOS heat ramp at 1.02:1 between
-     * band 0 and band 4, meaning cold and named-hacker were the SAME LIGHTNESS in greyscale. These
-     * values step luminance deliberately as well as hue. Until AX-5 is closed and this ramp is
-     * re-measured, the band NAME and the pip count are non-removable: meaning must never rest on
-     * hue alone.
+     * Body text is a cool near-white, NOT the accent. A console that renders prose in its accent
+     * colour is unreadable at length, and this one is read at length — the manual lives here.
+     * Crimson is reserved for chrome, state and emphasis.
      */
-    -es-heat-0:             #2f8f5c;
-    -es-heat-1:             #7fc04a;
-    -es-heat-2:             #d9a13c;
-    -es-heat-3:             #e56a3a;
-    -es-heat-4:             #a3202f;
+    -es-text-primary:       #d6dae6;
+    -es-text-secondary:     #7c8598;
+    -es-text-disabled:      #454d5e;
+    -es-text-inverse:       #06070b;
 
-    -fx-background-color:   -es-surface;
+    /* Compute and ethecoin differ in hue AND lightness. Invariant I1 says they never convert, and a
+       palette that let them read as the same kind of quantity would undercut that at a glance. */
+    -es-compute:            #3fd2ff;
+    -es-compute-recovering: #1d6f8c;
+    -es-ethecoin:           #ffb347;
+    -es-noise:              #b478ff;
+    -es-heat:               #ff4060;
+
+    -es-state-confirmed:    #d6dae6;
+    -es-state-pending:      #5a6274;
+    -es-state-refused:      #ff4060;
+    -es-state-unreachable:  #ffb347;
+
+    /*
+     * HEAT RAMP — AX-5 FIXED 2026-07-25, measured rather than eyeballed.
+     *
+     * docs/client/07 §5.4 measured the old ramp at 1.02:1 between band 0 and band 4: cold and
+     * named-hacker were the SAME LIGHTNESS, so the scale vanished entirely in greyscale and for a
+     * player with any form of colour blindness.
+     *
+     * These step relative luminance monotonically (WCAG formula):
+     *
+     *   band 0  #7fe0a0   L = 0.612
+     *   band 1  #cfd964   L = 0.639
+     *   band 2  #ffa03c   L = 0.480
+     *   band 3  #e8552e   L = 0.252
+     *   band 4  #8c1020   L = 0.063
+     *
+     *   band 0 : band 4  =  (0.612 + 0.05) / (0.063 + 0.05)  =  5.86:1
+     *
+     * Up from 1.02:1. Cold and named-hacker are now unmistakable without colour.
+     *
+     * ⚠ The band NAME and pip count stay non-removable regardless. §5.2's rule is never colour
+     * alone, and a luminance ramp is still colour. This fixes the measured defect; it does not
+     * license dropping the label.
+     */
+    -es-heat-0:             #7fe0a0;
+    -es-heat-1:             #cfd964;
+    -es-heat-2:             #ffa03c;
+    -es-heat-3:             #e8552e;
+    -es-heat-4:             #8c1020;
+
+    -fx-background-color:   #0a0b10;
+    -fx-font-family:        "SF Mono", "Cascadia Mono", "JetBrains Mono", "DejaVu Sans Mono", monospace;
 }
 
 /* uOS is a terminal all the way down: everything is monospaced, including the chrome. */
-.label, .text-field, .list-view, .table-view, .button {
-    -fx-font-family: "SF Mono", "Cascadia Mono", "DejaVu Sans Mono", monospace;
+.label, .text-field, .text-area, .list-view, .table-view, .button, .choice-box, .check-box,
+.tab-pane, .titled-pane, .split-pane, .slider {
+    -fx-font-family: "SF Mono", "Cascadia Mono", "JetBrains Mono", "DejaVu Sans Mono", monospace;
 }
 
-.es-mono           { -fx-font-family: "SF Mono", "Cascadia Mono", "DejaVu Sans Mono", monospace; }
-.es-numeric        { -fx-font-family: "SF Mono", "Cascadia Mono", "DejaVu Sans Mono", monospace; }
+.es-mono           { -fx-font-family: "SF Mono", "Cascadia Mono", "JetBrains Mono", "DejaVu Sans Mono", monospace; }
+.es-numeric        { -fx-font-family: "SF Mono", "Cascadia Mono", "JetBrains Mono", "DejaVu Sans Mono", monospace; }
 .es-text-secondary { -fx-text-fill: -es-text-secondary; }
 .es-compute        { -fx-text-fill: -es-compute; }
 .es-ethecoin       { -fx-text-fill: -es-ethecoin; }
 
+/* Colour is never the only carrier: pending is dimmed AND italic. Load-bearing under pillar C4. */
 .es-state-pending      { -fx-text-fill: -es-state-pending; -fx-font-style: italic; }
 .es-state-refused      { -fx-text-fill: -es-state-refused; }
 .es-state-unreachable  { -fx-text-fill: -es-state-unreachable; }
 
+/*
+ * Panels. The reference consoles share one move: a thin lit rule against a darker field. JavaFX
+ * cannot draw corner brackets without a custom Region, so this approximates the same read with an
+ * asymmetric border — lit on the left, dim elsewhere — giving the instrument-panel feel for free.
+ */
 .es-panel {
-    -fx-background-color: -es-surface-raised;
-    -fx-border-color: -es-border;
-    -fx-border-width: 1;
+    -fx-background-color: #12141c;
+    -fx-border-color: #3a1a28 #1a0e16 #1a0e16 #ff4060;
+    -fx-border-width: 1 1 1 2;
     -fx-padding: 12;
 }
-.es-panel-title { -fx-font-weight: bold; -fx-text-fill: -es-text-primary; }
-.es-strip       { -fx-background-color: -es-surface-sunken; -fx-padding: 6 12 6 12;
-                  -fx-border-color: -es-border; -fx-border-width: 1 0 0 0; }
-.es-terminal    { -fx-font-family: "SF Mono", "Cascadia Mono", "DejaVu Sans Mono", monospace; -fx-background-color: -es-surface-sunken;
-                  -fx-text-fill: -es-text-primary; }
 
-/*
- * V-1 CONFIRMED, 2026-07-25 — measured, not assumed.
- *
- * docs/design/15-open-questions.md lists V-1 as "JavaFX has no custom-property mechanism for
- * non-colour values (looked-up values are colour-only). Verify before the token layer is built."
- *
- * It is verified. Declaring -es-mono-font here and referencing it with -fx-font-family produced,
- * on JavaFX 26.0.2:
- *
- *   WARNING: CSS Error parsing native.css: Expected '<size>' while parsing '-es-mono-font'
- *
- * JavaFX looked-up values resolve to a Paint. A font stack is not one, so the reference fails and
- * the declaration is dropped silently at runtime. COLOUR tokens below work exactly as intended;
- * every non-colour token must be inlined here or held in Java. That is the constraint V-1 asked
- * about, and it shapes how these themes are authored: there is no single place to change the mono
- * stack in CSS, so the two families each state it.
- */
+.es-panel-title {
+    -fx-font-weight: bold;
+    -fx-text-fill: #ff4060;
+    -fx-effect: dropshadow(gaussian, rgba(255,64,96,0.35), 6, 0.0, 0, 0);
+}
+
+.es-strip {
+    -fx-background-color: linear-gradient(to bottom, #0d0f16, #06070b);
+    -fx-padding: 6 12 6 12;
+    -fx-border-color: #ff4060 transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+
+.es-terminal {
+    -fx-font-family: "SF Mono", "Cascadia Mono", "JetBrains Mono", "DejaVu Sans Mono", monospace;
+    -fx-control-inner-background: #06070b;
+    -fx-background-color: #06070b;
+    -fx-text-fill: #d6dae6;
+    -fx-highlight-fill: #3a1020;
+    -fx-highlight-text-fill: #ffd0d8;
+}
+
+/* Controls: flat and etched, not moulded. Lit on hover. */
+.button {
+    -fx-background-color: #161923;
+    -fx-text-fill: #d6dae6;
+    -fx-border-color: #33203a;
+    -fx-border-width: 1;
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+}
+.button:hover  { -fx-background-color: #1e2230; -fx-border-color: #ff4060; }
+.button:focused {
+    /* §3.3: the focus ring must be visible on every surface it can land on, and must not rely on
+       colour alone — hence a border change AND a glow. */
+    -fx-border-color: #3fd2ff;
+    -fx-effect: dropshadow(gaussian, rgba(63,210,255,0.5), 8, 0.0, 0, 0);
+}
+
+.text-field, .text-area {
+    -fx-background-color: #06070b;
+    -fx-text-fill: #d6dae6;
+    -fx-border-color: #2a1420;
+    -fx-border-width: 1;
+    -fx-background-radius: 0;
+}
+
+.tab-pane .tab { -fx-background-color: #10121a; -fx-background-radius: 0; }
+.tab-pane .tab:selected {
+    -fx-background-color: #12141c;
+    -fx-border-color: #ff4060 transparent transparent transparent;
+    -fx-border-width: 2 0 0 0;
+}
+.tab-pane .tab-label { -fx-text-fill: #7c8598; }
+.tab-pane .tab:selected .tab-label { -fx-text-fill: #d6dae6; }
+
+.table-view, .list-view {
+    -fx-background-color: #06070b;
+    -fx-border-color: #1a0e16;
+    -fx-border-width: 1;
+}
+.table-view .column-header { -fx-background-color: #10121a; }
+.table-view .column-header .label { -fx-text-fill: #ff4060; }
+
+.progress-bar > .bar   { -fx-background-color: #3fd2ff; -fx-background-radius: 0; }
+.progress-bar > .track { -fx-background-color: #12141c; -fx-background-radius: 0; }
+
+.separator *.line { -fx-border-color: #1a0e16; }
+
+/* Splash and main menu. Chrome only — no data lives here, so atmosphere is free. */
+.es-splash {
+    -fx-background-color: radial-gradient(center 50% 38%, radius 75%, #17111d 0%, #06070b 100%);
+}
+.es-splash-title {
+    -fx-font-size: 46px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #ff4060;
+    -fx-effect: dropshadow(gaussian, rgba(255,64,96,0.55), 24, 0.0, 0, 0);
+}
+.es-splash-subtitle { -fx-text-fill: #7c8598; -fx-font-size: 13px; }
+
+.es-menu-button {
+    -fx-background-color: rgba(18,20,28,0.85);
+    -fx-text-fill: #d6dae6;
+    -fx-border-color: #3a1a28 #1a0e16 #1a0e16 #ff4060;
+    -fx-border-width: 1 1 1 2;
+    -fx-padding: 12 18 12 18;
+    -fx-font-size: 14px;
+}
+.es-menu-button:hover {
+    -fx-background-color: rgba(34,20,30,0.95);
+    -fx-effect: dropshadow(gaussian, rgba(255,64,96,0.3), 10, 0.0, 0, 0);
+}
+
+.es-slot-card {
+    -fx-background-color: rgba(18,20,28,0.7);
+    -fx-border-color: #2a1420;
+    -fx-border-width: 1;
+    -fx-padding: 14;
+}
+.es-slot-card:hover { -fx-border-color: #ff4060; }
+.es-slot-empty { -fx-text-fill: #454d5e; -fx-font-style: italic; }

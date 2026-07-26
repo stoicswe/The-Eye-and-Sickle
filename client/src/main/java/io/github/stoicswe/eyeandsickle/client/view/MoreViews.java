@@ -77,12 +77,38 @@ public final class MoreViews {
         refresh.run();
         session.onChange(s -> refresh.run());
 
+        // The actual offerings. SOLO-3 closed 2026-07-25 — see solo/Catalogue.
+        VBox listing = new VBox(8);
+        Label result = new Label();
+        result.setWrapText(true);
+        for (var o : io.github.stoicswe.eyeandsickle.solo.Catalogue.offerings()) {
+            VBox card = new VBox(4);
+            card.getStyleClass().add("es-panel");
+            Label name = new Label(o.name());
+            name.getStyleClass().add("es-panel-title");
+            Label desc = wrapped(o.description());
+            Label terms = new Label(o.purchasable()
+                    ? money(o.priceMinorUnits()) + (o.equippedCycles() > 0
+                            ? "   ·   " + o.equippedCycles() + " cycles while armed" : "")
+                    : o.gate().name().toLowerCase(Locale.ROOT).replace('_', '-') + " gate");
+            terms.getStyleClass().add(o.purchasable() ? "es-ethecoin" : "es-state-unreachable");
+            card.getChildren().addAll(name, desc, terms);
+            if (!o.purchasable()) {
+                card.getChildren().add(secondary(o.gateRequirement()));
+            }
+            Button buy = new Button(o.purchasable() ? "Buy" : "Why can't I have this?");
+            buy.setOnAction(e -> {
+                GameSession.Outcome outcome = session.purchase(o.id());
+                result.setText(outcome.message());
+                styleByOutcome(result, outcome);
+            });
+            card.getChildren().add(buy);
+            listing.getChildren().add(card);
+        }
+
         ScrollPane scroll = new ScrollPane(new VBox(12, invariant, balance, new Separator(),
-                new Label("THE FIVE GATES"), gates, new Separator(), bands, new Separator(),
-                openQuestion("The offering catalogue itself is unwritten — offerings are content, not "
-                        + "code, and the server has the same gap (W-3 in docs/design/15). One "
-                        + "catalogue should serve both. Everything above is decided; the list of "
-                        + "things to buy is not.")));
+                new Label("OFFERINGS"), listing, result, new Separator(),
+                new Label("THE FIVE GATES"), gates, new Separator(), bands));
         scroll.setFitToWidth(true);
         VBox.setVgrow(scroll, Priority.ALWAYS);
         root.getChildren().add(scroll);
@@ -261,6 +287,21 @@ public final class MoreViews {
         Label l = new Label(text);
         l.getStyleClass().add("es-mono");
         return l;
+    }
+
+    private static String money(long minorUnits) {
+        return String.format(Locale.ROOT, "%d.%02d EC", minorUnits / 100, Math.abs(minorUnits % 100));
+    }
+
+    private static void styleByOutcome(Label label, GameSession.Outcome outcome) {
+        label.getStyleClass().removeAll("es-state-refused", "es-state-unreachable");
+        if (outcome.status() == GameSession.Outcome.NOPERM
+                || outcome.status() == GameSession.Outcome.UNAVAILABLE) {
+            // A gate is not a refusal: 77 says "you may have this, but not yet, and here is why".
+            label.getStyleClass().add("es-state-unreachable");
+        } else if (!outcome.succeeded()) {
+            label.getStyleClass().add("es-state-refused");
+        }
     }
 
     private static Label bullet(String text) {

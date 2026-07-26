@@ -128,8 +128,12 @@ mvn -Pquality spotless:apply        # format
 The client **runs offline out of the box**: `mvn install -DskipTests && mvn -pl client javafx:run` opens a
 playable solo game with no network, account or database. Sixteen tool windows, two theme families, a
 shell with real pipelines and globs, and a 21-page offline manual parsed from `client/src/main/resources/
-.../terms/`. `settings.json`'s `dockedLayout` switches to the single-window layout, which
-`docs/client/07` §2.3 requires to lose no functionality — a test asserts every window is reachable in it. Its profile (settings, window geometry, save)
+.../terms/`. **The single-window layout is the default** as of 2026-07-25: one window, tools as tabs, the compute
+strip as chrome. This inverts `docs/architecture/01` §1's Established "multi-window is the default"
+— changed on explicit direction, logged in `docs/design/15-open-questions.md` §3, and noted in
+`docs/client/05` §5.1 and `07` §2.3. The multi-window desk is unchanged and one setting away
+(`dockedLayout: false`, Settings → Layout, or `dock` in the terminal). `docs/client/07` §2.3 requires
+the docked layout to lose no functionality, and a test asserts every window is reachable in it. Its profile (settings, window geometry, save)
 lives in the platform's conventional directory — `~/Library/Application Support/The Eye and Sickle` on
 macOS, `%APPDATA%` on Windows, `$XDG_DATA_HOME` on Linux — and `-Deyeandsickle.profile=<dir>` relocates it.
 

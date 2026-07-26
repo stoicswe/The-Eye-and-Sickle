@@ -10,7 +10,9 @@ Canonical terms and their code-name conventions. When implementing, use these na
 - **Ethecoin (EC)** — in-game currency. Code: `ethecoin`, `ec`. Never buys ceilings.
 - **Noise** — short-horizon, decaying visibility from actions; pools across player + bots. Code: `noise`.
 - **Heat** — long-horizon Eye attention. **Personal heat** (`personalHeat`) vs. **server heat** (`serverHeat`). Distinct from noise.
-- **Reputation** — ⚠️ *two unrelated meanings.* **Faction reputation** (`factionReputation`, Eye/Sickle standing, `01` §5) vs. **validator reputation** (`validatorReputation`, federation server trust score, `../architecture/05`). Never conflate in code.
+- **Faction reputation** — Eye/Sickle standing (`01` §5). Code: `factionReputation`. ⚠️ Not the same thing as **validator reputation** below; never share a field or column.
+- **Validator reputation** — a federation server's trust score (`../architecture/05`). Code: `validatorReputation`. ⚠️ Not the same thing as **faction reputation** above.
+  - *Split into two entries 2026-07-25 (**DS-7 / ED-1**).* This was one bullet headed "Reputation" carrying both meanings, which made the distinction vivid to a human and impossible for a machine: `../client/04` §4.10's coverage check joins a term file's `canonical:` against this glossary byte for byte, and no single value could match a two-meaning bullet. Two entries make the distinction the glossary already insisted on machine-checkable.
 - **Storage tiers** — Encrypted Vault (`vault`, safe), Standard Storage (`standardStorage`, exposed while online), High-Hackable Zone (`highHackableZone`, always exposed).
 
 ## Gates (`02`)

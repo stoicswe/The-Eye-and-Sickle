@@ -188,6 +188,28 @@ public final class ClientProfile {
 
         /** Handle used for the solo character, so a returning player is not asked twice. */
         public String soloHandle = "";
+
+        /** Which solo slot was last played, so the menu can pre-select it. 1-based; 0 means none. */
+        public int lastSoloSlot = 0;
+
+        /**
+         * Home servers the player has named, most recent first.
+         *
+         * <p>Addresses only. No credentials and no tokens are ever written here — the profile is a
+         * plain unencrypted JSON file in a conventional location, which is the correct place for a
+         * window position and the wrong place for anything that grants access to an account.
+         */
+        public java.util.List<String> knownServers = new java.util.ArrayList<>();
+
+        /**
+         * Whether the first-run familiarity question has been answered.
+         *
+         * <p>{@code CL-4 / T-2}: the teaching layer defaults to {@code explain}, which is right for
+         * the audience the education goal targets and probably wrong for a player who already knows
+         * Unix. The obvious answer is to ask once — and the main menu is where that costs nothing,
+         * because a player is already stopped there deciding something.
+         */
+        public boolean askedFamiliarity = false;
     }
 
     /** A remembered window position. */

@@ -248,6 +248,21 @@ public final class WindowRegistry {
         profile.settings().dockedLayout = docked.get();
     }
 
+    /**
+     * Closes every tool window.
+     *
+     * <p>Needed by "back to menu": leaving a dozen Stages open behind a menu the player thinks is
+     * the whole application is the sort of thing that reads as the game having crashed.
+     */
+    public void closeAll() {
+        for (Stage stage : List.copyOf(open.values())) {
+            stage.setOnCloseRequest(null);
+            stage.close();
+        }
+        open.clear();
+        openIds.clear();
+    }
+
     public void setDocked(boolean value) {
         docked.set(value);
         profile.settings().dockedLayout = value;

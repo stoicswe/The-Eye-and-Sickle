@@ -13,6 +13,7 @@ import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
 import java.util.List;
 import java.util.Locale;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ChoiceBox;
@@ -85,8 +86,54 @@ public final class Views {
         refresh.run();
         session.onChange(s -> refresh.run());
 
-        root.getChildren().addAll(hint, scroll);
+        root.getChildren().addAll(hint, scanControls(session), new Separator(), scroll);
         return root;
+    }
+
+    /**
+     * Scan controls, with each tier's published cost on its own button.
+     *
+     * <p>Pillar <b>C1</b>: "a tool's cost is shown where the tool is used, not in a shop" — priced at
+     * the moment of commitment. Before this, scanning was reachable only by typing {@code scan
+     * --thorough}, which made a core action invisible to anyone who had not read the manual.
+     *
+     * <p>The buttons print the cost and do not compute a verdict. Whether the rig can afford it is
+     * the session's answer, not the client's (pillar C4) — so an unaffordable tier is refused with a
+     * reason rather than greyed out with none. A disabled button that will not say why is the
+     * least helpful control there is.
+     */
+    private static Region scanControls(GameSession session) {
+        Label heading = new Label("SCAN — search your own rig for what routine listings miss");
+        heading.getStyleClass().add("es-panel-title");
+        heading.setWrapText(true);
+
+        Label result = new Label();
+        result.setWrapText(true);
+
+        HBox row = new HBox(8);
+        row.setAlignment(Pos.CENTER_LEFT);
+        record Tier(String flag, String label, long cycles, String seconds) {}
+        for (Tier t : List.of(
+                new Tier("quick", "Quick", 5, "30s"),
+                new Tier("full", "Full", 15, "2m"),
+                new Tier("thorough", "Thorough", 35, "6m"))) {
+            Button b = new Button(t.label() + "  ·  " + t.cycles() + " cycles  ·  " + t.seconds());
+            b.setMinHeight(30);
+            b.setTooltip(new javafx.scene.control.Tooltip(
+                    "scan --" + t.flag() + "\n\nWhat a more expensive tier buys is signal strength, "
+                            + "not certainty. The cycles come back on the Thermal Budget curve."));
+            b.setAccessibleText("Run a " + t.label() + " scan, costing " + t.cycles() + " cycles");
+            b.setOnAction(e -> {
+                GameSession.Outcome outcome = session.scan(t.flag());
+                result.setText(outcome.message());
+                styleByOutcome(result, outcome);
+            });
+            row.getChildren().add(b);
+        }
+
+        Label note = secondary("Scanning your own rig never generates heat. Cycles spent here return "
+                + "slowly, and more slowly the busier the rig already was.");
+        return new VBox(6, heading, row, result, note);
     }
 
     // ------------------------------------------------------------------ mining
@@ -156,15 +203,18 @@ public final class Views {
     public static Region storage(GameSession session) {
         VBox root = panel("STORAGE — three mounts, three exposures");
 
+        Label result = new Label();
+        result.setWrapText(true);
+
         VBox tiers = new VBox(12);
         Runnable refresh = () -> {
             tiers.getChildren().clear();
             addTier(tiers, session, StorageTier.VAULT, "/rig/storage/vault",
-                    "Safe. Encrypted; not reachable even while you are online.");
+                    "Safe. Encrypted; not reachable even while you are online.", result);
             addTier(tiers, session, StorageTier.STANDARD_STORAGE, "/rig/storage/standard",
-                    "Exposed while you are online. Fine for things you are using.");
+                    "Exposed while you are online. Fine for things you are using.", result);
             addTier(tiers, session, StorageTier.HIGH_HACKABLE_ZONE, "/rig/storage/high",
-                    "Always exposed, online or not. Anything left here can be taken.");
+                    "Always exposed, online or not. Anything left here can be taken.", result);
         };
         refresh.run();
         session.onChange(s -> refresh.run());
@@ -172,27 +222,77 @@ public final class Views {
         ScrollPane scroll = new ScrollPane(tiers);
         scroll.setFitToWidth(true);
         VBox.setVgrow(scroll, Priority.ALWAYS);
-        root.getChildren().addAll(wrapped("`mv <item> <tier>` moves things. The risk change is the point."), scroll);
+        root.getChildren().addAll(
+                wrapped("Moving something changes what can happen to it. That risk change is the "
+                        + "decision — the buttons say what each tier means, and `mv <item> <tier>` "
+                        + "does the same thing from the terminal."),
+                scroll,
+                result);
         return root;
     }
 
-    private static void addTier(VBox parent, GameSession session, StorageTier tier, String mount, String exposure) {
+    private static void addTier(
+            VBox parent, GameSession session, StorageTier tier, String mount, String exposure, Label result) {
         VBox box = new VBox(4);
         box.getStyleClass().add("es-panel");
         Label heading = new Label(mount);
         heading.getStyleClass().addAll("es-mono", "es-panel-title");
         Label note = wrapped(exposure);
         box.getChildren().addAll(heading, note);
+
         var items = session.items(tier);
         if (items.isEmpty()) {
             box.getChildren().add(secondary("(empty)"));
         }
         for (GameSession.InventoryItem item : items) {
-            Label l = new Label("  " + item.displayName() + (item.equipped() ? "  [equipped]" : ""));
-            l.getStyleClass().add("es-mono");
-            box.getChildren().add(l);
+            HBox row = new HBox(8);
+            row.setAlignment(Pos.CENTER_LEFT);
+            Label name = new Label(item.displayName() + (item.equipped() ? "  [equipped]" : ""));
+            name.getStyleClass().add("es-mono");
+            Region spacer = new Region();
+            HBox.setHgrow(spacer, Priority.ALWAYS);
+            row.getChildren().addAll(name, spacer);
+
+            // One button per OTHER tier. `mv` was terminal-only, which made the risk decision the
+            // storage window exists to present unreachable from the window itself (pillar C1).
+            for (StorageTier target : StorageTier.values()) {
+                if (target == tier) {
+                    continue;
+                }
+                Button move = new Button("→ " + shortTier(target));
+                move.setMinHeight(26);
+                move.setTooltip(new javafx.scene.control.Tooltip(
+                        "mv \"" + item.displayName() + "\" " + shortTier(target)
+                                + "\n\n" + exposureOf(target)));
+                move.setAccessibleText("Move " + item.displayName() + " to " + shortTier(target)
+                        + ". " + exposureOf(target));
+                move.setOnAction(e -> {
+                    GameSession.Outcome outcome = session.moveItem(item.itemId(), target);
+                    result.setText(outcome.message());
+                    styleByOutcome(result, outcome);
+                });
+                row.getChildren().add(move);
+            }
+            box.getChildren().add(row);
         }
         parent.getChildren().add(box);
+    }
+
+    private static String shortTier(StorageTier tier) {
+        return switch (tier) {
+            case VAULT -> "vault";
+            case STANDARD_STORAGE -> "standard";
+            case HIGH_HACKABLE_ZONE -> "high";
+        };
+    }
+
+    /** The consequence of a move, stated on the control that performs it. */
+    private static String exposureOf(StorageTier tier) {
+        return switch (tier) {
+            case VAULT -> "Safe: unreachable online or off.";
+            case STANDARD_STORAGE -> "Exposed while you are online.";
+            case HIGH_HACKABLE_ZONE -> "Always exposed. Anything left here can be taken.";
+        };
     }
 
     // ------------------------------------------------------------------ ledger
@@ -352,7 +452,7 @@ public final class Views {
         VBox root = panel("SETTINGS");
 
         ChoiceBox<ThemeId> theme = new ChoiceBox<>();
-        theme.getItems().addAll(ThemeId.values());
+        theme.getItems().addAll(ThemeId.selectable());
         theme.setValue(themes.current());
         theme.setConverter(new javafx.util.StringConverter<>() {
             @Override

@@ -128,6 +128,12 @@ public final class ThemeManager {
      * for the game as a whole — this is a story about being watched.
      */
     private Theme baseTheme() {
+        // uOS Classic is drawn on a light field and needs a light base underneath. Getting this
+        // wrong is the classic half-themed-application failure: every control the token sheet does
+        // not explicitly restyle stays dark, and the result is unreadable rather than merely ugly.
+        if (current().light()) {
+            return current().highContrast() ? new NordLight() : new PrimerLight();
+        }
         if (current().family() == ThemeFamily.UOS) {
             return current().highContrast() ? new NordDark() : new PrimerDark();
         }
