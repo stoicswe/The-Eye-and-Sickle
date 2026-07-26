@@ -38,6 +38,21 @@
     </dependency>
 
     <!--
+      The single-player runtime. This is what lets the game start with no
+      internet, no account and no PostgreSQL.
+
+      It is NOT a back door around the enforcer rules below. `solo` is a plain
+      library with no Spring, no driver and no HTTP stack (its own pom enforces
+      that), and a character it creates is local-only and can never federate —
+      so nothing it produces can enter the economy I14 protects. See
+      solo/pom.xml for the full argument.
+    -->
+    <dependency>
+      <groupId>io.github.stoicswe.eyeandsickle</groupId>
+      <artifactId>eyeandsickle-solo</artifactId>
+    </dependency>
+
+    <!--
       JavaFX platform natives resolve automatically: org.openjfx's parent pom
       carries profiles keyed on os.name/os.arch that set ${javafx.platform} to
       mac-aarch64 / mac / linux / linux-aarch64 / win, and each artifact pulls

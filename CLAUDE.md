@@ -78,6 +78,7 @@ The two meta-rules behind most of these: **compute is the master scarcity** (nev
 ├── pom.xml              ← reactor root; inherits from NOTHING (see below)
 ├── protocol/            ← eyeandsickle-protocol — wire types + provenance verifier
 ├── server/              ← eyeandsickle-server   — Spring Boot + Postgres home server
+├── solo/                ← eyeandsickle-solo     — offline single-player rules engine + JSON save
 ├── client/              ← eyeandsickle-client   — JavaFX multi-window desktop client
 ├── deploy/              ← Dockerfile, docker-compose.yml, .env.example
 └── docs/
@@ -91,9 +92,10 @@ The two meta-rules behind most of these: **compute is the master scarcity** (nev
 
 ### Where does this class go?
 
+- **`solo`** — the **offline single-player runtime**: rules over a JSON save, with no Spring, no driver, no HTTP stack and no thread of its own (its own enforcer rule holds that line). It exists because the client bans the server transitively and because a second Boot JVM is the wrong price for a mode whose appeal is double-click-and-play. ⚠ It is a **second implementation of a subset of the rules** — `solo/Balance.java` cites the design doc for every number, and re-tuning `design/03` means re-reading it. A solo character is **local-only and can never federate**, which is how I14 survives a save file the player can edit.
 - **`protocol`** — a record, enum or sealed type that crosses the wire, the provenance verifier, or the secure transport. Nothing else. No thresholds, no prices, no yields, no gate evaluation. If a constant here changed and a player would gain something, it's a balance value and it belongs to the server. Its packages layer one way: `game → provenance → crypto ← channel`.
 - **`server`** — anything authoritative: rules, persistence, the ledger, PvP resolution, federation. When in doubt, it goes here.
-- **`client`** — rendering and input only.
+- **`client`** — rendering and input only. Every view binds to the `GameSession` port and never learns whether it is talking to `solo` in-process or a home server over REST; that is what stops single player drifting into a different game.
 
 `protocol` is named that, and not `common`, on purpose: `common` names no rule, so a game rule can drift in unnoticed. `ArchitectureRulesTest` machine-checks the charter, because prose alone erodes under the constant reasonable-sounding pressure to move "just the gate check" in so the client can predict.
 
@@ -122,6 +124,14 @@ mvn -pl client javafx:run           # launch the client
 mvn -Pit verify                     # + Testcontainers integration tests (needs Docker)
 mvn -Pquality spotless:apply        # format
 ```
+
+The client **runs offline out of the box**: `mvn install -DskipTests && mvn -pl client javafx:run` opens a
+playable solo game with no network, account or database. Sixteen tool windows, two theme families, a
+shell with real pipelines and globs, and a 21-page offline manual parsed from `client/src/main/resources/
+.../terms/`. `settings.json`'s `dockedLayout` switches to the single-window layout, which
+`docs/client/07` §2.3 requires to lose no functionality — a test asserts every window is reachable in it. Its profile (settings, window geometry, save)
+lives in the platform's conventional directory — `~/Library/Application Support/The Eye and Sickle` on
+macOS, `%APPDATA%` on Windows, `$XDG_DATA_HOME` on Linux — and `-Deyeandsickle.profile=<dir>` relocates it.
 
 Client packaging (jlink/jpackage) is **not wired up** — `jlink` cannot link the current graph (an automatic module in the dependency tree). See the closing comment in `client/pom.xml` before attempting it.
 

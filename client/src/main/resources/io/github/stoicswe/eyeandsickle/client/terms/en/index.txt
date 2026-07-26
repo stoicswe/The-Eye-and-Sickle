@@ -1,0 +1,36 @@
+# The shipped manual, one page per line.
+#
+# Explicit rather than scanned: classpath directory listing works from a target
+# directory and quietly stops working from inside a jar, and a page that is not
+# listed here is a page nobody proof-read. docs/client/04 §4.10's coverage
+# checks exist because that failure is silent otherwise.
+#
+# Section 7 — concepts. No SYNOPSIS, deliberately: real section-7 pages usually
+# have none, and the absence is what teaches the section system.
+7/compute.md
+7/thermal-budget.md
+7/ethecoin.md
+7/self-mining.md
+7/heat.md
+7/noise.md
+7/storage-tiers.md
+7/shell.md
+7/exit-status.md
+7/pipeline.md
+7/glob.md
+7/quoting.md
+
+# Section 1 — commands you run.
+1/ps.md
+1/ledger.md
+1/mine.md
+1/grep.md
+1/ls.md
+1/df.md
+1/man.md
+1/apropos.md
+
+# Section 8 — maintaining your own rig. Offence is section 1, defending
+# yourself is section 8, exactly as user commands and system administration
+# split in real Unix.
+8/scan.md

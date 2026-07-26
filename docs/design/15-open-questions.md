@@ -118,9 +118,16 @@ detail and live there. These are the ones that block implementation or need a pr
 - **CL-4 / T-2: the teaching layer's default.** It defaults to `explain`, which is right for the average
   player the education goal targets and probably wrong for a player who already knows Unix. A first-run
   familiarity question is the obvious answer but adds an onboarding step.
-- **V-1: JavaFX has no custom-property mechanism for non-colour values** (looked-up values are colour-only).
-  Every numeric token therefore lives in Java rather than CSS. Verify before the token layer is built — it
-  shapes how themes are authored.
+- **V-1: ✅ CONFIRMED by measurement, 2026-07-25 — JavaFX looked-up values really are colour-only.**
+  Declaring `-es-mono-font` in the token sheet and referencing it with `-fx-font-family` produced, on
+  JavaFX 26.0.2: `WARNING: CSS Error parsing native.css: Expected '<size>' while parsing
+  '-es-mono-font'`. A looked-up value resolves to a `Paint`; a font stack is not one, so the reference
+  fails and the declaration is dropped **silently at runtime** — the build is green and the style is
+  simply absent, which is the worst failure shape available. **Consequence, now implemented:** colour
+  tokens live in `client/src/main/resources/.../theme/*.css` and work exactly as the contract intends;
+  every non-colour token is inlined per-family or held in Java. There is therefore no single place to
+  change the mono stack in CSS, and both family sheets state it. `01-visual-language.md` §2's token
+  model is unaffected for colour, which is the great majority of it.
 - **WL-2 / PN-10: `Stage.alwaysOnTop` is documented as "might be ignored on some platforms".** Client
   pillar C2 (compute never off-screen) rests on it, so the degradation path matters and needs testing on
   all three platforms.
@@ -203,6 +210,57 @@ document that found them (`ED-` 00, `FN-` 01, `CA-` 02, `OS-` 03, `SH-` 04, `NW-
   `flag`, `history` and `job` are plausible collisions that the curriculum could not check against
   that table's contents.
 
+### From the client implementation (`client/`, `solo/`, 2026-07-25)
+
+Building the client forced the offline question the architecture docs left open, and answered it the
+way `../architecture/02` §4 recommended.
+
+- **SOLO-1 (decided, with a standing cost): single player runs in-process, not against a local
+  server.** A new `solo` module holds a pure-Java rules engine over a JSON save. The alternative —
+  launching the real Spring server locally — was rejected on three measured grounds: `client/pom.xml`
+  bans `eyeandsickle-server`, Spring, Postgres and Flyway **transitively** (Invariant I14 made
+  mechanical), the schema is deeply PostgreSQL-coupled (37 `jsonb` columns, `uuid`, `now()`) so an H2
+  swap is a porting project rather than a config switch, and a second Boot JVM costs roughly 200 MB
+  RSS and several seconds of startup for a mode whose appeal is that you double-click and play.
+  ⚠ **The cost is real and permanent: `solo` is a second implementation of a subset of the rules.**
+  `solo/Balance.java` cites the design document for every number so drift is at least visible, but
+  nothing enforces agreement. If the economy is re-tuned in `03`, that file must be re-read.
+- **SOLO-2 (decided): a solo character is local-only and can never federate.** The save lives on
+  player-controlled infrastructure, which is exactly what I14 forbids for game state — so the
+  invariant is preserved by ensuring nothing downstream ever trusts it. `SoloSave.federable` is
+  permanently false, there is no export path, and `verify` reports plainly that a local item has no
+  provenance chain rather than manufacturing one that would look checkable and prove nothing. Going
+  online means a character created on a real home server. This is option 1 in `../architecture/02` §4,
+  which recommended it.
+- **SOLO-3 (open): the market catalogue is empty in solo.** `LocalGameSession.purchase` refuses
+  everything, because offerings are content rather than code — the same gap the server has as **W-3**
+  (`GatedOfferingCatalog` is empty). One catalogue should serve both, and it does not exist yet.
+- **CL-8 (partly closed): `RemoteGameSession` exists; its transport does not.** The class is written
+  and tested, and holds the two properties that matter: every read returns a last-known value rather
+  than null or a blank (so a network hiccup never empties a HUD mid-decision), and every intent
+  returns **`69 EX_UNAVAILABLE`** rather than `1 REFUSED` — because claiming a rule declined the
+  request would be a lie about where the decision came from. **What is still missing is the REST
+  client, the AT Proto OAuth flow and the reconnect loop.** Adding them changes no view.
+- **CL-9 ✅ RESOLVED 2026-07-25 — the five windows are built.** `market` renders the five-gate
+  taxonomy and the price bands from `02` and `03` §2; `map` renders the known-node table with the
+  discovery rule that keeps recon paid-for; `recon` renders the cost model; `botnet` renders the four
+  bot invariants including **I10** and **I11**; `comms` renders the social layer's shape and the one
+  thing `00` §3 forbids putting in it (a chat window). Each names the specific undecided question
+  where one blocks, rather than showing an empty table that reads as a bug.
+- **T-1 ✅ RESOLVED 2026-07-25 — the `man` window is built, as a sixteenth id.** `../client/04` §4.6
+  adds it and calls it "a fourteenth id"; `../client/05` §2.1 lists fifteen and never absorbed it,
+  because §2.2 added `comms` and `settings` without knowing about it. **The two documents disagree
+  about the size of a table both call closed.** It is built, because the teaching layer is pillar C6
+  and `man` is how a player reaches it deliberately — and because the honest fix for two documents
+  disagreeing is to build the thing and report the disagreement, not to drop it silently.
+  ⚠ `../client/05` §2.1's table should gain the row.
+- **CL-10 (open): the gloss bar and hover tier are not wired.** `../client/04` §4.1 specifies three
+  tiers of disclosure — hover for a one-line gloss, a keypress for the full page, citations below.
+  Tier 2 (`man`, the window, the index, the status filter) and tier 3 (`reading:`) are built. **Tier 1
+  is not:** no surface yet detects a term under the cursor and offers its gloss. `ManView.glossBar`
+  renders one and nothing calls it. This is the piece that makes teaching *ambient* rather than
+  looked-up, and it is the last substantive gap in pillar C6.
+
 ### Player state portability (`../architecture/09`, 2026-07-24)
 
 The 3-slot character model (online-only) plus DID→home resolution (E), home-server backup/restore (B), and verifiable migration of the provenanced subset with economy reset (C). Design is decided (`../architecture/09`); these are the sub-decisions it leaves open:
@@ -236,6 +294,9 @@ Record resolutions here when they land (date — question — outcome — where 
 - 2026-07-23 — **Full technology stack** — resolved end-to-end — recorded in `../architecture/`. (Source: Tech Chat 1.)
 - 2026-07-25 — **ED-3: the education domain split** — resolved to **seven domains, not six** — recorded in `../education/00-curriculum-and-method.md` §1.4. The six-way split named computer architecture `01` and left representation as a clause inside it; writing the domains falsified that twice. Representation has eighteen entries of its own and forward-references nothing, so it became `../education/01-foundations.md` and architecture moved to `02`. The command line kept `04` because `03`, `06` and `07` all name `shell(7)` or `exit-status(7)` in `prerequisites`, and any numbering placing it above them breaks rule R8 outright. Networking, cryptography and distributed systems each shifted up one. The ordering rule is unchanged and now holds with **zero upward prerequisite edges**. Closed `FN-1`, `CA-1`, `OS-1`, `NW-1` and the ownership half of `DS-1`; **CT-1** survives it and is listed above.
 - 2026-07-25 — **Four concepts had two full entries each** — resolved to **one owner apiece** — recorded in `../education/01-foundations.md` §2 and §3.1, `../education/02-computer-architecture.md` §2.2, `../education/05-networking.md` §3.19. `00` §1.4 forbids two entries for one concept ("a player who gets two answers stops trusting both"), and parallel authorship produced exactly that: `processor` and `memory-hierarchy` in both 01 and 02, `bit-width` in both, and `latency` in both 01 and 05. Architecture took the first two, foundations kept `bit-width`, and the fourth was not a duplicate at all — 05's entry taught round-trip time, so it was **renamed `rtt(7)`**, which is what `07`'s own boundary table had been calling it. Ceded rows are marked ⇧/⇩ in the inventories rather than deleted silently.
+- 2026-07-25 — **How single player runs without a server or a database** — resolved to an **in-process `solo` module** — recorded in `solo/pom.xml`, `../architecture/02` §4 and SOLO-1/SOLO-2 above. The client now starts offline by default: no network, no account, no PostgreSQL, no second process, no listening port. Verified end to end — the client launches, ticks, and writes a save of 723 bytes containing `"federable": false` and a 100-cycle rig. The measured footprint of the whole runtime is one JSON file.
+- 2026-07-25 — **The client's remaining surfaces** — the teaching layer, the docked layout and the five proposal windows all landed. The manual ships **21 pages** parsed by a closed-key parser that refuses unknown keys, unknown body sections, a section-7 page carrying a SYNOPSIS, and a `real, simplified` page with no CAVEATS — every one a silent failure otherwise. The cross-reference check found two dead links on first run (`ledger(1)`, `mine(1)`); both references were correct and the pages were missing, so the pages were written. The docked single-window layout is built as a **mode rather than a fallback** per `../client/07` §2.3, with the rig strip as chrome outside every SplitPane — a stronger guarantee for pillar C2 than always-on-top, because there is no z-order for it to lose. Both layouts verified running with zero exceptions.
+- 2026-07-25 — **V-1: are JavaFX looked-up values usable for non-colour tokens** — resolved to **no, they are colour-only** — measured against JavaFX 26.0.2, recorded in `../client/01-visual-language.md`'s question list and in both theme stylesheets. The failure is silent at runtime, which is why it was worth measuring rather than assuming.
 - 2026-07-25 — **CT-1: detection, logging, anti-forensics and hack-back had no owner** — resolved by **writing `../education/08-detection-and-defence.md`** (42 concepts, 20 entries). Option (a) was taken as `06` recommended — a document of its own rather than folding into `03` or widening `06`. It carries two obligations `../client/04` makes mandatory: §2.7's defender's answer on `log-scrubber(1)` (forward logs off the host, `chattr +a`, hash-chain them — and a gap in a log is itself evidence), and §2.8's statement that hacking back is illegal, which `hack-back(7)` carries with statutory citations. `08` can sit above everything only because **no `prerequisites` field in `01`–`07` names a detection concept** — checked before it was written, not after. `cross-view-detection(7)` went to `03` as recommended and turned out to be written there already, so CT-1 had over-stated its orphan list by one.
 - 2026-07-25 — **DS-1: six identity concepts assigned but unwritten** — resolved by **writing them into `../education/07-distributed-systems-and-identity.md`** (§3.19–§3.24: `did`, `pds`, `canonicalization`, `append-only-log`, `provenance-record(5)`, `provenance-chain`). `06` and `07` had each ceded them to the other; `07` won on two grounds `07` could not see for itself — their game surface is the `identity` window, and under R8 a `06` entry may not depend on a `07` one. `provenance-chain(7)`'s `notes:` names `../client/04` §4.9's already-written page as the ship-side source so the two cannot fork. ⚠ Writing them exposed **sixteen broken edges**: `07` had been citing `public-key(7)` and `signature(7)`, which `06` spells `public-key-cryptography(7)` and `digital-signature(7)`.
 - 2026-07-25 — **CT-3 / DS-4: the `adversarial` stage reported as over-subscribed** — **withdrawn; it was a unit error.** Two documents independently counted their **inventory rows** (20 and 25) against `../education/00` §6.2's **written-entry** budget, and the two agreeing made it look confirmed. Counted correctly the stage sits at **36 of 25–40** even after `08` added ten. `06`'s proposal to demote `public-key-cryptography(7)`, `digital-signature(7)` and `trust-anchor(7)` is therefore dropped — that would have been a stage assignment chosen to satisfy a number. §6.2 now states the counting basis and publishes the measured distribution, which is how **ED-11** (the `operating` stage genuinely *is* over) became visible.

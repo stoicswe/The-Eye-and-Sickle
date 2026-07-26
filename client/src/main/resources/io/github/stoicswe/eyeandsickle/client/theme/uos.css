@@ -1,0 +1,97 @@
+/*
+ * The uOS family — docs/client/03-story-theme.md.
+ *
+ * uOS is the operating system every rig in the game runs (docs/design/glossary.md), drawn here as
+ * its own operator console. This file overrides the SAME token names native.css defines, which is
+ * what makes "only the skin changes" true in the implementation and not merely in the prose: no
+ * view knows which family is loaded.
+ *
+ * Atmosphere is spent on chrome and never on data. There is no rule here that hides a value,
+ * reorders a table, or softens a number.
+ */
+
+.root {
+    -es-surface:            #0b0f0d;
+    -es-surface-raised:     #121815;
+    -es-surface-sunken:     #070a09;
+    -es-border:             #1f2f26;
+    -es-border-subtle:      #16211b;
+
+    -es-text-primary:       #9ff0c0;
+    -es-text-secondary:     #5fae86;
+    -es-text-disabled:      #336850;
+    -es-text-inverse:       #050807;
+
+    -es-compute:            #62d0ff;
+    -es-compute-recovering: #2f7f9e;
+    -es-ethecoin:           #ffcc4d;
+    -es-noise:              #c98bff;
+    -es-heat:               #ff6b52;
+
+    -es-state-confirmed:    #9ff0c0;
+    -es-state-pending:      #4d7f66;
+    -es-state-refused:      #ff6b52;
+    -es-state-unreachable:  #ffcc4d;
+
+    /*
+     * WARNING — AX-5, and this palette is the reason the question exists.
+     *
+     * docs/client/07-accessibility.md §5.4 measured the original uOS heat ramp at 1.02:1 between
+     * band 0 and band 4, meaning cold and named-hacker were the SAME LIGHTNESS in greyscale. These
+     * values step luminance deliberately as well as hue. Until AX-5 is closed and this ramp is
+     * re-measured, the band NAME and the pip count are non-removable: meaning must never rest on
+     * hue alone.
+     */
+    -es-heat-0:             #2f8f5c;
+    -es-heat-1:             #7fc04a;
+    -es-heat-2:             #d9a13c;
+    -es-heat-3:             #e56a3a;
+    -es-heat-4:             #a3202f;
+
+    -fx-background-color:   -es-surface;
+}
+
+/* uOS is a terminal all the way down: everything is monospaced, including the chrome. */
+.label, .text-field, .list-view, .table-view, .button {
+    -fx-font-family: "SF Mono", "Cascadia Mono", "DejaVu Sans Mono", monospace;
+}
+
+.es-mono           { -fx-font-family: "SF Mono", "Cascadia Mono", "DejaVu Sans Mono", monospace; }
+.es-numeric        { -fx-font-family: "SF Mono", "Cascadia Mono", "DejaVu Sans Mono", monospace; }
+.es-text-secondary { -fx-text-fill: -es-text-secondary; }
+.es-compute        { -fx-text-fill: -es-compute; }
+.es-ethecoin       { -fx-text-fill: -es-ethecoin; }
+
+.es-state-pending      { -fx-text-fill: -es-state-pending; -fx-font-style: italic; }
+.es-state-refused      { -fx-text-fill: -es-state-refused; }
+.es-state-unreachable  { -fx-text-fill: -es-state-unreachable; }
+
+.es-panel {
+    -fx-background-color: -es-surface-raised;
+    -fx-border-color: -es-border;
+    -fx-border-width: 1;
+    -fx-padding: 12;
+}
+.es-panel-title { -fx-font-weight: bold; -fx-text-fill: -es-text-primary; }
+.es-strip       { -fx-background-color: -es-surface-sunken; -fx-padding: 6 12 6 12;
+                  -fx-border-color: -es-border; -fx-border-width: 1 0 0 0; }
+.es-terminal    { -fx-font-family: "SF Mono", "Cascadia Mono", "DejaVu Sans Mono", monospace; -fx-background-color: -es-surface-sunken;
+                  -fx-text-fill: -es-text-primary; }
+
+/*
+ * V-1 CONFIRMED, 2026-07-25 — measured, not assumed.
+ *
+ * docs/design/15-open-questions.md lists V-1 as "JavaFX has no custom-property mechanism for
+ * non-colour values (looked-up values are colour-only). Verify before the token layer is built."
+ *
+ * It is verified. Declaring -es-mono-font here and referencing it with -fx-font-family produced,
+ * on JavaFX 26.0.2:
+ *
+ *   WARNING: CSS Error parsing native.css: Expected '<size>' while parsing '-es-mono-font'
+ *
+ * JavaFX looked-up values resolve to a Paint. A font stack is not one, so the reference fails and
+ * the declaration is dropped silently at runtime. COLOUR tokens below work exactly as intended;
+ * every non-colour token must be inlined here or held in Java. That is the constraint V-1 asked
+ * about, and it shapes how these themes are authored: there is no single place to change the mono
+ * stack in CSS, so the two families each state it.
+ */

@@ -36,9 +36,16 @@
     </license>
   </licenses>
 
+  <!--
+    Order matters only for the reactor's convenience; Maven sorts by dependency
+    anyway. `solo` sits between protocol and client because that is where it sits
+    in the dependency graph: it consumes the wire vocabulary and is consumed by
+    the view layer, and it must never be consumed by `server`.
+  -->
   <modules>
     <module>protocol</module>
     <module>server</module>
+    <module>solo</module>
     <module>client</module>
   </modules>
 
@@ -91,6 +98,11 @@
       <dependency>
         <groupId>io.github.stoicswe.eyeandsickle</groupId>
         <artifactId>eyeandsickle-protocol</artifactId>
+        <version>${revision}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.github.stoicswe.eyeandsickle</groupId>
+        <artifactId>eyeandsickle-solo</artifactId>
         <version>${revision}</version>
       </dependency>
 
