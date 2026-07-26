@@ -5,6 +5,7 @@ import io.github.stoicswe.eyeandsickle.protocol.game.ComputeConsumer;
 import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
 import io.github.stoicswe.eyeandsickle.solo.rules.ComputeRules;
+import io.github.stoicswe.eyeandsickle.solo.rules.EventLog;
 import io.github.stoicswe.eyeandsickle.solo.rules.LedgerRules;
 import io.github.stoicswe.eyeandsickle.solo.rules.MiningRules;
 import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
@@ -13,6 +14,7 @@ import io.github.stoicswe.eyeandsickle.solo.state.DefenseState;
 import io.github.stoicswe.eyeandsickle.solo.state.ItemState;
 import io.github.stoicswe.eyeandsickle.solo.state.NodeState;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
+import io.github.stoicswe.eyeandsickle.solo.state.TaskState;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -110,8 +112,34 @@ public final class SoloGame {
      */
     public void resume() {
         Instant now = clock.instant();
-        ComputeRules.settleRecovered(save.rig, now);
-        MiningRules.accrueDeployedMiners(save, now);
+        long recovered = ComputeRules.settleRecovered(save.rig, now);
+        long accrued = MiningRules.accrueDeployedMiners(save, now);
+        // ⚠ Tasks settle HERE, not only in tick(). resume() sets lastTick = now, so the first tick
+        // after loading sees zero elapsed time and returns early — a six-minute scan that ended
+        // while the game was closed would sit at 100% forever, never completing and never logging
+        // its finding. Offline work belongs on the offline path, next to the miner accrual that
+        // already lives here for exactly the same reason.
+        settleTasks(now);
+
+        // The log's primary job: telling a returning player what happened while they were gone.
+        // Without this, offline income is invisible and a player has no way to tell it from a bug.
+        java.time.Duration away = java.time.Duration.between(save.lastPlayedAt, now);
+        if (!away.isNegative() && away.toMinutes() >= 1) {
+            EventLog.notice(save, "rig", "Resumed after " + humanAway(away) + " away.", now);
+            if (recovered > 0) {
+                EventLog.info(save, "compute", recovered + " cycles finished recovering while away.", now);
+            }
+            if (accrued > 0) {
+                EventLog.info(save, "mining",
+                        "Deployed miners buffered " + money(accrued) + " while away. `collect` sweeps it.", now);
+            }
+            if (save.rig.selfMiningCycles > 0) {
+                // Said explicitly because its absence is otherwise indistinguishable from a bug —
+                // and Invariant I5 is the reason, not an oversight.
+                EventLog.info(save, "mining",
+                        "Self-mining earned nothing while away: it is online-only.", now);
+            }
+        }
 
         // Self-mining is deliberately NOT credited for time away. It is online-only (Invariant I5),
         // and crediting it here would make the safe, zero-heat, unseizable income source also the
@@ -135,7 +163,12 @@ public final class SoloGame {
         boolean changed = false;
 
         long recovered = ComputeRules.settleRecovered(save.rig, now);
+        if (recovered > 0) {
+            EventLog.info(save, "compute", recovered + " cycles recovered and are available again.", now);
+        }
         changed |= recovered > 0;
+
+        changed |= settleTasks(now);
 
         long selfYield = MiningRules.selfMiningYield(save.rig.selfMiningCycles, elapsed);
         if (selfYield > 0) {
@@ -193,6 +226,11 @@ public final class SoloGame {
             return false;
         }
         save.rig.selfMiningCycles = cycles;
+        EventLog.info(save, "mining",
+                cycles == 0
+                        ? "Self-mining stopped; cycles released."
+                        : "Self-mining set to " + cycles + " cycles (" + money(cycles * 40L) + "/hr while open).",
+                clock.instant());
         return true;
     }
 
@@ -207,9 +245,71 @@ public final class SoloGame {
      * @return the recovering allocation, or empty if the rig cannot afford the tier
      */
     public Optional<AllocationState> scan(ScanTier tier) {
+        Instant now = clock.instant();
         AllocationState a = ComputeRules.spend(
-                save.rig, ComputeConsumer.ACTIVE_TOOL, "scan --" + tier.flag(), tier.cycles(), clock.instant());
-        return Optional.ofNullable(a);
+                save.rig, ComputeConsumer.ACTIVE_TOOL, "scan --" + tier.flag(), tier.cycles(), now);
+        if (a == null) {
+            return Optional.empty();
+        }
+        // The scan now actually runs for the duration docs/design/04 §3.2 publishes, instead of the
+        // duration being a number in a log line that nothing ever waited for. The cycles are
+        // unchanged — spent here, recovering on the thermal curve — because §3.2 lists Compute and
+        // Duration as separate columns. See TaskState's class comment.
+        save.tasks.add(new TaskState(
+                "scan",
+                "scan --" + tier.flag(),
+                a.allocationId,
+                tier.cycles(),
+                now,
+                now.plusSeconds(tier.seconds())));
+        EventLog.notice(save, "scan",
+                "scan --" + tier.flag() + " started: " + tier.cycles() + " cycles, ~" + tier.seconds() + "s.",
+                now);
+        return Optional.of(a);
+    }
+
+    /** Every task currently running, oldest first. */
+    public List<TaskState> tasks() {
+        return List.copyOf(save.tasks);
+    }
+
+    /**
+     * Finishes any task whose end has passed.
+     *
+     * <p>Reports each completion to the log rather than only to whoever happens to be looking. A
+     * six-minute scan that finishes while the player is reading the ledger has to leave a trace, or
+     * the answer they paid 35 cycles for is one they can miss entirely — which is the same argument
+     * {@code RigLogTest#offlineIncomeIsReported} makes about silent income.
+     */
+    private boolean settleTasks(Instant now) {
+        boolean changed = false;
+        for (TaskState task : List.copyOf(save.tasks)) {
+            if (!task.isFinishedAt(now)) {
+                continue;
+            }
+            save.tasks.remove(task);
+            changed = true;
+            EventLog.notice(save, "scan", task.label + " finished. " + scanFinding(), now);
+        }
+        return changed;
+    }
+
+    /**
+     * What a completed scan reports.
+     *
+     * <p>⚠ Deliberately honest about being a stub. {@code docs/design/04-mining.md} §3.2 makes the
+     * tiers differ in what they <em>find</em> — Quick sees unhidden T2–T3 miners, Thorough sees
+     * rootkit-wrapped ones — and solo has no foreign miners to find yet, because deployment onto
+     * NPC nodes is not built. Returning a confident "nothing found" for a Thorough Scan would be a
+     * lie the player would reasonably act on, so it says what it actually checked.
+     */
+    private String scanFinding() {
+        long foreign = save.knownNodes.stream()
+                .filter(n -> n.hostsForeignMiner)
+                .count();
+        return foreign == 0
+                ? "No foreign miner on this rig. Manual audit still sees things a scan does not."
+                : foreign + " node(s) host something that is not yours.";
     }
 
     /** Arms a defence, holding its compute until disarmed. Never generates heat (Invariant I9). */
@@ -224,19 +324,35 @@ public final class SoloGame {
         d.reservedCycles = cycles;
         d.armedAt = clock.instant();
         save.defenses.add(d);
+        EventLog.notice(save, "defense",
+                kind + " armed; " + cycles + " cycles reserved while it runs.", clock.instant());
         return Optional.of(d);
     }
 
     /** Sweeps every deployed miner's buffer into the balance. */
     public long collect() {
-        return MiningRules.collectAll(save, clock.instant());
+        long collected = MiningRules.collectAll(save, clock.instant());
+        if (collected > 0) {
+            EventLog.info(save, "mining", "Collected " + money(collected) + " from deployed miners.",
+                    clock.instant());
+        }
+        return collected;
     }
 
     /** Moves an item between storage tiers — the risk change is the point ({@code design/01} §6). */
     public boolean moveItem(String itemId, StorageTier to) {
         for (ItemState item : save.items) {
             if (item.itemId.equals(itemId)) {
+                String from = item.tier;
                 item.tier = to.name();
+                // Moving into an exposed tier is a risk change, and a risk change the player made
+                // deliberately is exactly the kind of thing they will want to find again later.
+                boolean riskier = to == StorageTier.HIGH_HACKABLE_ZONE
+                        || (to == StorageTier.STANDARD_STORAGE && "VAULT".equals(from));
+                EventLog.add(save, riskier ? 4 : 6, "storage",
+                        item.displayName + " moved to " + to.name().toLowerCase(java.util.Locale.ROOT)
+                                + (riskier ? " — now more exposed." : "."),
+                        clock.instant());
                 return true;
             }
         }
@@ -254,6 +370,27 @@ public final class SoloGame {
 
     public void credit(long minorUnits, String type, String description) {
         LedgerRules.apply(save, minorUnits, type, description, clock.instant());
+    }
+
+    private static String money(long minorUnits) {
+        return String.format(java.util.Locale.ROOT, "%d.%02d EC", minorUnits / 100, Math.abs(minorUnits % 100));
+    }
+
+    private static String humanAway(java.time.Duration away) {
+        long days = away.toDays();
+        if (days >= 1) {
+            return days + (days == 1 ? " day" : " days");
+        }
+        long hours = away.toHours();
+        if (hours >= 1) {
+            return hours + (hours == 1 ? " hour" : " hours");
+        }
+        return Math.max(1, away.toMinutes()) + " minutes";
+    }
+
+    /** Everything in the rig log, oldest first. */
+    public java.util.List<io.github.stoicswe.eyeandsickle.solo.state.RigEvent> log() {
+        return java.util.List.copyOf(save.log);
     }
 
     /** The three scan tiers and their published costs. */

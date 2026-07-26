@@ -48,6 +48,23 @@ public enum WindowSpec {
     SETTINGS("settings", "Settings", "~/.config", 760, 620, 560, 440, KeyCode.COMMA, false, true, false),
 
     /**
+     * The rig log — a live stream of what the machine has been doing.
+     *
+     * <p>⚠ <b>A seventeenth window, and the third the catalogue documents did not anticipate.</b>
+     * {@code docs/client/04} §3.10 specifies a {@code log} <em>command</em> mapped to
+     * {@code journalctl -f}, and {@code docs/client/05} §5.2 reserves an alert tray — but those are
+     * different surfaces. The tray is triage: rung-3 and rung-4 items with deadlines, sorted by time
+     * remaining (§6.7). A log is history, unsorted and unfiltered, and it answers a question the tray
+     * cannot: <em>what happened while I was not watching.</em>
+     *
+     * <p>{@code docs/design/04-mining.md} §3.1 needs that question answerable — reconstructing the
+     * rig's recent past is how a player notices something that should not be there. Logged against
+     * <b>WL-1</b> with {@code man}, since the catalogue's size is now three windows past what §2.1
+     * lists.
+     */
+    LOG("log", "Log", "journalctl -f", 720, 620, 460, 320, KeyCode.L, true, true, false),
+
+    /**
      * The manual and the term index.
      *
      * <p>⚠ <b>A sixteenth window that {@code docs/client/05} §2.1's table does not list.</b>

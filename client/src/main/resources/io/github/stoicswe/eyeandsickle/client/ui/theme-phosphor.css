@@ -1,0 +1,40 @@
+/*
+ * theme-phosphor.css — P1 green, the tube the story family started as.
+ *
+ * A palette overlay. Loaded after theme.css, redefines colours and nothing else — see ThemeId's
+ * class comment for why variants are not allowed to touch component rules.
+ *
+ * A DEC VT220 has one phosphor and gets its whole range from beam intensity, which is exactly the
+ * shape of this palette: every grey tier below is the same hue at a different brightness. That is
+ * also why it needs no adjustment to obey §2.1's "depth comes from brightness, never from shadow" —
+ * a monochrome tube has no other mechanism.
+ *
+ * ⚠ One deliberate break from the monochrome: -es-alarm stays red. A real single-phosphor terminal
+ * signalled alarm by inverting the cell, which a palette cannot express, and the alternative — a
+ * brighter green — is the same signal this palette already uses for "live and earning". Loss that
+ * looks like income is worse than a historically impure colour.
+ */
+
+.root {
+    -es-void:      #050A07;
+    -es-panel:     #081109;
+    -es-panel-hi:  #0C1A0E;
+
+    -es-rule:      #142717;
+    -es-rule-hi:   #1E3A22;
+
+    -es-dim-3:     #2C5433;
+    -es-dim-2:     #3F7A49;
+    -es-dim-1:     #5FA96C;
+    -es-text:      #7FCB8C;
+    -es-text-hi:   #B6F0BE;
+
+    /* The beam at full intensity: still the single accent, still meaning live/earning only. */
+    -es-amber:     #4AFF6E;
+    -es-amber-mid: #2FBF4C;
+    -es-amber-low: #176A2A;
+
+    -es-alarm:     #FF5A45;
+
+    -es-tool:      #12291A;
+}

@@ -62,6 +62,46 @@ public interface GameSession extends AutoCloseable {
 
     List<KnownNode> knownNodes();
 
+    /** Every armed defence, so the rig readout can show a posture rather than a number. */
+    List<ArmedDefense> defenses();
+
+    /**
+     * The rig's log, oldest first.
+     *
+     * @param minSeverity RFC 5424 level; entries less severe than this are excluded. Remember the
+     *     numbering runs backwards — {@code 4} (warning) excludes {@code 6} (info).
+     */
+    List<LogLine> log(int minSeverity, int limit);
+
+    /**
+     * What mining is currently doing.
+     *
+     * <p>Exposed as a summary rather than as raw nodes because the readout wants rates and caps, and
+     * making every view derive those from the node list would be three chances to derive them
+     * differently.
+     */
+    MiningSummary mining();
+
+    /**
+     * The rig's structural caps — the axes {@code docs/design/11-rig-infrastructure.md} §2 defines
+     * that are not compute.
+     *
+     * <p>Read by the desk, which uses Bandwidth to cap how many tool windows may be open at once
+     * ({@code docs/design/ui-design-language.md} §8). That mapping is a <b>[PROPOSAL]</b> and is
+     * defaulted off — see {@code docs/design/15-open-questions.md} <b>UI-2</b>.
+     */
+    RigCapacity capacity();
+
+    /**
+     * Everything the rig is currently working on, for the activity readout.
+     *
+     * <p>Deliberately a flat list of one shape rather than "scans, plus recoveries, plus buffers".
+     * A player asking "what is this machine doing right now" is asking one question, and three
+     * differently-shaped answers stitched together in the view is three chances for one of them to
+     * stop being rendered without anyone noticing.
+     */
+    List<RunningTask> tasks();
+
     /**
      * False when a remote session has lost its server. Always true for a local session — there is
      * nothing to lose.
@@ -178,4 +218,125 @@ public interface GameSession extends AutoCloseable {
 
     /** One discovered machine. Undiscovered nodes are never in this list — recon is a paid service. */
     record KnownNode(String address, String label, int reconLevel, int tier, int deployedMiners, boolean hostsForeignMiner) {}
+
+    /** One armed defence and what it is holding. */
+    record ArmedDefense(String kind, int tier, long reservedCycles, boolean triggered) {}
+
+    /**
+     * One line of the rig log.
+     *
+     * <p>{@code severity} is RFC 5424's real numbering, {@code facility} is which subsystem spoke.
+     * Both are carried through rather than flattened into a string, so the panel can filter and
+     * {@code log | grep} can still work on the rendered form.
+     */
+    record LogLine(java.time.Instant at, int severity, String facility, String message, String keyword, String glyph) {}
+
+    /**
+     * Mining, summarised.
+     *
+     * @param selfMiningCycles cycles committed to self-mining; earns only while the client is open
+     * @param bufferedMinorUnits yield sitting on hosts, waiting to be collected
+     * @param bufferCapMinorUnits the ceiling those buffers stop at — the reason time away is worth
+     *     something but not proportionally
+     * @param deployedMiners how many are live
+     */
+    record MiningSummary(
+            long selfMiningCycles, long bufferedMinorUnits, long bufferCapMinorUnits, int deployedMiners) {
+
+        /** True once every buffer is full, which is when being away stops paying at all. */
+        public boolean buffersFull() {
+            return deployedMiners > 0 && bufferedMinorUnits >= bufferCapMinorUnits;
+        }
+    }
+
+    /**
+     * The rig's non-compute caps ({@code docs/design/11-rig-infrastructure.md} §2).
+     *
+     * @param bandwidth simultaneous engagements
+     * @param memoryBuffer equipped-tool slots — how much can be readied at once, as distinct from
+     *     how much is owned
+     * @param thermalBudget how fast spent cycles return
+     */
+    /**
+     * One piece of work the rig is doing, with enough to draw a progress meter and an ETA.
+     *
+     * <p>{@code startedAt} may be null on state written before it was tracked. That is not the same
+     * as zero progress and must not be rendered as such — {@link #progress()} returns a negative
+     * value to mean <em>unknown</em>, which the readout shows as an indeterminate sweep rather than
+     * an empty bar. A bar reading 0% on a recovery that is nearly finished is worse than one that
+     * admits it does not know.
+     *
+     * @param facility which subsystem owns it, matching the log's facility names so the two
+     *     surfaces name the same thing
+     * @param cycles compute this work is holding, or 0 if it holds none
+     */
+    record RunningTask(
+            String id,
+            String facility,
+            String label,
+            String detail,
+            java.time.Instant startedAt,
+            java.time.Instant endsAt,
+            long cycles,
+            java.time.Instant asOf) {
+
+        /**
+         * ⚠ {@code asOf} is the session's own clock, stamped when this record was built — never
+         * {@link java.time.Instant#now()}.
+         *
+         * <p>Reading the wall clock here would be the same mistake {@code ComputeRules.spend}'s
+         * comment warns about one module down: a view that reads the real time behind the engine's
+         * back disagrees with the engine about what time it is. In production the two are the same
+         * clock and nothing would ever look wrong; under a fixed test clock every task reported 100%
+         * complete the instant it started, which is how this was caught.
+         */
+        public double progress() {
+            if (startedAt == null || endsAt == null) {
+                return -1;
+            }
+            long total = java.time.Duration.between(startedAt, endsAt).toMillis();
+            if (total <= 0) {
+                return 1;
+            }
+            long done = java.time.Duration.between(startedAt, asOf).toMillis();
+            return Math.max(0, Math.min(1, done / (double) total));
+        }
+
+        /** Time left, never negative. Zero means it should complete on the next tick. */
+        public java.time.Duration remaining() {
+            if (endsAt == null) {
+                return java.time.Duration.ZERO;
+            }
+            java.time.Duration left = java.time.Duration.between(asOf, endsAt);
+            return left.isNegative() ? java.time.Duration.ZERO : left;
+        }
+
+        public boolean indeterminate() {
+            return progress() < 0;
+        }
+    }
+
+    record RigCapacity(int bandwidth, int memoryBuffer, int thermalBudget) {
+
+        /** Windows that never count against Bandwidth: the six that reach nothing. */
+        public static final int FREE_WINDOWS = 6;
+
+        /**
+         * The window cap {@code ui-design-language.md} §8 proposes, if it is switched on.
+         *
+         * <p><b>[PROPOSAL]</b>, and the arithmetic is the whole proposal. A starting rig has
+         * {@code bandwidth = 1}, so capping windows at Bandwidth directly would allow <em>one</em>
+         * open panel and make the game unusable. The split below is the smallest thing that makes
+         * §8's idea coherent: the tools that are not engagements — the rig monitor, the terminal,
+         * the log, the manual, settings, the switcher — are always available, and Bandwidth caps
+         * the ones that actually reach out to something.
+         *
+         * <p>Logged as <b>UI-2</b> in {@code docs/design/15-open-questions.md} and defaulted off,
+         * because a cap that turns out to be wrong should not be discovered by a player who cannot
+         * open their own map.
+         */
+        public int proposedWindowCap() {
+            return FREE_WINDOWS + Math.max(1, bandwidth);
+        }
+    }
 }

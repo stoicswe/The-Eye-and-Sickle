@@ -21,18 +21,18 @@ import org.junit.jupiter.api.Test;
 class WindowCatalogueTest {
 
     @Test
-    @DisplayName("the catalogue is the fifteen from 05 §2.1 plus `man` from 04 §4.6")
+    @DisplayName("the catalogue is 05 §2.1's fifteen, plus `man` and `log`")
     void catalogueMatchesTheDocuments() {
         // ⚠ The two documents disagree about the size of a table both call closed: docs/client/05
         // §2.1 lists fifteen and never absorbed the `man` window that docs/client/04 §4.6 adds and
         // flags as T-1. Building it and reporting the discrepancy beats silently dropping the way a
         // player reaches the teaching layer — which is client pillar C6.
-        assertThat(WindowSpec.values()).hasSize(16);
+        assertThat(WindowSpec.values()).hasSize(17);
         assertThat(java.util.Arrays.stream(WindowSpec.values()).map(WindowSpec::id).toList())
                 .containsExactlyInAnyOrder(
                         "rig-monitor", "terminal", "map", "recon", "audit", "mining", "storage",
                         "ledger", "botnet", "defense", "market", "identity", "comms", "settings",
-                        "switcher", "man");
+                        "switcher", "man", "log");
     }
 
     @Test

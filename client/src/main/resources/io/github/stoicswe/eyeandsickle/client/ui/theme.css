@@ -1,0 +1,876 @@
+/*
+ * theme.css — the deck. The only stylesheet in the client.
+ *
+ * docs/design/ui-design-language.md is the contract. Two rules from it govern this file:
+ *
+ *   §10 criterion 2 — every colour is a looked-up colour, declared once, in :root below. A hex
+ *   literal anywhere else in this file (or anywhere in Java) is a bug, and UiTokensTest fails on
+ *   the Java half of that.
+ *
+ *   §7.2 — looked-up values are COLOURS ONLY. JavaFX drops the whole declaration if you try to
+ *   look up a size, and it does so at runtime with a console warning that is easy to miss:
+ *
+ *       Expected '<size>' while parsing '-es-mono-font'
+ *
+ *   That was measured on this project, not assumed. Every number lives in UiTokens.java.
+ *
+ * Two more JavaFX facts this file is written around:
+ *
+ *   - There is no `letter-spacing`. Martian Mono was chosen because the face supplies the tracking
+ *     (§2.2, §7.2). Do not try to fake it.
+ *   - There is no `text-transform`. Uppercase happens in Java. A label that is not uppercase on
+ *     screen is a missing `.toUpperCase(Locale.ROOT)` in a view, not a missing rule here.
+ *
+ * AtlantaFX is gone (§0), so Modena is the user-agent stylesheet underneath. Modena is light,
+ * rounded and blue — the antithesis of §9's rejection list — so the CONTROLS section is not
+ * polish. Every control the client instantiates is overridden there, and an unstyled one shows up
+ * as a rounded grey box that is impossible to miss.
+ */
+
+/* ══ PALETTE (§2.1) ══════════════════════════════════════════════════════════════════════════ */
+
+.root {
+    /* ground — cold blue-black. never #000, which reads as a hole rather than a surface. */
+    -es-void:      #07090A;
+    -es-panel:     #0C1012;
+    -es-panel-hi:  #11171A;
+
+    /* hairlines */
+    -es-rule:      #1B2326;
+    -es-rule-hi:   #2C383B;
+
+    /* cold grayscale — everything that is not live */
+    -es-dim-3:     #33403F;
+    -es-dim-2:     #4E5D5E;
+    -es-dim-1:     #7B8D8E;
+    -es-text:      #A9BCBD;
+    -es-text-hi:   #DCE9E9;
+
+    /* the single accent — sodium amber. cycles doing work, or income. nothing else. */
+    -es-amber:     #FFAE38;
+    -es-amber-mid: #B87A28;
+    -es-amber-low: #6A4715;
+
+    /* loss and hostile state. at most twice per screen. */
+    -es-alarm:     #C4423A;
+
+    /* equipped-tool cells: the one grey the palette table does not name, from the reference grid */
+    -es-tool:      #242E2F;
+
+    -fx-background-color: -es-void;
+    -fx-font-family: "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
+    -fx-font-size: 12px;
+    -fx-text-fill: -es-text;
+
+    /* Modena's focus glow is a blue halo with a blur. §9 bans both; the deck focus ring is drawn
+       as a 1px amber outline in the FOCUS section instead. */
+    -fx-focus-color: transparent;
+    -fx-faint-focus-color: transparent;
+}
+
+/* ══ TYPE ROLES (§2.2) ═══════════════════════════════════════════════════════════════════════ */
+
+/* Labels, keys, headers, buttons. Uppercase is applied in Java — see the header comment. */
+.es-label,
+.es-strip-label,
+.es-rail-label,
+.es-legend-key,
+.es-kv-key,
+.es-key-hint,
+.es-th {
+    -fx-font-family: "Martian Mono", "IBM Plex Mono", monospace;
+    -fx-font-weight: 500;
+    -fx-font-size: 8.5px;
+    -fx-text-fill: -es-dim-2;
+}
+
+.es-th { -fx-font-size: 8px; }
+
+/* The one large thing on a panel (§2.2). */
+.es-display {
+    -fx-font-family: "Martian Mono", monospace;
+    -fx-font-weight: 700;
+    -fx-font-size: 30px;
+    -fx-text-fill: -es-amber;
+}
+.es-display-unit {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-weight: 300;
+    -fx-font-size: 13px;
+    -fx-text-fill: -es-dim-2;
+}
+
+.es-value      { -fx-text-fill: -es-text-hi; -fx-font-weight: 500; -fx-font-size: 12px; }
+.es-value-live { -fx-text-fill: -es-amber; }
+.es-value-warn { -fx-text-fill: -es-alarm; }
+.es-value-dim  { -fx-text-fill: -es-dim-1; }
+.es-body       { -fx-text-fill: -es-text; -fx-font-size: 12px; }
+.es-small      { -fx-text-fill: -es-dim-1; -fx-font-size: 11px; }
+.es-micro      { -fx-text-fill: -es-dim-1; -fx-font-size: 9.5px; }
+.es-muted      { -fx-text-fill: -es-dim-2; }
+
+/* ══ SHELL (§3) ══════════════════════════════════════════════════════════════════════════════ */
+
+.es-deck { -fx-background-color: -es-void; }
+
+/* Top status strip — global diegetic state, cells divided by hairlines. */
+.es-top {
+    -fx-background-color: -es-panel;
+    -fx-border-color: transparent transparent -es-rule-hi transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.es-top-cell {
+    -fx-padding: 7 14 7 14;
+    -fx-border-color: transparent -es-rule transparent transparent;
+    -fx-border-width: 0 1 0 0;
+}
+.es-top-cell:last-child { -fx-border-width: 0; }
+.es-top-spacer {
+    -fx-border-color: transparent -es-rule transparent transparent;
+    -fx-border-width: 0 1 0 0;
+}
+
+/* Left rail — almost pure texture (§3). */
+.es-rail {
+    -fx-background-color: -es-panel;
+    -fx-border-color: transparent -es-rule-hi transparent transparent;
+    -fx-border-width: 0 1 0 0;
+    -fx-padding: 12 0 12 0;
+}
+.es-rail-label { -fx-text-fill: -es-dim-2; }
+.es-rail-tick      { -fx-background-color: -es-rule-hi; }
+.es-rail-tick-long { -fx-background-color: -es-dim-3; }
+
+/* The desk: where tool windows live. Tiling panes and floating windows share this ground. */
+.es-desk { -fx-background-color: -es-void; }
+
+/* Command strip. */
+.es-cmd {
+    -fx-background-color: -es-panel;
+    -fx-border-color: -es-rule-hi transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+    -fx-padding: 8 14 8 14;
+}
+.es-prompt { -fx-text-fill: -es-amber; -fx-font-size: 12px; }
+.es-caret  { -fx-background-color: -es-amber; }
+.es-key-hint { -fx-text-fill: -es-dim-2; }
+.es-key-cap {
+    -fx-font-family: "Martian Mono", monospace;
+    -fx-font-size: 8.5px;
+    -fx-text-fill: -es-text;
+    -fx-border-color: -es-rule-hi;
+    -fx-border-width: 1;
+    -fx-padding: 1 4 1 4;
+}
+.es-key-hint:hover .es-key-cap { -fx-border-color: -es-amber-low; }
+
+/* ══ PANELS (§2.3, §3) ═══════════════════════════════════════════════════════════════════════ */
+
+/*
+ * The notch is a Polygon clip applied in WindowFrame, not CSS — §7.2: there is no clip-path, and
+ * -fx-shape scales the shape to the region, which turns a fixed 18px cut into a proportional wedge
+ * that grows with the window. These classes supply the two grounds the clipped layers paint.
+ */
+.es-panel-edge { -fx-background-color: -es-rule-hi; }
+.es-panel      { -fx-background-color: -es-panel; }
+
+/* Every region has a header strip. An unlabeled region is a bug (§3). */
+.es-strip {
+    -fx-background-color: -es-panel-hi;
+    -fx-border-color: transparent transparent -es-rule-hi transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 5 12 5 12;
+    -fx-min-height: 24px;
+}
+.es-strip-label { -fx-text-fill: -es-text-hi; }
+.es-strip-id    { -fx-text-fill: -es-dim-3; -fx-font-size: 9px; -fx-font-family: "Martian Mono", monospace; }
+.es-strip-ctl   { -fx-text-fill: -es-dim-2; -fx-font-size: 10px; }
+.es-strip-ctl:hover { -fx-text-fill: -es-amber; }
+.es-strip-ctl-close:hover { -fx-text-fill: -es-alarm; }
+
+/* The focused window's strip is brighter. Depth from brightness, never shadow (§2.1). */
+.es-window-focused > .es-strip { -fx-background-color: -es-panel-hi; }
+.es-window-focused .es-strip-label { -fx-text-fill: -es-amber; }
+
+.es-body-pad { -fx-padding: 14 12 14 12; }
+
+/* ══ DESK CHROME (§0, §8) ════════════════════════════════════════════════════════════════════ */
+
+/* A window on the desk. No shadow — §2.1: depth comes from brightness, never from shadow or blur.
+   The frame's own 1px edge layer is what separates it from the ground. */
+.es-window { -fx-effect: null; }
+
+/* The tiling target shown while a window is dragged against an edge. An outline, not a fill: a
+   filled preview would obscure the window it is about to replace. */
+.es-snap-preview {
+    -fx-background-color: -es-amber-low, -es-void;
+    -fx-background-insets: 0, 1;
+    -fx-opacity: 0.45;
+}
+
+/* Minimised windows live as chips on the rail. Named, never icon-only (§9 bans icon sets, and
+   docs/client/07 §5.2 bans meaning that rests on appearance). */
+.es-chip {
+    -fx-background-color: -es-panel;
+    -fx-border-color: -es-rule-hi;
+    -fx-border-width: 1;
+    -fx-padding: 4 8 4 8;
+}
+.es-chip:hover { -fx-border-color: -es-amber-low; }
+.es-chip .es-label { -fx-text-fill: -es-dim-1; }
+.es-chip:hover .es-label { -fx-text-fill: -es-amber; }
+
+/* Open and minimised are distinguished by TWO channels — border weight and text colour — because
+   docs/client/07 §5.2 forbids meaning that rests on colour alone. */
+.es-chip-open {
+    -fx-border-color: -es-amber-mid;
+    -fx-text-fill: -es-amber;
+    -fx-background-color: -es-panel-hi;
+}
+.es-chip-minimized {
+    -fx-border-color: -es-rule;
+    -fx-text-fill: -es-dim-3;
+}
+
+/* The command strip's input. Borderless: the strip already draws the boundary, and a second
+   rectangle inside it would be the only nested box on the screen. */
+.es-command-input {
+    -fx-background-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 0;
+    -fx-text-fill: -es-text-hi;
+    -fx-prompt-text-fill: -es-dim-3;
+}
+.es-command-input:focused { -fx-border-width: 0 0 1 0; -fx-border-color: -es-amber-low; }
+
+/* The undecorated Stage's own drag bar. There is no OS title bar (§0, §10 criterion 1), so this is
+   the only way to move or close the game window. */
+.es-titlebar {
+    -fx-background-color: -es-void;
+    -fx-border-color: transparent transparent -es-rule transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 4 12 4 12;
+}
+.es-titlebar-title { -fx-text-fill: -es-dim-2; }
+
+/* ══ CYCLE GRID — the signature component (§4) ═══════════════════════════════════════════════ */
+
+/* Compute is countable, not a percentage: 100 cells on a void well. */
+.es-grid-well {
+    -fx-background-color: -es-void;
+    -fx-border-color: -es-rule;
+    -fx-border-width: 1;
+    -fx-padding: 10;
+}
+
+.es-cell               { -fx-background-color: -es-dim-3; }
+.es-cell-self-mining   { -fx-background-color: -es-amber; }
+.es-cell-channel       { -fx-background-color: -es-amber-mid; }
+.es-cell-bot           { -fx-background-color: -es-dim-1; }
+.es-cell-detection     { -fx-background-color: -es-dim-2; }
+.es-cell-firewall      { -fx-background-color: -es-dim-3; }
+.es-cell-tool          { -fx-background-color: -es-tool; }
+.es-cell-relay         { -fx-background-color: -es-dim-2; }
+
+/* Recovering and free are outlines, not fills — the cell is not doing anything, and a filled cell
+   that is doing nothing is the fastest way to make the grid unreadable at a glance. Drawn as two
+   background layers with insets, which is JavaFX's idiom for an inset hairline (§7.1). */
+.es-cell-recovering {
+    -fx-background-color: -es-amber-low, -es-void;
+    -fx-background-insets: 0, 1;
+}
+.es-cell-recovering-alt {
+    -fx-background-color: -es-amber-mid, -es-void;
+    -fx-background-insets: 0, 1;
+}
+.es-cell-free {
+    -fx-background-color: -es-rule-hi, -es-void;
+    -fx-background-insets: 0, 1;
+}
+
+/*
+ * Cycles the rig cannot account for.
+ *
+ * ComputeBudget.unaccountedFor() is a real quantity in the model, and docs/design/04-mining.md §3.1
+ * makes noticing it the way a player finds a miner they did not deploy. It gets its own cell so the
+ * grid can show the thing rather than describe it: something is spending your rig and the rig does
+ * not know what.
+ */
+.es-cell-unknown {
+    -fx-background-color: -es-alarm, -es-void;
+    -fx-background-insets: 0, 1;
+}
+.es-cell-unknown-alt {
+    -fx-background-color: -es-alarm;
+}
+
+/* Legend isolation: instant, no transition (§4). */
+.es-cell-muted { -fx-opacity: 0.22; }
+
+/* Legend rows on a 1px grid, not chips (§4). The grid background bleeds through as the gap. */
+.es-legend    { -fx-background-color: -es-rule; }
+/*
+ * ⚠ The swatch declares NO background. It is given the same `.es-cell-*` class as the cells it
+ * stands for, and those rules sit ABOVE this point in the file. A background here would have equal
+ * specificity, would therefore win on source order, and would paint every swatch in the legend the
+ * same grey — which is what it did until this comment replaced the declaration. The legend is the
+ * one place a player learns what a colour means, so a legend whose swatches are all one colour is
+ * worse than no legend.
+ */
+.es-legend-row {
+    -fx-background-color: -es-panel;
+    -fx-padding: 6 9 6 9;
+}
+.es-legend-row:hover { -fx-background-color: -es-panel-hi; }
+.es-legend-key { -fx-text-fill: -es-dim-1; }
+.es-legend-n   { -fx-text-fill: -es-text-hi; -fx-font-weight: 500; -fx-font-size: 11px; }
+.es-legend-sub { -fx-text-fill: -es-dim-3; -fx-font-size: 9px; }
+
+/* ══ METERS (§4) ═════════════════════════════════════════════════════════════════════════════ */
+
+/* Cells with gaps. Never a continuous bar, never a gradient. */
+.es-meter-bar     { -fx-background-color: -es-dim-3; }
+.es-meter-bar-on  { -fx-background-color: -es-amber-mid; }
+.es-meter-bar-hot { -fx-background-color: -es-alarm; }
+
+/* 8 cells = 4 hours, one per half hour. Alarm at full, because full means yield is being lost. */
+.es-buffer-cell      { -fx-background-color: -es-rule-hi; }
+.es-buffer-cell-full { -fx-background-color: -es-amber-mid; }
+.es-buffer-cell-lost { -fx-background-color: -es-alarm; }
+.es-buffer-text      { -fx-text-fill: -es-dim-1; -fx-font-size: 9.5px; }
+.es-buffer-text-lost { -fx-text-fill: -es-alarm; }
+
+/* ══ NOTES (§4) ══════════════════════════════════════════════════════════════════════════════ */
+
+/* One sentence of consequence, not description (§4, §6). */
+.es-note {
+    -fx-background-color: -es-panel-hi;
+    -fx-border-color: transparent transparent transparent -es-amber-low;
+    -fx-border-width: 0 0 0 2;
+    -fx-padding: 7 10 7 10;
+}
+.es-note-text   { -fx-text-fill: -es-dim-1; -fx-font-size: 11px; }
+.es-note-lead   { -fx-text-fill: -es-amber; -fx-font-size: 11px; -fx-font-weight: 500; }
+.es-note-bad    { -fx-border-color: transparent transparent transparent -es-alarm; }
+.es-note-bad .es-note-lead { -fx-text-fill: -es-alarm; }
+
+/* ══ SWEEP PANEL (§4) ════════════════════════════════════════════════════════════════════════ */
+
+/* Only where something is genuinely in progress — a permanently-sweeping panel is a lie. */
+.es-working {
+    -fx-background-color: -es-void;
+    -fx-border-color: -es-rule;
+    -fx-border-width: 1;
+    -fx-padding: 9 11 9 11;
+}
+/* The one gradient §9 permits, alongside the hazard stripe. Near-transparent, linear, no easing.
+   The wash is the accent at node opacity rather than an rgba() literal, so a palette overlay only
+   has to redefine -es-amber and the sweep follows — JavaFX has no alpha function that accepts a
+   looked-up colour, so node opacity is the only way to keep this out of the overlays. */
+.es-sweep {
+    -fx-background-color: linear-gradient(to right, transparent 0%, -es-amber 50%, transparent 100%);
+    -fx-opacity: 0.09;
+}
+
+/* ══ HAZARD BAND (§2.3, §4) ══════════════════════════════════════════════════════════════════ */
+
+/*
+ * One diagonal per screen. JavaFX has no repeating-linear-gradient — measured on this project, the
+ * function simply does not resolve — but a `repeat` cycle method on a short axis is the same thing
+ * and is native.
+ */
+.es-hazard {
+    -fx-background-color: linear-gradient(from 0px 0px to 8.4853px 8.4853px, repeat,
+        -es-amber-low 0%, -es-amber-low 50%, transparent 50%, transparent 100%);
+    -fx-opacity: 0.55;
+    -fx-border-color: transparent -es-rule transparent transparent;
+    -fx-border-width: 0 1 0 0;
+}
+.es-hazard-rail {
+    -fx-background-color: linear-gradient(from 0px 0px to 5.6569px 5.6569px, repeat,
+        -es-rule-hi 0%, -es-rule-hi 50%, transparent 50%, transparent 100%);
+}
+
+/* ══ GREEBLE (§4) ════════════════════════════════════════════════════════════════════════════ */
+
+/*
+ * Unreadable by design, and roughly 10–15% of pixels. §9 lists removing it as build-blocking —
+ * it is the single largest difference between this look and a dashboard.
+ */
+.es-greeble {
+    -fx-text-fill: -es-dim-3;
+    -fx-font-size: 8.5px;
+    -fx-font-family: "Martian Mono", monospace;
+}
+.es-greeble-strip {
+    -fx-border-color: -es-rule transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+    -fx-padding: 5 12 5 12;
+}
+
+/* ══ TABLES (§4) ═════════════════════════════════════════════════════════════════════════════ */
+
+.es-host      { -fx-text-fill: -es-text-hi; -fx-font-size: 11px; }
+.es-host-sub  { -fx-text-fill: -es-dim-2; -fx-font-size: 9.5px; }
+.es-yield     { -fx-text-fill: -es-amber; -fx-font-size: 11px; }
+.es-stat-ok   { -fx-text-fill: -es-dim-1; -fx-font-size: 9.5px; }
+.es-stat-flag { -fx-text-fill: -es-alarm; -fx-font-size: 9.5px; }
+.es-row {
+    -fx-border-color: transparent transparent -es-rule transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 8;
+}
+.es-row:hover { -fx-background-color: -es-panel-hi; }
+.es-row-head {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent transparent -es-rule-hi transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 6 8 6 8;
+}
+
+/* ══ HEAT BANDS ══════════════════════════════════════════════════════════════════════════════ */
+
+/*
+ * docs/client/01-visual-language.md §2.2.4: heat renders as a banded chip carrying the band name,
+ * never a continuous meter. The bands walk grey → amber → alarm, so the ramp reads without colour
+ * and the amber rule is not broken — heat at the top of the scale genuinely is hostile state.
+ */
+.es-heat-0 { -fx-text-fill: -es-dim-1; }
+.es-heat-1 { -fx-text-fill: -es-text; }
+.es-heat-2 { -fx-text-fill: -es-amber-mid; }
+.es-heat-3 { -fx-text-fill: -es-amber; }
+.es-heat-4 { -fx-text-fill: -es-alarm; }
+
+/* ══ FOCUS (§10, accessibility) ══════════════════════════════════════════════════════════════ */
+
+/* A 1px amber ring, offset. No glow, no blur — §9. */
+.es-focusable:focused,
+.button:focused,
+.text-field:focused,
+.text-area:focused,
+.choice-box:focused,
+.check-box:focused,
+.list-view:focused,
+.table-view:focused,
+.slider:focused,
+.scroll-pane:focused {
+    -fx-border-color: -es-amber;
+    -fx-border-width: 1;
+    -fx-background-insets: 0;
+}
+
+/* ══ HIGH-VISIBILITY MODIFIERS ═══════════════════════════════════════════════════════════════
+ *
+ * theme-hc.css supplies the palette; these are the structural changes that palette alone cannot
+ * make. They live here rather than in the overlay so that every rule governing a control is in one
+ * file — a reviewer asking "what does focus look like?" should not have to read five stylesheets.
+ * The overlay is a palette and a test enforces that.
+ */
+
+/* A 1px ring is legible against a mid-grey ground and marginal against pure black with white text
+   either side of it. Two pixels is the smallest that reliably reads at this contrast. */
+.es-theme-deck-hc .es-focusable:focused,
+.es-theme-deck-hc .button:focused,
+.es-theme-deck-hc .text-field:focused,
+.es-theme-deck-hc .text-area:focused,
+.es-theme-deck-hc .choice-box:focused,
+.es-theme-deck-hc .check-box:focused,
+.es-theme-deck-hc .list-view:focused,
+.es-theme-deck-hc .table-view:focused,
+.es-theme-deck-hc .slider:focused,
+.es-theme-deck-hc .scroll-pane:focused {
+    -fx-border-width: 2;
+}
+
+/* With the grey ramp this compressed, a background shift is not enough to mark a selected row. */
+.es-theme-deck-hc .list-cell:selected,
+.es-theme-deck-hc .table-row-cell:selected {
+    -fx-border-color: transparent transparent -es-amber-low transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+/* Legend isolation drops the rest to 22% in the default theme. At this contrast that is still
+   bright enough to compete, so isolation here removes the fill almost entirely — an ambiguous
+   answer to "which of these are mine?" is worse than a stark one. */
+.es-theme-deck-hc .es-cell-muted { -fx-opacity: 0.12; }
+
+/* Greeble stays — §9 makes removing it build-blocking, and high visibility is not a licence to
+   strip the look. It is halved in weight, because "10–15% of pixels carrying no meaning" is texture
+   to one player and interference to another, and the accessible answer is quieter, not absent. */
+.es-theme-deck-hc .es-greeble { -fx-opacity: 0.5; }
+
+/*
+ * ⚠ NO -fx-cursor DECLARATIONS IN THIS FILE. MEASURED, not a preference.
+ *
+ * Two facts about JavaFX 26, both measured on this project:
+ *
+ *   1. A CSS -fx-cursor on a node BEATS an inherited Scene cursor. With scene.setCursor(custom), a
+ *      Label reads getCursor() == null until a stylesheet gives it `-fx-cursor: hand`, after which
+ *      it reads HAND. So every declaration here would punch a system-cursor hole in a custom skin.
+ *   2. `-fx-cursor: url(...)` does not work at all — it fails at apply time with
+ *      ClassCastException: java.lang.String incompatible with javafx.scene.Cursor. So a custom
+ *      cursor cannot come from CSS in the first place.
+ *
+ * Cursors are therefore applied from Java: ui/cursors/Cursors#adopt for the scene default, and
+ * Cursors#clickable(node) wherever `-fx-cursor: hand` used to be.
+ */
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * CONTROLS — Modena overrides.
+ *
+ * AtlantaFX is gone (§0), so this section is load-bearing rather than cosmetic: without it every
+ * control renders as Modena's rounded light-grey, which violates §9 four ways at once (radius,
+ * shadow, gradient, non-mono type). Anything the client instantiates is listed here.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+.label { -fx-text-fill: -es-text; }
+
+.button, .toggle-button {
+    -fx-background-color: -es-panel-hi;
+    -fx-background-radius: 0;
+    -fx-background-insets: 0;
+    -fx-border-color: -es-rule-hi;
+    -fx-border-width: 1;
+    -fx-border-radius: 0;
+    -fx-text-fill: -es-text;
+    -fx-font-family: "Martian Mono", monospace;
+    -fx-font-size: 8.5px;
+    -fx-font-weight: 500;
+    -fx-padding: 6 12 6 12;
+    -fx-effect: null;
+}
+.button:hover, .toggle-button:hover {
+    -fx-background-color: -es-panel-hi;
+    -fx-border-color: -es-amber-low;
+    -fx-text-fill: -es-amber;
+}
+.button:armed, .toggle-button:selected {
+    -fx-background-color: -es-amber-low;
+    -fx-text-fill: -es-text-hi;
+    -fx-border-color: -es-amber;
+}
+.button:disabled, .toggle-button:disabled {
+    -fx-opacity: 1;
+    -fx-text-fill: -es-dim-3;
+    -fx-border-color: -es-rule;
+}
+/* The primary action on a panel. Still an outline — a filled button would be the only solid mass
+   on the screen and would read as a web CTA. */
+.button.es-primary { -fx-border-color: -es-amber-mid; -fx-text-fill: -es-amber; }
+
+.text-field, .text-area, .text-area .content {
+    -fx-background-color: -es-void;
+    -fx-background-radius: 0;
+    -fx-background-insets: 0;
+    -fx-border-color: -es-rule-hi;
+    -fx-border-width: 1;
+    -fx-border-radius: 0;
+    -fx-text-fill: -es-text-hi;
+    -fx-prompt-text-fill: -es-dim-3;
+    -fx-highlight-fill: -es-amber-low;
+    -fx-highlight-text-fill: -es-text-hi;
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-padding: 5 7 5 7;
+    -fx-effect: null;
+}
+.text-area { -fx-padding: 0; }
+.text-area .content { -fx-border-width: 0; }
+
+.choice-box {
+    -fx-background-color: -es-panel-hi;
+    -fx-background-radius: 0;
+    -fx-background-insets: 0;
+    -fx-border-color: -es-rule-hi;
+    -fx-border-width: 1;
+    -fx-border-radius: 0;
+    -fx-padding: 4 8 4 8;
+    -fx-effect: null;
+}
+.choice-box .label { -fx-text-fill: -es-text; -fx-font-size: 11px; }
+.choice-box:hover { -fx-border-color: -es-amber-low; }
+.choice-box .context-menu,
+.context-menu {
+    -fx-background-color: -es-panel;
+    -fx-background-radius: 0;
+    -fx-border-color: -es-rule-hi;
+    -fx-border-width: 1;
+    -fx-effect: null;
+}
+.menu-item { -fx-background-color: transparent; -fx-padding: 4 10 4 10; }
+.menu-item .label { -fx-text-fill: -es-text; -fx-font-size: 11px; }
+.menu-item:focused { -fx-background-color: -es-panel-hi; }
+.menu-item:focused .label { -fx-text-fill: -es-amber; }
+
+.check-box { -fx-text-fill: -es-text; -fx-font-size: 11px; }
+.check-box .box {
+    -fx-background-color: -es-void;
+    -fx-background-radius: 0;
+    -fx-background-insets: 0;
+    -fx-border-color: -es-rule-hi;
+    -fx-border-width: 1;
+    -fx-border-radius: 0;
+    -fx-padding: 3;
+}
+.check-box:hover .box { -fx-border-color: -es-amber-low; }
+.check-box:selected .box { -fx-border-color: -es-amber; }
+.check-box:selected .mark {
+    -fx-background-color: -es-amber;
+    -fx-shape: "M0,3 L2,5 L6,0 L8,1 L2,8 z";
+}
+
+.separator .line {
+    -fx-border-color: -es-rule;
+    -fx-border-width: 1 0 0 0;
+    -fx-background-color: transparent;
+}
+
+.scroll-pane, .scroll-pane > .viewport {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+    -fx-border-width: 0;
+}
+.scroll-bar { -fx-background-color: -es-void; -fx-padding: 0; }
+.scroll-bar .track { -fx-background-color: transparent; -fx-border-width: 0; }
+.scroll-bar .thumb {
+    -fx-background-color: -es-rule-hi;
+    -fx-background-radius: 0;
+    -fx-background-insets: 2;
+}
+.scroll-bar .thumb:hover { -fx-background-color: -es-dim-2; }
+/* Modena's arrow buttons are two more rounded boxes. The deck has no use for them. */
+.scroll-bar .increment-button,
+.scroll-bar .decrement-button {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+    -fx-pref-width: 0;
+    -fx-pref-height: 0;
+}
+.scroll-bar .increment-arrow, .scroll-bar .decrement-arrow { -fx-shape: null; -fx-padding: 0; }
+.corner { -fx-background-color: -es-void; }
+
+.list-view, .table-view {
+    -fx-background-color: -es-void;
+    -fx-background-insets: 0;
+    -fx-border-color: -es-rule;
+    -fx-border-width: 1;
+    -fx-padding: 0;
+    -fx-effect: null;
+}
+.list-cell, .table-row-cell {
+    -fx-background-color: -es-panel;
+    -fx-text-fill: -es-text;
+    -fx-font-size: 11px;
+    -fx-border-color: transparent transparent -es-rule transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 6 9 6 9;
+}
+.list-cell:odd, .table-row-cell:odd { -fx-background-color: -es-panel; }
+.list-cell:hover, .table-row-cell:hover { -fx-background-color: -es-panel-hi; }
+.list-cell:selected, .table-row-cell:selected {
+    -fx-background-color: -es-panel-hi;
+    -fx-text-fill: -es-amber;
+}
+.list-cell:empty, .table-row-cell:empty { -fx-background-color: -es-void; -fx-border-width: 0; }
+.table-view .column-header,
+.table-view .column-header-background,
+.table-view .filler {
+    -fx-background-color: -es-panel;
+    -fx-border-color: transparent transparent -es-rule-hi transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-size: 24px;
+}
+.table-view .column-header .label {
+    -fx-text-fill: -es-dim-2;
+    -fx-font-family: "Martian Mono", monospace;
+    -fx-font-size: 8px;
+    -fx-font-weight: 500;
+    -fx-alignment: center-left;
+}
+.table-view .table-cell {
+    -fx-text-fill: -es-text;
+    -fx-font-size: 11px;
+    -fx-border-color: transparent;
+    -fx-padding: 6 8 6 8;
+}
+.table-view .placeholder .label { -fx-text-fill: -es-dim-2; -fx-font-size: 11px; }
+
+.split-pane { -fx-background-color: -es-void; -fx-padding: 0; }
+.split-pane > .split-pane-divider {
+    -fx-background-color: -es-rule-hi;
+    -fx-padding: 0 1 0 1;
+    -fx-border-width: 0;
+}
+
+.tab-pane > .tab-header-area { -fx-padding: 0; }
+.tab-pane > .tab-header-area > .headers-region > .tab {
+    -fx-background-color: -es-panel;
+    -fx-background-radius: 0;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent -es-rule transparent transparent;
+    -fx-border-width: 0 1 0 0;
+    -fx-padding: 5 12 5 12;
+}
+.tab-pane > .tab-header-area > .headers-region > .tab .tab-label {
+    -fx-text-fill: -es-dim-2;
+    -fx-font-family: "Martian Mono", monospace;
+    -fx-font-size: 8.5px;
+    -fx-font-weight: 500;
+}
+.tab-pane > .tab-header-area > .headers-region > .tab:selected { -fx-background-color: -es-panel-hi; }
+.tab-pane > .tab-header-area > .headers-region > .tab:selected .tab-label { -fx-text-fill: -es-amber; }
+.tab-pane > .tab-header-area > .tab-header-background {
+    -fx-background-color: -es-panel;
+    -fx-border-color: transparent transparent -es-rule-hi transparent;
+    -fx-border-width: 0 0 1 0;
+}
+/* Modena draws a rounded highlight under the selected tab. There are no rounded things here. */
+.tab-pane > .tab-header-area > .headers-region > .tab > .tab-container > .tab-close-button {
+    -fx-background-color: -es-dim-2;
+}
+.tab-pane:focused > .tab-header-area > .headers-region > .tab:selected .focus-indicator {
+    -fx-border-color: transparent;
+}
+
+.titled-pane > .title {
+    -fx-background-color: -es-panel-hi;
+    -fx-background-radius: 0;
+    -fx-background-insets: 0;
+    -fx-border-color: transparent transparent -es-rule-hi transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 5 12 5 12;
+}
+.titled-pane > .title > .text {
+    -fx-fill: -es-text-hi;
+    -fx-font-family: "Martian Mono", monospace;
+    -fx-font-size: 8.5px;
+}
+.titled-pane > .content {
+    -fx-background-color: -es-panel;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+}
+.titled-pane > .title > .arrow-button .arrow { -fx-background-color: -es-dim-2; }
+
+.slider .track {
+    -fx-background-color: -es-void;
+    -fx-background-radius: 0;
+    -fx-border-color: -es-rule-hi;
+    -fx-border-width: 1;
+    -fx-padding: 2;
+}
+.slider .thumb {
+    -fx-background-color: -es-amber;
+    -fx-background-radius: 0;
+    -fx-effect: null;
+    -fx-pref-width: 7px;
+    -fx-pref-height: 13px;
+}
+.slider:focused .thumb { -fx-background-color: -es-amber; }
+
+.progress-bar { -fx-indeterminate-bar-animation-time: 0; }
+.progress-bar > .track {
+    -fx-background-color: -es-void;
+    -fx-background-radius: 0;
+    -fx-background-insets: 0;
+    -fx-border-color: -es-rule;
+    -fx-border-width: 1;
+}
+.progress-bar > .bar {
+    -fx-background-color: -es-amber-mid;
+    -fx-background-radius: 0;
+    -fx-background-insets: 1;
+    -fx-padding: 4;
+}
+
+.tooltip {
+    -fx-background-color: -es-panel-hi;
+    -fx-background-radius: 0;
+    -fx-border-color: -es-rule-hi;
+    -fx-border-width: 1;
+    -fx-text-fill: -es-text;
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 11px;
+    -fx-padding: 6 9 6 9;
+    -fx-effect: null;
+}
+
+/* Alerts and dialogs. §3 bans modals for information the UI should be showing anyway; these remain
+   only for genuine confirmations, where stopping the player is the entire point. */
+.dialog-pane {
+    -fx-background-color: -es-panel;
+    -fx-border-color: -es-rule-hi;
+    -fx-border-width: 1;
+    -fx-padding: 0;
+}
+.dialog-pane > .header-panel {
+    -fx-background-color: -es-panel-hi;
+    -fx-border-color: transparent transparent -es-rule-hi transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 9 14 9 14;
+}
+.dialog-pane > .header-panel .label {
+    -fx-text-fill: -es-text-hi;
+    -fx-font-family: "Martian Mono", monospace;
+    -fx-font-size: 9px;
+}
+.dialog-pane > .content { -fx-padding: 14; }
+.dialog-pane .content.label { -fx-text-fill: -es-text; -fx-font-size: 12px; }
+.dialog-pane > .button-bar > .container { -fx-padding: 9 14 12 14; }
+.dialog-pane:header .graphic-container { -fx-padding: 0; }
+
+/* Modena paints a white page behind SplitPane/ScrollPane children in a few places. */
+.es-deck .viewport, .es-deck .sheet { -fx-background-color: transparent; }
+
+/* ══ uOS CLASSIC MODIFIERS ═══════════════════════════════════════════════════════════════════
+ *
+ * The one palette drawn on a LIGHT field, which inverts two assumptions the base rules make. Same
+ * reasoning as the high-visibility block above: the palette lives in theme-classic.css, the
+ * structural consequences of it live here.
+ */
+
+/* "Hollow" cells are drawn as an outline over the ground colour. On a dark ground that ground is
+   near-black and the cell reads as empty; on a light one the same rule paints a dark rectangle,
+   which reads as the most occupied cell on the grid — the exact opposite of what it means. */
+.es-theme-classic .es-cell-recovering { -fx-background-color: -es-amber-low, -es-panel; }
+.es-theme-classic .es-cell-free       { -fx-background-color: -es-rule, -es-panel; }
+.es-theme-classic .es-cell-unknown    { -fx-background-color: -es-alarm, -es-panel; }
+
+/* The sweep wash lightens what it crosses, which is invisible on a light field. Raised until it
+   reads as a passing shadow instead. */
+.es-theme-classic .es-sweep { -fx-opacity: 0.14; }
+
+/* ══ PAUSE MENU ══════════════════════════════════════════════════════════════════════════════
+ *
+ * §3 bans modals for game INFORMATION. This is the session menu — no readouts, no state, and
+ * stopping the player is its entire function — so the rule is intact. Everything else about it is
+ * the same panel language as the desk.
+ */
+
+/* Flat, not blurred. §9 bans blur; a translucent black wash also keeps the deck legible behind it,
+   which matters because the player is pausing to look at something most of the time. */
+.es-scrim { -fx-background-color: rgba(7, 9, 10, 0.82); }
+
+.es-menu-item {
+    -fx-background-color: -es-panel;
+    -fx-border-color: transparent transparent -es-rule transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 9 12 9 12;
+}
+.es-menu-item:hover { -fx-background-color: -es-panel-hi; }
+.es-menu-item:hover .es-menu-item-label { -fx-text-fill: -es-amber; }
+.es-menu-item-label { -fx-text-fill: -es-text; }
+
+/* ══ ACTIVITY LIST ═══════════════════════════════════════════════════════════════════════════
+ *
+ * The rig's running work. Progress is a CellMeter, never a ProgressBar — §4: "Never a continuous
+ * bar or gradient." The rows share the legend's 1px-grid treatment so the two readouts in the same
+ * panel read as one instrument.
+ */
+.es-activity { -fx-background-color: -es-rule; }
+.es-activity-row {
+    -fx-background-color: -es-panel;
+    -fx-padding: 7 9 7 9;
+}
+.es-activity-row:hover { -fx-background-color: -es-panel-hi; }
+.es-activity-name { -fx-text-fill: -es-text-hi; }

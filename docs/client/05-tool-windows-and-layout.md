@@ -6,6 +6,25 @@
 
 ---
 
+> ⚠️ **SUPERSEDED 2026-07-26 — there is one window, and the client draws its own chrome.**
+> `../design/ui-design-language.md` §0 cancels the `Stage`-per-tool model this document is written
+> against, and the docked *tabbed* shell §5 designs. Both are replaced by **the deck**: one
+> `StageStyle.UNDECORATED` Stage containing an in-game window manager
+> (`client/.../ui/chrome/DeskManager`) with drag, focus, z-order, minimise, maximise, close, resize,
+> snap-to-grid and edge tiling.
+>
+> **What survives from this document unchanged:** the window catalogue and its ids, the minimum and
+> default sizes, the accelerator map, the `paneFactory` contract, geometry persistence and off-screen
+> recovery, and the rule that no window's minimum may exceed 720×480. `WindowCatalogueTest` still
+> checks all of it.
+>
+> **What changed:** a tool is a panel on the desk rather than a `Stage` or a `Tab`. §1.4's always-on-top
+> problem is gone — the compute readout is a cell in the top status strip, which is chrome. §1.3's
+> occlusion and displacement failure modes are now the window manager's to answer rather than the OS's.
+> §5's docked mode is retired as a separate layout; its **contract** — no functionality or information
+> lost — carries over and is stronger, because there is no longer a second layout that could lose
+> anything. Reasoning logged in `../design/15-open-questions.md` §3.
+
 ## 1. The multi-window model
 
 ### 1.1 What is Established, and what that actually commits us to

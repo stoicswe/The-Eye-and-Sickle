@@ -113,6 +113,7 @@ public final class ComputeRules {
         // its caller's back cannot be tested deterministically and — worse — disagrees with itself
         // about what time it is, so a scan started "now" can outlive a tick that happens "later".
         a.recoversAt = now.plus(recovery);
+        a.startedAt = now;
         rig.allocations.add(a);
         return a;
     }

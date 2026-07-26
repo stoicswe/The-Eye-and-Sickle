@@ -33,7 +33,8 @@ public final class ClientCommands {
             ThemeManager themes,
             ClientProfile profile,
             java.util.function.Supplier<List<String>> history,
-            Runnable backToMenu) {
+            Runnable backToMenu,
+            Runnable onDeskChanged) {
 
         registry.add(new Simple(
                 "help",
@@ -177,18 +178,23 @@ public final class ClientCommands {
                     return Command.Output.ok("saved; returning to the menu");
                 }));
 
+        // Was `dock`, which chose between the multi-window desk and the docked layout. Both were
+        // replaced by the deck on 2026-07-26 (ui-design-language.md §0), so the command now controls
+        // the thing that design language left genuinely open — §11 question 1.
         registry.add(new Simple(
-                "dock",
-                List.of(),
-                "Switch between the multi-window desk and the single-window layout.",
+                "desk",
+                List.of("dock"),
+                "Switch window placement between snap-to-grid and free-drag.",
                 true,
                 inv -> {
-                    boolean next = !windows.isDocked();
-                    windows.setDocked(next);
+                    boolean free = !profile.settings().freeDragWindows;
+                    profile.settings().freeDragWindows = free;
                     profile.save();
-                    return Command.Output.ok(next
-                            ? "single-window layout on — restart to apply. Nothing is lost in it."
-                            : "multi-window desk on — restart to apply.");
+                    onDeskChanged.run();
+                    return Command.Output.ok(free
+                            ? "free-drag on — windows go exactly where you put them"
+                            : "snap-to-grid on — windows align to the grid, and tile when dragged "
+                                    + "against an edge of the desk");
                 }));
     }
 

@@ -23,14 +23,31 @@
 - Hold the AT Proto OAuth session and present the DID to the server (`02`).
 - **Never** be authoritative over adversarial state — the server owns item ownership, EC balances, duel outcomes. The client is a view + input layer; anything a cheating client could lie about is server-validated. (This is the client-side face of Invariant I14/I15.)
 
-> ⚠️ **AMENDED 2026-07-25 — the docked layout is now the default.** This paragraph originally read
-> "multi-window is the default and the fantasy; it must not be the *only* option", and the multi-window
-> `Stage`-per-tool architecture above remains Established and fully built. What changed is which layout
-> a new profile opens in: the single-window docked shell, with the tools as tabs and the compute strip
-> as chrome. Changed on explicit direction; reasoning logged in `../design/15-open-questions.md` §3, and
-> `../client/05` §5.1 and `../client/07` §2.3 carry the same note. Multi-window is one setting away
-> (Settings → Layout, or `dock` in the terminal) and loses nothing either way — `../client/07` §2.3's
-> no-loss contract is what made this safe to invert.
+> ⚠️ **SUPERSEDED 2026-07-26 — AtlantaFX and `Stage`-per-tool are both cancelled.**
+> `../design/ui-design-language.md` §0 reverses two decisions this section states as Established, and
+> that document is tagged **decided**. Its argument: native theming puts real macOS traffic lights and
+> Windows title bars around the game, and *"the entire aesthetic depends on the player never seeing
+> their own operating system."*
+>
+> **What the client actually is now:**
+> - **One `Stage`**, `StageStyle.UNDECORATED`, containing an in-game window manager the client draws
+>   itself (`client/.../ui/chrome/DeskManager`) — drag, focus, z-order, minimise, maximise, close,
+>   resize, snap-to-grid and edge tiling. Multi-window survives in §0 only as an opt-in **multi-monitor**
+>   feature, which is not built.
+> - **No AtlantaFX.** One hand-written component stylesheet (`ui/theme.css`) plus per-theme palette
+>   overlays of ~40 lines. Modena remains the user-agent sheet underneath, overridden per control;
+>   replacing the user-agent sheet outright would mean owning every control JavaFX ships, including
+>   the dozens this client never instantiates.
+>
+> This also retires the 2026-07-25 amendment that made the *docked* layout the default — the deck
+> replaces both layouts rather than choosing between them, and is strictly more capable than either.
+> `../client/07` §2.3's no-loss contract carries over and is now structural rather than maintained by
+> hand: the compute readout is a cell in the top status strip, which is chrome, so pillar C2 has no
+> z-order to lose and no tab to hide behind. Reasoning logged in `../design/15-open-questions.md` §3;
+> `../design/ui-design-language.md` §12 records what following it cost.
+>
+> **Still true from the paragraph above:** JavaFX, the JVM's three-platform reach, and the rule that
+> the client is never authoritative. The window model changed; the layering did not.
 
 > **[PROPOSAL]** Packaging: `jlink`/`jpackage` to ship a self-contained runtime image per platform (no "install a JRE first" friction), keeping the "lightweight" promise at the distribution layer. Confirm at build-tooling time.
 

@@ -70,8 +70,32 @@ public final class SoloSave {
     public List<LedgerEntryState> ledger = new ArrayList<>();
     public List<NodeState> knownNodes = new ArrayList<>();
     public List<DefenseState> defenses = new ArrayList<>();
+
+    /**
+     * Work with a wall-clock duration that is currently running.
+     *
+     * <p>Persisted, so a six-minute Thorough Scan survives quitting — see {@link TaskState}. A task
+     * whose end has passed while the game was closed completes on the first tick after load, which
+     * is the same catch-up path deployed-miner buffers already take.
+     */
+    public List<TaskState> tasks = new ArrayList<>();
     public List<String> schematics = new ArrayList<>();
 
     /** Terminal history, so `history` and Ctrl-R survive a restart the way a real shell's does. */
     public List<String> commandHistory = new ArrayList<>();
+
+    /**
+     * The rig's log, newest last.
+     *
+     * <p>Persisted, so `log` after a restart shows what happened before it — which is what a real
+     * journal does and what makes the log usable for the thing it exists for: working out what
+     * happened while you were not watching.
+     *
+     * <p>Capped at {@link #LOG_CAPACITY}. An uncapped log in a save file that is rewritten every
+     * thirty seconds is an unbounded write amplification bug waiting for a long session.
+     */
+    public List<RigEvent> log = new ArrayList<>();
+
+    /** Roughly a long session's worth. Old entries are dropped from the front. */
+    public static final int LOG_CAPACITY = 500;
 }

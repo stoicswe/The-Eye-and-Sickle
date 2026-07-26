@@ -4,43 +4,71 @@ import io.github.stoicswe.eyeandsickle.client.profile.ClientProfile;
 import io.github.stoicswe.eyeandsickle.client.session.GameSession;
 import io.github.stoicswe.eyeandsickle.client.teaching.GlossBar;
 import io.github.stoicswe.eyeandsickle.client.teaching.TermDatabase;
+import io.github.stoicswe.eyeandsickle.client.ui.Ui;
+import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
+import io.github.stoicswe.eyeandsickle.client.ui.widgets.ActivityList;
+import io.github.stoicswe.eyeandsickle.client.ui.widgets.CycleGrid;
+import io.github.stoicswe.eyeandsickle.client.ui.widgets.Greeble;
+import io.github.stoicswe.eyeandsickle.client.ui.widgets.KeyValue;
+import io.github.stoicswe.eyeandsickle.client.ui.widgets.Note;
+import io.github.stoicswe.eyeandsickle.client.ui.widgets.SweepPanel;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeAllocation;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeBudget;
+import io.github.stoicswe.eyeandsickle.protocol.game.ComputeConsumer;
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.List;
 import java.util.Locale;
-import javafx.geometry.Insets;
+import java.util.Map;
 import javafx.geometry.Pos;
 import javafx.scene.control.Label;
-import javafx.scene.control.ProgressBar;
-import javafx.scene.layout.HBox;
+import javafx.scene.control.ScrollPane;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
 /**
- * The compute readout — the one window that is always on screen.
+ * The allocation pane — where the rig's compute is, cell by cell.
  *
- * <h2>Why this window is not closable</h2>
+ * <h2>Compute is countable, not a percentage</h2>
  *
- * {@code docs/design/01-core-resources.md} §1.4 makes the compute ledger mandatory and always
- * visible, and client pillar <b>C2</b> restates it: compute is the master scarcity, every meaningful
- * decision in the game is a question of where to spend cycles, and a player must be able to read this
- * at a glance without going to find it.
+ * This view used to be a {@link javafx.scene.control.ProgressBar} and a list of consumers. It is now
+ * the 100-cell grid {@code docs/design/ui-design-language.md} §4 calls the signature component, and
+ * the change is not cosmetic. A bar at 97% says the rig is nearly full; a hundred cells with three
+ * hollow ones says <em>you have three</em>, which is the number the player's next decision actually
+ * turns on. {@code docs/design/01-core-resources.md} §1.2 makes cycles an integer resource — one
+ * cell is one cycle, at every rig size, so the grid grows as the rig does rather than rescaling.
  *
- * <h2>Three states, not two</h2>
+ * <h2>The rig readout must add up, and must show it when it does not</h2>
  *
- * Allocated, recovering and available are shown separately because they <em>are</em> separate.
- * Spent cycles do not return instantly ({@code docs/design/01} §1.3), so folding "recovering" into
- * either of the other two would make the readout lie about what the player can commit right now —
- * and would leave "where did my 35 cycles go" without an answer on screen.
+ * {@code docs/design/04-mining.md} §3.1 makes catching a hidden miner a matter of noticing that the
+ * numbers do not reconcile. That is only a skill if the numbers normally do — so nothing here is
+ * rounded, smoothed or bucketed, and {@link ComputeBudget#unaccountedFor()} gets its own slice in
+ * the grid rather than a line of text underneath it. Cycles being spent by something the rig cannot
+ * name are drawn as blinking alarm cells, and the note beside them says what it is costing.
  *
- * <h2>The reconciliation warning</h2>
- *
- * If the three do not sum to the total, this says so in as many words. That is not defensive
- * programming; it is the game's central investigation ({@code docs/design/04-mining.md} §3.1). A
- * player is supposed to be able to catch a hidden miner by noticing the numbers do not add up, and a
- * HUD that quietly rounded the discrepancy away would disable the skill the whole game is built on.
+ * <p>The slice is never synthesised. If the figure is zero the slice does not exist, so its
+ * appearance always means something is wrong.
  */
 public final class RigMonitorView {
+
+    /**
+     * Display order for the legend and the grid.
+     *
+     * <p>Income first, then overhead, then what is not currently yours. §2.1 wants the palette to
+     * encode income versus overhead so a panel is readable before it is read; ordering the slices
+     * the same way means the amber cells cluster at the top-left of the grid and a rig that has
+     * quietly become all overhead looks wrong from across the room.
+     */
+    private static final List<ComputeConsumer> ORDER = List.of(
+            ComputeConsumer.SELF_MINING,
+            ComputeConsumer.CONTROL_CHANNEL,
+            ComputeConsumer.BOT_FRAME,
+            ComputeConsumer.DEPLOYED_MINER,
+            ComputeConsumer.DEFENSIVE_ARRAY,
+            ComputeConsumer.ACTIVE_TOOL,
+            ComputeConsumer.RELAY_HOP);
 
     private RigMonitorView() {}
 
@@ -51,104 +79,199 @@ public final class RigMonitorView {
     /**
      * With a term database attached, the headings gloss themselves on hover and on focus.
      *
-     * <p>This is tier 1 of the teaching layer reaching the surface a player looks at most. COMPUTE
-     * and BALANCE are the two words on screen at all times, so they are the two most worth
-     * explaining without being asked.
+     * <p>Tier 1 of the teaching layer, reaching the surface a player looks at most. COMPUTE is on
+     * screen at all times, so it is the word most worth explaining without being asked.
      */
     public static Region create(GameSession session, TermDatabase terms, ClientProfile profile) {
-        VBox root = new VBox(10);
-        root.setPadding(new Insets(14));
-        root.getStyleClass().add("es-panel");
+        VBox root = new VBox(UiTokens.SPACE_6);
+        root.getStyleClass().add("es-body-pad");
 
-        Label title = new Label("COMPUTE");
-        title.getStyleClass().add("es-panel-title");
+        Label claimed = new Label("0");
+        claimed.getStyleClass().add("es-display");
+        Label claimedUnit = Ui.label("/ 100 cycles claimed");
+        claimedUnit.getStyleClass().add("es-display-unit");
         if (terms != null && profile != null) {
-            GlossBar.attach(title, "compute", terms, profile);
+            GlossBar.attach(claimedUnit, "compute", terms, profile);
         }
 
-        Label headline = new Label();
-        headline.getStyleClass().addAll("es-numeric", "es-compute");
-        headline.setStyle("-fx-font-size: 26px;");
+        KeyValue free = KeyValue.of("Free", "0").live();
+        KeyValue recovering = KeyValue.of("Recovering", "0");
+        FlowPane head = new FlowPane(UiTokens.SPACE_6, UiTokens.SPACE_2);
+        head.setAlignment(Pos.BASELINE_LEFT);
+        head.getChildren().addAll(Ui.row(UiTokens.SPACE_2, claimed, claimedUnit), free, recovering);
 
-        ProgressBar gauge = new ProgressBar(0);
-        gauge.setMaxWidth(Double.MAX_VALUE);
+        Greeble greeble = new Greeble(82);
+        CycleGrid grid = new CycleGrid();
 
-        Label breakdown = new Label();
-        breakdown.getStyleClass().addAll("es-numeric", "es-text-secondary");
+        KeyValue rate = KeyValue.of("Return rate", "0.0000 EC/S").live();
+        KeyValue hourly = KeyValue.of("Projected", "0.00 EC/HR").live();
+        Label held = Ui.micro("");
+        held.getStyleClass().add("es-buffer-text");
+        SweepPanel working = new SweepPanel(Ui.row(UiTokens.SPACE_5, rate, Ui.spacer(), hourly), held);
 
-        VBox consumers = new VBox(4);
+        // The Activity Monitor half of this panel: what the rig is doing, with a countdown.
+        // Sits between the allocation grid and the income summary because that is the reading
+        // order of the question — where are my cycles, what are they doing, what is it earning.
+        ActivityList activity = new ActivityList();
 
-        Label warning = new Label();
-        warning.getStyleClass().add("es-state-refused");
-        warning.setWrapText(true);
-        warning.setVisible(false);
-        warning.setManaged(false);
+        VBox notes = new VBox(UiTokens.SPACE_2);
 
-        Label balance = new Label();
-        balance.getStyleClass().addAll("es-numeric", "es-ethecoin");
-
-        Label mode = new Label();
-        mode.getStyleClass().add("es-text-secondary");
-        mode.setWrapText(true);
-
-        Label balanceHeading = new Label("BALANCE");
-        if (terms != null && profile != null) {
-            GlossBar.attach(balanceHeading, "ethecoin", terms, profile);
-        }
-        root.getChildren()
-                .addAll(title, headline, gauge, breakdown, new Label("BY CONSUMER"), consumers, warning,
-                        balanceHeading, balance, mode);
-        VBox.setVgrow(consumers, Priority.ALWAYS);
+        root.getChildren().addAll(head, greeble, grid, activity, working, notes);
+        VBox.setVgrow(grid, Priority.SOMETIMES);
 
         Runnable refresh = () -> {
-            ComputeBudget b = session.computeBudget();
-            long total = b.total().cycles();
-            long available = b.available().cycles();
+            ComputeBudget budget = session.computeBudget();
+            long total = budget.total().cycles();
+            long available = budget.available().cycles();
 
-            headline.setText(available + " / " + total + " cycles");
-            gauge.setProgress(total == 0 ? 0 : (double) (total - available) / total);
-            breakdown.setText("allocated " + b.allocated().cycles()
-                    + "   recovering " + b.recovering().cycles()
-                    + "   available " + available);
+            claimed.setText(String.valueOf(total - available));
+            claimedUnit.setText(Ui.upper("/ " + total + " cycles claimed"));
+            free.set(String.valueOf(available));
+            recovering.set(String.valueOf(budget.recovering().cycles()));
 
-            consumers.getChildren().clear();
-            if (b.allocations().isEmpty()) {
-                Label idle = new Label("nothing allocated");
-                idle.getStyleClass().add("es-text-secondary");
-                consumers.getChildren().add(idle);
-            }
-            for (ComputeAllocation a : b.allocations()) {
-                HBox row = new HBox(8);
-                Label name = new Label(a.consumer().name().toLowerCase(Locale.ROOT).replace('_', ' '));
-                Region spacer = new Region();
-                HBox.setHgrow(spacer, Priority.ALWAYS);
-                Label cycles = new Label(a.cycles().cycles() + (a.isRecovering() ? " ↻" : ""));
-                cycles.getStyleClass().add("es-numeric");
-                if (a.isRecovering()) {
-                    // Recovering cycles are shown in the pending style, because they are not yours
-                    // to spend yet. Same visual language as an unconfirmed server value (pillar C4).
-                    cycles.getStyleClass().add("es-state-pending");
-                }
-                row.setAlignment(Pos.CENTER_LEFT);
-                row.getChildren().addAll(name, spacer, cycles);
-                consumers.getChildren().add(row);
-            }
+            grid.show(slices(budget));
+            activity.show(session.tasks());
 
-            boolean reconciles = b.reconciles();
-            warning.setVisible(!reconciles);
-            warning.setManaged(!reconciles);
-            if (!reconciles) {
-                warning.setText(b.unaccountedFor().cycles()
-                        + " cycles unaccounted for. Something is consuming this rig that is not in "
-                        + "this list. Try `scan --full`.");
-            }
+            RigStatus status = RigStatus.of(session);
+            rate.set(status.incomePerSecond() + " EC/S");
+            hourly.set(status.incomePerHour() + " EC/HR");
+            // The sweep runs only while cycles are genuinely returning. §4 restricts the component
+            // to work actually in progress, and a permanently-sweeping panel is a spinner.
+            working.setWorking(budget.recovering().cycles() > 0);
+            held.setText(Ui.upper(budget.recovering().cycles() + " cycles held · rig at "
+                    + Math.round(status.load() * 100) + "% load"));
 
-            balance.setText(session.balance().toString());
-            mode.setText(session.mode().label() + " — " + session.mode().explanation());
+            notes.getChildren().setAll(notesFor(session, budget, status));
         };
 
         refresh.run();
         session.onChange(s -> refresh.run());
-        return root;
+
+        ScrollPane scroll = new ScrollPane(root);
+        scroll.setFitToWidth(true);
+        return scroll;
+    }
+
+    /**
+     * Turns the budget into grid slices.
+     *
+     * <p>Recovering cycles are pulled out of their consumer and pooled, because "returning under the
+     * Thermal Budget curve" is a state the player can act on and the consumer they came from is not.
+     * Everything else keeps its owner.
+     */
+    static List<CycleGrid.Slice> slices(ComputeBudget budget) {
+        Map<ComputeConsumer, Long> active = new EnumMap<>(ComputeConsumer.class);
+        long recovering = 0;
+        for (ComputeAllocation allocation : budget.allocations()) {
+            if (allocation.isRecovering()) {
+                recovering += allocation.cycles().cycles();
+            } else {
+                active.merge(allocation.consumer(), allocation.cycles().cycles(), Long::sum);
+            }
+        }
+
+        List<CycleGrid.Slice> slices = new ArrayList<>();
+        for (ComputeConsumer consumer : ORDER) {
+            long cycles = active.getOrDefault(consumer, 0L);
+            if (cycles > 0) {
+                slices.add(new CycleGrid.Slice(
+                        owner(consumer), (int) cycles, label(consumer), detail(consumer, cycles)));
+            }
+        }
+        if (recovering > 0) {
+            slices.add(new CycleGrid.Slice(
+                    CycleGrid.Owner.RECOVERING, (int) recovering, "Thermal recovery", "returning"));
+        }
+
+        // Not a rounding artefact and not a display gap: capacity the rig is spending on something
+        // it cannot name. See the class comment.
+        long unknown = budget.unaccountedFor().cycles();
+        if (unknown > 0) {
+            slices.add(new CycleGrid.Slice(
+                    CycleGrid.Owner.UNKNOWN, (int) unknown, "Unaccounted", "unknown owner"));
+        }
+
+        long available = budget.available().cycles();
+        if (available > 0) {
+            slices.add(new CycleGrid.Slice(
+                    CycleGrid.Owner.FREE, (int) available, "Unallocated", "free"));
+        }
+        return slices;
+    }
+
+    private static CycleGrid.Owner owner(ComputeConsumer consumer) {
+        return switch (consumer) {
+            case SELF_MINING -> CycleGrid.Owner.SELF_MINING;
+            case CONTROL_CHANNEL -> CycleGrid.Owner.CONTROL_CHANNEL;
+            case BOT_FRAME -> CycleGrid.Owner.BOT_FRAME;
+            // I6: a deployed miner consumes the HOST's compute. When one of these shows up in your
+            // own budget you are the host, which is a hostile state, not an income line.
+            case DEPLOYED_MINER -> CycleGrid.Owner.UNKNOWN;
+            case DEFENSIVE_ARRAY -> CycleGrid.Owner.DETECTION;
+            case ACTIVE_TOOL -> CycleGrid.Owner.ACTIVE_TOOL;
+            case RELAY_HOP -> CycleGrid.Owner.RELAY_HOP;
+        };
+    }
+
+    private static String label(ComputeConsumer consumer) {
+        return switch (consumer) {
+            case SELF_MINING -> "Self-mining";
+            case CONTROL_CHANNEL -> "Control channels";
+            case BOT_FRAME -> "Bot frames";
+            case DEPLOYED_MINER -> "Foreign miner";
+            case DEFENSIVE_ARRAY -> "Defensive array";
+            case ACTIVE_TOOL -> "Equipped tools";
+            case RELAY_HOP -> "Relay hops";
+        };
+    }
+
+    private static String detail(ComputeConsumer consumer, long cycles) {
+        if (consumer == ComputeConsumer.SELF_MINING) {
+            return String.format(
+                    Locale.ROOT, "%.1f EC/hr", cycles * RigStatus.MINOR_UNITS_PER_CYCLE_HOUR / 100.0d);
+        }
+        return consumer == ComputeConsumer.DEPLOYED_MINER ? "on your rig" : "held";
+    }
+
+    /**
+     * The notes under the grid.
+     *
+     * <p>§6: consequence, not condition, and §2.1 allows at most two alarms on a screen — so the two
+     * loss states below are mutually exclusive with everything else and are emitted first. Nothing
+     * here restates a figure the grid already shows; a note that could be a {@link KeyValue} should
+     * be one.
+     */
+    private static List<Region> notesFor(GameSession session, ComputeBudget budget, RigStatus status) {
+        List<Region> notes = new ArrayList<>();
+
+        if (!budget.reconciles()) {
+            notes.add(Note.loss(
+                    budget.unaccountedFor().cycles() + " cycles are being spent by something not in this list.",
+                    "The rig is billing capacity it cannot attribute. `scan --full` costs 35 cycles "
+                            + "and is the only thing that will name it."));
+        }
+
+        if (status.bufferCapMinorUnits() > 0 && status.bufferFill() >= 1.0) {
+            notes.add(Note.loss(
+                    "Deployed buffers are full.",
+                    "Everything they mine from here is discarded until you collect."));
+        }
+
+        long available = budget.available().cycles();
+        if (available < 35 && notes.size() < 2) {
+            notes.add(Note.consequence(
+                    available + (available == 1 ? " cycle free." : " cycles free."),
+                    "A thorough scan needs 35. Pull cycles off self-mining to run one, and the "
+                            + "block in progress is forfeit."));
+        }
+
+        if (status.selfMiningCycles() == 0 && notes.size() < 3) {
+            notes.add(Note.consequence(
+                    "Nothing is self-mining.",
+                    "Self-mining is the income floor: immune to seizure, zero heat, and the only "
+                            + "earning that costs you nothing but cycles. It stops the moment you close "
+                            + "the client."));
+        }
+        return notes;
     }
 }

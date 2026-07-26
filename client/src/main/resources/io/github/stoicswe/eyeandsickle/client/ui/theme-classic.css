@@ -1,0 +1,48 @@
+/*
+ * theme-classic.css — uOS Classic. A light field with black hairlines.
+ *
+ * A palette overlay; see ThemeId's class comment.
+ *
+ * ⚠ This is not the System 7 skin it started as. Bevelled controls, drop shadows and rounded corners
+ * are all on docs/design/ui-design-language.md §9's build-blocking rejection list, so the chrome
+ * that made it a period costume did not survive adopting the design language. What survived is the
+ * part that was always doing the work: black on light grey, no glow, nothing moving except what the
+ * player asked to move — which made it the most legible skin in the client and remains the reason
+ * to keep it.
+ *
+ * ── The inversion this palette has to get right ────────────────────────────────────────────────
+ *
+ * Every other palette runs the grey ramp DARK ground → LIGHT text. This one runs the other way, and
+ * a straight numeric inversion produces an unreadable screen: -es-dim-3 carries greeble, which is
+ * near-invisible against a dark ground by design and would be a black scrawl on a light one. So the
+ * ramp is re-derived rather than mirrored, and dim-3 sits close to the panel rather than far from it.
+ *
+ * Live/earning is a dark burnt amber. The bright sodium accent every other palette uses is
+ * effectively invisible on light grey — around 1.7:1 — so it would have turned §2.1's one meaningful
+ * colour into decoration.
+ */
+
+.root {
+    -es-void:      #A8A8A8;
+    -es-panel:     #E4E4E4;
+    -es-panel-hi:  #F4F4F4;
+
+    -es-rule:      #8C8C8C;
+    -es-rule-hi:   #1A1A1A;
+
+    /* Re-derived, not inverted — see the note above. */
+    -es-dim-3:     #A0A0A0;
+    -es-dim-2:     #4A4A4A;
+    -es-dim-1:     #2A2A2A;
+    -es-text:      #101010;
+    -es-text-hi:   #000000;
+
+    /* Burnt amber: 6.4:1 on the panel, so a live figure is legible rather than merely tinted. */
+    -es-amber:     #8A4A00;
+    -es-amber-mid: #B4762A;
+    -es-amber-low: #C9A87A;
+
+    -es-alarm:     #A00000;
+
+    -es-tool:      #C4C4C4;
+}

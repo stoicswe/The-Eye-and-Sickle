@@ -5,76 +5,80 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * The themes a player can choose, across both families.
+ * The looks a player can choose.
  *
- * <h2>Casing is a convention, not a preference</h2>
+ * <h2>What changed on 2026-07-26, and why the list is shorter</h2>
  *
- * {@code docs/design/glossary.md} fixes it: <b>uOS</b> in prose, in UI copy and in anything a player
- * reads; {@code uos} in identifiers — theme ids, CSS classes, stylesheet filenames. Exactly the
- * macOS/{@code macos} split.
+ * {@code docs/design/ui-design-language.md} §0 cancels two things that were previously Established
+ * in {@code docs/architecture/01-tech-stack.md}: <b>AtlantaFX for native OS theming</b> and <b>a
+ * separate {@code Stage} per tool</b>. The reasoning is short and hard to argue with — native
+ * theming puts real macOS traffic lights and Windows title bars around the game, and "the entire
+ * aesthetic depends on the player never seeing their own operating system."
  *
- * <h2>Each variant owns a stylesheet, and that changed on 2026-07-25</h2>
+ * <p>So the {@code native} family is gone. There is no OS-following light mode, because there is no
+ * OS chrome for it to match.
  *
- * Originally every uOS variant shared one sheet and differed only in name — which meant they could
- * not actually differ. They now have their own files, which is what let the default become the
- * crimson console while the green phosphor kept existing as {@link #UOS_PHOSPHOR} rather than being
- * deleted.
+ * <h2>One component sheet, several palettes</h2>
  *
- * <p>The {@code -hc} suffix stays a modifier rather than a separate look: it swaps the AtlantaFX base
- * underneath for a higher-contrast one and reuses its variant's tokens.
+ * §0 also says "ship one hand-written stylesheet". Taken literally that would mean one look, which
+ * would delete the phosphor, amber-tube and Classic skins added on 2026-07-25 at the player's
+ * request. Taken as what it is arguing against — <em>a second sheet that redefines components and
+ * can therefore drift</em> — it permits what is built here: {@code theme.css} owns every component
+ * rule, geometry, hairline and motion, and a variant is a <b>palette overlay of about forty lines</b>
+ * loaded after it.
+ *
+ * <p>The consequence is worth stating plainly: a widget cannot look right in one variant and broken
+ * in another, because there is only one set of component rules. It also means a new variant is
+ * cheap, and that adding one can never introduce a rounded corner.
+ *
+ * <p>⚠ <b>uOS Classic is no longer System 7 chrome.</b> Bevels, shadows and radius are on §9's
+ * build-blocking rejection list, so what survives is Classic's <em>palette</em> — a light field with
+ * black hairlines, which was always the part that made it the most legible skin in the client. The
+ * period bevelling did not survive the design language, and pretending otherwise would leave a theme
+ * that violates the contract every other theme is held to.
  */
 public enum ThemeId {
 
-    /**
-     * Adapts to the host OS: light/dark, accent colour and reduced-motion are read live from the
-     * system, so flipping dark mode mid-session just works ({@code docs/client/02}).
-     */
-    NATIVE("native", ThemeFamily.NATIVE, "Native", "native.css", false),
-    NATIVE_HC("native-hc", ThemeFamily.NATIVE, "Native (high contrast)", "native.css", true),
+    /** The deck. Cold blue-black ground, sodium amber for anything earning. The default. */
+    DECK("deck", "Deck", null, false),
 
     /**
-     * The default story look: near-black, crimson-lit — Blade Runner rather than VT220.
+     * High visibility.
      *
-     * <p>Redesigned 2026-07-25 on request. What this used to be is now {@link #UOS_PHOSPHOR}.
+     * <p>Not a style option — an accessibility floor ({@code docs/client/07-accessibility.md}).
+     * Body text clears WCAG AAA and hairlines clear the 3:1 non-text minimum. It is the one place
+     * in the client that trades §2.1's "never {@code #000}" away, and it does so deliberately.
      */
-    UOS("uos", ThemeFamily.UOS, "uOS", "uos.css", false),
-    UOS_HC("uos-hc", ThemeFamily.UOS, "uOS (high contrast)", "uos.css", true),
+    DECK_HC("deck-hc", "Deck — high visibility", "theme-hc.css", true),
 
-    /** The green CRT this family started as — DEC/VT220, one phosphor at several intensities. */
-    UOS_PHOSPHOR("uos-phosphor", ThemeFamily.UOS, "uOS — phosphor", "uos-phosphor.css", false),
+    /** The green CRT the story family started as — DEC/VT220, one phosphor at several intensities. */
+    PHOSPHOR("phosphor", "Phosphor", "theme-phosphor.css", false),
 
     /** The amber tube: warmer, and the one many people read most comfortably for long stretches. */
-    UOS_AMBER("uos-amber", ThemeFamily.UOS, "uOS — amber", "uos-amber.css", false),
+    AMBER_TUBE("amber", "Amber tube", "theme-amber.css", false),
 
-    /**
-     * System 7 meets a Unix workstation: light grey chassis, black hairlines, bevelled controls.
-     *
-     * <p>Also the most legible skin in the client — black on white is 21:1, nothing glows and nothing
-     * moves — which makes it a genuine accessibility option in a period costume rather than a
-     * novelty.
-     */
-    UOS_CLASSIC("uos-classic", ThemeFamily.UOS, "uOS Classic", "uos-classic.css", false);
+    /** uOS Classic: a light field, black hairlines. The most legible non-accessibility skin. */
+    CLASSIC("classic", "uOS Classic", "theme-classic.css", false);
+
+    /** The component sheet. Every theme loads this first; the overlay only redefines colours. */
+    public static final String BASE_STYLESHEET = "/io/github/stoicswe/eyeandsickle/client/ui/theme.css";
+
+    private static final String OVERLAY_DIR = "/io/github/stoicswe/eyeandsickle/client/ui/";
 
     private final String id;
-    private final ThemeFamily family;
     private final String label;
-    private final String stylesheetFile;
+    private final String overlayFile;
     private final boolean highContrast;
 
-    ThemeId(String id, ThemeFamily family, String label, String stylesheetFile, boolean highContrast) {
+    ThemeId(String id, String label, String overlayFile, boolean highContrast) {
         this.id = id;
-        this.family = family;
         this.label = label;
-        this.stylesheetFile = stylesheetFile;
+        this.overlayFile = overlayFile;
         this.highContrast = highContrast;
     }
 
     public String id() {
         return id;
-    }
-
-    public ThemeFamily family() {
-        return family;
     }
 
     public String label() {
@@ -86,19 +90,14 @@ public enum ThemeId {
     }
 
     /**
-     * True for the one skin drawn on a light field.
+     * This theme's palette overlay, if it has one.
      *
-     * <p>Changes which AtlantaFX base belongs underneath: a dark base under a light token sheet
-     * leaves every unstyled control dark-on-light and unreadable, which is the failure mode a
-     * half-themed application always has.
+     * <p>Empty for {@link #DECK}, which <em>is</em> the palette in {@code theme.css}. A variant that
+     * needed to override a component rule rather than a colour would be a sign the component rule
+     * belongs in the base sheet with a modifier class.
      */
-    public boolean light() {
-        return this == UOS_CLASSIC;
-    }
-
-    /** The stylesheet carrying this theme's token values. */
-    public String stylesheet() {
-        return "/io/github/stoicswe/eyeandsickle/client/theme/" + stylesheetFile;
+    public Optional<String> overlayStylesheet() {
+        return Optional.ofNullable(overlayFile).map(file -> OVERLAY_DIR + file);
     }
 
     public static Optional<ThemeId> byId(String id) {
@@ -107,6 +106,6 @@ public enum ThemeId {
 
     /** Themes offered in the picker, in the order they are offered. */
     public static List<ThemeId> selectable() {
-        return List.of(NATIVE, UOS, UOS_CLASSIC, UOS_PHOSPHOR, UOS_AMBER, NATIVE_HC, UOS_HC);
+        return List.of(values());
     }
 }

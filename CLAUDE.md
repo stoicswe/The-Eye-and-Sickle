@@ -8,7 +8,7 @@ Guidance for Claude Code (and humans) working in this repo. Read this first, eve
 
 A **puzzle-centric hacking game** in a surveillance-dystopia setting. Two factions — **The Eye** (the surveillance state) and **The Sickle** (a decentralized resistance). Single-player by default; opt-in, real-loss multiplayer over a **federated, self-hostable** server network. The core loop is a hacking minigame; every surrounding system exists to give that puzzle stakes and consequence.
 
-**Tech stack (decided, end-to-end):** JavaFX multi-window desktop client (one OS window per tool) · Spring Boot + PostgreSQL self-hostable home servers (Docker Compose) · AT Protocol OAuth for identity (authentication only) · opt-in federation with a reputation-weighted validator quorum and cryptographically signed per-item provenance.
+**Tech stack (decided, end-to-end):** JavaFX desktop client — **one undecorated window containing an in-game window manager the client draws itself** · Spring Boot + PostgreSQL self-hostable home servers (Docker Compose) · AT Protocol OAuth for identity (authentication only) · opt-in federation with a reputation-weighted validator quorum and cryptographically signed per-item provenance.
 
 ## Where the design lives
 
@@ -19,6 +19,7 @@ All design and architecture documentation is under `docs/`. **This is the source
 - **`docs/architecture/`** — the technical stack. Start with `docs/architecture/README.md` and `00-overview.md`.
 - **`docs/client/`** — what the player actually sees: the two theme families (platform-native and the **uOS** story terminal), the visual-language token contract, the Unix terminology + `man`-page teaching layer, tool windows, resource/inventory UI, and accessibility. Start with `docs/client/README.md`. **`client/01-visual-language.md` is a contract** — it names every colour token, primitive and state class; the other client docs cite it and must not redefine its vocabulary.
 - **`docs/education/`** — the **curriculum**: the real computing knowledge the game teaches, which concepts, in what order, against which misconceptions, verified against which sources. Start with `docs/education/README.md`. **`education/00-curriculum-and-method.md` is a contract** — it fixes the entry template, the status vocabulary (`real` / `real, simplified` / `game`) and the sequencing rules that the eight domain documents are written against. Keep the boundary straight: `client/04` owns *how* a definition reaches the player, `docs/education/` owns *what it says and whether it is true*, and `client/src/main/resources/terms/**` is the output. Nothing in `docs/education/` is code or read at run time.
+- **`docs/design/ui-design-language.md`** — **a contract, and the newest one.** It fixes the palette, the type roles, the geometry, the component catalog, the motion rules and a build-blocking rejection list (§9). Its §0 **cancels AtlantaFX and the `Stage`-per-tool model** that `architecture/01` had as Established — read §0 and §12 before touching anything visual. §10's acceptance criteria are machine-checked by `UiContractTest`; §11 records what is still open.
 - **`docs/design/glossary.md`** — canonical terms **and code-name conventions.** Use these names in code so docs and code stay searchable against each other.
 - **`docs/design/15-open-questions.md`** — everything undecided, with a resolution log. Check it before designing; update it when you decide something.
 
@@ -95,7 +96,7 @@ The two meta-rules behind most of these: **compute is the master scarcity** (nev
 - **`solo`** — the **offline single-player runtime**: rules over a JSON save, with no Spring, no driver, no HTTP stack and no thread of its own (its own enforcer rule holds that line). It exists because the client bans the server transitively and because a second Boot JVM is the wrong price for a mode whose appeal is double-click-and-play. ⚠ It is a **second implementation of a subset of the rules** — `solo/Balance.java` cites the design doc for every number, and re-tuning `design/03` means re-reading it. A solo character is **local-only and can never federate**, which is how I14 survives a save file the player can edit.
 - **`protocol`** — a record, enum or sealed type that crosses the wire, the provenance verifier, or the secure transport. Nothing else. No thresholds, no prices, no yields, no gate evaluation. If a constant here changed and a player would gain something, it's a balance value and it belongs to the server. Its packages layer one way: `game → provenance → crypto ← channel`.
 - **`server`** — anything authoritative: rules, persistence, the ledger, PvP resolution, federation. When in doubt, it goes here.
-- **`client`** — rendering and input only. Every view binds to the `GameSession` port and never learns whether it is talking to `solo` in-process or a home server over REST; that is what stops single player drifting into a different game.
+- **`client`** — rendering and input only. Every view binds to the `GameSession` port and never learns whether it is talking to `solo` in-process or a home server over REST; that is what stops single player drifting into a different game. Inside it, `ui/` is the visual layer and obeys one split: **colours live in `ui/theme.css` and nowhere else; sizes, spacings and durations live in `ui/UiTokens.java` and nowhere else.** JavaFX looked-up values are colour-only (measured — V-1), so there is no third option. `ui/chrome/` is the window manager, `ui/widgets/` the component catalog, `view/` the tools that fill the panels.
 
 `protocol` is named that, and not `common`, on purpose: `common` names no rule, so a game rule can drift in unnoticed. `ArchitectureRulesTest` machine-checks the charter, because prose alone erodes under the constant reasonable-sounding pressure to move "just the gate check" in so the client can predict.
 
@@ -126,16 +127,49 @@ mvn -Pquality spotless:apply        # format
 ```
 
 The client **runs offline out of the box**: `mvn install -DskipTests && mvn -pl client javafx:run` opens a
-playable solo game with no network, account or database. Sixteen tool windows, two theme families, a
-shell with real pipelines and globs, and a 21-page offline manual parsed from `client/src/main/resources/
-.../terms/`. **The single-window layout is the default** as of 2026-07-25: one window, tools as tabs, the compute
-strip as chrome. This inverts `docs/architecture/01` §1's Established "multi-window is the default"
-— changed on explicit direction, logged in `docs/design/15-open-questions.md` §3, and noted in
-`docs/client/05` §5.1 and `07` §2.3. The multi-window desk is unchanged and one setting away
-(`dockedLayout: false`, Settings → Layout, or `dock` in the terminal). `docs/client/07` §2.3 requires
-the docked layout to lose no functionality, and a test asserts every window is reachable in it. Its profile (settings, window geometry, save)
-lives in the platform's conventional directory — `~/Library/Application Support/The Eye and Sickle` on
-macOS, `%APPDATA%` on Windows, `$XDG_DATA_HOME` on Linux — and `-Deyeandsickle.profile=<dir>` relocates it.
+playable solo game with no network, account or database. Seventeen tool windows, five themes, a shell
+with real pipelines and globs, and a 21-page offline manual parsed from `client/src/main/resources/
+.../terms/`.
+
+**The deck is the client, as of 2026-07-26.** One `StageStyle.UNDECORATED` Stage — no OS chrome on any
+platform — laid out as `docs/design/ui-design-language.md` §3 specifies: top status strip, 34px rail,
+desk, command strip. Inside it, `ui/chrome/DeskManager` is a window manager the client draws itself:
+drag, focus, z-order, minimise, maximise, close, resize, **snap-to-grid and edge tiling** (drag a panel
+against a side of the desk to fill that half, into a corner for that quarter), with free-drag as a
+setting. This replaces *both* previous layouts — the `Stage`-per-tool desk and the docked tabbed shell —
+and cancels **AtlantaFX** with them; see `docs/architecture/01` §1 and `docs/design/15` §3. Pillar C2 is
+now structural rather than maintained by hand: the compute readout is a cell in the top strip, which is
+chrome, so it has no z-order to lose and no tab to hide behind.
+
+The rig monitor doubles as an **activity monitor**: running work with a discrete cell meter and a
+countdown. Scans are real tasks now — `docs/design/04-mining.md` §3.2 has always published a duration
+per tier and nothing waited for it until 2026-07-26. They persist, survive a quit, and complete on the
+first tick back. The **pointer** is drawn by the game too (Settings → Pointer; system is the default and
+that is an accessibility floor, not a placeholder).
+
+⚠ **Five JavaFX behaviours here cost a debugging round each and are easy to hit again.** (1) A
+**managed** child of a `Pane` is repositioned by the Pane's `layoutChildren`, silently undoing
+`resizeRelocate` — every desk window is `setManaged(false)`, and without it the window manager works
+until the next layout pass and then stacks every panel at the origin. (2) In an **event filter**,
+`MouseEvent.getX()` is relative to the event's *target*, not to the node the filter is on — resize grips
+must convert with `sceneToLocal`, or they work on a bare panel and stop wherever a tool put content.
+(3) `-fx-shape` scales an SVG path to the region, so the 18px notch has to be a `Polygon` clip
+recomputed per resize (§7.2). (4) **`-fx-cursor: url(...)` does not work** — it fails at apply time with
+`ClassCastException: String incompatible with Cursor`, so custom cursors must be set from Java.
+(5) **A CSS `-fx-cursor` on a node beats an inherited Scene cursor**, so a single `-fx-cursor: hand`
+in the stylesheet punches a system-cursor hole in every custom skin. All five are covered by tests.
+
+⚠ **Anything with a deadline must take the session's clock, never `Instant.now()`.** `RunningTask`
+got this wrong once and every task reported 100% complete the moment it started under a test clock —
+invisible in production, where the two clocks agree. `ComputeRules.spend` has the same warning one
+module down. Related: **work that can finish while the game is closed settles in `SoloGame.resume()`,
+not in `tick()`** — `resume()` sets `lastTick = now`, so the first tick sees zero elapsed time and
+returns early.
+
+Escape opens an in-deck **pause menu** (save, settings, quit to menu, quit game with a confirm) rather
+than dropping straight back to the main menu. The profile (settings, window geometry, save) lives in the
+platform's conventional directory — `~/Library/Application Support/The Eye and Sickle` on macOS,
+`%APPDATA%` on Windows, `$XDG_DATA_HOME` on Linux — and `-Deyeandsickle.profile=<dir>` relocates it.
 
 **Running from an IDE — read this before debugging a missing-JavaFX error.** Start the client through
 `io.github.stoicswe.eyeandsickle.client.Launcher`, never through `EyeAndSickleClient`. A main class that

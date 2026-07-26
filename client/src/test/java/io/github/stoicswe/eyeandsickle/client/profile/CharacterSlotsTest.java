@@ -133,45 +133,76 @@ class CharacterSlotsTest {
     class Themes {
 
         @Test
-        @DisplayName("every selectable theme has a stylesheet that actually exists")
+        @DisplayName("the component sheet and every palette overlay actually exist")
         void everyStylesheetResolves() {
-            // A missing stylesheet is a NullPointerException at theme-switch time, which is a
-            // crash in front of a player rather than a build failure in front of a developer.
+            // A missing stylesheet is a NullPointerException at theme-switch time — a crash in
+            // front of a player rather than a build failure in front of a developer.
+            assertThat(ThemeId.class.getResource(ThemeId.BASE_STYLESHEET))
+                    .as("the component sheet")
+                    .isNotNull();
             for (ThemeId id : ThemeId.selectable()) {
-                assertThat(ThemeId.class.getResource(id.stylesheet()))
-                        .as("stylesheet for %s", id.id())
-                        .isNotNull();
+                id.overlayStylesheet().ifPresent(sheet -> assertThat(ThemeId.class.getResource(sheet))
+                        .as("overlay for %s", id.id())
+                        .isNotNull());
             }
         }
 
         @Test
-        @DisplayName("uOS Classic is the one light skin, and says so")
-        void classicIsLight() {
-            // The flag decides which AtlantaFX base goes underneath. Getting it wrong leaves every
-            // unstyled control dark-on-light, which is the half-themed-application failure.
-            assertThat(ThemeId.UOS_CLASSIC.light()).isTrue();
+        @DisplayName("the deck IS the base sheet, so it has no overlay of its own")
+        void deckHasNoOverlay() {
+            // If DECK ever gained an overlay it would mean the base sheet had stopped being the
+            // default palette — which is the first step back towards two sheets that can disagree.
+            assertThat(ThemeId.DECK.overlayStylesheet()).isEmpty();
             for (ThemeId id : ThemeId.values()) {
-                if (id != ThemeId.UOS_CLASSIC) {
-                    assertThat(id.light()).as("%s", id.id()).isFalse();
+                if (id != ThemeId.DECK) {
+                    assertThat(id.overlayStylesheet()).as("%s", id.id()).isPresent();
                 }
             }
         }
 
         @Test
-        @DisplayName("the uOS variants each have their own stylesheet, so they can actually differ")
-        void uosVariantsAreDistinct() {
-            // They used to share one file, which meant the variant names were decoration. The
-            // default could not have been redesigned without deleting the phosphor look.
-            assertThat(ThemeId.UOS.stylesheet()).isNotEqualTo(ThemeId.UOS_PHOSPHOR.stylesheet());
-            assertThat(ThemeId.UOS.stylesheet()).isNotEqualTo(ThemeId.UOS_AMBER.stylesheet());
-            assertThat(ThemeId.UOS.stylesheet()).isNotEqualTo(ThemeId.UOS_CLASSIC.stylesheet());
+        @DisplayName("every palette overlay redefines colours and NOTHING else")
+        void overlaysAreColoursOnly() throws Exception {
+            // The whole argument for collapsing seven stylesheets into one component sheet plus
+            // palettes (ui-design-language.md §0) is that a widget cannot look right in one variant
+            // and broken in another. That only holds while overlays stay palettes. A geometry or
+            // font property here is the drift starting, so it fails the build rather than review.
+            for (ThemeId id : ThemeId.selectable()) {
+                var sheet = id.overlayStylesheet().orElse(null);
+                if (sheet == null) {
+                    continue;
+                }
+                String css;
+                try (var in = ThemeId.class.getResourceAsStream(sheet)) {
+                    css = new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+                }
+                String body = css.replaceAll("(?s)/\\*.*?\\*/", "");
+                for (String banned : java.util.List.of(
+                        "-fx-padding", "-fx-font-size", "-fx-font-family", "-fx-border-width",
+                        "-fx-background-radius", "-fx-border-radius", "-fx-effect")) {
+                    assertThat(body)
+                            .as("%s must not set %s — overlays are palettes", id.id(), banned)
+                            .doesNotContain(banned);
+                }
+            }
         }
 
         @Test
-        @DisplayName("the high-contrast variants reuse their base variant's tokens")
-        void highContrastIsAModifier() {
-            assertThat(ThemeId.UOS_HC.stylesheet()).isEqualTo(ThemeId.UOS.stylesheet());
-            assertThat(ThemeId.NATIVE_HC.stylesheet()).isEqualTo(ThemeId.NATIVE.stylesheet());
+        @DisplayName("high visibility is offered, because it is an accessibility floor")
+        void highContrastIsSelectable() {
+            assertThat(ThemeId.selectable()).contains(ThemeId.DECK_HC);
+            assertThat(ThemeId.DECK_HC.highContrast()).isTrue();
+        }
+
+        @Test
+        @DisplayName("the palette variants each have their own overlay, so they can actually differ")
+        void variantsAreDistinct() {
+            assertThat(java.util.Set.of(
+                            ThemeId.DECK_HC.overlayStylesheet().orElseThrow(),
+                            ThemeId.PHOSPHOR.overlayStylesheet().orElseThrow(),
+                            ThemeId.AMBER_TUBE.overlayStylesheet().orElseThrow(),
+                            ThemeId.CLASSIC.overlayStylesheet().orElseThrow()))
+                    .hasSize(4);
         }
     }
 }

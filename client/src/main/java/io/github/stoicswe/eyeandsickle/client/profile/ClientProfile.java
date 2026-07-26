@@ -49,8 +49,13 @@ public final class ClientProfile {
     private static final String APP_NAME = "The Eye and Sickle";
     private static final String XDG_NAME = "the-eye-and-sickle";
 
+    // Unknown properties are ignored on purpose. Settings files outlive the code that wrote them: a
+    // player who downgrades, or who kept a profile across a release that removed a setting, would
+    // otherwise hit the catch below and silently lose every preference they had — theme, teaching
+    // level, window positions — because of one field the build no longer knows about.
     private static final ObjectMapper MAPPER = JsonMapper.builder()
             .enable(SerializationFeature.INDENT_OUTPUT)
+            .disable(tools.jackson.databind.DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
             .build();
 
     private final Path directory;
@@ -151,8 +156,8 @@ public final class ClientProfile {
      */
     public static final class Settings {
 
-        /** Theme id, e.g. {@code native} or {@code uos-amber}. Lowercase, per the glossary's convention. */
-        public String themeId = "native";
+        /** Theme id, e.g. {@code deck} or {@code deck-hc}. Lowercase, per the glossary's convention. */
+        public String themeId = "deck";
 
         /**
          * {@code explain} | {@code terms} | {@code off} — {@code docs/client/04} §3.10's {@code teach}
@@ -165,20 +170,51 @@ public final class ClientProfile {
         public Boolean reducedMotionOverride = null;
 
         /**
-         * The single-window layout — <b>the default since 2026-07-25</b>.
+         * Which pointer to draw — {@code system}, {@code reticle}, {@code chevron} or {@code block}.
          *
-         * <p>This inverts what {@code ../architecture/01} §1 and {@code docs/client/05} §1 assumed.
-         * Both describe multi-window as "the default and the fantasy" and the docked layout as the
-         * accessibility alternative. That was an Established decision and it was changed on explicit
-         * direction, with the reasoning recorded in {@code docs/design/15-open-questions.md} §3.
-         *
-         * <p>Nothing was removed: multi-window is still fully built and one setting away. What
-         * changed is which one a new player meets first, and the argument for the change is that
-         * fifteen OS windows is a lot to hand somebody in their first thirty seconds —
-         * {@code docs/client/07} §2.3 already required this layout to lose no functionality, so
-         * making it the default costs a new player nothing and spares them the window management.
+         * <p>Defaults to {@code system}, and that is a deliberate floor rather than a placeholder. A
+         * pointer is tuned by the player's OS for their display and their eyesight, and some people
+         * run a deliberately enlarged or high-contrast one; replacing it by default would be an
+         * accessibility regression dressed as art direction. The custom skins are opt-in.
          */
+        public String cursorSkin = "system";
+
+        /**
+         * The single-window deck — now the only layout, and no longer a choice.
+         *
+         * <p>Kept as a field so that settings files written before 2026-07-26 still deserialise;
+         * nothing reads it. {@code docs/design/ui-design-language.md} §0 cancelled the
+         * separate-{@code Stage}-per-tool model outright, and what replaced it is not the old docked
+         * layout either — it is one undecorated Stage containing a real in-game window manager
+         * ({@code ui/chrome/DeskManager}), which is strictly more capable than both. Multi-window
+         * survives in §0 only as an opt-in multi-monitor feature, which is not built.
+         *
+         * @deprecated superseded by the deck; retained only for backward-compatible deserialisation
+         */
+        @Deprecated
         public boolean dockedLayout = true;
+
+        /**
+         * Free-drag windows instead of snapping them to a grid.
+         *
+         * <p>{@code docs/design/ui-design-language.md} §11 question 1 asks which of these the desk
+         * should do and answers "prototype both". Both are built; this is the switch. Snapping is
+         * the default because it reinforces the character-cell language the rest of the interface is
+         * drawn on, and because it is what makes edge-tiling — dragging a window against a side of
+         * the desk to fill that half — available at all.
+         */
+        public boolean freeDragWindows = false;
+
+        /**
+         * Whether Bandwidth caps how many tool windows can be open at once.
+         *
+         * <p><b>[PROPOSAL]</b> — {@code docs/design/ui-design-language.md} §8 wants the desk to be a
+         * mechanic rather than a skin, and this is that mechanic. Defaulted <b>off</b> because the
+         * cap is not calibrated: a starting rig has {@code bandwidth = 1}
+         * ({@code docs/design/11-rig-infrastructure.md} §2), and the arithmetic that turns that into
+         * a usable window budget is invented rather than derived. Logged as <b>UI-2</b>.
+         */
+        public boolean bandwidthCapsWindows = false;
 
         /** Window id → geometry. Restored on open, and sanity-checked against current screens. */
         public Map<String, WindowGeometry> windows = new LinkedHashMap<>();

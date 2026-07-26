@@ -128,6 +128,37 @@ public final class BuiltinCommands {
                     return out;
                 }));
 
+        r.add(source("log", List.of(), "What the rig has been doing. -p filters by severity.",
+                inv -> {
+                    // -p is journalctl's own flag and takes journalctl's own semantics: a NUMBER,
+                    // where lower is more severe, and the filter is "this level or worse". A player
+                    // who learns `-p 4` here can type it into journalctl tonight.
+                    int minSeverity = inv.stage()
+                            .flag("p")
+                            .filter(v -> !v.isBlank())
+                            .map(v -> {
+                                try {
+                                    return Integer.parseInt(v.trim());
+                                } catch (NumberFormatException e) {
+                                    return 7;
+                                }
+                            })
+                            .orElse(7);
+
+                    List<GameSession.LogLine> lines = inv.session().log(minSeverity, 200);
+                    List<String> out = new ArrayList<>();
+                    for (GameSession.LogLine line : lines) {
+                        out.add(pad(line.at().toString(), 22)
+                                + pad(line.glyph() + " " + line.keyword(), 10)
+                                + pad(line.facility(), 10)
+                                + line.message());
+                    }
+                    if (out.isEmpty()) {
+                        out.add("(nothing logged yet)");
+                    }
+                    return out;
+                }));
+
         r.add(source("items", List.of(), "Everything you own, across all three tiers.",
                 inv -> {
                     List<String> out = new ArrayList<>();

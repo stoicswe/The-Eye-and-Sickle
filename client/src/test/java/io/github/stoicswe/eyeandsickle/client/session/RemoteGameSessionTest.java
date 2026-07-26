@@ -2,7 +2,6 @@ package io.github.stoicswe.eyeandsickle.client.session;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.github.stoicswe.eyeandsickle.client.window.DockedShell;
 import io.github.stoicswe.eyeandsickle.client.window.WindowSpec;
 import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
 import java.net.URI;
@@ -81,38 +80,72 @@ class RemoteGameSessionTest {
     }
 
     @Nested
-    @DisplayName("the docked layout loses nothing")
-    class Docked {
+    @DisplayName("the deck loses nothing")
+    class Deck {
 
         @Test
-        @DisplayName("every tool in the catalogue is reachable in single-window mode")
+        @DisplayName("every tool in the catalogue has a launcher entry on the rail")
         void everyWindowIsReachable() {
-            // docs/client/07 §2.3 makes this a contract: the docked layout is a mode, not a
-            // fallback, and no functionality or information may be lost in it. Asserting it beats a
-            // reviewer noticing that one window never got a tab.
-            assertThat(DockedShell.reachable()).containsExactlyInAnyOrder(WindowSpec.values());
+            // docs/client/07 §2.3 makes this a contract: no functionality or information may be
+            // lost in the single-window layout. The deck's rail launcher is now the route, and
+            // asserting it beats a reviewer noticing that one window never got a chip.
+            //
+            // The check is on the accelerator glyphs rather than on DeckShell itself, because
+            // building a DeckShell needs a live toolkit and this suite runs headless. Every window
+            // in the catalogue must produce a distinct, non-blank glyph — a duplicate would be two
+            // tools sharing one rail entry, which is exactly the lost-tool failure above.
+            java.util.Set<String> glyphs = new java.util.HashSet<>();
+            for (WindowSpec spec : WindowSpec.values()) {
+                String name = spec.combination().getName();
+                String last = name.substring(name.lastIndexOf('+') + 1).trim();
+                String glyph = switch (last) {
+                    case "Comma" -> ",";
+                    case "Slash" -> "/";
+                    default -> last.length() > 1 ? last.substring(0, 1) : last;
+                };
+                assertThat(glyph).as("%s has a rail glyph", spec.id()).isNotBlank();
+                assertThat(glyphs.add(glyph))
+                        .as("%s duplicates the rail glyph %s", spec.id(), glyph)
+                        .isTrue();
+            }
+            assertThat(glyphs).hasSize(WindowSpec.values().length);
         }
 
         @Test
-        @DisplayName("a fresh profile opens in the docked layout")
-        void dockedIsTheDefault() {
-            // Inverts docs/architecture/01 §1's "multi-window is the default", on explicit
-            // direction, logged in docs/design/15 §3. Pinned here because a default that flips back
-            // by accident during a refactor is the kind of change nobody notices in review and every
-            // new player notices immediately.
-            assertThat(new io.github.stoicswe.eyeandsickle.client.profile.ClientProfile.Settings().dockedLayout)
-                    .isTrue();
+        @DisplayName("windows snap to a grid by default, and free-drag is the opt-in")
+        void snapIsTheDefault() {
+            // ui-design-language.md §11 question 1 asked for both and left the choice open. Snapping
+            // is the default because it reinforces the character-cell language and is what makes
+            // edge-tiling reachable at all. Pinned here because a default that flips during a
+            // refactor is invisible in review and obvious to every player.
+            assertThat(new io.github.stoicswe.eyeandsickle.client.profile.ClientProfile.Settings()
+                            .freeDragWindows)
+                    .isFalse();
         }
 
         @Test
-        @DisplayName("three columns is the ceiling, and the reason is arithmetic")
-        void columnCeiling() {
-            // A fourth column on a 1440px window gives each pane 340px, below every tool's minimum.
-            assertThat(DockedShell.MAX_COLUMNS).isEqualTo(3);
-            double narrowest = 1440 - DockedShell.RAIL_WIDTH;
-            assertThat(narrowest / (DockedShell.MAX_COLUMNS + 1))
-                    .as("a fourth column would be below the smallest minimum width")
-                    .isLessThan(WindowSpec.SWITCHER.minWidth() + 100);
+        @DisplayName("the Bandwidth window cap is off until it is calibrated")
+        void bandwidthCapIsOptIn() {
+            // §8 wants the desk to be a mechanic. UI-2 records why it ships off: a starting rig has
+            // bandwidth 1, and the arithmetic turning that into a window budget is invented. A cap
+            // that turns out to be wrong must not be discovered by a player who cannot open a map.
+            assertThat(new io.github.stoicswe.eyeandsickle.client.profile.ClientProfile.Settings()
+                            .bandwidthCapsWindows)
+                    .isFalse();
+        }
+
+        @Test
+        @DisplayName("the proposed cap always leaves the six reachless tools open")
+        void capNeverLocksOutTheBasics() {
+            // The rig monitor, terminal, log, manual, settings and switcher reach nothing, so
+            // Bandwidth has no claim on them. A cap that could close the manual would make the
+            // game unlearnable at exactly the moment the player needed to learn it.
+            var starting = new GameSession.RigCapacity(1, 1, 1);
+            assertThat(starting.proposedWindowCap())
+                    .isGreaterThan(GameSession.RigCapacity.FREE_WINDOWS);
+            assertThat(new GameSession.RigCapacity(0, 1, 1).proposedWindowCap())
+                    .as("a zero-bandwidth rig still gets one engagement window")
+                    .isEqualTo(GameSession.RigCapacity.FREE_WINDOWS + 1);
         }
     }
 }

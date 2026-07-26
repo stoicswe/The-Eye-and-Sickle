@@ -314,7 +314,7 @@ public final class MainMenuView {
 
             @Override
             public ThemeId fromString(String s) {
-                return ThemeId.NATIVE;
+                return ThemeId.DECK;
             }
         });
         picker.valueProperty().addListener((o, was, now) -> {

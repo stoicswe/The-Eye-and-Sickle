@@ -111,6 +111,98 @@ public final class LocalGameSession implements GameSession {
     }
 
     @Override
+    public List<ArmedDefense> defenses() {
+        List<ArmedDefense> out = new ArrayList<>();
+        for (DefenseState d : game.state().defenses) {
+            out.add(new ArmedDefense(d.kind, d.tier, d.reservedCycles, d.triggered));
+        }
+        return out;
+    }
+
+    @Override
+    public List<LogLine> log(int minSeverity, int limit) {
+        List<LogLine> out = new ArrayList<>();
+        for (var e : game.state().log) {
+            if (e.severity <= minSeverity) {
+                out.add(new LogLine(e.at, e.severity, e.facility, e.message, e.keyword(), e.glyph()));
+            }
+        }
+        int from = Math.max(0, out.size() - Math.max(1, limit));
+        return List.copyOf(out.subList(from, out.size()));
+    }
+
+    @Override
+    public MiningSummary mining() {
+        long buffered = 0;
+        long cap = 0;
+        int miners = 0;
+        for (NodeState node : game.state().knownNodes) {
+            for (var miner : node.deployedMiners) {
+                buffered += miner.bufferedMinorUnits;
+                cap += io.github.stoicswe.eyeandsickle.solo.rules.MiningRules.bufferCap(miner);
+                miners++;
+            }
+        }
+        return new MiningSummary(game.state().rig.selfMiningCycles, buffered, cap, miners);
+    }
+
+    /**
+     * The rig's current work, newest last.
+     *
+     * <p>Three sources, one shape. Ordered so the thing with a real deadline the player is waiting
+     * on — a scan — sits above the background heat the rig is shedding, because that is the order
+     * the questions get asked in.
+     */
+    @Override
+    public java.util.List<RunningTask> tasks() {
+        java.util.List<RunningTask> out = new java.util.ArrayList<>();
+        // The engine's clock, so progress and countdowns agree with the rules that will complete
+        // the task. See RunningTask#progress.
+        java.time.Instant asOf = game.now();
+
+        for (var task : game.tasks()) {
+            out.add(new RunningTask(
+                    task.taskId,
+                    task.kind,
+                    task.label,
+                    "signal strength, not certainty",
+                    task.startedAt,
+                    task.endsAt,
+                    task.cycles,
+                    asOf));
+        }
+
+        for (var allocation : game.state().rig.allocations) {
+            if (!"RECOVERING".equals(allocation.state) || allocation.recoversAt == null) {
+                continue;
+            }
+            // Skip the allocation a running scan is already represented by — otherwise a Thorough
+            // Scan shows up twice, once as itself and once as the cycles paying for it, and the
+            // player reasonably concludes the rig is doing two things.
+            if (game.tasks().stream().anyMatch(t -> t.allocationId.equals(allocation.allocationId))) {
+                continue;
+            }
+            out.add(new RunningTask(
+                    allocation.allocationId,
+                    "compute",
+                    "thermal recovery",
+                    allocation.label.isBlank() ? "cycles returning" : "from " + allocation.label,
+                    allocation.startedAt,
+                    allocation.recoversAt,
+                    allocation.cycles,
+                    asOf));
+        }
+
+        return java.util.List.copyOf(out);
+    }
+
+    @Override
+    public RigCapacity capacity() {
+        var rig = game.state().rig;
+        return new RigCapacity(rig.bandwidth, rig.memoryBuffer, rig.thermalBudget);
+    }
+
+    @Override
     public boolean connected() {
         // There is nothing to disconnect from. Reporting true is not optimism, it is accurate: a
         // solo session's authority is in this process.

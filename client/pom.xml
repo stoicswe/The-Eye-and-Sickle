@@ -73,11 +73,6 @@
 
     <!-- Native-feeling theming across macOS / Linux / Windows so the client
          doesn't read as a 2005 Swing app on any of them. -->
-    <dependency>
-      <groupId>io.github.mkpaz</groupId>
-      <artifactId>atlantafx-base</artifactId>
-      <version>${atlantafx.version}</version>
-    </dependency>
   </dependencies>
 
   <build>

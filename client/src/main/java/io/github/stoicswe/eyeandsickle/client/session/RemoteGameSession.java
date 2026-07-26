@@ -104,6 +104,37 @@ public final class RemoteGameSession implements GameSession {
     }
 
     @Override
+    public List<ArmedDefense> defenses() {
+        return List.of();
+    }
+
+    @Override
+    public List<LogLine> log(int minSeverity, int limit) {
+        return List.of();
+    }
+
+    @Override
+    public MiningSummary mining() {
+        return new MiningSummary(0, 0, 0, 0);
+    }
+
+    @Override
+    public java.util.List<RunningTask> tasks() {
+        // The server is authoritative for what a rig is doing (I14). Empty is the honest answer for
+        // a transport that does not exist yet, and the readout says "nothing running" rather than
+        // inventing activity.
+        return java.util.List.of();
+    }
+
+    @Override
+    public RigCapacity capacity() {
+        // A starting rig's caps, so the desk has something coherent to draw before the transport
+        // exists. The server is authoritative for these once it does (I14) — the client must never
+        // be the thing that decides how much Bandwidth a player has.
+        return new RigCapacity(1, 1, 1);
+    }
+
+    @Override
     public boolean connected() {
         return connected;
     }

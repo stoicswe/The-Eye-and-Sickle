@@ -168,13 +168,23 @@ public final class Views {
         Runnable refresh = () -> {
             long total = session.computeBudget().total().cycles();
             allocation.setMax(total);
-            current.setText(session.balance().toString());
+            // Ethecoin.toString() is a record's — "Ethecoin[minorUnits=0]". Formatting the amount is
+            // not cosmetic here: the rig monitor shows the same balance two panels away, and
+            // docs/design/04 §3.1 makes noticing that two readouts disagree the way a player catches
+            // a hidden miner. Two DIFFERENT-LOOKING renderings of the same number destroy that.
+            current.setText(String.format(
+                    Locale.ROOT, "%.2f EC", session.balance().minorUnits() / 100.0d));
             long chosen = (long) allocation.getValue();
             // The published rate, and no verdict: the player does the arithmetic (pillar C4).
             projection.setText(chosen + " cycles × 0.4 EC per cycle-hour = "
                     + String.format(Locale.ROOT, "%.1f", chosen * 0.4) + " EC/hr while the client is open");
         };
         allocation.valueProperty().addListener((o, was, now) -> refresh.run());
+
+        // The slider starts where the rig actually is, not at zero. A control that reads 0 while the
+        // monitor beside it reads 30 is the same disagreement described above, and it also means the
+        // first thing "Allocate" does is silently release every committed cycle.
+        allocation.setValue(session.mining().selfMiningCycles());
 
         apply.setOnAction(e -> {
             GameSession.Outcome outcome = session.allocateSelfMining((long) allocation.getValue());
@@ -447,8 +457,16 @@ public final class Views {
 
     // ------------------------------------------------------------------ settings
 
-    /** Theme, teaching level, layout — everything {@code docs/client/00} §4.5 says persists. */
-    public static Region settings(ClientProfile profile, ThemeManager themes, WindowRegistry registry) {
+    /**
+     * Theme, teaching level, desk behaviour, motion — everything {@code docs/client/00} §4.5 says
+     * persists.
+     *
+     * @param onDeskSettingsChanged re-applies the desk options to the live shell. Passed in rather
+     *     than reached for, because this view is also opened from the main menu where no desk
+     *     exists yet — and a settings panel that silently does nothing in one of the two places it
+     *     appears is worse than one that cannot be opened there.
+     */
+    public static Region settings(ClientProfile profile, ThemeManager themes, Runnable onDeskSettingsChanged) {
         VBox root = panel("SETTINGS");
 
         ChoiceBox<ThemeId> theme = new ChoiceBox<>();
@@ -462,7 +480,7 @@ public final class Views {
 
             @Override
             public ThemeId fromString(String s) {
-                return ThemeId.NATIVE;
+                return ThemeId.DECK;
             }
         });
         theme.valueProperty().addListener((o, was, now) -> {
@@ -480,17 +498,53 @@ public final class Views {
             profile.save();
         });
 
-        CheckBox docked = new CheckBox("Single-window layout");
-        docked.setSelected(registry.isDocked());
-        docked.selectedProperty().addListener((o, was, now) -> {
-            registry.setDocked(now);
+        // §11 question 1, shipped as a choice rather than settled by fiat. See DeskManager.
+        CheckBox freeDrag = new CheckBox("Drag windows freely");
+        freeDrag.setSelected(profile.settings().freeDragWindows);
+        freeDrag.selectedProperty().addListener((o, was, now) -> {
+            profile.settings().freeDragWindows = now;
             profile.save();
+            onDeskSettingsChanged.run();
+        });
+
+        CheckBox bandwidthCap = new CheckBox("Bandwidth limits open windows  [PROPOSAL]");
+        bandwidthCap.setSelected(profile.settings().bandwidthCapsWindows);
+        bandwidthCap.selectedProperty().addListener((o, was, now) -> {
+            profile.settings().bandwidthCapsWindows = now;
+            profile.save();
+            onDeskSettingsChanged.run();
+        });
+
+        ChoiceBox<io.github.stoicswe.eyeandsickle.client.ui.cursors.CursorSkin> cursor = new ChoiceBox<>();
+        cursor.getItems().addAll(io.github.stoicswe.eyeandsickle.client.ui.cursors.CursorSkin.selectable());
+        cursor.setValue(io.github.stoicswe.eyeandsickle.client.ui.cursors.CursorSkin
+                .byId(profile.settings().cursorSkin)
+                .orElse(io.github.stoicswe.eyeandsickle.client.ui.cursors.CursorSkin.SYSTEM));
+        cursor.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(io.github.stoicswe.eyeandsickle.client.ui.cursors.CursorSkin skin) {
+                return skin == null ? "" : skin.label();
+            }
+
+            @Override
+            public io.github.stoicswe.eyeandsickle.client.ui.cursors.CursorSkin fromString(String s) {
+                return io.github.stoicswe.eyeandsickle.client.ui.cursors.CursorSkin.SYSTEM;
+            }
+        });
+        cursor.valueProperty().addListener((o, was, now) -> {
+            if (now != null) {
+                profile.settings().cursorSkin = now.id();
+                profile.save();
+                // Through the theme manager, because a pointer is drawn in the current palette's
+                // colours and only the theme manager knows which stylesheets are live.
+                themes.refreshCursors();
+            }
         });
 
         CheckBox reducedMotion = new CheckBox("Reduce motion");
         reducedMotion.setSelected(themes.reducedMotion());
         reducedMotion.selectedProperty().addListener((o, was, now) -> {
-            profile.settings().reducedMotionOverride = now;
+            themes.setReducedMotionOverride(now);
             profile.save();
         });
 
@@ -498,9 +552,11 @@ public final class Views {
                 .addAll(
                         new Label("APPEARANCE"),
                         theme,
-                        wrapped("Both families draw the same uOS. Only the skin changes — layout, "
-                                + "information and terminology are identical, and neither is allowed "
-                                + "to hide or soften a number."),
+                        wrapped("Every theme is the same deck with a different palette — one stylesheet "
+                                + "owns the layout, the hairlines and the motion, so no skin can hide or "
+                                + "soften a number. \"Deck — high visibility\" raises body text to WCAG "
+                                + "AAA and makes every hairline visible; it is an accessibility floor "
+                                + "rather than a style, and nothing else about the client changes."),
                         new Separator(),
                         new Label("TEACHING"),
                         teaching,
@@ -508,11 +564,34 @@ public final class Views {
                                 + "term only; `off` shows neither. The manual stays available at any "
                                 + "level — try `man compute`."),
                         new Separator(),
-                        new Label("LAYOUT"),
-                        docked,
-                        wrapped("The single-window layout is a first-class equal, not a degraded mode. "
-                                + "Managing many windows under time pressure is a real barrier."),
+                        new Label("DESK"),
+                        freeDrag,
+                        wrapped("Off: windows snap to a grid, and tile when dragged against an edge of "
+                                + "the desk — a side fills that half, a corner that quarter. On: they go "
+                                + "exactly where you put them."),
+                        bandwidthCap,
+                        wrapped("Off by default, and this one is not calibrated. The idea is that screen "
+                                + "space is attention: Bandwidth caps how many engagements run at once, so "
+                                + "it should cap how many tools you can have open. A starting rig has 1 "
+                                + "Bandwidth, so the budget below adds six always-free windows — the "
+                                + "monitor, terminal, log, manual, settings and switcher — to it. That "
+                                + "arithmetic is invented, which is why this is opt-in."),
+                        new Separator(),
+                        new Label("POINTER"),
+                        cursor,
+                        wrapped("The pointer is the last piece of your operating system left on "
+                                + "screen, so the deck can draw its own — in whatever colour the "
+                                + "current theme means by \"live\". \"System pointer\" leaves yours "
+                                + "alone, and that is the default on purpose: your OS has already "
+                                + "tuned it for your display and your eyesight. The text I-beam is "
+                                + "never replaced under any skin, because its shape tells you which "
+                                + "two characters the caret will land between."),
+                        new Separator(),
+                        new Label("MOTION"),
                         reducedMotion,
+                        wrapped("Follows your system setting unless you change it here. Suppresses the "
+                                + "panel wipe, the caret blink, the greeble and the sweep bar; readouts "
+                                + "keep updating, because that is information, not animation."),
                         new Separator(),
                         secondary("Profile directory: " + profile.directory()));
         return root;

@@ -1,0 +1,60 @@
+/*
+ * theme-hc.css — the high-visibility palette.
+ *
+ * Loaded after theme.css and redefines colours and NOTHING else. That restriction is machine-checked
+ * (CharacterSlotsTest#overlaysAreColoursOnly), and it is the whole reason the client can have five
+ * looks without five chances for a widget to be broken in one of them: theme.css owns every
+ * component rule, geometry, hairline and motion, and a variant owns a palette.
+ *
+ * High visibility does need a handful of STRUCTURAL changes — a heavier focus ring, quieter greeble,
+ * harder legend isolation. Those live in theme.css under `.es-theme-deck-hc`, not here, so that the
+ * rules a reviewer has to read to understand a control are all in one file.
+ *
+ * ── What this variant deliberately breaks ──────────────────────────────────────────────────────
+ *
+ * docs/design/ui-design-language.md §2.1 says the ground is "never #000", and this file uses it.
+ * That rule protects the mood: pure black reads as a hole rather than a surface. Maximum contrast is
+ * the entire point here, so the rule is traded away knowingly and only in this one file.
+ * docs/client/07-accessibility.md's position is that legibility outranks atmosphere when the two
+ * genuinely conflict, and this is the one place in the client where they do.
+ *
+ * ── What it does NOT break ─────────────────────────────────────────────────────────────────────
+ *
+ * No second accent hue, and no semantic colour system (§9). Amber still means live/earning and alarm
+ * still means loss; both are simply brighter. A high-contrast mode that introduced blue for "info"
+ * would fail the same review the default theme would.
+ *
+ * Targets: body text ≥ 7:1 (WCAG AAA), hairlines and cell fills ≥ 3:1 (the non-text minimum),
+ * measured against the ground each is actually drawn on.
+ */
+
+.root {
+    /* Ground. See the note above about #000. */
+    -es-void:      #000000;
+    -es-panel:     #0A0A0A;
+    -es-panel-hi:  #1C1C1C;
+
+    /* Hairlines have to read as structure, not as texture — 3.8:1 and 6.9:1 on the ground. */
+    -es-rule:      #6A6A6A;
+    -es-rule-hi:   #9AA6A6;
+
+    /* The grey ramp is pulled up hard. dim-2 carries every label in the client, so it is the one
+       that has to clear AAA on its own: 13.8:1 here, against 2.6:1 in the default theme. */
+    -es-dim-3:     #7A8A8A;
+    -es-dim-2:     #C8D4D4;
+    -es-dim-1:     #E4EDED;
+    -es-text:      #FFFFFF;
+    -es-text-hi:   #FFFFFF;
+
+    /* Amber stays the only accent. Lifted to 12.9:1, so a live figure is not merely different from
+       a dead one but legible on its own. */
+    -es-amber:     #FFC048;
+    -es-amber-mid: #FFAE38;
+    -es-amber-low: #C08A2A;
+
+    /* Deep red on black is one of the worst contrast pairs there is — the default #C4423A lands
+       near 3:1, below the body minimum. Lightened to 7.6:1 while staying unmistakably red. */
+    -es-alarm:     #FF6B60;
+
+    -es-tool:      #4A5A5A;
+}

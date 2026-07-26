@@ -12,12 +12,12 @@ import io.github.stoicswe.eyeandsickle.client.teaching.TermDatabase;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeManager;
 import io.github.stoicswe.eyeandsickle.client.view.CommandPalette;
 import io.github.stoicswe.eyeandsickle.client.view.MainMenuView;
+import io.github.stoicswe.eyeandsickle.client.view.LogView;
 import io.github.stoicswe.eyeandsickle.client.view.ManView;
 import io.github.stoicswe.eyeandsickle.client.view.MoreViews;
 import io.github.stoicswe.eyeandsickle.client.view.RigMonitorView;
 import io.github.stoicswe.eyeandsickle.client.view.TerminalView;
 import io.github.stoicswe.eyeandsickle.client.view.Views;
-import io.github.stoicswe.eyeandsickle.client.window.DockedShell;
 import io.github.stoicswe.eyeandsickle.client.window.GlobalShortcuts;
 import io.github.stoicswe.eyeandsickle.client.window.WindowRegistry;
 import io.github.stoicswe.eyeandsickle.client.window.WindowSpec;
@@ -44,13 +44,19 @@ import javafx.util.Duration;
  * default mode, and the client honours that by being playable the moment it launches — the only I/O
  * it performs is reading and writing two JSON files in the profile directory.
  *
- * <h2>Multi-window is the fantasy, and the docked layout is its equal</h2>
+ * <h2>One undecorated Stage, and a window manager inside it</h2>
  *
- * Each tool is its own {@link Stage}, so the screen ends up looking like an operator's desk. That is
- * a native capability of the toolkit rather than something fought for, and it is a large part of why
- * JavaFX was chosen over a game engine. But window management under time pressure is a real barrier,
- * so the single-window docked layout is a first-class alternative rather than a degraded mode
- * ({@code docs/client/07-accessibility.md}).
+ * Tools used to be separate {@link Stage}s. {@code docs/design/ui-design-language.md} §0 cancelled
+ * that on 2026-07-26: native window chrome puts real macOS traffic lights and Windows title bars
+ * around the game, and "the entire aesthetic depends on the player never seeing their own operating
+ * system." What replaced it is {@link io.github.stoicswe.eyeandsickle.client.ui.DeckShell} — one
+ * {@link javafx.stage.StageStyle#UNDECORATED} Stage containing a desk the client draws itself, with
+ * drag, focus, z-order, snap-to-grid and edge tiling.
+ *
+ * <p>That is strictly more capable than either of the layouts it replaces, which is why the setting
+ * that chose between them is gone rather than repointed. Window management under time pressure is
+ * still a real barrier ({@code docs/client/07-accessibility.md}), and the answer is now the rail
+ * launcher and the switcher rather than a second layout to maintain.
  *
  * <h2>What this class must never become</h2>
  *
@@ -78,6 +84,7 @@ public class EyeAndSickleClient extends Application {
     private Timeline heartbeat;
     private Timeline autosave;
     private Stage stage;
+    private io.github.stoicswe.eyeandsickle.client.ui.DeckShell deck;
 
     @Override
     public void start(Stage primaryStage) {
@@ -90,14 +97,30 @@ public class EyeAndSickleClient extends Application {
 
         themes.followSystemPreferences();
 
+        // §0 and §10 criterion 1: no OS chrome visible on macOS, Windows or Linux. This has to be
+        // set before the Stage is shown — JavaFX rejects a style change on a Stage that has already
+        // been realised, and the failure is an IllegalStateException at the worst possible moment.
+        primaryStage.initStyle(javafx.stage.StageStyle.UNDECORATED);
         primaryStage.setTitle("The Eye and Sickle");
-        primaryStage.setMinWidth(720);
-        primaryStage.setMinHeight(560);
+        primaryStage.setMinWidth(UI_MIN_WIDTH);
+        primaryStage.setMinHeight(UI_MIN_HEIGHT);
         primaryStage.setOnCloseRequest(e -> shutdown());
 
         showMainMenu();
         primaryStage.show();
     }
+
+    /**
+     * The narrowest the deck is supported at.
+     *
+     * <p>{@code ui-design-language.md} §10 criterion 9 asks the layout to hold from 1280 to 2560px.
+     * The floor here is lower because §3 specifies what happens below 900px — the rail hides and the
+     * main area collapses to one column — and a minimum that forbade reaching that breakpoint would
+     * make the responsive behaviour unreachable and therefore untestable.
+     */
+    private static final double UI_MIN_WIDTH = 860;
+
+    private static final double UI_MIN_HEIGHT = 560;
 
     /**
      * The menu, which is where the game starts.
@@ -141,13 +164,25 @@ public class EyeAndSickleClient extends Application {
     /** Settings reached from the menu, before a game exists. */
     private void showMenuSettings() {
         javafx.scene.control.Dialog<Void> dialog = new javafx.scene.control.Dialog<>();
+        // Undecorated, like the main Stage. A Dialog defaults to a real OS-decorated window, which
+        // would put macOS traffic lights on screen in a client whose §0 premise is that the player
+        // never sees their own operating system.
+        dialog.initStyle(javafx.stage.StageStyle.UNDECORATED);
         dialog.setTitle("Settings");
         dialog.setHeaderText("Settings");
-        dialog.getDialogPane().setContent(Views.settings(profile, themes, registry));
+        dialog.getDialogPane().setContent(Views.settings(profile, themes, this::applyDeskSettings));
         dialog.getDialogPane().getButtonTypes().add(javafx.scene.control.ButtonType.CLOSE);
         themes.adopt(dialog.getDialogPane().getScene());
         dialog.showAndWait();
         profile.save();
+    }
+
+    /** Pushes the desk options to the live shell. A no-op from the menu, where there is no desk. */
+    private void applyDeskSettings() {
+        if (deck != null) {
+            deck.applyPlacementSetting();
+            deck.applyWindowCapSetting();
+        }
     }
 
     /**
@@ -199,7 +234,9 @@ public class EyeAndSickleClient extends Application {
 
         Shell.CommandRegistry commands = BuiltinCommands.registry();
         shell = new Shell(session, commands);
-        ClientCommands.register(commands, registry, themes, profile, () -> shell.history(), this::showMainMenu);
+        ClientCommands.register(
+                commands, registry, themes, profile, () -> shell.history(),
+                this::showMainMenu, this::applyDeskSettings);
         ManCommands.register(commands, terms);
 
         registerWindows();
@@ -209,29 +246,8 @@ public class EyeAndSickleClient extends Application {
         profile.settings().soloHandle = session.handle();
         profile.save();
 
-        if (registry.isDocked()) {
-            startDocked(stage);
-        } else {
-            startMultiWindow(stage);
-        }
+        startDeck(stage);
         startHeartbeat();
-    }
-
-    /** The multi-window desk. Still fully built; one setting away. */
-    private void startMultiWindow(Stage primaryStage) {
-        primaryStage.setTitle(WindowSpec.RIG_MONITOR.windowTitle());
-        primaryStage.setMinWidth(WindowSpec.RIG_MONITOR.minWidth());
-        primaryStage.setMinHeight(WindowSpec.RIG_MONITOR.minHeight());
-        Scene scene = new Scene(
-                RigMonitorView.create(session, terms, profile),
-                WindowSpec.RIG_MONITOR.defaultWidth(),
-                WindowSpec.RIG_MONITOR.defaultHeight());
-        primaryStage.setScene(scene);
-        themes.adopt(scene);
-        themes.applyAll();
-        registry.installAllAccelerators(scene);
-        GlobalShortcuts.install(scene, globalHandlers());
-        openStartingWindows();
     }
 
     /**
@@ -271,21 +287,19 @@ public class EyeAndSickleClient extends Application {
 
             @Override
             public void toggleLayout() {
-                registry.setDocked(!registry.isDocked());
+                // Was: switch between the docked layout and the multi-window desk. Both were
+                // replaced by the deck (§0), so the shortcut now toggles the thing the design
+                // language actually left open — §11 question 1, free-drag versus snap-to-grid.
+                profile.settings().freeDragWindows = !profile.settings().freeDragWindows;
                 profile.save();
-                // Rebuilding the whole shell live would mean tearing down every open Scene mid-
-                // keystroke; restarting into the other layout is the honest, simple move, and the
-                // menu is where a restart is free.
-                showMainMenu();
+                applyDeskSettings();
             }
 
             @Override
             public void cycleWindows() {
-                var open = registry.openWindows();
-                if (open.isEmpty()) {
-                    return;
+                if (deck != null) {
+                    deck.desk().focusNext();
                 }
-                registry.open(open.get(0));
             }
 
             @Override
@@ -318,6 +332,10 @@ public class EyeAndSickleClient extends Application {
             autosave.stop();
             autosave = null;
         }
+        if (deck != null) {
+            deck.dispose();
+            deck = null;
+        }
         registry.closeAll();
         if (session != null) {
             registry.rememberAll();
@@ -328,54 +346,98 @@ public class EyeAndSickleClient extends Application {
     }
 
     /**
-     * The single-window layout.
+     * The deck: one undecorated Stage, the four regions §3 specifies, and a drawn window manager.
      *
-     * <p>A mode, not a fallback: {@code docs/client/07-accessibility.md} §2.3 requires that no
-     * functionality or information is lost in it. The rig strip is chrome rather than a pane, which
-     * is a stronger guarantee for pillar C2 than always-on-top ever was — there is no z-order for the
-     * compute readout to lose.
+     * <p>{@code docs/client/07-accessibility.md} §2.3's requirement that no functionality or
+     * information is lost carries over unchanged and is stronger here than it was under the docked
+     * layout: the compute readout is a cell in the top strip, which is chrome. There is no z-order
+     * for it to lose and no tab it can hide behind, which is client pillar <b>C2</b> made
+     * structural rather than maintained by hand.
      */
-    private void startDocked(Stage stage) {
+    private void startDeck(Stage stage) {
         java.util.Map<WindowSpec, java.util.function.Function<WindowSpec, javafx.scene.layout.Region>>
                 factories = new java.util.EnumMap<>(WindowSpec.class);
         for (WindowSpec spec : WindowSpec.values()) {
             factories.put(spec, s -> (javafx.scene.layout.Region) contentFor(s));
         }
-        DockedShell docked = new DockedShell(session, factories, () -> globalHandlers().openPalette());
 
-        stage.setTitle("The Eye and Sickle");
-        stage.setMinWidth(960);
-        stage.setMinHeight(640);
-        Scene scene = new Scene(docked.root(), 1280, 800);
+        deck = new io.github.stoicswe.eyeandsickle.client.ui.DeckShell(
+                session, shell, profile, factories, deckActions());
+        deck.attach(stage);
+
+        Scene scene = new Scene(deck.root(), 1280, 800);
         stage.setScene(scene);
         themes.adopt(scene);
         themes.applyAll();
-        // Shortcut+N focuses a TAB here, never opens a second OS window. A shortcut that quietly
-        // broke the single-window model would defeat the reason the player chose this mode.
-        registry.installAllAccelerators(scene, docked::show);
+        // Accelerators open a window ON THE DESK. Routing them through the registry's Stage path
+        // would open a second OS window and break §0's whole premise from a keystroke.
+        registry.installAllAccelerators(scene, deck::show);
         GlobalShortcuts.install(scene, globalHandlers());
+
+        // Escape opens the pause menu. A filter rather than a handler, so it fires even while a text
+        // field has focus — a player who has just typed a command and wants out should not have to
+        // click elsewhere first. What it actually does is DeckShell's decision, because the innermost
+        // thing wins: a half-typed command clears before the menu opens.
+        scene.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, e -> {
+            if (e.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                e.consume();
+                deck.handleEscape();
+            }
+        });
+        deck.openStartingWindows(startingWindows());
+    }
+
+    private io.github.stoicswe.eyeandsickle.client.ui.DeckShell.Actions deckActions() {
+        return new io.github.stoicswe.eyeandsickle.client.ui.DeckShell.Actions() {
+            @Override
+            public void openPalette() {
+                globalHandlers().openPalette();
+            }
+
+            @Override
+            public void runCommand(String line) {
+                shell.run(line);
+            }
+
+            @Override
+            public void backToMenu() {
+                showMainMenu();
+            }
+
+            @Override
+            public void quit() {
+                shutdown();
+                javafx.application.Platform.exit();
+            }
+
+            @Override
+            public void save() {
+                // Everything shutdown() would write, without ending anything. Window geometry is
+                // included because the desk arrangement is part of what a player means by "save my
+                // game" even though it lives in the profile rather than the save file.
+                registry.rememberAll();
+                profile.save();
+                session.persist();
+            }
+        };
     }
 
     /**
-     * Opens what should be on screen at launch.
+     * What should be on screen at launch.
      *
      * <p>First run gets the set {@code docs/client/05} §2.18 specifies. Afterwards the player's own
-     * arrangement wins, because a desk you rebuilt once should not need rebuilding every session.
+     * arrangement wins, because a desk you arranged once should not need arranging every session.
      */
-    private void openStartingWindows() {
+    private java.util.List<WindowSpec> startingWindows() {
         if (profile.settings().openWindows.isEmpty()) {
-            for (WindowSpec spec : WindowSpec.values()) {
-                if (spec != WindowSpec.RIG_MONITOR && spec.openOnFirstRun()) {
-                    registry.open(spec);
-                }
-            }
-            return;
+            return java.util.Arrays.stream(WindowSpec.values())
+                    .filter(WindowSpec::openOnFirstRun)
+                    .toList();
         }
-        profile.settings().openWindows.keySet().stream()
+        return profile.settings().openWindows.keySet().stream()
                 .map(WindowSpec::byId)
                 .flatMap(Optional::stream)
-                .filter(spec -> spec != WindowSpec.RIG_MONITOR)
-                .forEach(registry::open);
+                .toList();
     }
 
     /**
@@ -403,8 +465,9 @@ public class EyeAndSickleClient extends Application {
             case DEFENSE -> Views.defense(session);
             case IDENTITY -> Views.identity(session);
             case SWITCHER -> Views.switcher(registry);
-            case SETTINGS -> Views.settings(profile, themes, registry);
+            case SETTINGS -> Views.settings(profile, themes, this::applyDeskSettings);
             case MAN -> ManView.create(terms);
+            case LOG -> LogView.create(session);
             case MARKET -> MoreViews.market(session);
             case MAP -> MoreViews.map(session);
             case RECON -> MoreViews.recon(session);

@@ -1,0 +1,40 @@
+/*
+ * theme-amber.css — the amber tube.
+ *
+ * A palette overlay; see ThemeId's class comment.
+ *
+ * The one variant where the accent and the ground share a hue, which costs it something real: the
+ * deck's temperature split (cold grey ground, warm accent) is §2.1's stated replacement for phosphor
+ * glow, and a monochrome amber screen does not have it. What it gets in exchange is the reason amber
+ * terminals were popular — a warm, low-blue field that many people read comfortably for far longer
+ * than a cold one, which makes this a legibility option as much as a period one.
+ *
+ * Live/earning still separates from everything else, but by intensity rather than by temperature:
+ * -es-amber is the only fully saturated value in the palette and every grey tier is desaturated
+ * well below it.
+ */
+
+.root {
+    -es-void:      #0A0704;
+    -es-panel:     #120C05;
+    -es-panel-hi:  #1A1208;
+
+    -es-rule:      #2A1D0B;
+    -es-rule-hi:   #3F2C12;
+
+    /* Desaturated on the way down, so "not live" is legible as a state and not just as dimmer. */
+    -es-dim-3:     #5C4318;
+    -es-dim-2:     #8A6A34;
+    -es-dim-1:     #B8934E;
+    -es-text:      #D9AE68;
+    -es-text-hi:   #FFD79A;
+
+    /* P3 amber, the phosphor this is named after. */
+    -es-amber:     #FFB000;
+    -es-amber-mid: #C77F00;
+    -es-amber-low: #7A4D00;
+
+    -es-alarm:     #FF4A3D;
+
+    -es-tool:      #2A1E0D;
+}

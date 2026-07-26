@@ -136,6 +136,20 @@ Naming the mechanism per group matters, because the mitigations differ.
 | **Single small display** | Not a disability, same failure. A 13" laptop at default scaling cannot hold four useful windows. |
 | **Tiling window managers** | A tiler will lay every window out by its own rules, immediately, and the player has no say. `02-platform-native-themes.md` **PN-11** already flags detection; §2.5 here says what to do about it. |
 
+> ⚠️ **AMENDED 2026-07-26 — the obligation is met by the deck, not by a second layout.**
+> `../design/ui-design-language.md` §0 replaced both the multi-window desk and the docked tabbed shell
+> with a single undecorated Stage containing a window manager the client draws itself. The Established
+> obligation this section answers — *"a single-window / docked layout must exist for players who can't
+> manage many OS windows under time pressure"* — is now met by default rather than by an alternative
+> mode, because there is only one layout and it is a single window.
+>
+> Everything §2.3 requires of the docked mode still applies and is easier to hold: the compute readout
+> is chrome in the top strip (no z-order, no tab), every tool has a rail launcher entry carrying its own
+> accelerator, `F6` region cycling still applies across strip / rail / desk / command strip, and the
+> "no functionality or information lost" contract is now structural rather than a promise between two
+> implementations. **2.4.1 Bypass Blocks** changes reading: the multi-window row is void, and the docked
+> row is the only one — regions are cycled, not navigated past.
+
 ### 2.3 The docked mode is a mode, not a fallback — the accessibility contract
 
 > ✅ **Strengthened 2026-07-25: it is now the default.** This section argued that the docked layout
