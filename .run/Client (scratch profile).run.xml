@@ -1,0 +1,32 @@
+<component name="ProjectRunConfigurationManager">
+  <!--
+    Same as "Client (solo)" but with a throwaway profile directory, so a test
+    run cannot disturb a real character. The profile holds settings, window
+    geometry and the save; -Deyeandsickle.profile relocates all three.
+  -->
+  <configuration default="false" name="Client (scratch profile)" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="io.github.stoicswe.eyeandsickle.client.Launcher" />
+    <module name="eyeandsickle-client" />
+    <!--
+      ALL-UNNAMED, not javafx.graphics — and the difference is measured, not stylistic.
+
+      JavaFX loads native graphics libraries via System::load, which JDK 24+ reports as a
+      restricted-method call and a future JDK will block outright. WHICH module you grant depends
+      on how the app was launched:
+
+        * module path (what `mvn javafx:run` does)  -> --enable-native-access=javafx.graphics
+        * classpath   (what an IDE does by default) -> --enable-native-access=ALL-UNNAMED
+
+      Using the module form from the classpath produces "WARNING: Unknown module: javafx.graphics
+      specified to --enable-native-access" and grants nothing, so the restricted-method warning
+      appears anyway. Verified on JDK 25 with JavaFX 26.0.2: ALL-UNNAMED silences both.
+
+      client/pom.xml keeps the javafx.graphics form because the plugin launches on the module path.
+      The two are correct for their own launch mode and must not be made to match.
+    -->
+    <option name="VM_PARAMETERS" value="--enable-native-access=ALL-UNNAMED -Deyeandsickle.profile=$PROJECT_DIR$/.scratch-profile" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

@@ -164,8 +164,21 @@ public final class ClientProfile {
         /** Set from the OS where possible; an explicit choice here wins over the system preference. */
         public Boolean reducedMotionOverride = null;
 
-        /** The single-window docked layout, which {@code docs/client/07} treats as a first-class equal. */
-        public boolean dockedLayout = false;
+        /**
+         * The single-window layout — <b>the default since 2026-07-25</b>.
+         *
+         * <p>This inverts what {@code ../architecture/01} §1 and {@code docs/client/05} §1 assumed.
+         * Both describe multi-window as "the default and the fantasy" and the docked layout as the
+         * accessibility alternative. That was an Established decision and it was changed on explicit
+         * direction, with the reasoning recorded in {@code docs/design/15-open-questions.md} §3.
+         *
+         * <p>Nothing was removed: multi-window is still fully built and one setting away. What
+         * changed is which one a new player meets first, and the argument for the change is that
+         * fifteen OS windows is a lot to hand somebody in their first thirty seconds —
+         * {@code docs/client/07} §2.3 already required this layout to lose no functionality, so
+         * making it the default costs a new player nothing and spares them the window management.
+         */
+        public boolean dockedLayout = true;
 
         /** Window id → geometry. Restored on open, and sanity-checked against current screens. */
         public Map<String, WindowGeometry> windows = new LinkedHashMap<>();

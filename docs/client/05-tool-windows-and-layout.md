@@ -765,6 +765,19 @@ Below **1280** logical px wide, the client offers the **docked** breach workspac
 
 ### 5.1 Status
 
+> ⚠️ **CHANGED 2026-07-25 — this layout is now the DEFAULT, not the alternative.**
+>
+> Everything below still describes the layout correctly. What changed is which one a new player
+> meets: `dockedLayout` defaults to `true`, so the client opens as one window with the tools as tabs.
+> The multi-window desk described in §1–§3 is fully built and one setting away (Settings → Layout, or
+> `dock` in the terminal), but it is no longer what a fresh profile gets.
+>
+> This inverts §1.1's reading of `../architecture/01` §1, which is an **Established** decision. It was
+> changed on explicit direction, and the reasoning is logged in `../design/15-open-questions.md` §3.
+> The short version: §2.3 of `07-accessibility.md` already required this layout to lose no
+> functionality, so defaulting to it costs a new player nothing and spares them fifteen OS windows in
+> their first thirty seconds. `../architecture/01` §1 should be amended to match.
+
 > **Mandatory, flagged independently by two source documents.** `../architecture/01-tech-stack.md` §1: *"Window management needs an accessibility fallback: a single-window / docked layout for players who can't manage many OS windows under time pressure […]. Multi-window is the default and the fantasy; it must not be the *only* option."* `../design/05-hacking-minigame.md` §5 raises the same flag from the gameplay side, about the live breach specifically.
 
 The *requirement* is Established; the design below is `[PROPOSAL]`.

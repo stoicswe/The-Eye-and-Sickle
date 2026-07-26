@@ -138,6 +138,13 @@ Naming the mechanism per group matters, because the mitigations differ.
 
 ### 2.3 The docked mode is a mode, not a fallback — the accessibility contract
 
+> ✅ **Strengthened 2026-07-25: it is now the default.** This section argued that the docked layout
+> must be a first-class equal rather than a degraded mode, and that argument was accepted further than
+> it asked — `dockedLayout` now defaults to `true` for a new profile. The no-loss contract below is
+> unchanged and is now load-bearing for *every* player rather than for the ones who opt in, which is
+> the strongest form of the guarantee this section was reaching for. `ClientCommands`'s `dock` verb
+> and Settings → Layout switch back.
+
 The word "fallback" appears in both source documents and it is the wrong frame to build against: a fallback is something you ship late, test less, and let drift. `05-tool-windows-and-layout.md` §5 already refuses that framing and specifies the shell — one `Stage` (`dock`), a fixed 96px rig strip, a rail, a `SplitPane` of one to three `TabPane`s, an alert tray, with `1440×900` default / `1024×640` minimum / `800×600` floor. That design is not restated here.
 
 What this document fixes is the **accessibility contract the docked mode must satisfy**, so that a reviewer can check it and so that a future refactor knows which of `05` §5's properties are load-bearing rather than incidental. Each row names where `05` already satisfies it.

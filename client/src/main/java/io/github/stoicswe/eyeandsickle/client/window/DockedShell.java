@@ -24,13 +24,19 @@ import javafx.scene.layout.VBox;
 /**
  * The single-window layout.
  *
- * <h2>A mode, not a fallback</h2>
+ * <h2>The default layout, and a contract</h2>
  *
  * {@code docs/client/07-accessibility.md} §2.3 makes this a contract rather than a courtesy:
  * <b>no functionality or information may be lost.</b> Managing a dozen OS windows under time pressure
  * is a real barrier — for players using magnification, for anyone driving the machine by keyboard or
- * switch, and for a great many people who simply find it exhausting. Multi-window is the default and
- * the fantasy. It must not be the only option, and the alternative must not be a worse game.
+ * switch, and for a great many people who simply find it exhausting.
+ *
+ * <p><b>Since 2026-07-25 this is what a new player gets.</b> The design documents describe
+ * multi-window as "the default and the fantasy" and this as the alternative; that was inverted on
+ * explicit direction and the reasoning is in {@code docs/design/15-open-questions.md} §3. Nothing was
+ * removed — multi-window is still fully built and one setting away — but fifteen OS windows is a lot
+ * to hand somebody in their first thirty seconds, and §2.3's no-loss guarantee is exactly what makes
+ * defaulting to this cost them nothing.
  *
  * <h2>The layout, from {@code docs/client/05} §5.2</h2>
  *
@@ -126,9 +132,15 @@ public final class DockedShell {
         tray.setAccessibleText("Alert tray. Expands when something needs attention.");
         root.setBottom(tray);
 
-        // Open the two that first run opens, so the docked layout is not an empty room.
+        // The opening set. Now that this is the default layout, it is a new player's first
+        // impression, so it is chosen rather than inherited: the terminal because that is where
+        // input goes and it explains itself, the audit window because it is the game's central
+        // investigation, and the manual because a player who finds `man` in the first minute gets
+        // far more out of everything else. Selected back to the terminal so the caret lands there.
         show(WindowSpec.TERMINAL);
         show(WindowSpec.AUDIT);
+        show(WindowSpec.MAN);
+        show(WindowSpec.TERMINAL);
     }
 
     private TabPane newColumn() {

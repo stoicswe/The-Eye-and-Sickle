@@ -158,14 +158,27 @@ public final class WindowRegistry {
     }
 
     /**
-     * Installs every window accelerator on the given scene.
+     * Installs every window accelerator on the given scene, opening a separate Stage per window.
      *
      * <p>Read the class comment before changing this. Accelerators are per-Scene in JavaFX, and a
      * per-window registration produces shortcuts that only work when they are least needed.
      */
     public void installAllAccelerators(Scene scene) {
+        installAllAccelerators(scene, this::open);
+    }
+
+    /**
+     * Installs every window accelerator, letting the caller decide what "activate this tool" means.
+     *
+     * <p><b>The docked layout needs this and it is not a nicety.</b> {@code Shortcut+4} must focus the
+     * audit <em>tab</em> in single-window mode, not open a second OS window — a shortcut that silently
+     * breaks the single-window model is worse than no shortcut, because the player chose that mode
+     * specifically to avoid managing windows. Binding the handler here rather than hard-coding
+     * {@link #open} is what keeps one accelerator table serving both layouts.
+     */
+    public void installAllAccelerators(Scene scene, java.util.function.Consumer<WindowSpec> activate) {
         for (WindowSpec spec : WindowSpec.values()) {
-            scene.getAccelerators().put(spec.combination(), () -> open(spec));
+            scene.getAccelerators().put(spec.combination(), () -> activate.accept(spec));
         }
     }
 

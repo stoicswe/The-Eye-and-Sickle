@@ -225,3 +225,6 @@ $RECYCLE.BIN/
 .claude/state/
 .claude/todos/
 CLAUDE.local.md
+
+# Throwaway client profile used by the 'Client (scratch profile)' run config.
+.scratch-profile/

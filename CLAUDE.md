@@ -133,6 +133,28 @@ shell with real pipelines and globs, and a 21-page offline manual parsed from `c
 lives in the platform's conventional directory — `~/Library/Application Support/The Eye and Sickle` on
 macOS, `%APPDATA%` on Windows, `$XDG_DATA_HOME` on Linux — and `-Deyeandsickle.profile=<dir>` relocates it.
 
+**Running from an IDE — read this before debugging a missing-JavaFX error.** Start the client through
+`io.github.stoicswe.eyeandsickle.client.Launcher`, never through `EyeAndSickleClient`. A main class that
+extends `javafx.application.Application` makes the JVM look for JavaFX on the **module path** before
+`main` runs, and a classpath launch then dies with:
+
+```
+Error: JavaFX runtime components are missing, and are required to run this application
+```
+
+That message names the wrong problem — the runtime is present, the launcher just refused to look for it
+on the classpath. `Launcher` does not extend `Application`, so the toolkit starts from inside `main` with
+the classpath already established. `EyeAndSickleClient` has **no `main` of its own** precisely so an IDE
+cannot offer the launch that cannot work, and `.run/` ships IntelliJ configurations pointing at the right
+one.
+
+⚠ One VM flag differs by launch mode and is easy to get backwards. JavaFX's `System::load` needs a
+native-access grant on JDK 24+, and **which** module you grant depends on how it started: a module-path
+launch (`mvn javafx:run`) wants `--enable-native-access=javafx.graphics`, a classpath launch (any IDE)
+wants `--enable-native-access=ALL-UNNAMED`. The module form from the classpath prints
+`WARNING: Unknown module: javafx.graphics` and grants nothing. Verified on JDK 25 / JavaFX 26.0.2 —
+`client/pom.xml` and `.run/` deliberately differ for this reason.
+
 Client packaging (jlink/jpackage) is **not wired up** — `jlink` cannot link the current graph (an automatic module in the dependency tree). See the closing comment in `client/pom.xml` before attempting it.
 
 Keep this file's stack summary, invariant list, and layout in sync with reality as the code grows.

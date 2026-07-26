@@ -23,7 +23,14 @@
 - Hold the AT Proto OAuth session and present the DID to the server (`02`).
 - **Never** be authoritative over adversarial state — the server owns item ownership, EC balances, duel outcomes. The client is a view + input layer; anything a cheating client could lie about is server-validated. (This is the client-side face of Invariant I14/I15.)
 
-> **[PROPOSAL]** Window management needs an accessibility fallback: a single-window / docked layout for players who can't manage many OS windows under time pressure (`../design/05` §5, flagged for `design:accessibility-review`). Multi-window is the default and the fantasy; it must not be the *only* option.
+> ⚠️ **AMENDED 2026-07-25 — the docked layout is now the default.** This paragraph originally read
+> "multi-window is the default and the fantasy; it must not be the *only* option", and the multi-window
+> `Stage`-per-tool architecture above remains Established and fully built. What changed is which layout
+> a new profile opens in: the single-window docked shell, with the tools as tabs and the compute strip
+> as chrome. Changed on explicit direction; reasoning logged in `../design/15-open-questions.md` §3, and
+> `../client/05` §5.1 and `../client/07` §2.3 carry the same note. Multi-window is one setting away
+> (Settings → Layout, or `dock` in the terminal) and loses nothing either way — `../client/07` §2.3's
+> no-loss contract is what made this safe to invert.
 
 > **[PROPOSAL]** Packaging: `jlink`/`jpackage` to ship a self-contained runtime image per platform (no "install a JRE first" friction), keeping the "lightweight" promise at the distribution layer. Confirm at build-tooling time.
 

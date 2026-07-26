@@ -53,6 +53,14 @@ import javafx.util.Duration;
  * A view and input layer. It renders session-owned state and sends intent; it decides nothing a
  * cheating client would want to forge (Invariant I14). In solo that distinction has no adversary, but
  * the code path is the same one online play uses — which is exactly why solo must not get its own.
+ *
+ * <h2>This class has no {@code main}, deliberately</h2>
+ *
+ * Start the client through {@link Launcher}. A {@code main} here would be a run arrow in every IDE
+ * pointing at the one launch that cannot work: a main class extending {@link Application} makes the
+ * JVM look for JavaFX on the module path before {@code main} runs, and a classpath launch then dies
+ * with "JavaFX runtime components are missing" — an error that names the wrong problem entirely.
+ * {@code Launcher}'s class comment has the full explanation.
  */
 public class EyeAndSickleClient extends Application {
 
@@ -135,7 +143,9 @@ public class EyeAndSickleClient extends Application {
         stage.setScene(scene);
         themes.adopt(scene);
         themes.applyAll();
-        registry.installAllAccelerators(scene);
+        // Shortcut+N focuses a TAB here, never opens a second OS window. A shortcut that quietly
+        // broke the single-window model would defeat the reason the player chose this mode.
+        registry.installAllAccelerators(scene, docked::show);
         stage.show();
 
         startHeartbeat();
@@ -240,9 +250,5 @@ public class EyeAndSickleClient extends Application {
     @Override
     public void stop() {
         shutdown();
-    }
-
-    public static void main(String[] args) {
-        launch(args);
     }
 }
