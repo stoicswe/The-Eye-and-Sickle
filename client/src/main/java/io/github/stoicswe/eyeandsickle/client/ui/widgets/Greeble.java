@@ -30,11 +30,22 @@ import javafx.scene.control.Label;
 public final class Greeble extends Label {
 
     private static final char[] HEX = "0123456789ABCDEF".toCharArray();
-    private static final String BLOCKS = "▮▯▮▯";
+    /**
+     * ⚠ Every glyph in this class is verified present in <b>IBM Plex Mono</b>, and the strip is
+     * pinned to that face in {@code theme.css}.
+     *
+     * <p>It previously used {@code ▮ ▯ ⋮}, none of which is in either bundled TTF, and {@code ▚},
+     * which is in Plex but not Martian — while the strip was styled with Martian. So four of the
+     * five fragment kinds were being drawn by whatever the host OS substituted. §2.2 bundles the
+     * fonts precisely so that cannot happen, and the failure was worse than cosmetic: substituted
+     * glyphs carry their own advance widths, so the clipped length of the strip differed per
+     * platform too.
+     */
+    private static final String BLOCKS = "▐▌▐▌";
     private static final String DOTS = "·····";
 
     /** Alignment marks. Meaningless, and more of them when the rig is being watched. */
-    private static final String[] MARKS = {"//", "//", "⋮⋮", "▚▚"};
+    private static final String[] MARKS = {"//", "//", "╞╞", "▚▚"};
 
     private final Random random = new Random();
     private final int length;

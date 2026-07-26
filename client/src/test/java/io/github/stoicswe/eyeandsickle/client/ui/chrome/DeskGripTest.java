@@ -80,6 +80,15 @@ class DeskGripTest {
     }
 
     @Test
+    @DisplayName("the tile zones cover the edges and the corners, and corners win")
+    void tileZonesArePickedCornersFirst() {
+        // A pointer in the top-left is inside BOTH the top zone and the left zone. The player who
+        // dragged there meant the quarter, so corners are tested first — without that ordering a
+        // corner drag silently produces a half.
+        assertThat(DeskManager.CORNER_GRIP).isGreaterThan(DeskManager.RESIZE_MARGIN);
+    }
+
+    @Test
     @DisplayName("a panel too small to tell corners apart falls back to edge grips")
     void tinyPanels() {
         // With a 14px corner grip, a 40×30 panel would be entirely "corner" and could only ever be

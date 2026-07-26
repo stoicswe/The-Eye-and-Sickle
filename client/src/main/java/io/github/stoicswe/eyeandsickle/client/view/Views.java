@@ -22,6 +22,7 @@ import javafx.scene.control.ListView;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
 import javafx.scene.control.Slider;
+import javafx.scene.control.TextField;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.layout.HBox;
@@ -204,7 +205,7 @@ public final class Views {
                 .addAll(explanation, new Separator(), new Label("BALANCE"), current,
                         new Label("SELF-MINING ALLOCATION"), allocation, projection,
                         new HBox(8, apply, collect), result);
-        return root;
+        return scrollable(root);
     }
 
     // ------------------------------------------------------------------ storage
@@ -341,7 +342,7 @@ public final class Views {
                 .addAll(wrapped("Entries are added and never edited. Each row carries the balance after it, "
                                 + "so the log reconciles without replaying it."),
                         table);
-        return root;
+        return scrollable(root);
     }
 
     // ------------------------------------------------------------------ defense
@@ -387,7 +388,7 @@ public final class Views {
         legalNote.getStyleClass().add("es-state-unreachable");
 
         root.getChildren().addAll(note, new Separator(), buttons, result, new Separator(), legalNote);
-        return root;
+        return scrollable(root);
     }
 
     // ------------------------------------------------------------------ identity
@@ -420,7 +421,7 @@ public final class Views {
         session.onChange(s -> refresh.run());
 
         root.getChildren().add(body);
-        return root;
+        return scrollable(root);
     }
 
     // ------------------------------------------------------------------ switcher
@@ -437,7 +438,7 @@ public final class Views {
                     continue;
                 }
                 boolean open = registry.isOpen(spec);
-                Button b = new Button((open ? "● " : "○ ") + spec.title());
+                Button b = new Button((open ? "• " : "· ") + spec.title());
                 b.setMaxWidth(Double.MAX_VALUE);
                 b.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
                 b.setTooltip(new javafx.scene.control.Tooltip(spec.title() + " — " + spec.unixAnalogue()));
@@ -451,7 +452,7 @@ public final class Views {
         ScrollPane scroll = new ScrollPane(list);
         scroll.setFitToWidth(true);
         VBox.setVgrow(scroll, Priority.ALWAYS);
-        root.getChildren().addAll(secondary("● open   ○ closed"), scroll);
+        root.getChildren().addAll(secondary("• open   · closed"), scroll);
         return root;
     }
 
@@ -467,7 +468,46 @@ public final class Views {
      *     appears is worse than one that cannot be opened there.
      */
     public static Region settings(ClientProfile profile, ThemeManager themes, Runnable onDeskSettingsChanged) {
+        return settings(profile, themes, onDeskSettingsChanged, null);
+    }
+
+    /**
+     * @param onRename applies a new operator name, or null when there is no live character —
+     *     the menu opens this panel before a session exists, and a rename control that silently
+     *     did nothing would be worse than one that says what it will affect
+     */
+    public static Region settings(
+            ClientProfile profile,
+            ThemeManager themes,
+            Runnable onDeskSettingsChanged,
+            java.util.function.Consumer<String> onRename) {
         VBox root = panel("SETTINGS");
+
+        TextField handle = new TextField(profile.settings().soloHandle);
+        handle.setPromptText("operator");
+        Label handleResult = new Label();
+        handleResult.setWrapText(true);
+        Button applyHandle = new Button("Set name");
+        Runnable rename = () -> {
+            String wanted = handle.getText() == null ? "" : handle.getText().trim();
+            String problem = validateHandle(wanted);
+            if (problem != null) {
+                handleResult.setText(problem);
+                styleByOutcome(handleResult, GameSession.Outcome.refused(problem));
+                return;
+            }
+            profile.settings().soloHandle = wanted;
+            profile.save();
+            if (onRename != null) {
+                onRename.accept(wanted);
+                handleResult.setText("Renamed. The strip and the log both show it now.");
+            } else {
+                handleResult.setText("Saved. It applies to the next character you start.");
+            }
+            styleByOutcome(handleResult, GameSession.Outcome.ok());
+        };
+        applyHandle.setOnAction(e -> rename.run());
+        handle.setOnAction(e -> rename.run());
 
         ChoiceBox<ThemeId> theme = new ChoiceBox<>();
         theme.getItems().addAll(ThemeId.selectable());
@@ -541,6 +581,61 @@ public final class Views {
             }
         });
 
+        CheckBox notify = new CheckBox("Show slide-in notices");
+        notify.setSelected(profile.settings().notificationsEnabled);
+        notify.selectedProperty().addListener((o, was, now) -> {
+            profile.settings().notificationsEnabled = now;
+            profile.save();
+        });
+
+        // The same numbers `log -p` takes, and the same backwards RFC 5424 ordering — a player who
+        // learns it here has learned journalctl. Labelled with the consequence, not the number, but
+        // the number is shown too so the transfer is visible.
+        ChoiceBox<Integer> severity = new ChoiceBox<>();
+        severity.getItems().addAll(3, 4, 5, 6, 7);
+        severity.setValue(profile.settings().notifyMinSeverity);
+        severity.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(Integer level) {
+                if (level == null) {
+                    return "";
+                }
+                return switch (level) {
+                    case 3 -> "3 · errors only";
+                    case 4 -> "4 · warnings and worse";
+                    case 5 -> "5 · notices and worse  (default)";
+                    case 6 -> "6 · everything except debug";
+                    default -> "7 · everything";
+                };
+            }
+
+            @Override
+            public Integer fromString(String s) {
+                return 5;
+            }
+        });
+        severity.valueProperty().addListener((o, was, now) -> {
+            if (now != null) {
+                profile.settings().notifyMinSeverity = now;
+                profile.save();
+            }
+        });
+
+        VBox facilities = new VBox(2);
+        for (String facility : List.of("mining", "defense", "scan", "compute", "storage", "rig", "desk")) {
+            CheckBox box = new CheckBox(facility);
+            box.setSelected(!profile.settings().mutedFacilities.contains(facility));
+            box.selectedProperty().addListener((o, was, now) -> {
+                if (now) {
+                    profile.settings().mutedFacilities.remove(facility);
+                } else if (!profile.settings().mutedFacilities.contains(facility)) {
+                    profile.settings().mutedFacilities.add(facility);
+                }
+                profile.save();
+            });
+            facilities.getChildren().add(box);
+        }
+
         CheckBox reducedMotion = new CheckBox("Reduce motion");
         reducedMotion.setSelected(themes.reducedMotion());
         reducedMotion.selectedProperty().addListener((o, was, now) -> {
@@ -550,6 +645,17 @@ public final class Views {
 
         root.getChildren()
                 .addAll(
+                        new Label("OPERATOR"),
+                        new HBox(8, handle, applyHandle),
+                        wrapped(onRename != null
+                                ? "Your handle, shown on the strip with its bytes underneath. Solo "
+                                        + "only: online, a handle is not yours to choose — identity "
+                                        + "comes from an AT Proto DID and the server owns it."
+                                : "Sets the handle for the next character you start. Renaming a "
+                                        + "character you are already playing is done from inside "
+                                        + "the game."),
+                        handleResult,
+                        new Separator(),
                         new Label("APPEARANCE"),
                         theme,
                         wrapped("Every theme is the same deck with a different palette — one stylesheet "
@@ -577,6 +683,24 @@ public final class Views {
                                 + "monitor, terminal, log, manual, settings and switcher — to it. That "
                                 + "arithmetic is invented, which is why this is opt-in."),
                         new Separator(),
+                        new Label("NOTICES"),
+                        notify,
+                        wrapped("A notice repeats something the rig already logged — nothing here is "
+                                + "the only place a message exists, and the log window keeps all of "
+                                + "it. Ignoring every notice costs you nothing."),
+                        new Label("SEVERITY FLOOR"),
+                        severity,
+                        wrapped("These are RFC 5424 levels, and the numbering runs backwards on "
+                                + "purpose: 0 is Emergency and 7 is Debug, so a LOWER number is a "
+                                + "stricter filter. It is the same number `log -p` takes — set 4 "
+                                + "here, type `log -p 4`, and you will see the same set. That habit "
+                                + "works on any Linux machine you ever touch."),
+                        new Label("SUBSYSTEMS"),
+                        facilities,
+                        wrapped("Unchecked subsystems stay silent. These are the rig's own facility "
+                                + "names, so anything you mute here is still findable with "
+                                + "`log | grep <name>`."),
+                        new Separator(),
                         new Label("POINTER"),
                         cursor,
                         wrapped("The pointer is the last piece of your operating system left on "
@@ -594,7 +718,7 @@ public final class Views {
                                 + "keep updating, because that is information, not animation."),
                         new Separator(),
                         secondary("Profile directory: " + profile.directory()));
-        return root;
+        return scrollable(root);
     }
 
     // ------------------------------------------------------------------ still-proposal windows
@@ -618,10 +742,59 @@ public final class Views {
                                 + "undecided system is how a proposal quietly becomes a decision."),
                         secondary("The window, its id, size, accelerator and place in the switcher are real "
                                 + "and match the catalogue in docs/client/05 §2.1."));
-        return root;
+        return scrollable(root);
     }
 
     // ------------------------------------------------------------------ helpers
+
+    /**
+     * Wraps a panel so it scrolls when the window is smaller than its contents.
+     *
+     * <p>Applied to every tool that does not already manage its own scrolling. The deck lets a
+     * player size a window to anything above 240×120, so any panel without this simply clips —
+     * and clipped content is silently missing rather than visibly cut off, which is the worst of
+     * both. {@code docs/client/07-accessibility.md} also needs it: a player at 200% OS text scale
+     * hits the bottom of the settings panel long before anyone testing at 100% does.
+     *
+     * <p>{@code setFitToWidth} matters as much as the scrolling: without it a ScrollPane gives its
+     * content the content's own preferred width, so every wrapped label stops wrapping and the
+     * panel grows a horizontal scrollbar instead of reflowing.
+     */
+    private static Region scrollable(Region content) {
+        ScrollPane scroll = new ScrollPane(content);
+        scroll.setFitToWidth(true);
+        scroll.getStyleClass().add("es-scroll");
+        // Vertical only. A deck panel reflows to its width; a horizontal bar here would mean the
+        // content refused to, which is a layout bug rather than something to scroll past.
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        return scroll;
+    }
+
+    /**
+     * Whether a handle is usable, or why not.
+     *
+     * <p>Restricted to printable ASCII because the strip prints the name's <b>bytes</b> beneath it,
+     * and a name whose hex ran to three pairs per glyph would make that readout unreadable rather
+     * than instructive. The length cap is the same reasoning: the strip elides past ten bytes, and
+     * a name that is always elided is a name the player never actually sees.
+     *
+     * @return null when the handle is fine
+     */
+    private static String validateHandle(String handle) {
+        if (handle == null || handle.isBlank()) {
+            return "A handle cannot be blank.";
+        }
+        if (handle.length() > 24) {
+            return "Too long — 24 characters at most.";
+        }
+        for (char c : handle.toCharArray()) {
+            if (c < 0x20 || c > 0x7E) {
+                return "Printable ASCII only: the strip shows this name as bytes, and a "
+                        + "multi-byte character would print several pairs for one glyph.";
+            }
+        }
+        return null;
+    }
 
     private static VBox panel(String title) {
         VBox root = new VBox(10);

@@ -46,26 +46,49 @@ import javafx.scene.layout.VBox;
  */
 public final class ActivityList extends VBox {
 
-    /** Cells across a task's progress meter. Enough to read a proportion, few enough to count. */
-    private static final int PROGRESS_CELLS = 24;
+    /**
+     * Cells across a task's progress meter.
+     *
+     * <p>Sized so the meter visibly advances on a human timescale. A six-minute Thorough Scan across
+     * 24 cells moves one cell every fifteen seconds, which reads as stuck; at 40 it is every nine.
+     * The countdown beside it is what actually carries per-second progress — §4 forbids a continuous
+     * bar, so the meter is a coarse instrument by design and the number is the fine one.
+     */
+    private static final int PROGRESS_CELLS = 40;
+
+    /** How often the panel re-reads the session. See the constructor's note. */
+    private static final double REFRESH_MS = 400;
 
     private final VBox rows = new VBox(UiTokens.HAIR);
     private final Label heading = Ui.label("Activity");
     private final Label count = Ui.value("0");
+    private final java.util.function.Supplier<List<GameSession.RunningTask>> source;
     private AutoCloseable ticker;
 
-    public ActivityList() {
+    /**
+     * @param source re-read on every tick — <b>not</b> a list handed in once
+     *     <p>⚠ This is the whole reason the panel is alive. {@link GameSession.RunningTask} is an
+     *     immutable snapshot stamped with the engine's clock at the moment it was built, so holding
+     *     onto one and asking it for {@code progress()} again returns the same answer forever. The
+     *     panel used to do exactly that and only refreshed when the session fired a change event —
+     *     which a running scan does not, because nothing about the rig is changing while it runs.
+     *     The result was a progress meter and a countdown that both sat still for six minutes.
+     */
+    public ActivityList(java.util.function.Supplier<List<GameSession.RunningTask>> source) {
         super(UiTokens.SPACE_2);
+        this.source = source;
         heading.getStyleClass().add("es-kv-key");
         HBox head = Ui.row(UiTokens.SPACE_3, heading, count);
         head.setAlignment(Pos.BASELINE_LEFT);
         rows.getStyleClass().add("es-activity");
         getChildren().addAll(head, rows);
 
-        // A second is the right granularity: these are wall-clock waits measured in tens of seconds
-        // to minutes, and the design language's motion rules make values twitch to a new figure
-        // rather than tween towards one (§5), so there is nothing to interpolate between ticks.
-        ticker = Pulse.shared().every(1000, this::retime);
+        // Faster than the once-a-second granularity of the countdown itself, so a second never
+        // *appears* to hang: at 1000ms the readout can be up to a full second stale, which is
+        // precisely the interval a watching player is checking it against. This is a data
+        // subscription, so it keeps running under reduced motion — a countdown is information, not
+        // animation (§5).
+        ticker = Pulse.shared().every(REFRESH_MS, this::refresh);
     }
 
     private List<GameSession.RunningTask> current = List.of();
@@ -112,6 +135,11 @@ public final class ActivityList extends VBox {
         retime();
     }
 
+    /** Re-reads the session and updates in place. Called on the shared driver, not on change. */
+    public void refresh() {
+        show(source.get());
+    }
+
     private void retime() {
         for (int i = 0; i < live.size() && i < current.size(); i++) {
             live.get(i).update(current.get(i));
@@ -136,6 +164,7 @@ public final class ActivityList extends VBox {
     private static final class Row extends VBox {
 
         private final Label remaining = Ui.micro("");
+        private final Label elapsed = Ui.micro("");
         private final CellMeter meter = new CellMeter(PROGRESS_CELLS);
         private final SweepPanel unknown;
         private final Label detail;
@@ -159,12 +188,18 @@ public final class ActivityList extends VBox {
             detail = Ui.micro(task.detail());
             detail.getStyleClass().add("es-legend-sub");
 
+            // Elapsed / total / percent, under the meter. §4 makes the meter a coarse instrument on
+            // purpose — 40 cells across six minutes advances once every nine seconds — so the fine
+            // reading has to be a number, and it has to be one that moves every second or the panel
+            // reads as frozen no matter how correct it is.
+            elapsed.getStyleClass().add("es-buffer-text");
+
             unknown = new SweepPanel();
             unknown.setMinHeight(UiTokens.METER_BAR_HEIGHT);
             unknown.setVisible(false);
             unknown.setManaged(false);
 
-            getChildren().addAll(top, meter, unknown, detail);
+            getChildren().addAll(top, meter, unknown, Ui.row(UiTokens.SPACE_4, elapsed, detail));
         }
 
         private void update(GameSession.RunningTask task) {
@@ -179,6 +214,7 @@ public final class ActivityList extends VBox {
 
             if (indeterminate) {
                 remaining.setText(Ui.upper("elapsed unknown"));
+                elapsed.setText("");
                 return;
             }
             meter.setFraction(progress, false);
@@ -186,6 +222,11 @@ public final class ActivityList extends VBox {
             remaining.setText(left.isZero()
                     ? Ui.upper("finishing")
                     : Ui.upper(clock(left) + " left"));
+
+            Duration total = Duration.between(task.startedAt(), task.endsAt());
+            Duration done = total.minus(left);
+            elapsed.setText(Ui.upper(clock(done) + " / " + clock(total)
+                    + " · " + Math.round(progress * 100) + "%"));
         }
 
         private void dispose() {

@@ -94,25 +94,30 @@ public final class Cursors {
         Palette palette = new Palette(stylesheets);
         // The accent and the ground, by style class — so a cursor is drawn in whatever the current
         // palette means by "live" and "panel". Fallbacks are named colours, never hex (§10 crit. 2).
-        Color accent = palette.colourOf("es-cell-self-mining", Color.ORANGE);
-        Color edge = palette.colourOf("es-panel", Color.gray(0.05));
+        // Read back from the palette-probe classes in theme.css, which exist for exactly this.
+        CursorPalette colours = new CursorPalette(
+                palette.colourOf("es-probe-accent", Color.ORANGE),
+                palette.colourOf("es-probe-ground", Color.gray(0.05)),
+                // The inverting block is drawn in this: the exact opposite of the ground in every
+                // palette, which is what inversion produces on a flat fill.
+                palette.colourOf("es-probe-text", Color.WHITE));
 
         for (CursorRole role : CursorRole.values()) {
             if (role == CursorRole.TEXT) {
                 // Deliberately never re-drawn — see CursorSkin's class comment.
                 continue;
             }
-            Cursor built = build(role, accent, edge);
+            Cursor built = build(role, colours);
             if (built != null) {
                 cache.put(role, built);
             }
         }
     }
 
-    private Cursor build(CursorRole role, Color accent, Color edge) {
+    private Cursor build(CursorRole role, CursorPalette colours) {
         try {
             Canvas canvas = new Canvas(SIZE, SIZE);
-            skin.draw(canvas.getGraphicsContext2D(), role, SIZE, accent, edge);
+            skin.draw(canvas.getGraphicsContext2D(), role, SIZE, colours);
 
             SnapshotParameters params = new SnapshotParameters();
             // Transparent, not white. The default snapshot fill is opaque white, which would give

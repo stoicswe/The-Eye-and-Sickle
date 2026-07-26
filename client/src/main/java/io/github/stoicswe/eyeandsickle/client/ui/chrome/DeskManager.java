@@ -354,6 +354,26 @@ public final class DeskManager {
         frame.headerStrip().setOnMousePressed(e -> {
             drag.startX = e.getSceneX();
             drag.startY = e.getSceneY();
+
+            // Dragging a tiled or maximised window shrinks it back to its restored SIZE, keeping the
+            // grab point under the cursor — the behaviour every desktop has, and the reason it is
+            // worth the arithmetic: pulling a full-width panel off the top edge should hand you the
+            // panel you had, not a full-width one you now have to resize by hand.
+            //
+            // The cursor is kept at the same FRACTION along the title bar rather than the same pixel
+            // offset. Grab a maximised window near its right edge and a pixel offset would place the
+            // restored window far to the left of the pointer, which reads as the window escaping.
+            if (window.expanded && window.restoreGeometry != null) {
+                javafx.geometry.Point2D local = desk.sceneToLocal(e.getSceneX(), e.getSceneY());
+                double fraction = window.width <= 0 ? 0 : (local.getX() - window.x) / window.width;
+                double restoredWidth = window.restoreGeometry.width();
+                double restoredHeight = window.restoreGeometry.height();
+                double newX = local.getX() - restoredWidth * fraction;
+                double newY = window.y;
+                window.placedByHand();
+                window.setGeometry(new Geometry(newX, newY, restoredWidth, restoredHeight));
+            }
+
             drag.originX = window.x;
             drag.originY = window.y;
             drag.moving = true;
@@ -385,16 +405,24 @@ public final class DeskManager {
             javafx.geometry.Point2D local = desk.sceneToLocal(e.getSceneX(), e.getSceneY());
             Optional<Geometry> zone = tileZone(local.getX(), local.getY());
             if (zone.isPresent()) {
-                window.restoreGeometry = new Geometry(drag.originX, drag.originY, window.width, window.height);
-                window.setGeometry(zone.get());
+                Geometry target = zone.get();
+                // Where the drag STARTED, not where it ended: the window is currently under the
+                // pointer at the edge, and restoring it there would drop it back on the edge it was
+                // just tiled from.
+                window.restoreFrom(new Geometry(drag.originX, drag.originY, window.width, window.height));
+                boolean fillsDesk = target.width() >= desk.getWidth() && target.height() >= desk.getHeight();
+                window.expandTo(target, fillsDesk);
             } else {
+                window.placedByHand();
                 window.setGeometry(snapIfNeeded(new Geometry(window.x, window.y, window.width, window.height)));
             }
             e.consume();
         });
         frame.headerStrip().setOnMouseClicked(e -> {
             if (e.getClickCount() == 2) {
-                window.toggleMaximized();
+                // Restores a window that was dragged to an edge just as readily as one that was
+                // maximised with the [□] control — see toggleExpanded.
+                window.toggleExpanded();
                 e.consume();
             }
         });
@@ -410,7 +438,7 @@ public final class DeskManager {
         // and silently stops working wherever the tool put content, which is everywhere.
         frame.addEventFilter(MouseEvent.MOUSE_MOVED, e -> {
             if (window.maximized) {
-                frame.setCursor(Cursor.DEFAULT);
+                frame.setCursor(null);
                 return;
             }
             javafx.geometry.Point2D at = frame.sceneToLocal(e.getSceneX(), e.getSceneY());
@@ -420,7 +448,7 @@ public final class DeskManager {
         // Without this the cursor keeps whatever arrow it had when the pointer left a panel edge.
         frame.addEventFilter(MouseEvent.MOUSE_EXITED, e -> {
             if (drag.edge == 0) {
-                frame.setCursor(Cursor.DEFAULT);
+                frame.setCursor(null);
             }
         });
         frame.addEventFilter(MouseEvent.MOUSE_PRESSED, e -> {
@@ -477,8 +505,9 @@ public final class DeskManager {
                 return;
             }
             drag.edge = 0;
+            window.placedByHand();
             window.setGeometry(snapIfNeeded(new Geometry(window.x, window.y, window.width, window.height)));
-            frame.setCursor(Cursor.DEFAULT);
+            frame.setCursor(null);
         });
     }
 
@@ -552,7 +581,13 @@ public final class DeskManager {
      */
     private static Cursor cursorFor(int edge) {
         if (edge == 0) {
-            return Cursor.DEFAULT;
+            // ⚠ null, NOT Cursor.DEFAULT. A node cursor of null means "inherit from my parent, and
+            // ultimately from the Scene"; Cursor.DEFAULT is an explicit request for the platform
+            // arrow, which beats the Scene cursor. Setting DEFAULT here pinned the system pointer
+            // over the entire surface of every window — so a custom skin only showed up on the
+            // resize grips and on the handful of nodes that set their own cursor, which is exactly
+            // the "it doesn't take over on general hover" symptom.
+            return null;
         }
         return io.github.stoicswe.eyeandsickle.client.ui.cursors.Cursors.shared().resize(
                 (edge & NORTH) != 0, (edge & SOUTH) != 0, (edge & WEST) != 0, (edge & EAST) != 0);
@@ -604,6 +639,7 @@ public final class DeskManager {
         private double height;
         private boolean minimized;
         private boolean maximized;
+        private boolean expanded;
         private Geometry restoreGeometry;
 
         private DeskWindow(String id, WindowFrame frame, boolean closable) {
@@ -655,18 +691,97 @@ public final class DeskManager {
             return maximized;
         }
 
-        public void toggleMaximized() {
-            if (maximized) {
+        /** True while the window sits in a computed position rather than one the player chose. */
+        public boolean isExpanded() {
+            return expanded;
+        }
+
+        /**
+         * Puts the window back where the player last had it, or fills the desk if it is already
+         * where the player put it.
+         *
+         * <p>⚠ The important half is the FIRST branch, and it is what was missing. A window dragged
+         * against the top edge is <em>tiled</em> to the full desk — it looks maximised, but
+         * {@code maximized} stayed false because tiling and maximising were different code paths.
+         * Double-clicking the strip then "maximised" an already-full window, which did nothing
+         * visible, and only a second double-click restored it. One flag, {@link #expanded}, now
+         * covers both: if the window is anywhere it did not choose to be, double-click sends it back.
+         *
+         * <p>The distinction {@code maximized} still carries is narrower and only matters on resize:
+         * a window the player maximised should keep filling the desk when the desk changes size,
+         * whereas one tiled to a half should not silently grow into the space.
+         */
+        public void toggleExpanded() {
+            if (expanded) {
+                expanded = false;
                 maximized = false;
                 if (restoreGeometry != null) {
                     setGeometry(restoreGeometry);
                 }
             } else {
                 restoreGeometry = geometry();
+                expanded = true;
                 maximized = true;
                 setGeometry(new Geometry(0, 0, desk.getWidth(), desk.getHeight()));
             }
             notifyListeners();
+        }
+
+        /** Kept for callers that mean "the [□] control". Same behaviour. */
+        public void toggleMaximized() {
+            toggleExpanded();
+        }
+
+        /**
+         * Records where to come back to before the desk moves this window somewhere computed.
+         *
+         * <p>Only remembers the FIRST such move: tiling left, then right, then to a corner should
+         * still restore to where the player had it, not to the previous tile.
+         */
+        void expandTo(Geometry target, boolean fillsDesk) {
+            if (!expanded) {
+                restoreGeometry = geometry();
+            }
+            expanded = true;
+            maximized = fillsDesk;
+            setGeometry(target);
+            notifyListeners();
+        }
+
+        /** The player has placed this window by hand, so there is nothing to restore it to. */
+        void placedByHand() {
+            expanded = false;
+            maximized = false;
+        }
+
+            /** Where this window would go on a double-click, or null if it is where the player put it. */
+        public Geometry restorePoint() {
+            return restoreGeometry;
+        }
+
+        /**
+         * Puts the window back into a saved state wholesale.
+         *
+         * <p>Used only when replaying a persisted layout. It sets the flags directly rather than
+         * going through {@link #expandTo}, because that would overwrite the restore point with the
+         * expanded bounds — the saved one is the answer the player actually wants back.
+         */
+        public void restoreState(
+                Geometry geometry, boolean minimized, boolean expanded, Geometry restorePoint) {
+            setGeometry(geometry);
+            this.expanded = expanded;
+            this.maximized = expanded
+                    && geometry.width() >= desk.getWidth() - 1
+                    && geometry.height() >= desk.getHeight() - 1;
+            this.restoreGeometry = restorePoint;
+            setMinimized(minimized);
+        }
+
+        /** Overrides the remembered geometry, for a drag that knows better than the current bounds. */
+        void restoreFrom(Geometry geometry) {
+            if (!expanded) {
+                restoreGeometry = geometry;
+            }
         }
 
         /** Re-applies the maximised or tiled size after the desk itself changes size. */

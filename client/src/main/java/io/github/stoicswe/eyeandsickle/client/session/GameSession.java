@@ -93,6 +93,16 @@ public interface GameSession extends AutoCloseable {
     RigCapacity capacity();
 
     /**
+     * The engine's own clock.
+     *
+     * <p>Not {@code Instant.now()}. Everything with a deadline in this client is measured against
+     * the session's clock, and a readout that showed the wall clock beside figures computed from a
+     * different one would be the same class of disagreement {@code RunningTask#progress} was fixed
+     * for. In production the two are the same clock; under a test clock only this one is right.
+     */
+    java.time.Instant now();
+
+    /**
      * Everything the rig is currently working on, for the activity readout.
      *
      * <p>Deliberately a flat list of one shape rather than "scans, plus recoveries, plus buffers".

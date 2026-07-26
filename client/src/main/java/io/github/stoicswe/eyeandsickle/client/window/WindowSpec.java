@@ -30,22 +30,22 @@ public enum WindowSpec {
      * The compute readout. Never closable, because {@code docs/design/01-core-resources.md} §1.4
      * makes it mandatory and always visible — client pillar C2. It collapses to a strip instead.
      */
-    RIG_MONITOR("rig-monitor", "Rig monitor", "top", 420, 560, 320, 420, KeyCode.DIGIT0, false, false, true),
+    RIG_MONITOR("rig-monitor", "Rig monitor", "top", "Where every cycle is, one cell per cycle. Also what the rig is working on, with time remaining.", 420, 560, 320, 420, KeyCode.DIGIT0, false, false, true),
 
-    TERMINAL("terminal", "Terminal", "a shell session", 880, 620, 560, 360, KeyCode.DIGIT1, false, true, false),
-    MAP("map", "Network map", "traceroute", 1000, 720, 640, 480, KeyCode.DIGIT2, false, true, false),
-    RECON("recon", "Recon", "less", 760, 640, 480, 400, KeyCode.DIGIT3, false, true, false),
-    AUDIT("audit", "Audit", "ps / netstat / df", 900, 600, 640, 400, KeyCode.DIGIT4, false, true, false),
-    MINING("mining", "Mining", "a miner dashboard", 820, 600, 560, 400, KeyCode.DIGIT5, false, true, false),
-    STORAGE("storage", "Storage", "ls across three mounts", 840, 620, 560, 420, KeyCode.DIGIT6, false, true, false),
-    LEDGER("ledger", "Ledger", "a transaction log", 880, 560, 600, 360, KeyCode.DIGIT7, false, true, false),
-    BOTNET("botnet", "Botnet", "jobs / systemctl", 780, 560, 520, 400, KeyCode.DIGIT8, false, true, false),
-    DEFENSE("defense", "Defense", "a firewall / IDS console", 780, 560, 520, 380, KeyCode.DIGIT9, false, true, false),
+    TERMINAL("terminal", "Terminal", "a shell session", "A real shell over the game: pipelines, globs, exit statuses. Everything the windows do, and some things they do not.", 880, 620, 560, 360, KeyCode.DIGIT1, false, true, false),
+    MAP("map", "Network map", "traceroute", "Nodes you know about and the routes between them. Where a deployment would go.", 1000, 720, 640, 480, KeyCode.DIGIT2, false, true, false),
+    RECON("recon", "Recon", "less", "What you have learned about a target, and what it would cost to learn more.", 760, 640, 480, 400, KeyCode.DIGIT3, false, true, false),
+    AUDIT("audit", "Audit", "ps / netstat / df", "Processes, connections and storage on your own rig. When these three disagree, something is hiding.", 900, 600, 640, 400, KeyCode.DIGIT4, false, true, false),
+    MINING("mining", "Mining", "a miner dashboard", "Self-mining allocation and deployed-miner collection. The income floor, and the only offline income.", 820, 600, 560, 400, KeyCode.DIGIT5, false, true, false),
+    STORAGE("storage", "Storage", "ls across three mounts", "Your items across the three tiers. Moving one changes how exposed it is.", 840, 620, 560, 420, KeyCode.DIGIT6, false, true, false),
+    LEDGER("ledger", "Ledger", "a transaction log", "Every ethecoin movement and what caused it. The audit trail for your own balance.", 880, 560, 600, 360, KeyCode.DIGIT7, false, true, false),
+    BOTNET("botnet", "Botnet", "jobs / systemctl", "Bot frames, their loadouts and what they are doing. Bots assist; they never solve it for you.", 780, 560, 520, 400, KeyCode.DIGIT8, false, true, false),
+    DEFENSE("defense", "Defense", "a firewall / IDS console", "What is armed and what it costs to keep armed. Defending your own rig never generates heat.", 780, 560, 520, 380, KeyCode.DIGIT9, false, true, false),
 
-    MARKET("market", "Market", "a package manager", 900, 640, 600, 440, KeyCode.M, true, true, false),
-    IDENTITY("identity", "Identity", "whoami / id", 560, 640, 420, 440, KeyCode.I, true, true, false),
-    COMMS("comms", "Comms", "mail / who", 720, 620, 480, 400, KeyCode.P, true, true, false),
-    SETTINGS("settings", "Settings", "~/.config", 760, 620, 560, 440, KeyCode.COMMA, false, true, false),
+    MARKET("market", "Market", "a package manager", "What is for sale, what it costs, and which gate stands in front of it.", 900, 640, 600, 440, KeyCode.M, true, true, false),
+    IDENTITY("identity", "Identity", "whoami / id", "Your handle, faction standing and heat. Who the Eye thinks you are.", 560, 640, 420, 440, KeyCode.I, true, true, false),
+    COMMS("comms", "Comms", "mail / who", "Messages and contacts. Who is talking to you, and who can see that they did.", 720, 620, 480, 400, KeyCode.P, true, true, false),
+    SETTINGS("settings", "Settings", "~/.config", "Theme, teaching level, desk behaviour, notices, pointer and motion.", 760, 620, 560, 440, KeyCode.COMMA, false, true, false),
 
     /**
      * The rig log — a live stream of what the machine has been doing.
@@ -62,7 +62,7 @@ public enum WindowSpec {
      * <b>WL-1</b> with {@code man}, since the catalogue's size is now three windows past what §2.1
      * lists.
      */
-    LOG("log", "Log", "journalctl -f", 720, 620, 460, 320, KeyCode.L, true, true, false),
+    LOG("log", "Log", "journalctl -f", "What the rig has been doing, newest last — including everything that happened while you were away.", 720, 620, 460, 320, KeyCode.L, true, true, false),
 
     /**
      * The manual and the term index.
@@ -78,10 +78,10 @@ public enum WindowSpec {
      * document and not the other should be resolved by building the thing and reporting the
      * discrepancy rather than by silently dropping it. Logged against <b>T-1</b> and <b>WL-1</b>.
      */
-    MAN("man", "Manual", "man / apropos", 820, 680, 520, 420, KeyCode.SLASH, false, true, false),
+    MAN("man", "Manual", "man / apropos", "The offline manual. Every term the game uses, and what the real thing is called.", 820, 680, 520, 420, KeyCode.SLASH, false, true, false),
 
     /** The answer to losing a window behind another. Opens on first run alongside the rig monitor. */
-    SWITCHER("switcher", "Windows", "jobs", 280, 520, 240, 320, KeyCode.J, true, true, true);
+    SWITCHER("switcher", "Windows", "jobs", "Every tool in the catalogue, open or not. The way back to a window you lost.", 280, 520, 240, 320, KeyCode.J, true, true, true);
 
     /** No window's minimum may exceed this. See the class comment. */
     public static final double MAX_MINIMUM_WIDTH = 720;
@@ -91,6 +91,7 @@ public enum WindowSpec {
     private final String id;
     private final String title;
     private final String unixAnalogue;
+    private final String description;
     private final double defaultWidth;
     private final double defaultHeight;
     private final double minWidth;
@@ -104,6 +105,7 @@ public enum WindowSpec {
             String id,
             String title,
             String unixAnalogue,
+            String description,
             double defaultWidth,
             double defaultHeight,
             double minWidth,
@@ -115,6 +117,7 @@ public enum WindowSpec {
         this.id = id;
         this.title = title;
         this.unixAnalogue = unixAnalogue;
+        this.description = description;
         this.defaultWidth = defaultWidth;
         this.defaultHeight = defaultHeight;
         this.minWidth = minWidth;
@@ -142,6 +145,19 @@ public enum WindowSpec {
      */
     public String unixAnalogue() {
         return unixAnalogue;
+    }
+
+    /**
+     * One sentence on what this tool is for.
+     *
+     * <p>Separate from {@link #unixAnalogue()}, which names the real command it stands in for. The
+     * analogue teaches — a player who learns the audit window <em>is</em> {@code ps}, {@code netstat}
+     * and {@code df} has learned three commands for free — but "ps / netstat / df" does not tell
+     * somebody who has never used a shell what the window is <em>for</em>. The rail shows a single
+     * accelerator character per tool, so without this the launcher is seventeen unlabelled keys.
+     */
+    public String description() {
+        return description;
     }
 
     public double defaultWidth() {

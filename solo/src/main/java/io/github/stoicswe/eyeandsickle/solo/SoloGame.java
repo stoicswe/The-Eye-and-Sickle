@@ -268,6 +268,33 @@ public final class SoloGame {
         return Optional.of(a);
     }
 
+    /**
+     * Renames the operator.
+     *
+     * <p>⚠ <b>Solo only, structurally.</b> Online, a handle is not the player's to choose — identity
+     * comes from an AT Proto DID ({@code docs/architecture/02}) and the server owns it (Invariant
+     * I14). This method exists on {@code SoloGame} rather than on the {@code GameSession} port for
+     * exactly that reason: putting it on the port would advertise a capability that must never work
+     * online, and the honest way to make something impossible is for it to be absent.
+     *
+     * <p>Logged, because a name change is a real state change and the log is what a player checks
+     * when something is not what they remember.
+     *
+     * @return the name actually taken, after trimming — never blank
+     */
+    public String rename(String handle) {
+        String next = handle == null ? "" : handle.trim();
+        if (next.isBlank()) {
+            return save.handle;
+        }
+        String was = save.handle;
+        save.handle = next;
+        if (!was.equals(next)) {
+            EventLog.notice(save, "identity", "Operator renamed: " + was + " -> " + next, clock.instant());
+        }
+        return save.handle;
+    }
+
     /** Every task currently running, oldest first. */
     public List<TaskState> tasks() {
         return List.copyOf(save.tasks);

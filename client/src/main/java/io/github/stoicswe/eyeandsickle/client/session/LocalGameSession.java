@@ -197,6 +197,11 @@ public final class LocalGameSession implements GameSession {
     }
 
     @Override
+    public java.time.Instant now() {
+        return game.now();
+    }
+
+    @Override
     public RigCapacity capacity() {
         var rig = game.state().rig;
         return new RigCapacity(rig.bandwidth, rig.memoryBuffer, rig.thermalBudget);

@@ -178,7 +178,7 @@ public final class MoreViews {
                                 + "largest [PROPOSAL] in the design (docs/design/05), and its puzzle "
                                 + "classes, trace model and difficulty tiers are all still open. "
                                 + "Committing an interface to it now would decide it by accident."));
-        return root;
+        return scrollable(root);
     }
 
     // ------------------------------------------------------------------ recon
@@ -206,7 +206,7 @@ public final class MoreViews {
                                 + "docs/design/07 depend on the minigame's target model, which is "
                                 + "still open. The cost model above is decided and is what a player "
                                 + "needs to budget."));
-        return root;
+        return scrollable(root);
     }
 
     // ------------------------------------------------------------------ botnet
@@ -233,7 +233,7 @@ public final class MoreViews {
                                 + "docs/design/10 is [PROPOSAL] and its central number — how much "
                                 + "manual play beats bot play — is explicitly unmeasurable until the "
                                 + "minigame exists (P-3). That number is what Invariant I10 rests on."));
-        return root;
+        return scrollable(root);
     }
 
     // ------------------------------------------------------------------ comms
@@ -257,10 +257,33 @@ public final class MoreViews {
                                 + "override are [PROPOSAL] (docs/design/12), and all three are "
                                 + "multiplayer mechanics with no meaning in a solo game. This window "
                                 + "stays empty offline because there is genuinely nobody there."));
-        return root;
+        return scrollable(root);
     }
 
     // ------------------------------------------------------------------ helpers
+
+    /**
+     * Wraps a panel so it scrolls when the window is smaller than its contents.
+     *
+     * <p>Applied to every tool that does not already manage its own scrolling. The deck lets a
+     * player size a window to anything above 240×120, so any panel without this simply clips —
+     * and clipped content is silently missing rather than visibly cut off, which is the worst of
+     * both. {@code docs/client/07-accessibility.md} also needs it: a player at 200% OS text scale
+     * hits the bottom of the settings panel long before anyone testing at 100% does.
+     *
+     * <p>{@code setFitToWidth} matters as much as the scrolling: without it a ScrollPane gives its
+     * content the content's own preferred width, so every wrapped label stops wrapping and the
+     * panel grows a horizontal scrollbar instead of reflowing.
+     */
+    static Region scrollable(Region content) {
+        ScrollPane scroll = new ScrollPane(content);
+        scroll.setFitToWidth(true);
+        scroll.getStyleClass().add("es-scroll");
+        // Vertical only. A deck panel reflows to its width; a horizontal bar here would mean the
+        // content refused to, which is a layout bug rather than something to scroll past.
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        return scroll;
+    }
 
     private static VBox panel(String title) {
         VBox root = new VBox(10);

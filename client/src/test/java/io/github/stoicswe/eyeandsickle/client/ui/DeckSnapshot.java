@@ -102,6 +102,9 @@ public final class DeckSnapshot {
         session.arm("canary", 1);
         // A thorough scan so the activity panel has a long-running task with a real countdown.
         session.scan("thorough");
+        // Enough heat to light the thermometer past two band boundaries, so the render shows the
+        // banded ramp rather than an empty stem.
+        game.state().personalHeat = 62;
 
         Shell.CommandRegistry commands = BuiltinCommands.registry();
         Shell shell = new Shell(session, commands);
@@ -113,6 +116,7 @@ public final class DeckSnapshot {
                 case TERMINAL -> (Region) TerminalView.create(shell);
                 case LOG -> (Region) LogView.create(session);
                 case MINING -> (Region) Views.mining(session);
+                case SETTINGS -> (Region) Views.settings(profile, themes, () -> {});
                 case DEFENSE -> (Region) Views.defense(session);
                 case LEDGER -> (Region) Views.ledger(session);
                 default -> (Region) MoreViews.map(session);
@@ -143,11 +147,24 @@ public final class DeckSnapshot {
             themes.select(id);
             deck.desk().closeAll();
             deck.openStartingWindows(List.of(
-                    WindowSpec.RIG_MONITOR, WindowSpec.MINING, WindowSpec.LOG, WindowSpec.DEFENSE));
+                    WindowSpec.RIG_MONITOR, WindowSpec.SETTINGS, WindowSpec.LOG, WindowSpec.DEFENSE));
 
             // Two passes. The first resolves CSS and sizes the panels; the desk then places windows
             // against a desk whose width is finally known, and the second pass lays those out. One
             // pass produces a snapshot with every window at its cascade origin and zero size.
+            // Drive the shell's one-second data tick by hand so the sparklines have history: in a
+            // synchronous render no Pulse frame ever fires, and an empty history draws blank.
+            try {
+                var tick = DeckShell.class.getDeclaredMethod("tickClock");
+                tick.setAccessible(true);
+                for (int i = 0; i < 30; i++) {
+                    session.allocateSelfMining(20 + (i * 7) % 60);
+                    tick.invoke(deck);
+                }
+            } catch (Exception ignored) {
+                // Best effort — the snapshot is still useful without history.
+            }
+
             scene.getRoot().applyCss();
             deck.root().layout();
             // openStartingWindows defers tiling to runLater, which never fires in a synchronous

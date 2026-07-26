@@ -60,9 +60,35 @@ public enum CursorSkin {
      * The terminal block, notched at the top-right like every panel on the deck.
      *
      * <p>The most diegetic and the least conventional: it is the caret of the machine you are
-     * operating, escaped from the command line. Solid, so it is the easiest of the three to find.
+     * operating, escaped from the command line. Solid, so it is the easiest to find.
      */
-    BLOCK("block", "Block");
+    BLOCK("block", "Block"),
+
+    /**
+     * The inverting block — a terminal cell with its foreground and background swapped.
+     *
+     * <p>⚠ <b>It is not a true per-pixel inversion, and cannot be.</b> A JavaFX
+     * {@link javafx.scene.ImageCursor} is a bitmap composited by the window server; there is no
+     * blend mode, no read-back of what is underneath, and no way to reach the framebuffer from a
+     * cursor. What is drawn instead is the <em>result</em> inversion produces on this interface: a
+     * solid block in {@code text-hi}, which is the exact opposite of the panel ground in every
+     * palette — a light block on the deck, a dark one on uOS Classic. Over the near-uniform grounds
+     * this design language mandates (§2.1: flat fills, no gradients) that is visually identical to
+     * inverting, and it stays legible over the one case a real inversion would fail: text, where a
+     * true invert of a light glyph on a dark ground would make the glyph vanish.
+     */
+    BLOCK_INVERT("block-invert", "Block (inverted)"),
+
+    /**
+     * A ring with a centre dot.
+     *
+     * <p>The one skin with a curve in it, which is a deliberate exception rather than an oversight:
+     * §2.3's "border radius: 0" governs <em>panels and controls</em>, the things that make the
+     * interface read as machined. A pointer is an instrument laid over that interface, and a ring is
+     * the most precise shape at 32px — it surrounds the target pixel instead of covering it, which
+     * is the same argument the reticle's centre gap makes.
+     */
+    CIRCLE("circle", "Ring");
 
     private final String id;
     private final String label;
@@ -104,8 +130,10 @@ public enum CursorSkin {
      * @param accent the live/earning colour, resolved from the current palette
      * @param edge the outline colour, for contrast against a light background
      */
-    void draw(GraphicsContext g, CursorRole role, double size, Color accent, Color edge) {
+    void draw(GraphicsContext g, CursorRole role, double size, CursorPalette palette) {
         double mid = Math.floor(size / 2) + 0.5;
+        Color accent = palette.accent();
+        Color edge = palette.ground();
         g.setLineWidth(1);
 
         if (role.isResize()) {
@@ -116,9 +144,60 @@ public enum CursorSkin {
             case RETICLE -> drawReticle(g, role, size, mid, accent, edge);
             case CHEVRON -> drawChevron(g, role, size, accent, edge);
             case BLOCK -> drawBlock(g, role, size, accent, edge);
+            case BLOCK_INVERT -> drawInvertedBlock(g, role, size, palette);
+            case CIRCLE -> drawRing(g, role, size, mid, accent, edge);
             case SYSTEM -> {
                 // Never drawn — Cursors short-circuits to the platform pointer.
             }
+        }
+    }
+
+    /**
+     * A solid cell in the foreground colour — what inversion looks like, since it cannot be done.
+     *
+     * <p>See the enum constant's comment for why. The hairline in the ground colour around it is not
+     * decoration: without it the block dissolves into any panel header strip it crosses, because
+     * {@code panel-hi} and {@code text-hi} are the two ends of the same ramp.
+     */
+    private void drawInvertedBlock(GraphicsContext g, CursorRole role, double size, CursorPalette palette) {
+        double w = Math.floor(size * 0.34);
+        double h = Math.floor(size * 0.52);
+
+        g.setFill(palette.ground());
+        g.fillRect(0, 0, w + 1, h + 1);
+        g.setFill(role == CursorRole.HAND ? palette.accent() : palette.text());
+        g.fillRect(0.5, 0.5, w, h);
+
+        if (role == CursorRole.HAND) {
+            // Over a clickable thing the block goes accent and cuts a slot, so the change is legible
+            // by shape as well as by colour (docs/client/07 §5.2).
+            g.setFill(palette.ground());
+            g.fillRect(2.5, h * 0.45, w - 4, 2);
+        }
+    }
+
+    /**
+     * A ring, so the target pixel stays visible inside it.
+     *
+     * <p>Two strokes rather than one: the ground-coloured ring sits a pixel outside the accent one,
+     * which is what keeps a thin circle from disappearing against a cell of the same brightness.
+     */
+    private void drawRing(
+            GraphicsContext g, CursorRole role, double size, double mid, Color accent, Color edge) {
+        double r = Math.floor(size * 0.30);
+
+        g.setStroke(edge);
+        g.strokeOval(mid - r - 1, mid - r - 1, (r + 1) * 2, (r + 1) * 2);
+        g.setStroke(accent);
+        g.strokeOval(mid - r, mid - r, r * 2, r * 2);
+
+        if (role == CursorRole.HAND) {
+            g.setFill(accent);
+            g.fillOval(mid - 2.5, mid - 2.5, 5, 5);
+        } else {
+            // A single centre pixel: the ring says "around here", this says "exactly here".
+            g.setFill(accent);
+            g.fillRect(mid - 0.5, mid - 0.5, 1, 1);
         }
     }
 

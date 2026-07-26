@@ -131,7 +131,7 @@ public final class WindowFrame extends Pane {
             controls.getChildren().add(control("[−]", minimize, false));
         }
         if (maximize != null) {
-            controls.getChildren().add(control("[□]", maximize, false));
+            controls.getChildren().add(control("[+]", maximize, false));
         }
         if (close != null) {
             controls.getChildren().add(control("[×]", close, true));

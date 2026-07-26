@@ -179,6 +179,32 @@ public final class ClientProfile {
          */
         public String cursorSkin = "system";
 
+        /** Master switch for the slide-in notices. Everything they say stays in the log either way. */
+        public boolean notificationsEnabled = true;
+
+        /**
+         * RFC 5424 severity floor for notices — {@code journalctl -p} semantics.
+         *
+         * <p>⚠ <b>The numbering runs backwards</b>: 0 is Emergency and 7 is Debug, so a LOWER number
+         * is a stricter filter. 5 (notice) is the default because that is where the rig's
+         * "something finished" and "something is armed" lines sit; 6 would add per-allocation info
+         * chatter, and 4 would show only warnings and worse.
+         *
+         * <p>This is the same number the {@code log} command takes, deliberately — a player who sets
+         * 4 here and types {@code log -p 4} sees the same set, and the habit transfers to any Linux
+         * box they ever touch.
+         */
+        public int notifyMinSeverity = 5;
+
+        /**
+         * Facilities the player has muted — {@code mining}, {@code defense}, {@code scan},
+         * {@code compute}, {@code storage}, {@code rig}.
+         *
+         * <p>Facility rather than an invented "category" vocabulary, so what is muted here is
+         * nameable in the terminal too.
+         */
+        public java.util.List<String> mutedFacilities = new java.util.ArrayList<>();
+
         /**
          * The single-window deck — now the only layout, and no longer a choice.
          *
@@ -216,11 +242,34 @@ public final class ClientProfile {
          */
         public boolean bandwidthCapsWindows = false;
 
-        /** Window id → geometry. Restored on open, and sanity-checked against current screens. */
+        /**
+         * Window id → OS-window geometry, from the {@code Stage}-per-tool era.
+         *
+         * @deprecated superseded by {@link #deskLayout}; retained so older profiles still
+         *     deserialise. Nothing reads it.
+         */
+        @Deprecated
         public Map<String, WindowGeometry> windows = new LinkedHashMap<>();
 
-        /** Which tool windows were open when the client last exited. */
+        /**
+         * Which tool windows were open when the client last exited.
+         *
+         * @deprecated superseded by {@link #deskLayout}, which records position and size too
+         */
+        @Deprecated
         public Map<String, Boolean> openWindows = new LinkedHashMap<>();
+
+        /**
+         * The desk exactly as the player left it — which windows, where, how big, and in what state.
+         *
+         * <p>Insertion-ordered, and the order is load-bearing: it is the order windows were opened
+         * in, which the desk replays so z-order and the tiling arrangement come back the same way.
+         *
+         * <p>Empty means a genuinely fresh profile, and only then does the desk tile a starting set.
+         * Distinguishing "no saved layout" from "a saved layout that happens to be one window" is
+         * the whole reason this is a separate map rather than a repurposing of the two above.
+         */
+        public Map<String, DeskWindowState> deskLayout = new LinkedHashMap<>();
 
         /** Handle used for the solo character, so a returning player is not asked twice. */
         public String soloHandle = "";
@@ -249,6 +298,45 @@ public final class ClientProfile {
     }
 
     /** A remembered window position. */
+    /**
+     * One tool window's place on the desk.
+     *
+     * <p>Public mutable fields with a no-arg constructor, like every other persisted type here —
+     * Jackson binds them directly and a missing field on an older profile simply keeps its default
+     * rather than failing the load.
+     */
+    public static final class DeskWindowState {
+
+        public double x;
+        public double y;
+        public double width;
+        public double height;
+
+        /** Collapsed to the rail. Restored collapsed, because that is where the player put it. */
+        public boolean minimized;
+
+        /**
+         * Maximised or edge-tiled — i.e. sitting somewhere the desk computed rather than somewhere
+         * the player placed it.
+         */
+        public boolean expanded;
+
+        /**
+         * Where an expanded window returns to on double-click.
+         *
+         * <p>Persisted so the restore still works after a reload. Without it, a player who quits
+         * with a window maximised comes back to a maximised window that has forgotten what it was,
+         * and double-clicking hands them an arbitrary default instead of their layout.
+         */
+        public double restoreX;
+
+        public double restoreY;
+        public double restoreWidth;
+        public double restoreHeight;
+
+        public DeskWindowState() {}
+    }
+
     public static final class WindowGeometry {
         public double x;
         public double y;

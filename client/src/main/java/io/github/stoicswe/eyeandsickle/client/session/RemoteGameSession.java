@@ -127,6 +127,13 @@ public final class RemoteGameSession implements GameSession {
     }
 
     @Override
+    public java.time.Instant now() {
+        // The server is authoritative for game time too, once there is one. Until then the local
+        // clock is the honest answer rather than a fabricated offset.
+        return java.time.Instant.now();
+    }
+
+    @Override
     public RigCapacity capacity() {
         // A starting rig's caps, so the desk has something coherent to draw before the transport
         // exists. The server is authoritative for these once it does (I14) — the client must never

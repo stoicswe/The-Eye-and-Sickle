@@ -63,6 +63,7 @@ public final class CycleGrid extends VBox {
     private static final double LEGEND_MIN_COLUMN = 230;
 
     private final CellField field = new CellField();
+    private final HBox beside = new HBox(UiTokens.SPACE_6);
     private final javafx.scene.layout.GridPane legend = new javafx.scene.layout.GridPane();
     private final List<Cell> cells = new ArrayList<>();
     private final List<Slice> slices = new ArrayList<>();
@@ -86,7 +87,11 @@ public final class CycleGrid extends VBox {
         // a row does not cover renders as a solid block of rule colour. A FlowPane leaves exactly
         // that: the ragged remainder at the end of each line.
         legend.widthProperty().addListener((obs, was, now) -> relayoutLegend());
-        getChildren().addAll(field, legend);
+        // The field shrink-wraps to 25 cells, which on a wide panel leaves usable space beside it.
+        // `aside` is that space — see setAside.
+        beside.getChildren().add(field);
+        beside.setAlignment(Pos.TOP_LEFT);
+        getChildren().addAll(beside, legend);
         // Recovering and unaccounted cells alternate between two states on a two-step loop (§5).
         // One subscription drives every such cell, not one per cell (§7.3).
         blink = Pulse.shared().animate(UiTokens.RECOVERY_BLINK_MS, this::flip);
@@ -187,6 +192,23 @@ public final class CycleGrid extends VBox {
     private void flip() {
         for (Cell cell : cells) {
             cell.flip();
+        }
+    }
+
+    /**
+     * Places a node in the space to the right of the cell field.
+     *
+     * <p>The field is capped at 25 cells of at most 14px, so on any panel wider than about 400px
+     * there is room beside it that the legend below does not use. Rather than stretch the grid —
+     * which would turn the signature component into a chessboard, the exact failure
+     * {@link #MAX_CELL} exists to prevent — the space takes a second instrument.
+     */
+    public void setAside(javafx.scene.Node aside) {
+        while (beside.getChildren().size() > 1) {
+            beside.getChildren().removeLast();
+        }
+        if (aside != null) {
+            beside.getChildren().add(aside);
         }
     }
 

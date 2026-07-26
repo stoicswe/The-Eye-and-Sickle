@@ -177,6 +177,38 @@ public class EyeAndSickleClient extends Application {
         profile.save();
     }
 
+    /**
+     * Writes everything that persists: the desk arrangement, the profile, and the save.
+     *
+     * <p>One method so the four callers — autosave, the pause menu's Save, returning to the menu and
+     * quitting — cannot drift into saving different subsets of the same thing.
+     */
+    private void saveEverything() {
+        if (deck != null) {
+            deck.saveLayout();
+        }
+        profile.save();
+        if (session != null) {
+            session.persist();
+        }
+    }
+
+    /**
+     * Renames the solo operator.
+     *
+     * <p>⚠ Solo only, and the check is here rather than in the view: online, a handle comes from an
+     * AT Proto DID and the server owns it (Invariant I14). {@code SoloGame.rename} is deliberately
+     * not on the {@code GameSession} port for the same reason — a capability that must never work
+     * online is best made absent rather than guarded.
+     */
+    private void renameOperator(String handle) {
+        if (session instanceof LocalGameSession local) {
+            local.game().rename(handle);
+            session.persist();
+            profile.save();
+        }
+    }
+
     /** Pushes the desk options to the live shell. A no-op from the menu, where there is no desk. */
     private void applyDeskSettings() {
         if (deck != null) {
@@ -246,8 +278,35 @@ public class EyeAndSickleClient extends Application {
         profile.settings().soloHandle = session.handle();
         profile.save();
 
-        startDeck(stage);
-        startHeartbeat();
+        // The boot log first. It reads the session that was just opened, so every figure it prints
+        // is this rig's — see BootSequence. The deck is built behind it and swapped in when it ends.
+        showBootSequence(() -> {
+            startDeck(stage);
+            startHeartbeat();
+        });
+    }
+
+    /**
+     * Plays the uOS boot log, then hands over to the deck.
+     *
+     * <p>On its own Scene rather than layered over the deck: the deck's first paint includes a
+     * staggered panel reveal (§5), and having that happen underneath a boot log would mean the
+     * player's first sight of the desk was the tail end of an animation they never saw start.
+     */
+    private void showBootSequence(Runnable then) {
+        javafx.scene.layout.StackPane root = new javafx.scene.layout.StackPane();
+        io.github.stoicswe.eyeandsickle.client.ui.BootSequence boot =
+                io.github.stoicswe.eyeandsickle.client.ui.BootSequence.play(session, then);
+        root.getChildren().addAll(boot, boot.hint());
+        javafx.scene.layout.StackPane.setAlignment(boot.hint(), javafx.geometry.Pos.BOTTOM_CENTER);
+
+        Scene scene = new Scene(root, stage.getWidth() > 0 ? stage.getWidth() : 1280,
+                stage.getHeight() > 0 ? stage.getHeight() : 800);
+        stage.setScene(scene);
+        themes.adopt(scene);
+        themes.applyAll();
+        // Focused so a keypress skips it without the player having to click the window first.
+        boot.requestFocus();
     }
 
     /**
@@ -332,14 +391,18 @@ public class EyeAndSickleClient extends Application {
             autosave.stop();
             autosave = null;
         }
+        // ⚠ Order matters: the layout is captured BEFORE the deck is disposed, because disposing
+        // closes every window and there would be nothing left to record. Getting this backwards
+        // saves an empty desk over the player's arrangement, every time they quit.
+        if (session != null) {
+            saveEverything();
+        }
         if (deck != null) {
             deck.dispose();
             deck = null;
         }
         registry.closeAll();
         if (session != null) {
-            registry.rememberAll();
-            profile.save();
             session.close();
             session = null;
         }
@@ -384,7 +447,7 @@ public class EyeAndSickleClient extends Application {
                 deck.handleEscape();
             }
         });
-        deck.openStartingWindows(startingWindows());
+        deck.restoreLayout();
     }
 
     private io.github.stoicswe.eyeandsickle.client.ui.DeckShell.Actions deckActions() {
@@ -412,32 +475,12 @@ public class EyeAndSickleClient extends Application {
 
             @Override
             public void save() {
-                // Everything shutdown() would write, without ending anything. Window geometry is
-                // included because the desk arrangement is part of what a player means by "save my
-                // game" even though it lives in the profile rather than the save file.
-                registry.rememberAll();
-                profile.save();
-                session.persist();
+                // Everything shutdown() would write, without ending anything. The desk layout is
+                // included because the arrangement is part of what a player means by "save my
+                // game", even though it lives in the profile rather than the save file.
+                saveEverything();
             }
         };
-    }
-
-    /**
-     * What should be on screen at launch.
-     *
-     * <p>First run gets the set {@code docs/client/05} §2.18 specifies. Afterwards the player's own
-     * arrangement wins, because a desk you arranged once should not need arranging every session.
-     */
-    private java.util.List<WindowSpec> startingWindows() {
-        if (profile.settings().openWindows.isEmpty()) {
-            return java.util.Arrays.stream(WindowSpec.values())
-                    .filter(WindowSpec::openOnFirstRun)
-                    .toList();
-        }
-        return profile.settings().openWindows.keySet().stream()
-                .map(WindowSpec::byId)
-                .flatMap(Optional::stream)
-                .toList();
     }
 
     /**
@@ -465,7 +508,7 @@ public class EyeAndSickleClient extends Application {
             case DEFENSE -> Views.defense(session);
             case IDENTITY -> Views.identity(session);
             case SWITCHER -> Views.switcher(registry);
-            case SETTINGS -> Views.settings(profile, themes, this::applyDeskSettings);
+            case SETTINGS -> Views.settings(profile, themes, this::applyDeskSettings, this::renameOperator);
             case MAN -> ManView.create(terms);
             case LOG -> LogView.create(session);
             case MARKET -> MoreViews.market(session);
@@ -495,11 +538,7 @@ public class EyeAndSickleClient extends Application {
         heartbeat.setCycleCount(Animation.INDEFINITE);
         heartbeat.play();
 
-        autosave = new Timeline(new KeyFrame(Duration.seconds(30), e -> {
-            registry.rememberAll();
-            profile.save();
-            session.persist();
-        }));
+        autosave = new Timeline(new KeyFrame(Duration.seconds(30), e -> saveEverything()));
         autosave.setCycleCount(Animation.INDEFINITE);
         autosave.play();
     }

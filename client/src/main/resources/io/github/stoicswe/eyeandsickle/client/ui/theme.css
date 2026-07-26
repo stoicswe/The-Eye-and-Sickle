@@ -68,6 +68,26 @@
     -fx-faint-focus-color: transparent;
 }
 
+/* ══ PALETTE PROBES ══════════════════════════════════════════════════════════════════════════
+ *
+ * These classes are never applied to anything the player sees. They exist so Java can READ a
+ * looked-up colour back out of the stylesheet — ui/cursors/Palette applies one to a throwaway
+ * Region and reads the resolved fill off its background.
+ *
+ * That sounds like a hack and is actually the rule working. §10 criterion 2 says every colour is a
+ * looked-up colour declared once here, and a cursor is a bitmap that needs a real java.awt-style
+ * Color to draw with. Reading it back is what lets a pointer be drawn in whatever `-es-amber`
+ * currently means, so it follows every palette overlay — including high-visibility — with no colour
+ * constant anywhere in Java.
+ *
+ * Borrowing a real class for this (say `.es-cell-self-mining`) would work until someone changed that
+ * cell's colour for reasons that had nothing to do with cursors. Naming the intent prevents that.
+ */
+.es-probe-accent { -fx-background-color: -es-amber; }
+.es-probe-ground { -fx-background-color: -es-panel; }
+.es-probe-text   { -fx-background-color: -es-text-hi; }
+.es-probe-alarm  { -fx-background-color: -es-alarm; }
+
 /* ══ TYPE ROLES (§2.2) ═══════════════════════════════════════════════════════════════════════ */
 
 /* Labels, keys, headers, buttons. Uppercase is applied in Java — see the header comment. */
@@ -397,10 +417,21 @@
  * Unreadable by design, and roughly 10–15% of pixels. §9 lists removing it as build-blocking —
  * it is the single largest difference between this look and a dashboard.
  */
+/*
+ * ⚠ IBM Plex, NOT Martian — and this is a correctness rule, not a taste one.
+ *
+ * Martian Mono maps 638 codepoints; IBM Plex Mono maps 1049. Martian has none of the block-element
+ * or box-drawing ranges (U+2500–U+259F), so a texture built from those characters and styled with
+ * Martian falls through to a host-OS font for every one of them — different shapes AND different
+ * advance widths on macOS, Windows and Linux. §2.2 bundles the fonts to make the client look the
+ * same everywhere; a texture on the label face silently undoes that.
+ *
+ * Rule: any glyph-based texture is pinned to IBM Plex. Martian is for uppercase Latin labels only.
+ */
 .es-greeble {
     -fx-text-fill: -es-dim-3;
     -fx-font-size: 8.5px;
-    -fx-font-family: "Martian Mono", monospace;
+    -fx-font-family: "IBM Plex Mono", monospace;
 }
 .es-greeble-strip {
     -fx-border-color: -es-rule transparent transparent transparent;
@@ -630,23 +661,61 @@
     -fx-padding: 0;
     -fx-border-width: 0;
 }
-.scroll-bar { -fx-background-color: -es-void; -fx-padding: 0; }
-.scroll-bar .track { -fx-background-color: transparent; -fx-border-width: 0; }
-.scroll-bar .thumb {
-    -fx-background-color: -es-rule-hi;
-    -fx-background-radius: 0;
-    -fx-background-insets: 2;
+
+/*
+ * ── SCROLLBARS ────────────────────────────────────────────────────────────────────────────────
+ *
+ * Modena's scrollbar is a rounded grey lozenge with arrow buttons at both ends — four §9 violations
+ * in one control. The deck's is a hairline gutter with a solid block in it, which is what a machine
+ * with a mechanical indicator would have. Narrow (9px) because density is the point (§2.3), and
+ * because a wide bar next to an 11px cell grid looks like it belongs to a different application.
+ */
+.scroll-bar:vertical, .scroll-bar:horizontal {
+    -fx-background-color: -es-void;
+    -fx-padding: 0;
+    -fx-pref-width: 9px;
+    -fx-pref-height: 9px;
 }
-.scroll-bar .thumb:hover { -fx-background-color: -es-dim-2; }
-/* Modena's arrow buttons are two more rounded boxes. The deck has no use for them. */
+/* The gutter reads as a channel cut into the panel: one hairline on the side facing the content. */
+.scroll-bar:vertical {
+    -fx-border-color: transparent transparent transparent -es-rule;
+    -fx-border-width: 0 0 0 1;
+}
+.scroll-bar:horizontal {
+    -fx-border-color: -es-rule transparent transparent transparent;
+    -fx-border-width: 1 0 0 0;
+}
+.scroll-bar .track {
+    -fx-background-color: transparent;
+    -fx-border-width: 0;
+    -fx-background-insets: 0;
+}
+/* Two layers: a hairline edge and a body inset by a pixel — the same drawn-not-filled treatment
+   every panel gets (§2.3), so the thumb reads as a small object rather than as a smear. */
+.scroll-bar .thumb {
+    -fx-background-color: -es-rule-hi, -es-dim-3;
+    -fx-background-insets: 2, 3;
+    -fx-background-radius: 0;
+}
+.scroll-bar .thumb:hover  { -fx-background-color: -es-amber-low, -es-dim-2; }
+.scroll-bar .thumb:pressed { -fx-background-color: -es-amber, -es-amber-mid; }
+
+/* Modena's arrow buttons are two more rounded boxes at the ends of every bar. The deck has no use
+   for them: the gutter is short, the content is dense, and a 9px arrow is not a hit target anyone
+   was going to aim at. */
 .scroll-bar .increment-button,
 .scroll-bar .decrement-button {
     -fx-background-color: transparent;
     -fx-padding: 0;
     -fx-pref-width: 0;
     -fx-pref-height: 0;
+    -fx-border-width: 0;
 }
-.scroll-bar .increment-arrow, .scroll-bar .decrement-arrow { -fx-shape: null; -fx-padding: 0; }
+.scroll-bar .increment-arrow, .scroll-bar .decrement-arrow {
+    -fx-shape: null;
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+}
 .corner { -fx-background-color: -es-void; }
 
 .list-view, .table-view {
@@ -874,3 +943,169 @@
 }
 .es-activity-row:hover { -fx-background-color: -es-panel-hi; }
 .es-activity-name { -fx-text-fill: -es-text-hi; }
+
+/* ══ NOISE METER ═════════════════════════════════════════════════════════════════════════════
+ *
+ * §4's cell meter in two dimensions. Noise is not a quantity the player accumulates — it is how
+ * much racket the rig is making right now — so it is drawn as a bank of moving columns rather than
+ * as a level. The player reads the MOTION, which is the peripheral signal a status strip wants.
+ */
+.es-noise-cell { -fx-background-color: -es-rule; }
+.es-noise-on   { -fx-background-color: -es-amber-mid; }
+/* The top two rows only, and only when actually reached. */
+.es-noise-hot  { -fx-background-color: -es-alarm; }
+/* The peak marker: an outline, so a held peak reads as a memory of a level rather than as one. */
+.es-noise-peak {
+    -fx-background-color: -es-amber, -es-panel;
+    -fx-background-insets: 0, 1;
+}
+
+/* ══ NOTIFICATIONS ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Transient, non-blocking, and never the only place a message exists — which is the condition §3
+ * sets for a surface that is allowed to disappear. Everything a notice says is in the log window.
+ * Same notched-panel vocabulary as everything else, with the 2px left rule the Note component uses,
+ * because a notice IS a note that arrived on its own.
+ */
+.es-toasts { -fx-background-color: transparent; }
+
+.es-toast {
+    -fx-background-color: -es-panel-hi;
+    -fx-border-color: -es-rule-hi;
+    -fx-border-width: 1;
+    -fx-padding: 8 12 9 10;
+}
+.es-toast-normal { -fx-border-color: -es-rule-hi -es-rule-hi -es-rule-hi -es-amber-low; }
+/* Warnings and worse. The heavier left rule is the second channel — docs/client/07 §5.2 forbids
+   meaning that rests on colour alone, and the glyph plus its keyword is the third. */
+.es-toast-severe {
+    -fx-border-color: -es-rule-hi -es-rule-hi -es-rule-hi -es-alarm;
+    -fx-border-width: 1 1 1 2;
+}
+
+.es-toast-glyph        { -fx-text-fill: -es-amber; -fx-font-size: 11px; }
+.es-toast-glyph-severe { -fx-text-fill: -es-alarm; -fx-font-size: 11px; }
+.es-toast-message      { -fx-text-fill: -es-text; -fx-font-size: 11px; }
+
+/* ══ BOOT SEQUENCE ═══════════════════════════════════════════════════════════════════════════
+ *
+ * The uOS boot log. Every figure it prints is read from the save that was just opened — see
+ * BootSequence's class comment for why that matters more than it sounds.
+ *
+ * §5: "Text arrival — types in character by character; never fades." There is no opacity animation
+ * anywhere in this block, and there must not be: a fading boot screen is the one piece of furniture
+ * that would say "web app" louder than anything else in the client.
+ */
+.es-boot {
+    -fx-background-color: -es-void;
+    -fx-padding: 40;
+}
+.es-boot-body { -fx-padding: 0; }
+.es-boot-line {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 12px;
+    -fx-text-fill: -es-dim-1;
+}
+/* The mark, drawn from U+2588 FULL BLOCK. IBM Plex for the reason in the greeble note above —
+   Martian has no block elements at all, so the logo was being drawn by a host-OS fallback. */
+.es-boot-logo {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-weight: 700;
+    -fx-font-size: 12px;
+    -fx-text-fill: -es-amber;
+}
+.es-boot-ok   { -fx-text-fill: -es-text; }
+/* Not alarm: a warning at boot is "you have not set this up", not "you are losing something".
+   §2.1 rations alarm to loss and hostile state, and an unarmed rig is neither. */
+.es-boot-warn { -fx-text-fill: -es-amber-mid; }
+.es-boot-dim  { -fx-text-fill: -es-dim-2; }
+.es-boot-text { -fx-text-fill: -es-text-hi; }
+.es-boot-hint { -fx-text-fill: -es-dim-3; }
+
+/* ══ CORE CAGE ═══════════════════════════════════════════════════════════════════════════════
+ *
+ * The turning cutaway beside the cycle grid. Two overlaid labels — one grey, one amber — which
+ * align exactly because the face is monospace. See CoreCage for why that beats a Text run per cell.
+ *
+ * The amber layer is the ONLY amber in the render, and it marks the posts whose banks are actually
+ * self-mining: §2.1's "live/earning data only", applied literally.
+ */
+.es-cage {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 10px;
+    -fx-text-fill: -es-dim-3;
+}
+.es-cage-live {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 10px;
+    -fx-text-fill: -es-amber;
+}
+.es-cage-caption { -fx-text-fill: -es-dim-2; }
+
+/* The rail launcher's tooltip carries a title line and a sentence, so it needs room to breathe —
+   the default single-line tooltip padding makes a four-line one look like a paragraph in a box. */
+.tooltip { -fx-padding: 8 11 9 11; -fx-max-width: 320px; }
+
+/* ══ THERMOMETER ═════════════════════════════════════════════════════════════════════════════
+ *
+ * Personal heat. ⚠ docs/client/01-visual-language.md §2.2.4 forbids a CONTINUOUS heat meter, for
+ * two stated reasons: a smooth bar implies precision the model lacks, and trace is the client's
+ * only continuous red meter so the two must never be confusable. This obeys both — the stem is
+ * eleven discrete cells in five zones, one per band, and the gaps between zones ARE the thresholds.
+ * Colour steps at a boundary and never interpolates across one. The band name is still printed
+ * beside it, which §2.2.4 requires and §5.2 of docs/client/07 would require anyway.
+ */
+/* The unlit stem is rule-hi, not rule: a thermometer at zero still has to read as a thermometer,
+   and at the panel-edge value it disappeared into the strip. Absence of heat is information too. */
+.es-thermo-cell { -fx-background-color: -es-rule-hi; }
+.es-thermo-gap  { -fx-background-color: transparent; }
+/* The graduations. Visible, because they are what makes this banded rather than continuous. */
+.es-thermo-tick { -fx-background-color: -es-dim-2; }
+/* Two layers, so a cold bulb is an outline rather than a dot — the reservoir is always THERE, it
+   just is not full. Same drawn-not-filled treatment as every panel (§2.3). */
+.es-thermo-bulb {
+    -fx-background-color: -es-rule-hi, -es-panel;
+    -fx-background-insets: 0, 1;
+}
+.es-thermo-bulb.es-thermo-fill-0,
+.es-thermo-bulb.es-thermo-fill-1,
+.es-thermo-bulb.es-thermo-fill-2,
+.es-thermo-bulb.es-thermo-fill-3,
+.es-thermo-bulb.es-thermo-fill-4 { -fx-background-insets: 0; }
+
+/* The band ramp, walking grey → amber → alarm. Same five steps as the .es-heat-N text colours, so
+   the thermometer and the word beside it cannot drift apart. */
+.es-thermo-fill-0 { -fx-background-color: -es-dim-1; }
+.es-thermo-fill-1 { -fx-background-color: -es-text; }
+.es-thermo-fill-2 { -fx-background-color: -es-amber-mid; }
+.es-thermo-fill-3 { -fx-background-color: -es-amber; }
+.es-thermo-fill-4 { -fx-background-color: -es-alarm; }
+
+/* ══ SPARKLINE + NOISE READOUT ═══════════════════════════════════════════════════════════════
+ *
+ * A sparkline is a TIME SERIES — left edge is thirty seconds ago, right edge is now — where the
+ * noise meter beside it is a SPECTRUM of simultaneous readings. They look alike at strip size, so
+ * the newest column is brighter: that is what tells a player which of the two they are reading.
+ * Still cells with gaps, never a line (§4) — a line would imply interpolation between samples that
+ * were never measured.
+ */
+.es-spark-cell { -fx-background-color: -es-rule; }
+.es-spark-on   { -fx-background-color: -es-dim-2; }
+/* "Now". Amber only because load and recovery are cycles doing work, which is the one thing §2.1
+   lets the accent mean. */
+.es-spark-now  { -fx-background-color: -es-amber; }
+
+/* The rig's emission reading, under the NOISE key. Derived from the same value as the bars. */
+.es-noise-frequency { -fx-text-fill: -es-dim-1; -fx-font-size: 9.5px; }
+
+/* The strip's second lines: a derived reading under the value it derives from. Dimmer, because it
+   is the supporting figure — the eye should land on the primary first. */
+.es-income-live { -fx-text-fill: -es-amber-mid; }
+
+/* The operator name in hex, under the name itself. Dim, and clipped rather than wrapped — it is a
+   byte dump, and a wrapped byte dump implies a second line of data that does not exist. */
+.es-operator-hex {
+    -fx-text-fill: -es-dim-3;
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 9px;
+}

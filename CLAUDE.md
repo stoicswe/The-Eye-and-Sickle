@@ -159,6 +159,14 @@ recomputed per resize (§7.2). (4) **`-fx-cursor: url(...)` does not work** — 
 (5) **A CSS `-fx-cursor` on a node beats an inherited Scene cursor**, so a single `-fx-cursor: hand`
 in the stylesheet punches a system-cursor hole in every custom skin. All five are covered by tests.
 
+⚠ **Every character the client draws must be in a bundled font, and textures go on IBM Plex.**
+Martian Mono maps ~638 codepoints against Plex's ~1049 and has **none** of the block-element or
+box-drawing range (U+2500–U+259F). A texture styled with Martian silently falls back to a host font —
+different shapes *and* different advance widths per platform, which breaks character-cell layout.
+Eleven codepoints were wrong this way once, including the window maximise control and the Shortcut
+key hint. `GlyphCoverageTest` parses the TTF cmaps and fails the build on any uncovered literal;
+`Font.loadFont` cannot tell you this, and JavaFX has no per-codepoint coverage query.
+
 ⚠ **Anything with a deadline must take the session's clock, never `Instant.now()`.** `RunningTask`
 got this wrong once and every task reported 100% complete the moment it started under a test clock —
 invisible in production, where the two clocks agree. `ComputeRules.spend` has the same warning one

@@ -7,6 +7,7 @@ import io.github.stoicswe.eyeandsickle.client.teaching.TermDatabase;
 import io.github.stoicswe.eyeandsickle.client.ui.Ui;
 import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.ActivityList;
+import io.github.stoicswe.eyeandsickle.client.ui.widgets.CoreCage;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.CycleGrid;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.Greeble;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.KeyValue;
@@ -102,6 +103,10 @@ public final class RigMonitorView {
 
         Greeble greeble = new Greeble(82);
         CycleGrid grid = new CycleGrid();
+        // The cutaway sits in the space the capped cell field leaves beside it. It is a second view
+        // of the same number — a post is amber for exactly as long as its bank is self-mining.
+        CoreCage cage = new CoreCage();
+        grid.setAside(cage);
 
         KeyValue rate = KeyValue.of("Return rate", "0.0000 EC/S").live();
         KeyValue hourly = KeyValue.of("Projected", "0.00 EC/HR").live();
@@ -112,7 +117,7 @@ public final class RigMonitorView {
         // The Activity Monitor half of this panel: what the rig is doing, with a countdown.
         // Sits between the allocation grid and the income summary because that is the reading
         // order of the question — where are my cycles, what are they doing, what is it earning.
-        ActivityList activity = new ActivityList();
+        ActivityList activity = new ActivityList(session::tasks);
 
         VBox notes = new VBox(UiTokens.SPACE_2);
 
@@ -130,7 +135,8 @@ public final class RigMonitorView {
             recovering.set(String.valueOf(budget.recovering().cycles()));
 
             grid.show(slices(budget));
-            activity.show(session.tasks());
+            cage.show(session.mining().selfMiningCycles(), total, session.personalHeat());
+            activity.refresh();
 
             RigStatus status = RigStatus.of(session);
             rate.set(status.incomePerSecond() + " EC/S");

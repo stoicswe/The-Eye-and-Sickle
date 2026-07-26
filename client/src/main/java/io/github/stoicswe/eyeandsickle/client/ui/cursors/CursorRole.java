@@ -74,15 +74,20 @@ public enum CursorRole {
      */
     double hotspotFractionX(CursorSkin skin) {
         return switch (this) {
-            case POINTER, HAND -> skin == CursorSkin.RETICLE ? 0.5 : 0.03;
+            case POINTER, HAND -> centred(skin) ? 0.5 : 0.03;
             case TEXT -> 0.5;
             default -> 0.5;
         };
     }
 
+    /** Skins that surround the target pixel rather than pointing at it from a corner. */
+    private static boolean centred(CursorSkin skin) {
+        return skin == CursorSkin.RETICLE || skin == CursorSkin.CIRCLE;
+    }
+
     double hotspotFractionY(CursorSkin skin) {
         return switch (this) {
-            case POINTER, HAND -> skin == CursorSkin.RETICLE ? 0.5 : 0.03;
+            case POINTER, HAND -> centred(skin) ? 0.5 : 0.03;
             case TEXT -> 0.5;
             default -> 0.5;
         };

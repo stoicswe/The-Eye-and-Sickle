@@ -79,10 +79,15 @@ public final class RigEvent {
      */
     public static String glyph(int severity) {
         return switch (severity) {
-            case EMERGENCY, ALERT, CRITICAL -> "‼";
-            case ERROR -> "✖";
-            case WARNING -> "▲";
-            case NOTICE -> "●";
+            // ⚠ Every glyph below is verified present in BOTH bundled faces. ‼ ✖ ▲ ● were in
+            // NEITHER, so they were being drawn by whatever the host OS substituted — different
+            // shapes and different advance widths on macOS, Windows and Linux, which is exactly
+            // what docs/design/ui-design-language.md §2.2 bundles the fonts to prevent.
+            // GlyphCoverageTest parses the TTF cmaps and fails the build if this regresses.
+            case EMERGENCY, ALERT, CRITICAL -> "‡";
+            case ERROR -> "×";
+            case WARNING -> "†";
+            case NOTICE -> "•";
             case INFORMATIONAL -> "·";
             default -> "˙";
         };
