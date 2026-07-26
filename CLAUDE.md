@@ -17,6 +17,8 @@ All design and architecture documentation is under `docs/`. **This is the source
 - **`docs/design/`** — game systems, economy, world. Start with `docs/design/README.md`.
   - The spine is `00` (vision + invariants) → `01` (resources) → `02` (gates) → `03` (economy). Read those four before touching any system.
 - **`docs/architecture/`** — the technical stack. Start with `docs/architecture/README.md` and `00-overview.md`.
+- **`docs/client/`** — what the player actually sees: the two theme families (platform-native and the **uOS** story terminal), the visual-language token contract, the Unix terminology + `man`-page teaching layer, tool windows, resource/inventory UI, and accessibility. Start with `docs/client/README.md`. **`client/01-visual-language.md` is a contract** — it names every colour token, primitive and state class; the other client docs cite it and must not redefine its vocabulary.
+- **`docs/education/`** — the **curriculum**: the real computing knowledge the game teaches, which concepts, in what order, against which misconceptions, verified against which sources. Start with `docs/education/README.md`. **`education/00-curriculum-and-method.md` is a contract** — it fixes the entry template, the status vocabulary (`real` / `real, simplified` / `game`) and the sequencing rules that the seven domain documents are written against. Keep the boundary straight: `client/04` owns *how* a definition reaches the player, `docs/education/` owns *what it says and whether it is true*, and `client/src/main/resources/terms/**` is the output. Nothing in `docs/education/` is code or read at run time.
 - **`docs/design/glossary.md`** — canonical terms **and code-name conventions.** Use these names in code so docs and code stay searchable against each other.
 - **`docs/design/15-open-questions.md`** — everything undecided, with a resolution log. Check it before designing; update it when you decide something.
 
@@ -57,6 +59,7 @@ The two meta-rules behind most of these: **compute is the master scarcity** (nev
 - **Doc cross-refs** use relative paths and section anchors (e.g. `docs/design/04-mining.md` §5). Keep them working when you move things.
 - **When you make a design decision**, put it in the relevant system doc (the source of truth) and log it in `docs/design/15-open-questions.md` §3 — don't leave the answer only in a chat or a commit message.
 - **When you add an item/tool**, follow the checklist in `docs/design/02-unlock-gates.md` §5 (classify the gate, price against `03`, add to the right table + glossary).
+- **When you add or change something the game *teaches***, the curriculum entry changes first and the shipped term file follows — never the reverse (`docs/education/00-curriculum-and-method.md` §1.2). One concept gets exactly one entry in exactly one domain; a player who gets two answers stops trusting both. An entry with no `hook` does not belong in the curriculum and an entry with no `transfer` is decoration — both are veto gates, not guidelines. **Never state a real-world fact you have not checked**: a wrong mapping teaches something false, which is worse than teaching nothing, so every claim carries its source and the date in `verified:`.
 - **The client is never authoritative** over anything a cheater would forge — server validates (I14/I15).
 
 ## Working agreements for Claude Code
@@ -79,7 +82,9 @@ The two meta-rules behind most of these: **compute is the master scarcity** (nev
 ├── deploy/              ← Dockerfile, docker-compose.yml, .env.example
 └── docs/
     ├── design/          ← game systems, economy, world (16 docs + glossary + README)
-    └── architecture/    ← tech stack, identity, federation, crypto (7 docs + README)
+    ├── architecture/    ← tech stack, identity, federation, crypto (10 docs + README)
+    ├── client/          ← what the player sees: themes, UI, terminology, accessibility (8 docs + README)
+    └── education/       ← the curriculum: what the game teaches and whether it's true (8 docs + README)
 ```
 
 **Toolchain:** Java 25 (LTS) target, built with Maven. Spring Boot 4.1 · JavaFX 26 · AtlantaFX 2.1 · Flyway · JUnit 6 · ArchUnit.

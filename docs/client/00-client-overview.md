@@ -125,7 +125,7 @@ The honesty rule that goes with it: **the teaching layer never teaches a fiction
 **The headline client decision, and the reason this doc exists.** The client ships two theme *families*, both first-class, user-selectable at any time:
 
 - **`native`** — Native-Adaptive. The app looks and behaves like a well-made desktop application on whichever OS it is running on, following that OS's light/dark setting and accent colour.
-- **`sickle-os`** — Story-Atmospheric. A Unix-terminal-register console true to the fiction, in the Cyberpunk / Blade Runner / Ghost in the Shell tradition. Identical everywhere.
+- **`uos`** — Story-Atmospheric. A Unix-terminal-register console true to the fiction, in the Cyberpunk / Blade Runner / Ghost in the Shell tradition. Identical everywhere.
 
 ### 3.1 Why two, instead of one good one
 
@@ -163,9 +163,15 @@ JavaFX 25 added CSS media-feature queries and JavaFX 26 extends them, so most of
 
 > **The accent-colour rule, and it is load-bearing:** the OS accent colour may drive **only** the chrome-accent tokens — focus rings, selection, primary buttons, links. It may **never** drive a game-semantic token. A player whose system accent is red must not end up with a UI where "compute available" or "breach succeeded" is red. Game semantics own their hues (`01-visual-language.md` §2.5); chrome borrows the user's.
 
-### 3.3 Family B — `sickle-os` (Story-Atmospheric)
+### 3.3 Family B — uOS (Story-Atmospheric)
 
-**What it is:** an authored dark console theme, shipped as a custom stylesheet implementing the same token contract, with its own bundled typefaces so it renders identically on all three platforms. In fiction, it is the hardened operator console a Sickle cell would actually run — which is why it is named like a distribution rather than like a colour scheme.
+**What it is:** an authored dark console theme, shipped as a custom stylesheet implementing the same token contract, with its own bundled typefaces so it renders identically on all three platforms.
+
+**And what it is named after is not a colour scheme — it is the operating system.** **uOS is the Unix-like OS every rig in the game runs**, and the baseline for every OS-flavoured concept in the game: processes, filesystem, permissions, devices, logs, shells, daemons, networking (`../design/glossary.md`). This family is *what uOS looks like when it draws its own operator console*. That has three consequences worth stating here, because they are easy to get backwards:
+
+- **Both families show the same uOS.** The player's laptop runs macOS, Windows or Linux; their **rig** runs uOS; the client is the window onto it. `native` draws uOS's state using the host platform's conventions, `uos` draws it as uOS would. Neither is "the real one," which is precisely why §3.4's *only the skin changes* is coherent rather than an arbitrary rule — there is one system underneath, drawn two ways.
+- **Picking `native` does not opt out of the fiction.** It opts out of the *chrome*. The vocabulary, the tools and the concepts are uOS's either way, so a player on the native theme is learning exactly the same Unix (`04-terminology-and-education.md` §1.1a).
+- **It sets the bar for the teaching layer.** Because uOS is Unix-like by construction rather than by resemblance, uOS may *extend* Unix but must never *contradict* it — a uOS that taught a player something they would carry into a real shell and get wrong is a defect, not flavour.
 
 Register targets, in order of influence:
 
@@ -177,8 +183,8 @@ What it deliberately is **not**: no scanline overlays, no CRT curvature, no glit
 
 Two variants ship in this family:
 
-- **`sickle-os`** — the default. Near-black surfaces, phosphor-cyan compute, amber ethecoin, violet noise. Palette in `01-visual-language.md` §2.3.
-- **`sickle-os-hc`** — a high-contrast variant that raises every foreground to a wider margin over the 4.5:1 floor and replaces subtle borders with strong ones. It exists so that choosing the story family never costs a player legibility.
+- **`uos`** — the default. Near-black surfaces, phosphor-cyan compute, amber ethecoin, violet noise. Palette in `01-visual-language.md` §2.3.
+- **`uos-hc`** — a high-contrast variant that raises every foreground to a wider margin over the 4.5:1 floor and replaces subtle borders with strong ones. It exists so that choosing the story family never costs a player legibility.
 
 > **[PROPOSAL] The diegetic Eye skin.** Recovered documents from Eye infrastructure — memos, citizen-scoring records, propaganda payloads (`../design/14-world-and-narrative.md` §3) — render their *content pane* in The Eye's own institutional chrome, regardless of the player's theme. Cold blue-grey, a serif-ish institutional face, bureaucratic spacing. This is environmental storytelling for free: the scariest recovered document is a routine memo treating the player as a line item (`../design/14-world-and-narrative.md` §6), and it lands harder when the memo looks like it came from the office that wrote it. **Scope limit, non-negotiable:** it skins *recovered content* only. It never touches the player's own controls, meters, or chrome, and it obeys the same contrast floor. Tracked as **CL-3**.
 
@@ -218,7 +224,7 @@ Non-negotiable, and identical for both. Full specifications in `01-visual-langua
 
 **Default: `native`, matching the OS colour scheme.** A new player has not opted into anything yet, and the first-run job is "this is a competent program that respects my machine," not "here is our art direction." The story theme is offered explicitly and early — a one-screen chooser during first-run setup showing both, side by side, on a real rig-monitor screenshot rather than a swatch — but the default if the player skips it is native.
 
-This deliberately reverses the current scaffold, which hardcodes `PrimerDark` with the comment *"Dark by default; this is a game about being watched."* That instinct is right about the story theme and wrong as a global default: on a machine set to light mode, a forced dark app reads as a program that ignores its user. The instinct is preserved where it belongs — **`sickle-os` has no light variant**, because a surveillance-dystopia operator console in light mode is a different game.
+This deliberately reverses the current scaffold, which hardcodes `PrimerDark` with the comment *"Dark by default; this is a game about being watched."* That instinct is right about the story theme and wrong as a global default: on a machine set to light mode, a forced dark app reads as a program that ignores its user. The instinct is preserved where it belongs — **`uos` has no light variant**, because a surveillance-dystopia operator console in light mode is a different game.
 
 ### 4.2 Where the switch lives
 
@@ -226,7 +232,7 @@ Three routes, all reaching the same setting:
 
 1. **Settings → Appearance**, the canonical place, with live preview.
 2. **`Shortcut+Shift+T`** opens the theme switcher directly from any window (`Shortcut` = ⌘ on macOS, Ctrl elsewhere; see §6.3).
-3. **The command palette** (`Shortcut+K`), via `theme` — because the client's vocabulary is Unix and `theme --list` / `theme sickle-os` should work (`04` will specify the command grammar).
+3. **The command palette** (`Shortcut+K`), via `theme` — because the client's vocabulary is Unix and `theme --list` / `theme uos` should work (`04` will specify the command grammar).
 
 The switcher shows: family, variant, the resolved OS state it is following (`following system: dark`), and a live-updating preview strip containing a compute gauge, a trace gauge, a ledger row and a log line — the four primitives most sensitive to palette. Preview strips beat swatches because the thing being chosen is legibility, not colour.
 
@@ -386,7 +392,7 @@ Stated plainly so they do not get relitigated one plausible feature at a time.
 Deliberately undecided here. Log in `../design/15-open-questions.md` §2 if this doc set is adopted.
 
 - **CL-1: Does the native family need a fourth auto-selected pairing for Linux desktop environments?** Currently all Linux sessions get Primer. GTK/Adwaita and KDE/Breeze are visibly different design languages, and "native on Linux" is not one target. Resolvable by reading the desktop environment at startup, but that is platform-detection code with a long tail. Watch for: Linux players reporting the app looks foreign on KDE.
-- **CL-2: How much of the game-semantic palette should the story theme be allowed to move?** §3.4 says a theme owns colour values, but if `sickle-os` and `native` disagree too far on what "noise" looks like, a player switching themes has to relearn. Candidate rule: hue **family** is fixed by the contract, and only lightness/chroma may vary per theme. Needs a second theme to exist before it can be judged.
+- **CL-2: How much of the game-semantic palette should the story theme be allowed to move?** §3.4 says a theme owns colour values, but if `uos` and `native` disagree too far on what "noise" looks like, a player switching themes has to relearn. Candidate rule: hue **family** is fixed by the contract, and only lightness/chroma may vary per theme. Needs a second theme to exist before it can be judged.
 - **CL-3: Is the diegetic Eye skin (§3.3) worth its complexity?** It is a genuinely strong narrative device and a second contrast surface to verify. Decide before the recovered-document reader is built, not after.
 - **CL-4: Does the teaching layer's default level (`explain`) survive contact with players who already know Unix?** Default-on serves the stated product goal and risks annoying the audience most likely to evangelise the game. Possible mitigation: a first-run question ("how familiar are you with the command line?") that sets the initial level. Watch for: experienced players turning it off in the first ten minutes, which is fine, versus bouncing off it, which is not.
 - **CL-5: Community theming.** §7 rules out player CSS for now. A signed/curated theme model that still enforces the §3.5 floor is plausible and would be well-received. Not v1.

@@ -25,6 +25,8 @@ Almost everything here is **Established** — the full stack was decided end-to-
 | 08 | [`08-discovery-and-sync.md`](08-discovery-and-sync.md) | ⚠️ **[PROPOSAL]** | Automatic peer discovery; why shared state converges on validity, never recency |
 | 09 | [`09-player-state-portability.md`](09-player-state-portability.md) | ⚠️ **[PROPOSAL]** | 3-slot character model (online-only); finding, backing up, and migrating a character across machines and servers |
 
+The **client's** visual design — the two theme families, the UI token contract, terminology and accessibility — lives in [`../client/`](../client/README.md), not here. This folder covers the stack; that one covers the surface.
+
 ## The one-sentence summary
 
 A lightweight cross-platform **JavaFX** client (one OS window per tool) talks to a self-hostable **Spring Boot + PostgreSQL** home server; players authenticate with their **AT Protocol DID** (identity only — no game data in their PDS); servers **opt into a federation** that adjudicates cross-server adversarial outcomes through a **reputation-weighted validator quorum** and **cryptographically signed per-item provenance**, with **federation-wide non-recognition** as the penalty for cheating servers.

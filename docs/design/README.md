@@ -28,6 +28,13 @@ New to the project: read **`00` → `01` → `02` → `03`** in order. That's th
 | 15 | [`15-open-questions.md`](15-open-questions.md) | Living | Every open question + resolution log |
 | — | [`glossary.md`](glossary.md) | Living | Canonical terms + code-name conventions |
 
+The **client's** visual design and UI — how all of this is presented to the player — lives in [`../client/`](../client/README.md).
+
+The **curriculum** — the real computing knowledge the game teaches, and the record of whether each
+claim is actually true — lives in [`../education/`](../education/README.md). It depends on this folder
+(`glossary.md` fixes the canonical names) and on `../client/04-terminology-and-education.md` (which
+fixes how a definition reaches the player); it never re-decides either.
+
 ## Status tags — what they mean
 
 - **Established** — decided in design sessions 1–5 (captured in the project's `ethecoin_design_doc.md`) or in the two technology chats. Change these only deliberately; they're what the rest depends on.

@@ -57,6 +57,14 @@ Canonical terms and their code-name conventions. When implementing, use these na
 - **Informant** — hidden randomized role (NPC or player); removed via evidence path or mass-vote override.
 - **Named-hacker** — top personal-heat + reputation state; triggers targeted Eye pursuit.
 
+## The operating system (`../client/`)
+
+- **uOS** — **the operating system every rig in the game runs, and the baseline for every OS-flavoured concept in the game.** When a design doc, a tool, a window or a term refers to processes, the filesystem, permissions, devices, logs, shells, daemons or networking, it means *uOS's* version of that thing. uOS is deliberately **Unix-like**, which is what makes the educational goal work: a player learning uOS is learning transferable Unix, not a bespoke fiction. Code: `uos`.
+  - **Casing is a convention, not a preference.** Write **uOS** in prose, in UI copy and in anything a player reads; write `uos` in identifiers — theme ids, CSS classes, stylesheet filenames, config keys. Exactly the macOS/`macos` split, and the docs already follow it for the host platforms.
+  - **Variants** (`../client/03-story-theme.md` §2.2) are suffixes on the identifier: `uos` (default), `uos-amber`, `uos-phosphor`, with `-hc` as a high-contrast modifier (`uos-hc`, `uos-amber-hc`, …).
+  - **uOS is the OS; a theme is how it is drawn.** Both client theme families render the *same* uOS state: the **native** family draws it using the host platform's conventions (`../client/02`), the **uOS** family draws it as uOS's own operator console would (`../client/03`). Neither is "the real one" — the player's laptop runs macOS/Windows/Linux, their *rig* runs uOS, and the client is the window onto it. This is why "only the skin changes" holds: there is one system underneath, drawn two ways.
+  - ⚠ **[PROPOSAL]** — the name and the baseline role are decided; uOS has no system doc of its own yet. If one is written, it belongs beside the world/narrative material and should not restate `../client/04-terminology-and-education.md`'s mapping tables.
+
 ## Architecture (`../architecture/`)
 
 - **DID** — decentralized identifier (AT Proto); the portable player ID. Code: `did`.

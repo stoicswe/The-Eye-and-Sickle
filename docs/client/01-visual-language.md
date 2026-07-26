@@ -263,9 +263,9 @@ Five gates (`../design/02-unlock-gates.md` §1), and OQ-2 already flags them as 
 
 Every value below was computed against the surfaces it can sit on. **Ratios are measured, not asserted** — the check script lives in the client module's test sources so a palette change that breaks the floor fails the build.
 
-Reference backgrounds: story = the `sickle-os` surfaces defined here; native dark = GitHub Primer's dark canvases (`#0D1117` / `#161B22` / `#010409`), native light = Primer's light canvases (`#FFFFFF` / `#F6F8FA` / `#EAEEF2`). ⚠ **unverified**: that AtlantaFX's `PrimerDark`/`PrimerLight` use exactly these canvas values — they derive from Primer, but the exact hexes should be read out of the compiled theme CSS before the native palettes are frozen. The *method* is unaffected: resolve `-color-bg-*` at runtime and assert the floor against whatever the active theme actually supplies.
+Reference backgrounds: story = the uOS surfaces defined here; native dark = GitHub Primer's dark canvases (`#0D1117` / `#161B22` / `#010409`), native light = Primer's light canvases (`#FFFFFF` / `#F6F8FA` / `#EAEEF2`). ⚠ **unverified**: that AtlantaFX's `PrimerDark`/`PrimerLight` use exactly these canvas values — they derive from Primer, but the exact hexes should be read out of the compiled theme CSS before the native palettes are frozen. The *method* is unaffected: resolve `-color-bg-*` at runtime and assert the floor against whatever the active theme actually supplies.
 
-#### 2.3.1 `sickle-os` — surfaces and chrome
+#### 2.3.1 `uos` — surfaces and chrome
 
 | Token | Hex | Note |
 |---|---|---|
@@ -281,7 +281,7 @@ Reference backgrounds: story = the `sickle-os` surfaces defined here; native dar
 | `-es-border-faint` | `#1B2529` | decorative only |
 | `-es-accent-fg` / `-es-focus-ring` | `#5AB2FF` / `#1F6FEB` | 8.54:1; white on the emphasis fill = 4.63:1 |
 
-#### 2.3.2 `sickle-os` — game semantics
+#### 2.3.2 `uos` — game semantics
 
 | Token | Hex | vs. base | vs. overlay (worst) |
 |---|---|---|---|
@@ -297,12 +297,14 @@ Reference backgrounds: story = the `sickle-os` surfaces defined here; native dar
 | `-es-status-warn-fg` | `#E3B341` | 9.97 | 8.88 |
 | `-es-status-bad-fg` | `#FF6B63` | 6.96 | 6.20 |
 | `-es-heat-band-0…4` | `#7E8F8E` `#C9C05A` `#E09A4B` `#F0663F` `#FF4136` | 5.73 / 10.32 / 8.21 / 6.17 / 5.60 | all ≥4.99 |
+
+> ⚠ **Known defect in this ramp, measured not assumed.** `07-accessibility.md` §5.4 computes that `-es-heat-band-0` (`#7E8F8E`, L = 0.2603) and `-es-heat-band-4` (`#FF4136`, L = 0.2531) differ in relative luminance by **1.02:1** — the two *ends* of the heat ramp are the same lightness, so in greyscale, and under protanopia/deuteranopia once the yellow→red span collapses, "cold" and "named-hacker" are indistinguishable. Each band's contrast against its *background* passes; their contrast against *each other* does not. This is exactly why the band name is a non-removable part of the chip (the rule below) and why the 5-pip indicator stays. The hexes themselves are not fixed here — that is **V-2**/**PN-2** when the generated per-theme palette lands, tracked as **AX-5**.
 | `-es-faction-eye` | `#A5B4C4` | 9.17 | 8.16 |
 | `-es-faction-sickle` | `#E08A57` | 7.34 | 6.53 |
 
 Lowest text-level value in the theme: **4.99:1** (`trace-imminent` on `-es-surface-overlay`), above the 4.5:1 floor. Meter fills read at ≥5.4:1 against `-es-compute-track`.
 
-`sickle-os-hc` (`00-client-overview.md` §3.3) keeps these hues and raises every foreground toward 7:1, swaps `-es-border-divider` for `-es-border-control`, and drops all surface translucency.
+`uos-hc` (`00-client-overview.md` §3.3) keeps these hues and raises every foreground toward 7:1, swaps `-es-border-divider` for `-es-border-control`, and drops all surface translucency.
 
 #### 2.3.3 Native dark (reference: Primer Dark canvases)
 
@@ -418,7 +420,7 @@ It also happens to be the right register (`00-client-overview.md` §3.3): a game
 
 `Monospaced` is JavaFX's logical family and is always present, so the chain can never fail to resolve.
 
-**Story family (`sickle-os`) bundles its faces** and does not consult the OS at all — the point of an authored theme is that it looks the same everywhere:
+**Story family (`uos`) bundles its faces** and does not consult the OS at all — the point of an authored theme is that it looks the same everywhere:
 
 | Role | Face | Licence |
 |---|---|---|
@@ -532,12 +534,12 @@ Four values, deliberately few. A design system with a continuous radius scale en
 
 | Token | px | Use |
 |---|---|---|
-| `RADIUS_0` | 0 | Tables, log wells, terminal buffers, gauge tracks in `sickle-os-hc` |
+| `RADIUS_0` | 0 | Tables, log wells, terminal buffers, gauge tracks in `uos-hc` |
 | `RADIUS_SM` | 2 | Chips, gauge tracks and fills, small inputs |
 | `RADIUS_MD` | 4 | Buttons, text fields, panels, item cards |
 | `RADIUS_LG` | 8 | Popovers, `ModalPane` content, the command palette |
 
-A theme may shift the whole scale by one step to change its character — `sickle-os` runs one step tighter than native, because sharper corners read as instrumentation — but it may not use a value outside the scale, and `RADIUS_0` is the floor in both directions.
+A theme may shift the whole scale by one step to change its character — `uos` runs one step tighter than native, because sharper corners read as instrumentation — but it may not use a value outside the scale, and `RADIUS_0` is the floor in both directions.
 
 ### 4.6 Alignment
 
@@ -840,8 +842,9 @@ Two register exceptions, both diegetic and both scoped: **recovered narrative co
 
 - **Sentence case** for all UI text including headings, buttons and window titles. Title Case reads as marketing.
 - **Canonical names keep their canonical capitalisation** exactly as `../design/glossary.md` writes them: Port Sweep, Rainbow Table, Overflow Kit, Credential Harvester, Side-Channel Reader, Passive Sniffer, Topology Mapper, Traffic Analyzer, Ping Sweep, Honeypot Detector, Provenance Tracer, Canary Token, Tarpit, Honeypot Stash, Auto-Counter Daemon, Rootkit Wrapper, Cold Storage Expansion, Compute Cores, Thermal Budget, Bandwidth, Memory Buffer, Isolated Partition, Firmware Implant, Worm Module, Cuckoo Patch, Payout Splitter, Log Scrubber, Identity Spoofer, Traffic Shaper, Dead Drop, Relay Chain, Ghost Protocol, Burner Handle, The Eye, The Sickle.
-- **Command tokens are lowercase** and set in mono: `scan --thorough`, `man rainbow-table`, `theme sickle-os`. This is Unix, and Unix is lowercase.
-- **No literal uppercase strings.** JavaFX provides no `text-transform` equivalent (the CSS Reference documents only the `-fx-font*` family), so uppercasing would have to be done in Java — which puts uppercase in the accessible name and makes screen readers spell words out. Where the story theme wants an institutional-header feel, it uses **letter-spacing and weight**, not case. A toolkit limitation forcing the accessible outcome is a good trade.
+- **Command tokens are lowercase** and set in mono: `scan --thorough`, `man rainbow-table`, `theme uos`. This is Unix, and Unix is lowercase.
+- **No literal uppercase strings.** JavaFX provides no `text-transform` equivalent (the CSS Reference documents only the `-fx-font*` family), so uppercasing would have to be done in Java — which puts uppercase in the accessible name and makes screen readers spell words out. A toolkit limitation forcing the accessible outcome is a good trade.
+- **And no letter-spacing either.** An earlier revision of this section offered letter-spacing as the institutional-header alternative to uppercase. That is **not implementable**: JavaFX has no letter-spacing property (`JDK-8090880` and `JDK-8092100` are both open enhancement requests, verified). The three implementable replacements — weight + rule, the `es-bracket` decoration, and per-glyph `Text` nodes on non-data display text only — are specified in `03-story-theme.md` §3.4, which owns them. Inserting U+2009/U+200A between characters to fake it is **banned**: it corrupts the accessible name and breaks both copy-paste and find-within-window.
 
 ### 9.3 Numbers and units
 
