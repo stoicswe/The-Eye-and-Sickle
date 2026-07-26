@@ -135,10 +135,10 @@ implementable replacements in `../client/03-story-theme.md` §3.4.
 ### From the education curriculum (`../education/`, 2026-07-25)
 
 The curriculum doc set (`../education/README.md`) is the answer to **T-4** above, seen from the content
-side: it inventories **269 concepts** across seven domains and writes **123** of them out in full, each
-with a per-claim source and the date it was checked. It raises ~79 numbered questions, owned by the
-document that found them (`ED-` 00, `FN-` 01, `CA-` 02, `OS-` 03, `SH-` 04, `NW-` 05, `CT-` 06, `DS-` 07).
-Those are curriculum detail and live there. These block, or need a product decision:
+side: it inventories **311 concepts** across eight domains and writes **149** of them out in full, each
+with a per-claim source and the date it was checked. It raises ~88 numbered questions, owned by the
+document that found them (`ED-` 00, `FN-` 01, `CA-` 02, `OS-` 03, `SH-` 04, `NW-` 05, `CT-` 06, `DS-` 07,
+`DF-` 08). Those are curriculum detail and live there. These block, or need a product decision:
 
 - **ED-6 (blocking, and it is T-4): there is still no named technical reviewer.** `../education/00`
   §8.4 makes a practitioner pass a **gate**, not a courtesy, and every domain document's final open
@@ -162,16 +162,25 @@ Those are curriculum detail and live there. These block, or need a product decis
   attack class is and what defeats it, never how to carry one out; the test is whether a sentence
   helps a defender more than an attacker.* `NW-8` reached the same boundary independently over
   `tcpdump`. Recommend adopting it as written.
-- **CT-1: detection, logging, anti-forensics and "why hacking back is illegal" have no owner.** They
-  were in the original domain-05 description and are not in `../education/06-cryptography-and-trust.md`. Two are
-  not optional: `cross-view-detection(7)` is named in `../education/00` §7.2 as the **highest-priority
-  audit target in the whole doc set**, and `hack-back(7)` is the one page in the game that tells a
-  player not to do something, which `../client/04` §2.8 makes mandatory. Proposal: an eighth document,
-  `../education/08-detection-and-defence.md` (not yet written).
-- **DS-1: the six identity concepts are assigned but unwritten.** `did`, `pds`, `canonicalization`,
-  `append-only-log`, `provenance-record(5)` and `provenance-chain` now sit in `../education/07` §2.2.
-  Three are already promised as shipping pages (`../client/04` §3.10, §4.9), so they have prose to
-  adapt rather than invent.
+- **DF-9 (blocking, and the sharpest instance of ED-6): `hack-back(7)` states a legal position and
+  has had no legal review.** `../client/04` §2.8 makes the statement mandatory, so the page must
+  exist and must not hedge — and it is the one place in the entire doc set where confident error
+  could *harm* a reader rather than merely misinform them. It cites 18 U.S.C. §1030, the Computer
+  Misuse Act 1990 and the never-enacted Active Cyber Defense Certainty Act, and the claim it makes
+  is the uncontroversial one. It still needs a reader who knows the law. **If that is not
+  obtainable, the page should say on its face that it has not had one** rather than sound more
+  certain than its authorship supports.
+- **DF-5 (a curriculum finding against the design): the game has no false-positive surface.** Three
+  of `08`'s strongest entries — `false-positive(7)`, `base-rate-fallacy(7)`, `alert-fatigue(7)` —
+  teach that detectors mostly fire on innocent things, which `../design/04-mining.md` §3.2's scan
+  tiers imply but never state. If scans in fact never produce a false hit, the game contradicts its
+  own curriculum. **Recommend adding the surface**: it is cheap, it makes the Thorough Scan's price
+  legible, and it is the single change that would make this material land.
+- **ED-11: the `operating` stage is over budget by about a quarter** — 51 written entries against
+  `../education/00` §6.2's ~25–40. It was invisible to every individual document, because each one's
+  own graph check passed; only the eight-document total showed it. Likely cause: `operating` is the
+  comfortable default when a writer is unsure. Audit `01` and `02` first, and move nothing merely to
+  hit a number.
 - **ED-5: should `misconception` ever be shown to the player?** Currently curriculum-only, and it is
   the highest-value field in the template for this audience. `OS-10` reports that **15 of 18**
   operating-systems entries exist primarily to dislodge a specific false belief, several of them held
@@ -227,6 +236,9 @@ Record resolutions here when they land (date — question — outcome — where 
 - 2026-07-23 — **Full technology stack** — resolved end-to-end — recorded in `../architecture/`. (Source: Tech Chat 1.)
 - 2026-07-25 — **ED-3: the education domain split** — resolved to **seven domains, not six** — recorded in `../education/00-curriculum-and-method.md` §1.4. The six-way split named computer architecture `01` and left representation as a clause inside it; writing the domains falsified that twice. Representation has eighteen entries of its own and forward-references nothing, so it became `../education/01-foundations.md` and architecture moved to `02`. The command line kept `04` because `03`, `06` and `07` all name `shell(7)` or `exit-status(7)` in `prerequisites`, and any numbering placing it above them breaks rule R8 outright. Networking, cryptography and distributed systems each shifted up one. The ordering rule is unchanged and now holds with **zero upward prerequisite edges**. Closed `FN-1`, `CA-1`, `OS-1`, `NW-1` and the ownership half of `DS-1`; **CT-1** survives it and is listed above.
 - 2026-07-25 — **Four concepts had two full entries each** — resolved to **one owner apiece** — recorded in `../education/01-foundations.md` §2 and §3.1, `../education/02-computer-architecture.md` §2.2, `../education/05-networking.md` §3.19. `00` §1.4 forbids two entries for one concept ("a player who gets two answers stops trusting both"), and parallel authorship produced exactly that: `processor` and `memory-hierarchy` in both 01 and 02, `bit-width` in both, and `latency` in both 01 and 05. Architecture took the first two, foundations kept `bit-width`, and the fourth was not a duplicate at all — 05's entry taught round-trip time, so it was **renamed `rtt(7)`**, which is what `07`'s own boundary table had been calling it. Ceded rows are marked ⇧/⇩ in the inventories rather than deleted silently.
+- 2026-07-25 — **CT-1: detection, logging, anti-forensics and hack-back had no owner** — resolved by **writing `../education/08-detection-and-defence.md`** (42 concepts, 20 entries). Option (a) was taken as `06` recommended — a document of its own rather than folding into `03` or widening `06`. It carries two obligations `../client/04` makes mandatory: §2.7's defender's answer on `log-scrubber(1)` (forward logs off the host, `chattr +a`, hash-chain them — and a gap in a log is itself evidence), and §2.8's statement that hacking back is illegal, which `hack-back(7)` carries with statutory citations. `08` can sit above everything only because **no `prerequisites` field in `01`–`07` names a detection concept** — checked before it was written, not after. `cross-view-detection(7)` went to `03` as recommended and turned out to be written there already, so CT-1 had over-stated its orphan list by one.
+- 2026-07-25 — **DS-1: six identity concepts assigned but unwritten** — resolved by **writing them into `../education/07-distributed-systems-and-identity.md`** (§3.19–§3.24: `did`, `pds`, `canonicalization`, `append-only-log`, `provenance-record(5)`, `provenance-chain`). `06` and `07` had each ceded them to the other; `07` won on two grounds `07` could not see for itself — their game surface is the `identity` window, and under R8 a `06` entry may not depend on a `07` one. `provenance-chain(7)`'s `notes:` names `../client/04` §4.9's already-written page as the ship-side source so the two cannot fork. ⚠ Writing them exposed **sixteen broken edges**: `07` had been citing `public-key(7)` and `signature(7)`, which `06` spells `public-key-cryptography(7)` and `digital-signature(7)`.
+- 2026-07-25 — **CT-3 / DS-4: the `adversarial` stage reported as over-subscribed** — **withdrawn; it was a unit error.** Two documents independently counted their **inventory rows** (20 and 25) against `../education/00` §6.2's **written-entry** budget, and the two agreeing made it look confirmed. Counted correctly the stage sits at **36 of 25–40** even after `08` added ten. `06`'s proposal to demote `public-key-cryptography(7)`, `digital-signature(7)` and `trust-anchor(7)` is therefore dropped — that would have been a stage assignment chosen to satisfy a number. §6.2 now states the counting basis and publishes the measured distribution, which is how **ED-11** (the `operating` stage genuinely *is* over) became visible.
 - 2026-07-25 — **A whole planned domain was never written** — resolved by **writing `../education/04-the-command-line.md`** (18 entries, 38 concepts). `00` §1.4 had always listed it, and `01`, `02`, `03` and `05` each ceded `shell(7)`, `glob(7)`, `quoting(7)`, `exit-status(7)`, `flag(7)`, `grep(1)` or `man(1)` to it — so six documents cited an owner that did not exist, and `06` carried a prerequisite edge into the gap.
 - 2026-07-23 — **JCS canonicalization rejects invalid Unicode** — resolved to **reject unpaired surrogates** — implemented in `protocol` `JsonCanonicalization`. Found while writing RFC 8785 conformance tests: the bundled canonicalizer passed a lone surrogate through and UTF-8 encoding then substituted `?`, so `{"s":"\ud800"}` and `{"s":"\udbff"}` produced **identical signing bytes**. One signature covering two distinct payloads is a forgery primitive, and a verifier is exactly where an untrusted federated payload arrives. RFC 8785 §3.2.2.2 requires the error; the library does not raise it, so the wrapper does.
 

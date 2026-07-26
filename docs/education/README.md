@@ -30,8 +30,8 @@ who knows the subject, which is the only quality gate this feature actually has.
 
 New to the curriculum: read **`00`**, then whichever domain you are working on. `00` is a
 **contract** — it fixes the entry template, the status vocabulary, the four progression stages and
-the coverage rules, and the seven domain documents are written against it. Changing a field name in
-`00` §3 invalidates seven documents downstream.
+the coverage rules, and the eight domain documents are written against it. Changing a field name in
+`00` §3 invalidates eight documents downstream.
 
 The domains are ordered so that **no concept forward-references a higher-numbered one**. Read them in
 order and nothing is defined in terms of something you have not met.
@@ -47,7 +47,8 @@ order and nothing is defined in terms of something you have not met.
 | 04 | [`04-the-command-line.md`](04-the-command-line.md) | ⚠️ **[PROPOSAL]** | The shell as a program, arguments and flags, exit statuses, standard streams, pipelines, globs vs. regular expressions, quoting, tab completion, history, and `man` — how to find out |
 | 05 | [`05-networking.md`](05-networking.md) | ⚠️ **[PROPOSAL]** | Packets, layering, ports, addresses, subnets, routing, TTL, TCP vs. UDP, DNS, NAT, TLS, traffic metadata, packet capture and onion routing |
 | 06 | [`06-cryptography-and-trust.md`](06-cryptography-and-trust.md) | ⚠️ **[PROPOSAL]** | Threat models, hashing, salting, password hashing, symmetric and public-key encryption, signatures, trust anchors, certificate authorities, offline verification, replay — and why you do not roll your own |
-| 07 | [`07-distributed-systems-and-identity.md`](07-distributed-systems-and-identity.md) | ⚠️ **[PROPOSAL]** | Partial failure, clocks and ordering, CAP, consensus, Byzantine faults, quorums, equivocation, Sybil attacks, federation — and identity as keys: DIDs, canonicalization, append-only logs, provenance |
+| 07 | [`07-distributed-systems-and-identity.md`](07-distributed-systems-and-identity.md) | ⚠️ **[PROPOSAL]** | Partial failure, clocks and ordering, CAP, consensus, Byzantine faults, quorums, equivocation, Sybil attacks, federation — and identity as keys: DIDs, PDSes, canonicalization, append-only logs, provenance records and chains |
+| 08 | [`08-detection-and-defence.md`](08-detection-and-defence.md) | ⚠️ **[PROPOSAL]** | Noticing and proving: intrusion detection and the statistics that make it hard — false positives, base rates, alert fatigue; audit trails and log integrity; integrity monitoring; anti-forensics and what survives it; honeytokens, honeypots, tarpits; attribution — **and the legality of hacking back** |
 
 ## Coverage
 
@@ -56,10 +57,10 @@ makes it possible to say what is *missing*. A subset is then **written out in fu
 template, chosen by `00` §8.1's priorities. The rest carry an id, gloss, status, stage, prerequisites
 and hook, which is enough to write them later without re-deciding anything.
 
-| Domain | 01 | 02 | 03 | 04 | 05 | 06 | 07 | **Total** |
-|---|---|---|---|---|---|---|---|---|
-| Inventoried | 39 | 37 | 35 | 38 | 38 | 36 | 46 | **269** |
-| Written in full | 16 | 18 | 18 | 18 | 18 | 17 | 18 | **123** |
+| Domain | 01 | 02 | 03 | 04 | 05 | 06 | 07 | 08 | **Total** |
+|---|---|---|---|---|---|---|---|---|---|
+| Inventoried | 39 | 37 | 35 | 38 | 38 | 36 | 46 | 42 | **311** |
+| Written in full | 16 | 18 | 18 | 18 | 18 | 17 | 24 | 20 | **149** |
 
 **One entry per concept, one owner per entry** (`00` §1.4) — a player who gets two answers stops
 trusting both. This is machine-checkable and currently holds: no id appears as a full entry in two
@@ -103,10 +104,11 @@ Each document ends with its own numbered questions, prefixed by document:
 
 | Prefix | Doc | Prefix | Doc |
 |---|---|---|---|
-| `ED-` | 00 Curriculum & method | `SH-` | 04 The command line |
-| `FN-` | 01 Foundations | `NW-` | 05 Networking |
-| `CA-` | 02 Computer architecture | `CT-` | 06 Cryptography & trust |
-| `OS-` | 03 Operating systems | `DS-` | 07 Distributed systems & identity |
+| `ED-` | 00 Curriculum & method | `NW-` | 05 Networking |
+| `FN-` | 01 Foundations | `CT-` | 06 Cryptography & trust |
+| `CA-` | 02 Computer architecture | `DS-` | 07 Distributed systems & identity |
+| `OS-` | 03 Operating systems | `DF-` | 08 Detection & defence |
+| `SH-` | 04 The command line | | |
 
 The ones that block rather than merely refine are summarised in `../design/15-open-questions.md`.
 Five are worth knowing before reading anything else:
@@ -125,19 +127,32 @@ Five are worth knowing before reading anything else:
   walkthroughs, which handles citations but not our own prose. `06` §5 proposes the rule for the whole
   doc set: *entries explain what an attack class is and what defeats it, never how to carry one out;
   the test is whether a sentence helps a defender more than an attacker.*
-- **CT-1 — detection, logging, anti-forensics and "why hacking back is illegal" have no owner.**
-  Including `cross-view-detection(7)`, which `00` §7.2 names as the highest-priority audit target in
-  the whole doc set, and `hack-back(7)`, which `../client/04` §2.8 makes mandatory. Proposal on the
-  table: an eighth document, `08-detection-and-defence.md`.
-- **DS-1 — the six identity concepts are assigned but unwritten.** `did`, `pds`, `canonicalization`,
-  `append-only-log`, `provenance-record(5)` and `provenance-chain` are inventoried in `07` §2.2; three
-  are already promised as shipping pages in `../client/04` §3.10 and §4.9, so they have prose to adapt
-  rather than invent.
+- **DF-9 — `hack-back(7)` states a legal position and has had no legal review.** It is the one page
+  in the game that tells a player not to do something (`../client/04` §2.8 makes it mandatory), and it
+  is the one place in the whole doc set where being confidently wrong could harm a reader rather than
+  merely misinform them. It cites the statutes it relies on. It still needs a reader who knows the
+  law, or an explicit note on the page saying it has not had one.
+- **ED-11 — the `operating` stage is over budget by about a quarter** (51 written against ~25–40).
+  Invisible to every individual document — each one's own §2.5 check passed — and visible only once
+  all eight were totalled. The likely cause is that `operating` is the comfortable default when a
+  writer is unsure of a stage.
 
-**ED-3 (the domain split) was resolved on 2026-07-25** and is recorded in `00` §1.4. It moved the set
-from six domains to seven: representation became `01-foundations.md` in its own right, and the command
-line kept `04` because `03`, `06` and `07` all name `shell(7)` or `exit-status(7)` in `prerequisites`
-and no later numbering satisfies rule **R8**.
+**Resolved on 2026-07-25**, and recorded in `00` §1.4 and `../design/15-open-questions.md` §3:
+
+- **ED-3 (the domain split)** — six domains became eight. Representation became `01-foundations.md` in
+  its own right; the command line kept `04`, because `03`, `06` and `07` all name `shell(7)` or
+  `exit-status(7)` in `prerequisites` and no later numbering satisfies rule **R8**.
+- **CT-1** — detection, logging, anti-forensics and the legality material became
+  `08-detection-and-defence.md`. It sits above everything because nothing below it names a detection
+  concept as a prerequisite, which was checked before it was written.
+- **DS-1** — the six identity concepts (`did`, `pds`, `canonicalization`, `append-only-log`,
+  `provenance-record(5)`, `provenance-chain`) were assigned to `07` and are now written. Writing them
+  exposed sixteen `seeAlso` and `prerequisites` edges pointing at entries under names `06` does not
+  use.
+- **CT-3 / DS-4** — two documents independently reported the `adversarial` stage as over-subscribed.
+  Both were counting **inventory rows** against a **written-entry** budget. Counted correctly the
+  stage sits at 36 of 25–40. `00` §6.2 now states the counting basis and publishes the measured
+  distribution.
 
 ## A note on verification
 

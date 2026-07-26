@@ -59,9 +59,9 @@ Two reasons, and the second is the stronger.
 
 ### 2.1 How to read it
 
-Forty-six concepts, every one of which this domain would ship — the last six being the identity cluster assigned here when **ED-3** was resolved (§1.4, and **DS-1**). This table is the **coverage guarantee**: it is what makes it possible to see the whole domain at once and say what is missing, which a tree of forty files cannot. The eighteen marked **●** have a fully-written entry in §3; the rest are specified here and written later to the same template, and none of them may be written without one, because the fields in this table are the fields that decide whether an entry exists at all (`00` §3.1).
+Forty-six concepts, every one of which this domain would ship — the last six being the identity cluster assigned here when **ED-3** was resolved (§1.4, and **DS-1**), and now written. A **●** marks the twenty-four written out in full in §3. This table is the **coverage guarantee**: it is what makes it possible to see the whole domain at once and say what is missing, which a tree of forty files cannot. The eighteen marked **●** have a fully-written entry in §3; the rest are specified here and written later to the same template, and none of them may be written without one, because the fields in this table are the fields that decide whether an entry exists at all (`00` §3.1).
 
-`prerequisites` in **bold** belong to another domain. Every stage obeys R1 (a concept is never introduced before its prerequisites) and R8 is satisfied trivially: 07 is the highest-numbered domain, so no prerequisite edge can point upward out of it.
+`prerequisites` in **bold** belong to another domain. Every stage obeys R1 (a concept is never introduced before its prerequisites) and R8 is satisfied trivially for the domains below: every prerequisite here points downward into 01-06. ⚠ Since `08-detection-and-defence.md` was written this is no longer the highest-numbered domain — but `08` names entries from this one in `prerequisites` and this one names none of `08`'s, so the ladder is intact in the direction that matters.
 
 ### 2.2 The inventory
 
@@ -129,13 +129,13 @@ Forty-six concepts, every one of which this domain would ship — the last six b
 | | `federation` | federation | Independent servers that interoperate without anyone in charge. | real | adversarial | `distributed-system(7)`, `home-server(7)` | `../architecture/03` §5; `../design/14` §2 |
 | | `federation-directory` | Federation directory | A published index of who exists, trusted for nothing else. | real, simplified | adversarial | `federation(7)` | "a low-trust index, not an authority", `../architecture/03` §2 |
 | | `non-recognition` | non-recognition | The only sanction available when nobody can ban anybody. | real, simplified | adversarial | `federation(7)`, `equivocation(7)` | `../architecture/03` §4 |
-| | | | **Identity — the six concepts assigned here by the ED-3 resolution (§1.4). None is written yet; three have prose to adapt rather than invent.** | | | | |
-| | `did` | DID | A name you prove you own with a key, rather than one issued to you. | real | investigating | **`public-key-cryptography(7)`** | The `identity` window; `../architecture/02` §1. Listed as a shipping page in `../client/04` §3.10 |
-| | `pds` | PDS | The server that holds an account's identity records, and nothing else. | real | investigating | `did(7)`, `home-server(7)` | `../architecture/02` §2 — and **Invariant I14**: never game state |
-| | `canonicalization` | canonicalization | Writing the same data one fixed way, so two copies hash alike. | real | adversarial | **`hash(7)`**, **`character-encoding(7)`** | Why a re-ordered field breaks a signature; `../architecture/04` §3 (JCS, RFC 8785) |
-| | `append-only-log` | append-only log | A record you may add to and never revise, where edits show. | real | adversarial | **`hash(7)`** | The public ledger; `../architecture/04` §4 |
-| | `provenance-record` · 5 | provenance record | One signed step in a thing's history, naming what came before. | real, simplified | adversarial | `append-only-log(7)`, **`digital-signature(7)`** | `item-history`; `../architecture/04` §6.1. A **section 5** page — a record format, not a concept |
-| | `provenance-chain` | provenance chain | Every step in a thing's history, linked so a gap is visible. | real, simplified | adversarial | `provenance-record(5)`, `canonicalization(7)` | `verify(1)`; **already written in full** in `../client/04` §4.9 |
+| | | | **Identity — the six concepts assigned here by the ED-3 resolution (§1.4). All six are now written in full (§3.19–§3.24).** | | | | |
+| ● | `did` | DID | A name you prove you own with a key, rather than one issued to you. | real | investigating | **`public-key-cryptography(7)`** | The `identity` window; `../architecture/02` §1. Listed as a shipping page in `../client/04` §3.10 |
+| ● | `pds` | PDS | The server that holds an account's identity records, and nothing else. | real | investigating | `did(7)`, `home-server(7)` | `../architecture/02` §2 — and **Invariant I14**: never game state |
+| ● | `canonicalization` | canonicalization | Writing the same data one fixed way, so two copies hash alike. | real | adversarial | **`hash(7)`**, **`character-encoding(7)`** | Why a re-ordered field breaks a signature; `../architecture/04` §3 (JCS, RFC 8785) |
+| ● | `append-only-log` | append-only log | A record you may add to and never revise, where edits show. | real | adversarial | **`hash(7)`** | The public ledger; `../architecture/04` §4 |
+| ● | `provenance-record` · 5 | provenance record | One signed step in a thing's history, naming what came before. | real, simplified | adversarial | `append-only-log(7)`, **`digital-signature(7)`** | `item-history`; `../architecture/04` §6.1. A **section 5** page — a record format, not a concept |
+| ● | `provenance-chain` | provenance chain | Every step in a thing's history, linked so a gap is visible. | real, simplified | adversarial | `provenance-record(5)`, `canonicalization(7)` | `verify(1)`; **already written in full** in `../client/04` §4.9 |
 
 ### 2.3 The honesty ledger — status distribution
 
@@ -143,8 +143,8 @@ Forty-six concepts, every one of which this domain would ship — the last six b
 
 | Status | Count | Share |
 |---|---|---|
-| `real` | 35 | 87.5 % |
-| `real, simplified` | 5 | 12.5 % |
+| `real` | 39 | 84.8 % |
+| `real, simplified` | 7 | 15.2 % |
 | `game` | **0** | 0 % |
 
 **Zero `game` entries, and that is the finding, not an oversight.** `00` §4.4 warns that a domain whose entries are largely `game` is lore rather than curriculum. This domain has the opposite property and it is worth saying why: the federation is not a model of a distributed system, it *is* one. It runs Ed25519 signatures over JCS-canonicalized JSON (`../architecture/04` §4–5), a weighted-reservoir validator sample (`05` §2.3), an AIMD reputation rule borrowed from TCP congestion control (`05` §3), and a peer-exchange gossip layer (`08` §3), and `mvn -Pit verify` runs the lot against a real Postgres. There is nothing here to label fiction. The five `real, simplified` entries are simplified in the direction of *the game being tidier than reality* — a single named directory where real federations have none, a clean collective refusal where reality has a handful of browser vendors — never in the direction of the game being more capable than reality.
@@ -160,7 +160,7 @@ Forty-six concepts, every one of which this domain would ship — the last six b
 
 ## 3. The full entries
 
-### 3.0 Which eighteen, and why
+### 3.0 Which twenty-four, and why
 
 Chosen on the three grounds `00` §3.1 gives an entry a reason to exist: the game leans on it, it kills a misconception people actually hold, or it unlocks several other concepts.
 
@@ -184,10 +184,16 @@ Chosen on the three grounds `00` §3.1 gives an entry a reason to exist: the gam
 | `equivocation(7)` | A glossary term; cryptographically provable; the double-spend problem in one move |
 | `sybil-attack(7)` | Explains allowlists, reputation floors and why identity is deliberately expensive |
 | `aimd(7)` | A genuine cross-domain link — the reputation rule is TCP congestion control — and the most enjoyable fact in the domain |
+| `did(7)` | Every ledger row and every provenance record names its parties this way; and "an identifier must be issued by somebody" is a confident wrong belief |
+| `pds(7)` | Carries Invariant **I14** as a lesson rather than a rule — identity is portable, accounting is not, and conflating them is trivially exploitable |
+| `canonicalization(7)` | The one entry here whose misconception is a **forgery primitive**, and this project shipped the bug and fixed it |
+| `append-only-log(7)` | Tamper-evident versus tamper-proof is the highest-value distinction in the domain, and git makes it demonstrable in two commands |
+| `provenance-record(5)` | The domain's only **section 5** page, so it is also where the section system earns its keep |
+| `provenance-chain(7)` | Already written as a shipped page (`../client/04` §4.9); this is the curriculum record behind it, and its `CAVEATS` is the domain's thesis in three sentences |
 
 The next four in line, written to the same template but not in this pass: `eventual-consistency(7)`, `validator-quorum(7)`, `non-recognition(7)`, `gossip-protocol(7)`.
 
-All eighteen are **section 7**, so none has a `SYNOPSIS`, `OPTIONS` or `EXIT STATUS`. That absence is deliberate and is itself part of what the section system teaches (`00` §5.2).
+Twenty-three of the twenty-four are **section 7**, so none of those has a `SYNOPSIS`, `OPTIONS` or `EXIT STATUS`. The exception is `provenance-record(5)`, which is a record format rather than a concept and therefore does carry one (`00` §5.2). That absence is deliberate and is itself part of what the section system teaches (`00` §5.2).
 
 ---
 
@@ -1872,6 +1878,610 @@ approach the answer slowly and retreat from it quickly.
 
 ---
 
+### 3.19 `did(7)`
+
+```
+id:             did
+section:        7
+name:           DID
+canonical:      DID
+gloss:          A name you prove you own with a key, not one issued to you.
+status:         real
+aliases:        decentralized identifier, did:plc, did:web
+glossary:       ../design/glossary.md
+seeAlso:        pds(7), public-key-cryptography(7), digital-signature(7),
+                trust-anchor(7), provenance-record(5), home-server(7),
+                sybil-attack(7)
+reading:        W3C "Decentralized Identifiers (DIDs) v1.0",
+                Recommendation 19 July 2022; AT Protocol specification,
+                "Identity"; did:web method specification
+notes:          Write DID in prose and `did` in identifiers
+                (../design/glossary.md). Do not translate the string
+                literals `did:plc:` or `did:web:`.
+revision:       1
+
+--- curriculum only, stripped before shipping ---
+
+domain:         07
+stage:          investigating
+prerequisites:  public-key-cryptography(7)
+hook:           The `identity` window, and the first provenance record
+                the player reads — where the thing that owned an item
+                is a `did:plc:` string rather than a username.
+misconception:  commonly believed an identifier has to be issued by
+                somebody — a company, a registrar, a government — so a
+                decentralized one must be a gimmick or a blockchain;
+                actually the identifier is derived from a key you hold,
+                and "owning" it means being able to sign as it. Nobody
+                issues it, and nobody can revoke it, because there is
+                no registry to strike you from.
+transfer:       Open any Bluesky profile in a browser and view its
+                account's DID — it is a `did:plc:` string, and it stays
+                the same when the handle changes. Then read the
+                did:web method specification, which resolves a DID by
+                fetching `/.well-known/did.json` over HTTPS: a DID you
+                could publish yourself this afternoon with a web server.
+                Runs on any platform.
+verified:       DIDs as key-derived, self-certifying identifiers, and
+                the resolution model — W3C DID Core v1.0 Recommendation
+                (19 July 2022) §3, §7; did:plc and did:web as the
+                methods AT Proto uses, and DID stability across handle
+                changes — AT Protocol specification "Identity";
+                identity-only use and Invariant I14 —
+                ../architecture/02-identity-and-auth.md §1, §3.
+                Checked 2026-07-25.
+
+## DESCRIPTION
+
+Everything in the ledger and every provenance record names its parties
+by DID, not by handle. A handle is a label you chose and can change; a
+DID is what you actually are to the system.
+
+The difference is where the identifier comes from. A username is issued
+— some service decided you may have it, and that service can take it
+back. A DID is derived from a key pair you hold. You "own" it in the
+only sense that matters to a verifier: you can produce signatures that
+check against it and nobody else can.
+
+That is why your history survives a handle change, and why an item
+granted to you two months ago still verifies as yours. It is also why
+losing the key is serious in a way that losing a password is not: there
+is no registry holding a copy, and therefore nobody to appeal to.
+
+This game uses DIDs for **identity only** — never for game state. Your
+items, balances and rig live in your home server's database, and the
+reasons are in `pds(7)`.
+
+## REAL-WORLD COUNTERPART
+
+real — DIDs are a W3C Recommendation (v1.0, July 2022) and are what
+AT Protocol, and therefore Bluesky, uses for every account. The DID on
+a Bluesky account today is exactly the kind of string this game means.
+
+Two methods matter here. `did:plc` is AT Proto's own, resolved through a
+directory service — a pragmatic compromise, not a fully decentralized
+one, and worth knowing as such. `did:web` resolves by fetching a JSON
+document over HTTPS from a domain you control, which means anybody with
+a web server can mint one. Neither is a blockchain, and neither costs
+anything.
+
+The property that makes them worth the trouble is *stability across
+infrastructure*: the identifier keeps working when the handle changes,
+when the hosting provider changes, and when the company that operated
+your first server no longer exists.
+```
+
+---
+
+### 3.20 `pds(7)`
+
+```
+id:             pds
+section:        7
+name:           PDS
+canonical:      PDS
+gloss:          The server holding an account's identity records, and nothing else.
+status:         real, simplified
+aliases:        Personal Data Server, personal data server
+glossary:       ../design/glossary.md
+seeAlso:        did(7), home-server(7), federation(7),
+                distributed-system(7), trust-anchor(7)
+reading:        AT Protocol specification, "Personal Data Server" and
+                "Repository"; ../architecture/02-identity-and-auth.md §3
+notes:          ⚠ The CAVEATS section states Invariant I14 and is not
+                optional. A shortened version of this page that drops
+                it teaches the opposite of the architecture.
+revision:       1
+
+--- curriculum only, stripped before shipping ---
+
+domain:         07
+stage:          investigating
+prerequisites:  did(7), home-server(7)
+hook:           Signing in with an existing Bluesky account and
+                discovering the game did not ask you to create one —
+                and that your items are nonetheless not stored there.
+misconception:  commonly believed that if your identity is portable then
+                your data is too, so an account's "home" holds
+                everything about you; actually the two are separable and
+                this game separates them deliberately — identity is
+                portable and player-controlled, game state is not and
+                must not be.
+transfer:       AT Proto lets you run your own PDS and point your DID at
+                it. Read the AT Protocol specification's Repository
+                section to see what an account's repository actually
+                holds — signed records, in a Merkle structure — and
+                notice that it is a *personal* store, which is exactly
+                why an adversarial game may not use it. Runs on any
+                platform.
+simplified:     A real PDS holds an account's whole public repository —
+                posts, follows, likes — as signed records. This game
+                touches none of that. It uses AT Proto to answer one
+                question ("is this the holder of this DID?") and reads
+                nothing else, so the page describes the part of a PDS
+                the game actually meets.
+verified:       PDS as the host of an account's signed repository —
+                AT Protocol specification, "Personal Data Server" and
+                "Repository"; authentication-only use, and the explicit
+                rejection of writing game records into a player's PDS
+                via Lexicons — ../architecture/02-identity-and-auth.md
+                §2, §3 (Invariant I14). Checked 2026-07-25.
+
+## DESCRIPTION
+
+Your DID resolves to a Personal Data Server — the machine that holds
+your identity records and answers the question of whether a given key
+really is yours. It may be run by a company, or by you.
+
+The game talks to it once, to sign you in, and then stops. Your items,
+your ethecoin, your rig, your heat and your provenance chains live in
+your **home server's** database, which is a different machine with a
+different job (`home-server(7)`).
+
+That separation is deliberate and it is worth understanding rather than
+accepting, because the obvious design is the wrong one. AT Proto would
+technically let this game write item records into your own PDS. It does
+not, and never will.
+
+## REAL-WORLD COUNTERPART
+
+real, simplified — a PDS is a real component of AT Protocol, and
+self-hosting one is a supported thing people actually do. An account's
+repository there is a signed, Merkle-structured collection of records,
+which is genuinely elegant: your posts are verifiable as yours
+independently of who is serving them.
+
+The simplification is scope. This game meets a vanishingly small part of
+a PDS — the identity part — and this page describes that part. The rest
+of the repository model is real and interesting and irrelevant here.
+
+## CAVEATS
+
+**Game state never lives in a player's PDS.** This is Invariant I14, and
+the reasoning is the single clearest lesson in this domain: a PDS is
+*player-controlled infrastructure*, and this is an adversarial game. Any
+value a cheater would want to forge — an item, a balance, a rig stat —
+must live somewhere the cheater does not control, or it is not a fact,
+it is a claim.
+
+The general principle transfers well beyond games, and is worth carrying:
+**self-sovereign identity is not self-sovereign accounting.** Letting
+someone prove who they are is a completely different problem from letting
+them tell you what they own, and systems that conflate the two are
+trivially exploitable.
+```
+
+---
+
+### 3.21 `canonicalization(7)`
+
+```
+id:             canonicalization
+section:        7
+name:           canonicalization
+canonical:      canonicalization
+gloss:          Writing the same data one fixed way, so two copies hash alike.
+status:         real
+aliases:        canonicalisation, canonical form, JCS, normalization
+seeAlso:        hash(7), digital-signature(7), provenance-record(5),
+                character-encoding(7), utf-8(7), byte(7)
+reading:        RFC 8785 "JSON Canonicalization Scheme (JCS)";
+                RFC 8259 (JSON); ECMAScript number-to-string
+                (ECMA-262 §6.1.6.1.20); ../architecture/04-item-provenance.md §4
+notes:          ⚠ Both spellings are in use; `canonicalization` is the
+                RFC's and is the canonical id. Translators should keep
+                the RFC's term rather than a local word for "normalise".
+revision:       1
+
+--- curriculum only, stripped before shipping ---
+
+domain:         07
+stage:          adversarial
+prerequisites:  hash(7), character-encoding(7)
+hook:           The first time `verify` refuses a record that looks
+                perfectly fine on screen, because the bytes it was
+                signed over are not the bytes that arrived.
+misconception:  commonly believed a signature covers "the data", so two
+                copies of the same object with the same fields must
+                verify the same way; actually a signature covers
+                *bytes*, and one object can be written as many different
+                byte strings — reordered keys, different spacing,
+                `1.0` versus `1` — every one of which hashes to
+                something different. Somebody has to decide which
+                spelling is the real one before anybody signs anything.
+transfer:       In any terminal, run
+                `printf '{"a":1,"b":2}' | shasum -a 256` and then
+                `printf '{"b":2,"a":1}' | shasum -a 256`. Same object,
+                two completely different hashes, and therefore two
+                different signatures. Now read RFC 8785 §3, which is
+                the list of decisions somebody had to make to stop that
+                happening. Assumes a Unix shell — see ED-8.
+verified:       JCS as the canonicalization scheme, its key-ordering by
+                UTF-16 code unit and its number formatting rule —
+                RFC 8785 §3.2.3, §3.2.2.3, referencing ECMA-262
+                §6.1.6.1.20; the game's use of JCS —
+                ../architecture/04-item-provenance.md §4; the
+                unpaired-surrogate rejection requirement — RFC 8785
+                §3.2.2.2, and the project's own resolution log entry of
+                2026-07-23 in ../design/15-open-questions.md §3.
+                Checked 2026-07-25.
+
+## DESCRIPTION
+
+A signature is arithmetic over bytes. It does not know what a field is.
+
+That is the whole problem. `{"a":1,"b":2}` and `{"b":2,"a":1}` are the
+same object to every program that reads JSON, and they are two different
+byte strings, so they hash differently and a signature over one will not
+check against the other. Add whitespace, or write `1.0` instead of `1`,
+or escape a character differently, and you have another one.
+
+So before anything can be signed, both sides must agree on exactly one
+way to write it down. That agreement is canonicalization: sort the keys
+this way, format numbers that way, escape strings this way, use no
+insignificant whitespace. This game uses JCS, which is RFC 8785.
+
+The reason it belongs in the adversarial stage rather than filed under
+tidiness: a canonicalizer that lets two different inputs produce the
+same bytes is not a formatting bug, it is a forgery primitive. One
+signature that covers two distinct payloads means an attacker can get
+you to sign one thing and present it as another.
+
+## REAL-WORLD COUNTERPART
+
+real, and this game uses the actual standard. JCS (RFC 8785) fixes
+property order by UTF-16 code unit, and borrows JavaScript's
+number-to-string algorithm — an odd-looking choice that is deliberate,
+because it was already implemented identically everywhere.
+
+The idea is much older than JSON. XML had Canonical XML for the same
+reason and it was notoriously difficult; the XML signature-wrapping
+attacks of the late 2000s are what happens when the canonical form and
+the parsed form disagree about what a document says.
+
+This project met the failure mode directly. Its bundled canonicalizer
+passed a lone unpaired surrogate straight through, and the UTF-8 encoder
+then substituted a replacement character — so two genuinely different
+payloads produced **identical signing bytes**. RFC 8785 §3.2.2.2
+requires that this be an error; the library did not raise it, so the
+wrapper does. That is a real forgery primitive found in real code, and
+the fix is one check.
+```
+
+---
+
+### 3.22 `append-only-log(7)`
+
+```
+id:             append-only-log
+section:        7
+name:           append-only log
+canonical:      append-only log
+gloss:          A record you may add to and never revise, where edits show.
+status:         real
+aliases:        transparency log, hash chain, tamper-evident log,
+                write-once log
+seeAlso:        hash(7), provenance-chain(7), provenance-record(5),
+                digital-signature(7), equivocation(7), last-writer-wins(7)
+reading:        RFC 6962 "Certificate Transparency"; RFC 9162 (CT v2.0);
+                Haber & Stornetta, "How to Time-Stamp a Digital
+                Document", Journal of Cryptology 3(2), 1991;
+                git-log(1), git-cat-file(1)
+revision:       1
+
+--- curriculum only, stripped before shipping ---
+
+domain:         07
+stage:          adversarial
+prerequisites:  hash(7)
+hook:           The public ledger — a record of transfers that anybody
+                can read and nobody, including the server that wrote it,
+                can quietly revise.
+misconception:  commonly believed a tamper-*evident* record is the same
+                as a tamper-*proof* one, so an append-only log stops
+                somebody changing history; actually nothing stops them
+                editing the file. What the structure guarantees is that
+                the edit becomes *visible* — every hash after the change
+                is now wrong. It converts a silent problem into a loud
+                one, which is a smaller claim and a much more achievable
+                one.
+transfer:       In any git repository, run `git log --format='%h %p'` to
+                see each commit naming its parent, then
+                `git cat-file -p HEAD` to see that the commit object
+                literally contains a `parent <hash>` line — which is why
+                the commit id, a hash over that content, changes if any
+                ancestor changes. That is a hash chain you already use
+                every day. Runs anywhere git is installed.
+verified:       Commit objects containing an explicit `parent <hash>`
+                line, confirmed by running `git cat-file -p HEAD` in
+                this repository (2026-07-25); tamper-evidence through
+                hash linking — Haber & Stornetta (1991); public
+                append-only logs with independent auditing as the
+                security argument — RFC 6962 §1-2 and RFC 9162.
+                Checked 2026-07-25.
+
+## DESCRIPTION
+
+The ledger only grows. Entries are added and never edited, and each one
+is bound to the one before it by a hash.
+
+That binding is what does the work. Because every entry names the hash
+of its predecessor, changing an old entry changes its hash, which
+falsifies the next entry's reference, which changes *that* entry's hash,
+and so on to the end. There is no way to alter one thing quietly; you
+would have to rewrite everything after it, in front of everybody holding
+a copy.
+
+Notice what is *not* being claimed. Nobody is prevented from editing the
+file — it is a file. The guarantee is that the edit is detectable by
+anybody who kept an older copy or who checks the chain. Tamper-evident,
+not tamper-proof, and the difference is the entire design.
+
+This is also why the ledger being *public* is a feature rather than a
+privacy failure. A log nobody can read is a log nobody can audit, and an
+unauditable append-only log is just a database with extra steps.
+
+## REAL-WORLD COUNTERPART
+
+real, and older than most people assume: hash-linked timestamping was
+published by Haber and Stornetta in 1991, nearly two decades before it
+was used for cryptocurrency.
+
+The example you already use is git. A commit names its parent, and the
+commit id is a hash over content that includes that parent — which is
+exactly why rewriting history changes every id downstream, and why a
+force-push is visible rather than silent.
+
+The example that matters most in production is Certificate Transparency
+(RFC 6962, now RFC 9162): every publicly-trusted TLS certificate is
+logged to public append-only logs, so a certificate authority that
+issues a certificate for a domain it should not can be *caught* — it
+cannot be *stopped*, which is precisely the tamper-evident bargain.
+Sigstore's Rekor does the same for software signatures.
+
+None of these needs a blockchain. What they need is a hash chain and
+somebody willing to look.
+```
+
+---
+
+### 3.23 `provenance-record(5)`
+
+```
+id:             provenance-record
+section:        5
+name:           provenance record
+canonical:      Provenance record
+gloss:          One signed step in a thing's history, naming what came before.
+status:         real, simplified
+aliases:        provenance entry, signed record
+glossary:       ../design/glossary.md
+seeAlso:        provenance-chain(7), append-only-log(7), did(7),
+                canonicalization(7), digital-signature(7), verify(1),
+                quorum(7), equivocation(7)
+reading:        RFC 7515 "JSON Web Signature", Appendix F (detached
+                content); RFC 8785; RFC 8032 (EdDSA);
+                ../architecture/04-item-provenance.md §2-3
+notes:          A **section 5** page — a record format, like crontab(5),
+                not a concept page. It therefore has a SYNOPSIS, which
+                section 7 pages must never have (00 §5.2).
+revision:       1
+
+--- curriculum only, stripped before shipping ---
+
+domain:         07
+stage:          adversarial
+prerequisites:  append-only-log(7), digital-signature(7)
+hook:           `item-history <item>` — the first time the player reads
+                the actual steps an item took to reach them, rather than
+                a summary of them.
+misconception:  commonly believed a record like this is a receipt — a
+                note *about* the item kept somewhere alongside it;
+                actually the record *is* the item's definition. The
+                stats live in `itemAttrs` inside the signed payload, so
+                there is no separate authoritative copy to disagree with
+                it, and changing a stat means forging a signature rather
+                than editing a row.
+transfer:       Run `git log --show-signature` on any repository with
+                signed commits, or `gpg --verify` on a detached
+                signature file. A detached signature is the same shape
+                as this record's: the signature travels separately from
+                the bytes it covers, and verifying means re-deriving
+                those bytes and checking. Assumes a Unix shell —
+                see ED-8.
+simplified:     The shipped page shows the payload fields but not the
+                envelope's full multi-signature variant, which carries
+                one signature block per validator for duel outcomes
+                (../architecture/04 §3.1). A player reading one record
+                does not need the aggregation rule; a player reading a
+                *contested* record does, and `quorum(7)` has it.
+verified:       Payload field set, `prevRecordHash` linkage, and the
+                nonce/timestamp replay defence —
+                ../architecture/04-item-provenance.md §2; detached-JWS
+                envelope and the multi-signature duel variant — §3,
+                §3.1; JCS canonicalization — §4; Ed25519 signatures —
+                §5, RFC 8032; detached content as a real JWS mode —
+                RFC 7515 Appendix F. Checked 2026-07-25.
+
+## SYNOPSIS
+
+       item-history <item>          # read the records
+       verify <item>                # check them
+
+## DESCRIPTION
+
+One event in an item's life, written down and signed. Minted, granted,
+traded, won in a duel — each is one record.
+
+Every record carries the same fields: which item, what kind of event,
+who holds it afterwards, who issued the record, the hash of the previous
+record, a timestamp and a random nonce. The item's actual stats travel
+inside it too, which is the part worth pausing on — **the record is not
+a note about the item, it is the item's definition.** There is no other
+authoritative copy of an item's power rating to disagree with this one.
+
+The timestamp and nonce are there for one specific attack: without them,
+an old genuine record could be replayed as though it were a new event.
+
+The signature is *detached*, meaning it travels beside the bytes rather
+than wrapped around them. A verifier therefore has to rebuild the exact
+signed bytes before it can check anything, which is why
+`canonicalization(7)` is a prerequisite for this page and not a footnote
+to it.
+
+## REAL-WORLD COUNTERPART
+
+real, simplified — every mechanism here is a real standard used the way
+it is normally used. The envelope is a detached JSON Web Signature
+(RFC 7515, Appendix F). The bytes are canonicalized with JCS (RFC 8785).
+The signature is Ed25519 (RFC 8032). The parties are named by DID.
+
+The everyday counterpart is a signed git commit or a `gpg --verify`
+detached signature: the same three-part shape of *content*, *a
+canonical form of that content*, and *a signature over it by a named
+key*.
+
+The simplification is the envelope's multi-signature variant, used when
+a duel outcome needs a quorum rather than a single issuer. See
+`quorum(7)` and `bft-threshold(7)`.
+```
+
+---
+
+### 3.24 `provenance-chain(7)`
+
+```
+id:             provenance-chain
+section:        7
+name:           provenance chain
+canonical:      Provenance chain
+gloss:          Every step in a thing's history, linked so a gap shows.
+status:         real, simplified
+aliases:        item history, chain of custody, signed history
+glossary:       ../design/glossary.md
+seeAlso:        provenance-record(5), append-only-log(7),
+                canonicalization(7), did(7), quorum(7), verify(1),
+                item-history(1), provenance-tracer(1), trust-anchor(7)
+reading:        RFC 7515 Appendix F; RFC 8785; RFC 8032;
+                git-log(1) --show-signature; RFC 6962 (Certificate
+                Transparency); ../architecture/04-item-provenance.md §6-7
+notes:          ⚠ **The shipped page for this term is already written in
+                full** at ../client/04-terminology-and-education.md §4.9.
+                That page is the ship-side source of truth for the prose;
+                this entry is the curriculum record behind it and adds
+                the eight curriculum-only fields. If the two ever
+                disagree, the curriculum changes first and the shipped
+                page follows (00 §1.2). Do not fork the wording.
+revision:       1
+
+--- curriculum only, stripped before shipping ---
+
+domain:         07
+stage:          adversarial
+prerequisites:  provenance-record(5), canonicalization(7)
+hook:           `verify <item>` returning a status the client worked out
+                for itself — the one number on screen that is not the
+                server's word (../client/00-client-overview.md §1.1).
+misconception:  commonly believed that a chain which verifies proves the
+                events actually happened; actually it proves only that a
+                set of keys attested to them. If every key in a chain
+                belongs to one dishonest server, the chain verifies
+                perfectly and the item is still fabricated — which is
+                exactly why cross-server outcomes need a quorum of
+                independent signers rather than one authority.
+transfer:       Run `git log --show-signature` on a repository with
+                signed commits: you are walking a chain, checking each
+                link's signature against a named key, and the tool will
+                tell you about a broken link rather than about a wrong
+                one. Then consider what it does *not* tell you — whether
+                the person holding that key should have been trusted.
+                Assumes a Unix shell — see ED-8.
+simplified:     The shipped page describes walking the chain and the
+                not-recognised outcome, but not the full verification
+                algorithm for a multi-signature duel record — which also
+                checks that each signer was actually sampled for that
+                duel and that the summed reputation-weight clears the
+                BFT threshold (../architecture/04 §7, ../architecture/05).
+                Those are `quorum(7)`'s and `bft-threshold(7)`'s.
+verified:       Per-item chain model and player-facing history as a
+                requirement — ../architecture/04-item-provenance.md §6,
+                §6.1; the three-step verification algorithm and the
+                not-recognised outcome — §7; client-side verification as
+                the single client-computed truth —
+                ../client/00-client-overview.md §1.1 and
+                ../client/04-terminology-and-education.md §3.5;
+                git commit chaining confirmed by `git cat-file -p HEAD`
+                in this repository. Checked 2026-07-25.
+
+## DESCRIPTION
+
+Every item carries its whole life as a chain of records: minted here,
+granted there, traded, won. Each record names the hash of the record
+before it, and each is signed by whoever issued it.
+
+Your client walks that chain itself, against the issuers' public keys,
+rather than taking the server's word that it checked. That is the one
+thing this client works out for itself — every other number on your
+screen is the server's.
+
+A chain that fails any step means the item is **not recognised**. Not
+"suspicious", not "flagged for review": not recognised. Across the
+federation, that is how a cheating server's fabricated items become
+worthless — not by anyone banning it, but by everyone else declining to
+recognise what it produced.
+
+Verification also works offline, because everything needed is in the
+chain and the keys.
+
+## REAL-WORLD COUNTERPART
+
+real, simplified — hash chains and signed logs, using the same standards
+in the same way. Each record names the hash of the one before it, so
+altering an old record changes every hash after it. Git does exactly
+this, which is why rewriting history changes every id downstream.
+
+The mechanisms are ordinary: detached JWS over JCS-canonicalized JSON,
+signed Ed25519, keys named by DID. Certificate Transparency and
+Sigstore's Rekor are public logs built on the same argument — that
+anybody can check them without trusting the operator.
+
+## CAVEATS
+
+**A chain proves what a set of keys attested. It does not prove the
+events happened.** If every key in a chain belongs to one dishonest
+server, the chain verifies perfectly and the item is still fabricated.
+
+That is why cross-server outcomes here need a quorum of independent
+signers rather than one authority — and it is the same reason real
+transparency logs need independent witnesses. Verification tells you a
+story is consistent, not that it is true.
+
+The simplification: this page describes the single-issuer walk. A
+contested duel record is checked differently — see `quorum(7)`.
+```
+
+---
+
 ## 4. What this domain deliberately does not teach
 
 `00` §7.3 is the governing rule: an entry with no hook is not written, however interesting, because the delivery mechanism is contextual and a concept with no surface has no trigger. What follows is not a list of things judged unimportant. Every item is genuinely worth knowing and none of it has a place in this game to be met.
@@ -1896,10 +2506,10 @@ One deliberate near-miss, recorded so it is not mistaken for an oversight: **the
 
 Prefix **`DS-`**, which is unused across `../design/15-open-questions.md`'s existing id space. Log these in `../design/15-open-questions.md` §2 if this document is adopted.
 
-- **DS-1: ✅ OWNERSHIP RESOLVED with ED-3 (2026-07-25) — the six identity concepts are this document's; ⚠ they are inventoried but not yet written.** `did(7)`, `pds(7)`, `provenance-record(5)`, `provenance-chain(7)`, `canonicalization(7)` and `append-only-log(7)` are assigned here, and this file is renamed `07-distributed-systems-and-identity.md` to say so. The option this document originally recommended — that domain 06 absorb them — was **not** taken, and it is worth recording why, because the argument for it was good. `06-cryptography-and-trust.md` §1.4 had independently ceded all six *here*, on two grounds this document could not see: their game surface is the `identity` window and the item-history view, which are this domain's, and under **R8** a `06` entry may not name a `07` entry in `prerequisites` — so putting them in `06` while `07`'s entries depend on them would have inverted the ladder. Two documents reaching for the same six concepts from opposite directions is what made the gap visible at all. **What remains open is the writing, not the ownership:** three are already promised as shipping pages (`../client/04` §3.10 lists `did` and `provenance-record`; §4.9 contains a fully worked `provenance-chain(7)`), so those three have prose to adapt rather than invent. ⚠ Note also that this document's inventory cites `hash(7)`, `digital-signature(7)` and `public-key-cryptography(7)` by the names used in `00` §6.2's stage table, and `06` in fact spells the third `public-key-cryptography(7)` — **that prerequisite edge is broken today** and is fixed with the six entries.
+- **DS-1: ✅ FULLY RESOLVED (2026-07-25) — the six identity concepts are this document's, and are now written.** Ownership was settled with **ED-3**; the entries followed in the same pass and are §3.19–§3.24. The option this document originally recommended — that domain 06 absorb them — was **not** taken, and the reason is worth keeping, because the argument for it was good. `06-cryptography-and-trust.md` §1.4 had independently ceded all six *here*, on two grounds this document could not see: their game surface is the `identity` window and the item-history view, which are this domain's, and under **R8** a `06` entry may not name a `07` entry in `prerequisites` — so putting them in `06` while `07`'s entries depend on them would have inverted the ladder. Two documents reaching for the same six concepts from opposite directions is what made the gap visible at all. Three had prose to adapt rather than invent: `../client/04` §3.10 lists `did` and `provenance-record`, and §4.9 contains a fully worked `provenance-chain(7)` — which `provenance-chain(7)`'s `notes:` now names as the ship-side source of truth, so the two cannot fork. ⚠ One real defect surfaced while writing them and is fixed: this document had been citing `public-key(7)` and `signature(7)`, which `06` spells `public-key-cryptography(7)` and `digital-signature(7)`, so **sixteen prerequisite and seeAlso edges pointed at entries that did not exist.**
 - **DS-2: three homonyms this domain introduces are not in `../client/04` §2.15's table, and each is a collision with a term another domain will certainly teach.** (1) **fork** — a chain fork here, `fork(2)` the system call that creates a process in domain 02, and a project fork in ordinary use. (2) **partition** — a *network* partition here, the game's **Isolated Partition** rig upgrade, and a disk partition; §2.15 currently records only the second and third, making this a three-way collision. (3) **sequence number** — an issuer's version counter here, and the 32-bit field in every TCP segment in domain 03. Proposed: three rows added to `../client/04` §2.15, and a mandatory `notes:` line on all six entries. §3.8's entry already carries its half.
 - **DS-3: the BFT threshold is stated in two incompatible units and the curriculum has to teach one of them.** `../architecture/05` §1 gives both "`2f+1` of `3f+1` **weighted** validator power" and "**5 of 7** must agree", and these coincide only when reputation weights are equal, which that document's §2.2 (`weight = reputation × uptime`) guarantees they are not. `../architecture/04` already lists the same ambiguity as open (P-1…P-7: "whether the quorum threshold binds on validator count as well as weight"). §3.15 teaches the count form because that is the form the intersection proof covers; if the implementation binds on weight, the entry's arithmetic paragraph must be rewritten and `bft-threshold(7)` may have to become `real, simplified`. **Blocks the technical review of §3.15.**
-- **DS-4: the `adversarial` stage is over-subscribed.** `00` §6.2 budgets roughly 25–40 entries at `adversarial` across all seven domains. This document alone places 21 there, and domain 05 — signatures, key handling, attack classes — is the other natural claimant. Either the budget is generous enough for two domains to dominate one stage (plausible: the other four domains are front-loaded by construction), or a fifth stage is needed for federation play specifically, or some of these entries should move to `investigating` on the argument that a single-player player still meets `verify(1)` and the ledger. Recommend deciding after domain 05's inventory exists, since the two documents share the constraint.
+- **DS-4: ✅ WITHDRAWN — the `adversarial` stage is not over-subscribed, and this document's alarm was a unit error.** The original finding counted this document's **inventory** rows (25) against `00` §6.2's budget, which counts **written** entries. `06-cryptography-and-trust.md` **CT-3** made the identical mistake independently, and two documents agreeing made it look confirmed. Counted correctly: this document writes 15 at `adversarial` and `06` writes 9, the whole curriculum sits at **26** against a 25–40 budget, and the stage is comfortably inside it. `00` §6.2 now states the counting basis explicitly and publishes the measured distribution so this cannot recur. ⚠ **The real overage is elsewhere and nobody flagged it:** `operating` runs 49 written against ~25–40 — logged as **ED-11**. It was invisible to every individual document, because each one's own §2.5 check passed; only the total showed it.
 - **DS-5: `ntp(7)` has a weak hook and may fail `00` §7.3.** No surface in the game shows NTP. It is inventoried because `clock-skew(7)` cannot state its numbers without naming the protocol that produces them, and because "my clock is synchronised, therefore my timestamps are comparable" is a live misconception worth killing. But by the letter of the rule, a concept whose only hook is another entry's citation should be a paragraph inside that entry rather than a page of its own. Recommend folding it into `clock-skew(7)` unless a surface appears.
 - **DS-6: `federation-directory(7)` is `real` in `../client/04` §2.13 and `real, simplified` here.** Applying `00` §4.2's ordered procedure, step 4 fires: a practitioner would wince at "the federation directory" as a definite article, because most real federations — email, Matrix, XMPP — have no directory at all and you find a server by being told about it. The simplification is nameable ("real federations mostly have no index; the game has one, opt-in, trusted for nothing"), and `00` §4.2's downgrade bias says the tie does not go to the flattering label. This is a **finding filed against `../client/04` §2.13**, not a unilateral change: the vocabulary map and the curriculum must not ship different status values for one term.
 - **DS-7: `validator reputation` cannot satisfy the byte-for-byte coverage check.** `../client/04` §4.10's coverage check joins a term file's `canonical:` against `../design/glossary.md` byte for byte. The glossary's entry is a single bullet headed **Reputation** carrying two unrelated meanings, `factionReputation` and `validatorReputation`, deliberately kept apart. No `canonical:` value can match that bullet, and inventing one would defeat the check's purpose. Proposed: split the glossary bullet into two entries, **faction reputation** and **validator reputation**, each retaining the ⚠ cross-reference to the other. Cheap, and it makes the distinction the glossary already insists on machine-checkable. Related to **ED-1**.
