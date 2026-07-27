@@ -126,6 +126,16 @@ public final class UiTokens {
     /** Greeble regenerates on this period; it means nothing, and it must keep meaning nothing. */
     public static final double GREEBLE_MS = 4200;
 
+    /**
+     * The desk wallpaper steps one character cell on this period.
+     *
+     * <p>Slower than the greeble it is made of, and that is the point: greeble sits inside a panel
+     * the player is already looking at, while this is behind everything and in peripheral vision the
+     * whole session. Fast ambient motion in the periphery is the most tiring thing an interface can
+     * do. §5 allows step timing only, so this is a whole-cell jump — nothing here interpolates.
+     */
+    public static final double SUBSTRATE_DRIFT_MS = 1100;
+
     /** How often live readouts twitch to a new figure. */
     public static final double TWITCH_MS = 1900;
 

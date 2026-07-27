@@ -243,6 +243,52 @@ public final class ClientProfile {
         public boolean bandwidthCapsWindows = false;
 
         /**
+         * The desk wallpaper: {@code off}, {@code still} or {@code drift}.
+         *
+         * <p>See {@code ui/widgets/Substrate}. Stored by id rather than as an ordinal so a profile
+         * survives the enum gaining a mode, and read through {@code Substrate.Mode.byId} which
+         * falls back rather than throwing on a value written by a newer client.
+         */
+        public String wallpaper = "drift";
+
+        /**
+         * CRT scanlines over the whole deck.
+         *
+         * <p><b>Opt-in, and the default is not laziness.</b> Scanlines lay a repeating dark band
+         * across every glyph on screen, which costs real contrast on body text — {@code
+         * docs/design/ui-design-language.md} §9 banned them outright until 2026-07-26 and now
+         * permits them as an <em>optional</em> effect. A legibility cost belongs to the player to
+         * accept, so the client never turns it on for them.
+         */
+        public boolean crtScanlines = false;
+
+        /** Chromatic aberration. Opt-in, same argument as {@link #crtScanlines}. */
+        public boolean crtAberration = false;
+
+        /**
+         * VHS-style signal glitch — occasional tracking bands.
+         *
+         * <p>Opt-in, and additionally suppressed whenever reduced motion is on: it is the only one
+         * of the three that moves, and §5 makes {@code prefers-reduced-motion} non-optional.
+         */
+        public boolean crtGlitch = false;
+
+        /**
+         * Simulated tube curvature, 0–100. Drives the radial edge aberration and the glass boundary.
+         *
+         * <p>⚠ <b>It does not warp the interface</b>, and cannot: real barrel distortion needs a
+         * pixel shader or a per-frame render-to-texture mapped onto a 3D mesh, and the second one
+         * both costs tens of milliseconds a frame and breaks click hit-testing, because the pointer
+         * would land where the undistorted node is rather than where the player sees it. What this
+         * scales is the aberration and the bowed glass edge — the part of the effect that is
+         * genuinely visible and genuinely affordable. Named {@code curvature} anyway because that is
+         * what the player is dialling, and {@code CrtOverlay} states the limit in one paragraph.
+         *
+         * <p>Zero by default, like every other artefact.
+         */
+        public int crtCurvature = 0;
+
+        /**
          * Window id → OS-window geometry, from the {@code Stage}-per-tool era.
          *
          * @deprecated superseded by {@link #deskLayout}; retained so older profiles still

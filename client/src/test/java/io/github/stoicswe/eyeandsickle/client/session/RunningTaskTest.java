@@ -110,11 +110,15 @@ class RunningTaskTest {
         }
 
         @Test
-        @DisplayName("the cost stays on the task after its cycles have finished recovering")
-        void costSurvivesRecovery(@TempDir Path dir) {
-            // A Thorough Scan costs 35 cycles that come back in under three minutes on a lean rig,
-            // but the scan runs for six. Reading the live allocation for the cycle figure made the
-            // readout show "0C" halfway through a scan the player had just paid 35 cycles for.
+        @DisplayName("UI-6 — a running scan's cycles are HELD, and the task keeps reporting the cost")
+        void costIsHeldForTheScansDuration(@TempDir Path dir) {
+            // This test used to assert the opposite half of the same readout: under the old
+            // spend-immediately model a Thorough Scan's 35 cycles were back in under three minutes
+            // while the scan ran for six, and reading the live allocation for the cycle figure made
+            // the readout show "0C" halfway through a scan the player had just paid 35 for.
+            // UI-6 (docs/design/04-mining.md §3.2) made that impossible: the cycles are held for the
+            // whole six minutes. Keeping the test pointed at the new truth rather than deleting it —
+            // "what does the readout say five minutes in" is still the question that caught the bug.
             MutableClock clock = new MutableClock(T0);
             LocalGameSession s = session(dir, clock);
             s.scan("thorough");
@@ -122,12 +126,15 @@ class RunningTaskTest {
             clock.advance(Duration.ofMinutes(5));
             s.tick();
 
+            assertThat(s.computeBudget().allocated().cycles())
+                    .as("five minutes into a six-minute scan the cycles are still gone")
+                    .isEqualTo(35);
             assertThat(s.computeBudget().recovering().cycles())
-                    .as("the cycles have come back by now")
+                    .as("and nothing is recovering yet — that starts when the scan ends")
                     .isZero();
             assertThat(s.tasks()).hasSize(1);
             assertThat(s.tasks().getFirst().cycles())
-                    .as("but the task still reports what it cost")
+                    .as("the task still reports what it cost")
                     .isEqualTo(35);
         }
 
@@ -146,9 +153,18 @@ class RunningTaskTest {
 
             clock.advance(Duration.ofSeconds(2));
             s.tick();
-            assertThat(s.tasks()).isEmpty();
             assertThat(s.log(7, 100))
                     .anyMatch(l -> l.facility().equals("scan") && l.message().contains("finished"));
+
+            // UI-6: the scan is gone but the rig is not whole yet — the 5 held cycles have just been
+            // handed to the thermal curve, and the readout shows THAT as the running work now. The
+            // player is meant to see the second half of the cost, not a rig that looks free.
+            assertThat(s.tasks())
+                    .as("the scan task is finished")
+                    .noneMatch(t -> t.label().contains("scan --quick"));
+            assertThat(s.tasks())
+                    .as("but its recovery is now the running work")
+                    .anyMatch(t -> t.facility().equals("compute") && t.cycles() == 5);
         }
 
         @Test

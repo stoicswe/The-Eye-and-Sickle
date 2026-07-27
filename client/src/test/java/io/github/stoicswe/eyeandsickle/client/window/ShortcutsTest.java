@@ -118,8 +118,11 @@ class ShortcutsTest {
             assertThat(s.run("mine --allocate=40").status()).isEqualTo(ExitStatus.OK);
             assertThat(s.session().computeBudget().allocated().cycles()).isEqualTo(40);
 
+            // UI-6: a running scan HOLDS its 5 cycles, so they land in `allocated` beside the 40
+            // committed to mining above. They only move to `recovering` when the scan ends.
             assertThat(s.run("scan --quick").status()).isEqualTo(ExitStatus.OK);
-            assertThat(s.session().computeBudget().recovering().cycles()).isEqualTo(5);
+            assertThat(s.session().computeBudget().allocated().cycles()).isEqualTo(45);
+            assertThat(s.session().computeBudget().recovering().cycles()).isZero();
         }
 
         @Test

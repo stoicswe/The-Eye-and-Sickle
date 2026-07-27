@@ -9,6 +9,7 @@ import io.github.stoicswe.eyeandsickle.client.window.WindowSpec;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 /**
  * Commands that act on the client rather than on the game.
@@ -196,6 +197,84 @@ public final class ClientCommands {
                             : "snap-to-grid on — windows align to the grid, and tile when dragged "
                                     + "against an edge of the desk");
                 }));
+
+        // Pillar C1: everything Settings can do, the terminal can do. Both go through the same
+        // profile and the same apply call, so they cannot disagree about what is on.
+        registry.add(new Simple(
+                "wallpaper",
+                List.of(),
+                "Set the desk wallpaper: off, still or drift.",
+                true,
+                inv -> {
+                    Optional<String> arg = inv.stage().argument(0);
+                    if (arg.isEmpty()) {
+                        return Command.Output.ok("wallpaper is " + profile.settings().wallpaper
+                                + " — `wallpaper off|still|drift`");
+                    }
+                    String want = arg.get().toLowerCase(java.util.Locale.ROOT);
+                    var mode = io.github.stoicswe.eyeandsickle.client.ui.WallpaperMode.byId(want);
+                    if (mode.isEmpty()) {
+                        // 64 EX_USAGE with the accepted values, never a bare "invalid argument" —
+                        // a refusal that does not say what would have worked teaches nothing.
+                        return Command.Output.usage("wallpaper: expected off, still or drift");
+                    }
+                    profile.settings().wallpaper = mode.get().id();
+                    profile.save();
+                    onDeskChanged.run();
+                    return Command.Output.ok("wallpaper " + mode.get().id() + " — " + mode.get().note());
+                }));
+
+        registry.add(new Simple(
+                "crt",
+                List.of(),
+                "Screen artefacts: scanlines, aberration, glitch, curvature.",
+                true,
+                inv -> {
+                    Optional<String> arg = inv.stage().argument(0);
+                    ClientProfile.Settings s = profile.settings();
+                    if (arg.isEmpty()) {
+                        return Command.Output.ok("scanlines " + onOff(s.crtScanlines)
+                                + " · aberration " + onOff(s.crtAberration)
+                                + " · glitch " + onOff(s.crtGlitch)
+                                + " · curvature " + s.crtCurvature + "%"
+                                + " — `crt scanlines|aberration|glitch`, `crt curvature <0-100>`");
+                    }
+                    String which = arg.get().toLowerCase(java.util.Locale.ROOT);
+                    if ("curvature".equals(which)) {
+                        Optional<String> value = inv.stage().argument(1);
+                        if (value.isEmpty()) {
+                            return Command.Output.ok("curvature " + s.crtCurvature + "%");
+                        }
+                        int wanted;
+                        try {
+                            wanted = Integer.parseInt(value.get().trim());
+                        } catch (NumberFormatException bad) {
+                            return Command.Output.usage("crt curvature: expected 0-100");
+                        }
+                        s.crtCurvature = Math.max(0, Math.min(100, wanted));
+                        profile.save();
+                        onDeskChanged.run();
+                        return Command.Output.ok("curvature " + s.crtCurvature
+                                + "% — rim aberration only; the picture is not warped");
+                    }
+                    boolean now;
+                    switch (which) {
+                        case "scanlines" -> now = s.crtScanlines = !s.crtScanlines;
+                        case "aberration" -> now = s.crtAberration = !s.crtAberration;
+                        case "glitch" -> now = s.crtGlitch = !s.crtGlitch;
+                        default -> {
+                            return Command.Output.usage(
+                                    "crt: expected scanlines, aberration, glitch, or curvature <0-100>");
+                        }
+                    }
+                    profile.save();
+                    onDeskChanged.run();
+                    return Command.Output.ok(which + " " + onOff(now));
+                }));
+    }
+
+    private static String onOff(boolean on) {
+        return on ? "on" : "off";
     }
 
     private static String pad(String s, int width) {

@@ -214,6 +214,7 @@ public class EyeAndSickleClient extends Application {
         if (deck != null) {
             deck.applyPlacementSetting();
             deck.applyWindowCapSetting();
+            deck.applyScreenSettings();
         }
     }
 

@@ -81,6 +81,12 @@ public final class DeckShell {
                     ? "CMD "
                     : "CTRL ";
 
+    /** How many nodes the glitch edge-walk may visit per window. Bounds an FX-thread walk. */
+    private static final int GLITCH_NODE_BUDGET = 220;
+
+    /** Smallest node that counts as having an edge. Below this the effect degenerates into static. */
+    private static final double GLITCH_MIN_EDGE = 14;
+
     private final GameSession session;
     private final Shell shell;
     private final ClientProfile profile;
@@ -96,6 +102,9 @@ public final class DeckShell {
     private final VBox rail = new VBox(UiTokens.SPACE_6);
     private final VBox launcher = new VBox(3);
     private final Greeble commandGreeble = new Greeble(28);
+    private final io.github.stoicswe.eyeandsickle.client.ui.widgets.Substrate substrate =
+            new io.github.stoicswe.eyeandsickle.client.ui.widgets.Substrate();
+    private final CrtOverlay crt = new CrtOverlay();
 
     private final KeyValue operator = KeyValue.of("Operator", "—");
 
@@ -203,11 +212,20 @@ public final class DeckShell {
                 UiTokens.STRIP_HEIGHT + UiTokens.SPACE_6, UiTokens.SPACE_6, 0, 0));
         notices.watch(session);
 
-        root.getChildren().addAll(deckRoot, notices, pause);
+        // The wallpaper goes inside the desk rather than behind the whole deck, because every other
+        // region paints an opaque background over it — a backdrop under `root` would be invisible.
+        desk.setBackdrop(substrate);
+
+        // ⚠ The CRT layer is LAST, so it sits above the pause menu and the notices as well as the
+        // deck. That is the whole point of it: it is the screen the interface is being displayed on,
+        // and an artefact that stopped at the edge of a dialog would give the dialog away as not
+        // being part of the same picture. It is mouse-transparent, or it would eat every click.
+        root.getChildren().addAll(deckRoot, notices, pause, crt);
 
         buildRail();
         applyPlacementSetting();
         applyWindowCapSetting();
+        applyScreenSettings();
         desk.setOnRefusal(this::showRefusal);
         desk.addListener(this::refreshRail);
 
@@ -757,6 +775,86 @@ public final class DeckShell {
     }
 
     /**
+     * Applies the wallpaper and the three CRT artefacts from Settings.
+     *
+     * <p>All four are player-chosen appearance, which is what {@code ui-design-language.md} §9's
+     * 2026-07-26 amendment permits — scanlines, aberration and light glitch as <em>optional</em>
+     * effects, with bezel and vignette still cut. Every one ships off or quiet, because each costs
+     * either contrast or motion and neither is the client's to spend on a player's behalf.
+     */
+    /**
+     * Every element the signal glitch may tear.
+     *
+     * <p>Window frames <em>and</em> the elements inside them — a headline, a table row, a meter, a
+     * button — because that is what makes the artefact read as signal break-up rather than as
+     * rectangles drawn over the picture. It is computed on demand rather than cached: the walk only
+     * runs when a glitch actually fires, which is roughly every few seconds at most, and a cache
+     * would be wrong the moment a window moved.
+     *
+     * <p>Bounded three ways, because this runs on the FX thread: only non-minimised windows, at most
+     * {@link #GLITCH_NODE_BUDGET} nodes visited per window, and only nodes large enough to have a
+     * visible edge. Without the size floor every one-pixel hairline in the client becomes a
+     * candidate and the effect turns into uniform static, which is the opposite of the ask.
+     *
+     * <p>⚠ <b>Nodes, not bounds.</b> The overlay jogs these sideways with {@code translateX} so the
+     * picture itself moves — handing it geometry instead would only let it paint marks on top of an
+     * interface that never budged, which is what the first attempt did and why it did not read as a
+     * tape fault.
+     */
+    private List<Node> glitchEdges() {
+        List<Node> out = new ArrayList<>();
+        // The top strip is chrome and always present, so there is something to tear even on a bare
+        // desk — but only the strip, so an empty desk stays nearly quiet. That is intended: the
+        // artefact should track how much interface is actually on screen.
+        addEdge(out, topStrip);
+        for (DeskManager.DeskWindow window : desk.windows()) {
+            Region frame = window.frame();
+            if (!frame.isVisible() || frame.getWidth() <= 0 || frame.getHeight() <= 0) {
+                continue;
+            }
+            addEdge(out, frame);
+            collectInnerEdges(frame, out, new int[] {GLITCH_NODE_BUDGET});
+        }
+        return out;
+    }
+
+    /** Breadth-first over a window's contents, stopping once the visit budget is spent. */
+    private void collectInnerEdges(Region root, List<Node> out, int[] budget) {
+        java.util.Deque<Node> queue = new java.util.ArrayDeque<>();
+        queue.add(root);
+        while (!queue.isEmpty() && budget[0] > 0) {
+            Node node = queue.poll();
+            budget[0]--;
+            if (node instanceof javafx.scene.Parent parent) {
+                for (Node child : parent.getChildrenUnmodifiable()) {
+                    if (child.isVisible()) {
+                        queue.add(child);
+                    }
+                }
+            }
+            if (node != root) {
+                javafx.geometry.Bounds local = node.getBoundsInLocal();
+                if (local.getWidth() >= GLITCH_MIN_EDGE && local.getHeight() >= GLITCH_MIN_EDGE) {
+                    addEdge(out, node);
+                }
+            }
+        }
+    }
+
+    private void addEdge(List<Node> out, Node node) {
+        out.add(node);
+    }
+
+    public void applyScreenSettings() {
+        substrate.setMode(WallpaperMode.byId(profile.settings().wallpaper).orElse(WallpaperMode.DRIFT));
+        substrate.setAberration(profile.settings().crtAberration);
+        crt.setEdgeSource(this::glitchEdges);
+        crt.setCurvature(profile.settings().crtCurvature / 100.0d);
+        crt.setScanlines(profile.settings().crtScanlines);
+        crt.setGlitch(profile.settings().crtGlitch);
+    }
+
+    /**
      * Shows a refusal in the top strip.
      *
      * <p>Not a modal: §3 bans them, and §6 requires the message to name the constraint rather than
@@ -951,6 +1049,11 @@ public final class DeckShell {
         }
         commandGreeble.dispose();
         noise.dispose();
+        // Both hold a Pulse subscription, and a subscription outliving its node keeps a dead scene
+        // graph alive and repainting — a shell dropped on the way back to the menu would otherwise
+        // leave a wallpaper ticking behind the main menu forever.
+        substrate.dispose();
+        crt.dispose();
         notices.detach();
         pause.dispose();
         desk.closeAll();

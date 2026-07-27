@@ -1,0 +1,188 @@
+name: build
+
+# Every push and PR builds and tests. A `v*` tag additionally publishes a release
+# carrying the runnable jars — see the `release` job.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Least privilege by default. The release job widens this for itself alone.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Java 25 is the target CLAUDE.md fixes, not merely the version that happens to work.
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '25'
+          distribution: temurin
+          cache: maven
+
+      # `verify` deliberately, not `-Pit verify`: CLAUDE.md makes it an invariant that the
+      # default build never requires Docker, so a container-less runner is a supported
+      # configuration rather than a lucky one. The Testcontainers suite needs its own job.
+      #
+      # `install` rather than `package` because the reactor's own modules depend on each
+      # other, and client-dist consumes the client jar.
+      - name: Build, test, and package every platform
+        run: mvn -B -ntp clean install
+
+      # ⚠ A green build has repeatedly not meant a working artifact on this project, and the
+      # jars are the thing being shipped. Assert they exist and carry the right native for
+      # their platform: JavaFX names natives for the OS but NOT the architecture, so a
+      # packaging mistake yields five jars that all look correct and half of which cannot
+      # start. `file` on one library per jar is the cheapest check that would have caught it.
+      - name: Verify each client jar carries its own architecture
+        run: |
+          set -euo pipefail
+          # A `case` rather than an associative array: `declare -A` needs bash 4, which the
+          # runner has and macOS does not, and a step nobody can run locally is a step nobody
+          # checks before pushing.
+          for p in win mac mac-aarch64 linux linux-aarch64; do
+            case "$p" in
+              win)           want="PE32+*x86-64*" ;;
+              mac)           want="Mach-O*x86_64*" ;;
+              mac-aarch64)   want="Mach-O*arm64*" ;;
+              linux)         want="ELF*x86-64*" ;;
+              linux-aarch64) want="ELF*ARM aarch64*" ;;
+            esac
+            jar=$(ls client-dist/target/*-"$p".jar)
+            rm -rf /tmp/nat && mkdir -p /tmp/nat
+            # `|| true` because unzip exits 11 for the two patterns that cannot match — only
+            # one glass native exists per jar. The real assertion is the emptiness check below,
+            # which also catches the case this step exists for: a jar with no native at all.
+            unzip -o -q "$jar" 'libglass.dylib' 'libglass.so' 'glass.dll' -d /tmp/nat || true
+            lib=$(ls /tmp/nat | head -1)
+            if [ -z "$lib" ]; then
+              echo "::error::$p jar contains no glass native"; exit 1
+            fi
+            desc=$(file -b "/tmp/nat/$lib")
+            echo "$p -> $lib :: $desc"
+            case "$desc" in
+              $want) ;;
+              *) echo "::error::$p jar carries the wrong architecture: $desc"; exit 1 ;;
+            esac
+          done
+
+      - name: Collect artifacts
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp client-dist/target/eyeandsickle-client-dist-*-{win,mac,mac-aarch64,linux,linux-aarch64}.jar dist/
+          # The `-boot` classifier IS the runnable server; the unclassified jar is the plain
+          # library artifact that keeps `server` resolvable as a normal dependency (server/pom.xml).
+          cp server/target/eyeandsickle-server-*-boot.jar dist/
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: distributions
+          path: dist/
+          retention-days: 14
+
+  release:
+    # Tags only. A branch push builds and tests but publishes nothing.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: distributions
+          path: dist
+
+      # Built jars carry the POM version (0.1.0-SNAPSHOT), which would be actively misleading
+      # hanging off a v1.2.3 release page. Renamed rather than running `versions:set` during the
+      # build, so the tag never has to agree with a file nobody remembered to bump.
+      - name: Name the files after the tag, and checksum them
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          cd dist
+          # Iterating the known platforms rather than parsing them out of the filename: the
+          # patterns are unambiguous (`*-mac.jar` cannot match `*-mac-aarch64.jar`) and a
+          # renaming step that silently no-ops is how a release ships one fewer file than it
+          # should. A missing platform now fails the job instead.
+          for platform in win mac mac-aarch64 linux linux-aarch64; do
+            src=$(ls eyeandsickle-client-dist-*-"$platform".jar)
+            mv "$src" "the-eye-and-sickle-${version}-${platform}.jar"
+          done
+          server=$(ls eyeandsickle-server-*-boot.jar)
+          mv "$server" "the-eye-and-sickle-server-${version}.jar"
+          # Published so a download can be verified. This game's own manual teaches why that
+          # matters; shipping unverifiable binaries alongside it would be poor form.
+          sha256sum ./*.jar > SHA256SUMS
+          cat SHA256SUMS
+
+      # `gh` is preinstalled on GitHub runners, so releasing needs no third-party action and
+      # therefore adds no supply-chain surface to a repository that publishes executables.
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+
+          # A tag carrying a hyphen (v1.0.0-rc1, v0.2.0-beta) is a prerelease. Computed into a
+          # variable rather than inlined as $( ) in the argument list, where an unset result and
+          # a failed test are indistinguishable.
+          prerelease=""
+          case "$GITHUB_REF_NAME" in
+            *-*) prerelease="--prerelease" ;;
+          esac
+
+          # ⚠ Built with printf, not a heredoc. A heredoc body has to sit at column 0 to let an
+          # unindented terminator close it, and column 0 breaks straight out of this YAML block
+          # scalar — the workflow then fails to parse rather than failing to run. Every line here
+          # stays indented, so the YAML and the shell agree.
+          printf '%s\n' \
+            "## The Eye and Sickle $version" \
+            "" \
+            "### Client — pick your platform" \
+            "" \
+            "Run with \`java -jar <file>\`. Requires a **JDK or JRE 25+** on your machine; these do" \
+            "not bundle a Java runtime." \
+            "" \
+            "| File | For |" \
+            "|---|---|" \
+            "| the-eye-and-sickle-$version-win.jar | Windows (x64) |" \
+            "| the-eye-and-sickle-$version-mac-aarch64.jar | macOS (Apple Silicon) |" \
+            "| the-eye-and-sickle-$version-mac.jar | macOS (Intel) |" \
+            "| the-eye-and-sickle-$version-linux.jar | Linux (x64) |" \
+            "| the-eye-and-sickle-$version-linux-aarch64.jar | Linux (ARM) |" \
+            "" \
+            "The client runs **offline out of the box** — no account, no network, no database." \
+            "" \
+            "### Server" \
+            "" \
+            "the-eye-and-sickle-server-$version.jar — the self-hostable home server." \
+            "Needs PostgreSQL; see \`deploy/\` for Docker Compose." \
+            "" \
+            "### Verifying" \
+            "" \
+            "SHA256SUMS covers every jar: \`sha256sum -c SHA256SUMS\`" \
+            > notes.md
+          cat notes.md
+
+          gh release create "$GITHUB_REF_NAME" \
+            --title "The Eye and Sickle $version" \
+            --notes-file notes.md \
+            --verify-tag \
+            $prerelease \
+            dist/*.jar dist/SHA256SUMS

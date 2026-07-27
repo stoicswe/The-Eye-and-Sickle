@@ -97,7 +97,9 @@ Automated, compute-expensive, faster:
 | **Full** | 15 | ~2 min | All unhidden miners; some rootkit-wrapped |
 | **Thorough** | 35 | ~6 min | All miners, including rootkit-wrapped |
 
-Scan cycles recover on the Thermal Budget curve (`01-core-resources.md` §1.3): a Thorough Scan on a heavily loaded rig leaves you effectively down 35 cycles for far longer than the scan runs — precisely when you're least able to respond to anything else. **Scanning aggressively while overextended is punishing; scanning while lean is cheap.** That asymmetry is the design.
+**A scan holds its cycles for its Duration, and only then do they start recovering** on the Thermal Budget curve (`01-core-resources.md` §1.3). The two columns compose rather than run in parallel: a Thorough Scan takes 35 cycles out of the rig for ~6 minutes and *then* the recovery curve begins, so the player is down 35 cycles for the scan plus the recovery — on a heavily loaded rig, far longer again, precisely when they're least able to respond to anything else. **Scanning aggressively while overextended is punishing; scanning while lean is merely expensive.** That asymmetry is the design.
+
+> **Decided 2026-07-26 (UI-6).** This was previously spend-immediately: the cycles went onto the recovery curve the moment the scan started, so on a lean rig a Thorough Scan's 35 cycles were back in about four minutes — *inside* the six-minute scan that paid for them, which made the paragraph above false for exactly the players it was written about. Hold-then-recover is the reading that makes the published Duration cost something. It roughly doubles a Thorough Scan's real cost; see `15-open-questions.md` §3 for what was re-checked alongside it.
 
 ### 3.3 Detection legibility (the established answer)
 

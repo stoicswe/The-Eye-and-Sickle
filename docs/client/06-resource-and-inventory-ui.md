@@ -199,18 +199,21 @@ Two things follow that an implementer must not get wrong:
 
 C3 requires every number that moved to explain itself, and `00-client-overview.md` §6.3 binds `Alt`/`Option` to reveal attribution overlays on every visible meter.
 
-**Held `Alt`** labels each segment in place: consumer name, cycles, and the timestamp it was allocated (`Breacher #3 · 22 c · since 14:02:11`). Recovering segments name the action that spent them and when they return (`Thorough Scan · 35 c · spent 21:04:33 · returns 21:31:12`).
+**Held `Alt`** labels each segment in place: consumer name, cycles, and the timestamp it was allocated (`Breacher #3 · 22 c · since 14:02:11`). Recovering segments name the action that spent them and when they return (`Thorough Scan · 35 c · released 21:10:33 · returns 21:37:12`).
 
 **The compute journal** is a collapsible panel in `rig-monitor` listing the last 20 allocation events, newest first, built from `es-log-line`:
 
 ```
-21:31:12  ●  recovery      +35 c returned            Thorough Scan
+21:37:12  ●  recovery      +35 c returned            Thorough Scan
 21:14:07  ●  bot_frame     −22 c destroyed           Breacher #3
-21:04:33  ●  scan          −35 c → recovering        Thorough Scan · load 84% ×4.6
+21:10:33  ●  scan          −35 c → recovering        Thorough Scan ended · load 84% ×4.6
+21:04:33  ●  scan          −35 c held                Thorough Scan · ~6 min
 20:58:02  ●  control_ch    −3 c reserved             miner @ node 4c-11
 ```
 
-The `load 84% ×4.6` suffix on the spend row is the whole point: three hours later, when a player asks why a scan took twenty-seven minutes to come back, the answer is on the line that spent it. That is C3 as a data-retention requirement rather than a hover state.
+**A scan is two rows, not one** — held when it starts, released onto the recovery curve when it ends (`../design/04-mining.md` §3.2, decided as **UI-6**). Collapsing them into a single spend row would hide the half of the cost the player actually feels, which is the six minutes during which the cycles are simply gone.
+
+The `load 84% ×4.6` suffix on the release row is the whole point: three hours later, when a player asks why a scan took twenty-seven minutes to come back, the answer is on the line that released it. That is C3 as a data-retention requirement rather than a hover state. ⚠ The multiplier belongs on the **release** row rather than the start row, because under hold-then-recover the load that sets the curve is the load at the moment the cycles let go — which is not necessarily the load when the player pressed the button.
 
 New lines append; the view never re-sorts under the cursor (`01-visual-language.md` §7.3).
 

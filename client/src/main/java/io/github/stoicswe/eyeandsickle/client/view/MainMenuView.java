@@ -11,6 +11,7 @@ import javafx.geometry.Pos;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
+import javafx.scene.control.Tooltip;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
@@ -106,7 +107,18 @@ public final class MainMenuView {
         Button quit = menuButton("Quit", actions::quit);
         Label profileNote = new Label("Profile: " + profile.directory());
         profileNote.getStyleClass().add("es-text-secondary");
-        profileNote.setWrapText(true);
+        // ⚠ Must be the thing that gives way when the footer is short of room, and it was not.
+        // It carries the profile path — ~70 characters on macOS — and as a wrapping Label it held
+        // its width while the two Buttons beside it shrank to their ellipsis, so a freshly-launched
+        // client with no saved window geometry showed "..." where "Settings" and "Quit" should be.
+        // A truncated PATH still tells the player where to look; a truncated BUTTON tells them
+        // nothing and cannot be guessed. minWidth(0) lets it shrink, and the tooltip keeps the whole
+        // path reachable at any size.
+        profileNote.setWrapText(false);
+        profileNote.setMinWidth(0);
+        profileNote.setTextOverrun(javafx.scene.control.OverrunStyle.CENTER_ELLIPSIS);
+        HBox.setHgrow(profileNote, Priority.SOMETIMES);
+        Tooltip.install(profileNote, new Tooltip(profile.directory().toString()));
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -290,6 +302,11 @@ public final class MainMenuView {
         b.getStyleClass().add("es-menu-button");
         // docs/client/07 §3.8 — WCAG SC 2.5.8 wants a 24x24 minimum target; menu buttons get more.
         b.setMinHeight(34);
+        // ⚠ And never narrower than its own label. A Labeled's default minimum width is the width
+        // of an ellipsis, so an HBox short of space silently renders a button as "...", which is
+        // both unreadable and — since SC 2.5.8 is about the TARGET — smaller than the minimum it
+        // was just given a height for. Height alone does not make a target.
+        b.setMinWidth(Region.USE_PREF_SIZE);
         b.setOnAction(e -> action.run());
         return b;
     }

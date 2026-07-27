@@ -62,6 +62,7 @@ public final class DeskManager {
 
     private final Pane desk = new Pane();
     private final Region snapPreview = new Region();
+    private Region backdrop;
     private final Map<String, DeskWindow> windows = new LinkedHashMap<>();
     private final List<Runnable> listeners = new ArrayList<>();
 
@@ -90,10 +91,53 @@ public final class DeskManager {
                 focus(null);
             }
         });
+        // ⚠ The backdrop follows the DESK's own size, not a reflow() call from the shell. The shell
+        // reflows on the deck's width/height listeners, which fire when the BorderPane's own size
+        // changes — that is BEFORE the BorderPane lays out its centre, so `desk.getWidth()` is still
+        // the previous value at that moment. Windows survive it because they only clamp against the
+        // desk; the backdrop does not, and the symptom is a wallpaper permanently sized 0×0 while
+        // every widget test and every panel around it renders perfectly. Measured, not theorised.
+        desk.widthProperty().addListener((obs, was, now) -> layoutBackdrop());
+        desk.heightProperty().addListener((obs, was, now) -> layoutBackdrop());
     }
 
     public Region root() {
         return desk;
+    }
+
+    /**
+     * Puts a node behind every window on the desk — the wallpaper.
+     *
+     * <p>Kept generic on purpose: the window manager's job is z-order and geometry, and what the
+     * backdrop actually draws belongs to {@code ui/widgets}. This is the seam between them.
+     *
+     * <p>⚠ <b>Unmanaged and mouse-transparent, for two different reasons.</b> Unmanaged because a
+     * managed child of a {@code Pane} is repositioned by the Pane's own {@code layoutChildren},
+     * which silently undoes {@code resizeRelocate} — the same trap every desk window is
+     * {@code setManaged(false)} for. Mouse-transparent because {@link #focus} is dropped on a press
+     * whose target <em>is</em> the desk; a backdrop that accepted events would become the target and
+     * clicking bare desk would stop clearing focus, which no geometry test would catch.
+     *
+     * <p>Inserted at index 0 so it sits under the snap preview as well as under the windows.
+     */
+    public void setBackdrop(Region backdrop) {
+        if (this.backdrop != null) {
+            desk.getChildren().remove(this.backdrop);
+        }
+        this.backdrop = backdrop;
+        if (backdrop == null) {
+            return;
+        }
+        backdrop.setManaged(false);
+        backdrop.setMouseTransparent(true);
+        desk.getChildren().add(0, backdrop);
+        layoutBackdrop();
+    }
+
+    private void layoutBackdrop() {
+        if (backdrop != null) {
+            backdrop.resizeRelocate(0, 0, desk.getWidth(), desk.getHeight());
+        }
     }
 
     /** Free-drag or snap-to-grid. §11 question 1, shipped as a setting rather than a decision. */
@@ -861,6 +905,9 @@ public final class DeskManager {
 
     /** Called by the shell when the desk resizes. */
     public void reflow() {
+        // The backdrop first: it is unmanaged, so nothing else will ever resize it, and a wallpaper
+        // still at its old size is visible as a hard edge across the desk.
+        layoutBackdrop();
         for (DeskWindow window : windows.values()) {
             window.reflow(desk.getWidth(), desk.getHeight());
         }

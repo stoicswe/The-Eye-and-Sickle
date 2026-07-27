@@ -91,6 +91,13 @@ public final class DeckSnapshot {
         // every window laid out correctly and the snapshot was empty, because Motion.reveal had
         // clipped each panel to zero width and no pulse ever ran to open it.
         profile.settings().reducedMotionOverride = Boolean.TRUE;
+        // The screen artefacts ship off, so a snapshot with the defaults would prove only that they
+        // are off. Turned on here because the render IS the check for them — none of the three has a
+        // failure mode a text assertion could catch.
+        profile.settings().crtScanlines = true;
+        profile.settings().crtAberration = true;
+        profile.settings().crtGlitch = true;
+        profile.settings().crtCurvature = 100;
         ThemeManager themes = new ThemeManager(profile);
 
         var game = SoloGame.open(new SaveStore(profileDir.resolve("save.json")), "halflight", Clock.systemUTC());
@@ -188,6 +195,42 @@ public final class DeckSnapshot {
                 write(scene.snapshot(null), outputDir.resolve("deck-paused.png").toFile());
                 deck.togglePause();
                 System.out.println("wrote deck-paused.png");
+
+                // ⚠ A bare desk, and it is the ONLY frame in which the wallpaper is visible at all:
+                // every other snapshot tiles four windows edge to edge, so the backdrop is covered
+                // by definition. Without this the whole Substrate layer could be drawing nothing and
+                // every image here would look correct — which is precisely the failure mode a
+                // snapshot harness exists to catch.
+                // The signal glitch, forced. It fires on a random Pulse tick and no Pulse frame runs
+                // in a synchronous render, so left alone this frame would show nothing and prove
+                // nothing. Forcing one spawn is the same call the ticker makes.
+                try {
+                    var crtField = DeckShell.class.getDeclaredField("crt");
+                    crtField.setAccessible(true);
+                    Object overlay = crtField.get(deck);
+                    var spawn = overlay.getClass().getDeclaredMethod("spawnBandForTest");
+                    spawn.setAccessible(true);
+                    spawn.invoke(overlay);
+                    // And drive the tube animation far enough for the refresh bar to be on screen —
+                    // it starts above the top edge, so frame zero shows nothing of it.
+                    var scan = overlay.getClass().getDeclaredMethod("advanceScanForTest");
+                    scan.setAccessible(true);
+                    for (int i = 0; i < 34; i++) {
+                        scan.invoke(overlay);
+                    }
+                    scene.getRoot().applyCss();
+                    deck.root().layout();
+                    write(scene.snapshot(null), outputDir.resolve("deck-glitch.png").toFile());
+                    System.out.println("wrote deck-glitch.png");
+                } catch (Exception e) {
+                    System.out.println("glitch frame skipped: " + e);
+                }
+
+                deck.desk().closeAll();
+                scene.getRoot().applyCss();
+                deck.root().layout();
+                write(scene.snapshot(null), outputDir.resolve("deck-wallpaper.png").toFile());
+                System.out.println("wrote deck-wallpaper.png");
             }
         }
     }

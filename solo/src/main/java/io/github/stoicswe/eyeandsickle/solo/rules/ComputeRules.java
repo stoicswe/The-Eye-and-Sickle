@@ -70,6 +70,30 @@ public final class ComputeRules {
     }
 
     /**
+     * Load factor as it will be once {@code allocationId} lets go — the rig the returning cycles are
+     * actually coming home to.
+     *
+     * <p>Exists for {@link #beginRecovery}, and the exclusion is the whole point. A held allocation
+     * is part of the load right up until it releases, so measuring load with it still counted would
+     * charge a scan a recovery penalty <em>for its own cycles</em> — the rig would be slow to give
+     * back exactly the capacity that was making it slow. That is a compounding cost nothing in
+     * {@code docs/design/01-core-resources.md} §1.3 asks for, and it would make hold-then-recover
+     * quietly more expensive than the doubling {@code UI-6} was decided on.
+     */
+    public static double loadFactorExcluding(RigState rig, String allocationId) {
+        if (rig.totalCycles <= 0) {
+            return 1.0d;
+        }
+        long sum = rig.selfMiningCycles;
+        for (AllocationState a : rig.allocations) {
+            if ("ACTIVE".equals(a.state) && !a.allocationId.equals(allocationId)) {
+                sum += a.cycles;
+            }
+        }
+        return (double) sum / (double) rig.totalCycles;
+    }
+
+    /**
      * Reserves cycles for as long as the consumer runs.
      *
      * @return the allocation, or {@code null} if the rig cannot afford it
@@ -121,6 +145,45 @@ public final class ComputeRules {
     /** Releases a held reservation — a bot stopped, a defence disarmed, a tool unequipped. */
     public static boolean release(RigState rig, String allocationId) {
         return rig.allocations.removeIf(a -> a.allocationId.equals(allocationId));
+    }
+
+    /**
+     * Turns a held allocation loose onto the Thermal Budget curve: {@code ACTIVE} → {@code
+     * RECOVERING}, with the wait measured from {@code releasedAt}.
+     *
+     * <h2>Why this exists (UI-6)</h2>
+     *
+     * This is the second half of <b>hold-then-recover</b>, decided on 2026-07-26 and recorded in
+     * {@code docs/design/04-mining.md} §3.2. Work with a real duration — a scan — now <em>holds</em>
+     * its cycles while it runs and only then starts giving them back, instead of
+     * {@link #spend}'s spend-and-recover-immediately. §3.2's own sentence is what forced it: a
+     * Thorough Scan is meant to leave the player "effectively down 35 cycles for far longer than the
+     * scan runs", which under spend-immediately was true only on an already-loaded rig — on a lean
+     * one the cycles were back before the six-minute scan finished, which is the opposite of the
+     * published asymmetry.
+     *
+     * <p><b>{@code releasedAt} is the task's end, not the caller's "now".</b> A scan that finished
+     * while the game was closed must begin recovering when it <em>ended</em>, or a player away for a
+     * week comes back to a rig still nursing a scan that completed on Tuesday. Same argument as
+     * {@link #settleRecovered} settling on load.
+     *
+     * @return how long the recovery will take, or {@code null} if no such allocation is held
+     */
+    public static Duration beginRecovery(RigState rig, String allocationId, Instant releasedAt) {
+        for (AllocationState a : rig.allocations) {
+            if (!a.allocationId.equals(allocationId) || !"ACTIVE".equals(a.state)) {
+                continue;
+            }
+            Duration recovery =
+                    ThermalRules.recoveryTime(a.cycles, loadFactorExcluding(rig, allocationId), rig.thermalBudget);
+            a.state = "RECOVERING";
+            // Re-stamped, so the readout draws the recovery's own progress rather than counting from
+            // when the scan started — the wait the player is now looking at began here.
+            a.startedAt = releasedAt;
+            a.recoversAt = releasedAt.plus(recovery);
+            return recovery;
+        }
+        return null;
     }
 
     /**

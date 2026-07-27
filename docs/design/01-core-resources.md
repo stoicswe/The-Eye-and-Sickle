@@ -40,6 +40,10 @@ This is the single stat that explains why a loaded rig *feels* sluggish, and it 
 The player must always be able to see, at a glance: total cycles, allocated (by consumer), available, and recovering (with time-to-recover). The compute ledger is the game's most important HUD element. In the multi-window client this justifies a dedicated, always-on-top **rig monitor window** (see `../architecture/01-tech-stack.md`).
 
 > **[PROPOSAL]** Recovery curve, first pass: cycles recover at `base_rate × (1 − load_factor)^k` where `load_factor` = allocated/total, `base_rate` and `k` come from Thermal Budget tier. At 50% load and T1 thermal, a 35-cycle Thorough Scan should take ~2× its run duration to fully recover; at 85% load, ~5×. Numbers exist to be playtested, but the *shape* (superlinear pain as load approaches 100%) is the point.
+>
+> ⚠ **Recovery starts when the work ends, so those anchors compose rather than overlap** (`04-mining.md` §3.2, decided as **UI-6** on 2026-07-26). Work with a published duration *holds* its cycles while it runs; the curve above begins at the moment they are released. So the ~2× anchor means a Thorough Scan at 50% load is **1× held + 2× recovering ≈ 3× its run duration** before the rig is whole, and ~6× at 85% load. The anchors themselves are unchanged — they were always statements about the recovery, not about the total — but anyone re-tuning `base_rate` or `k` should know which of the two they are moving.
+>
+> The load factor that sets the curve is read **excluding the releasing allocation** — the load the returning cycles are coming home to, not the one they were part of. Otherwise a scan pays a recovery penalty for its own cycles, which compounds a cost this doc never asks to compound.
 
 ---
 

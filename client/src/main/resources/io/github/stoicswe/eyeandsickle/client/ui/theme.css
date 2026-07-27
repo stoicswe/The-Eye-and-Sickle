@@ -164,6 +164,108 @@
 /* The desk: where tool windows live. Tiling panes and floating windows share this ground. */
 .es-desk { -fx-background-color: -es-void; }
 
+/* The desk wallpaper (Substrate) — greeble at desk scale, behind every window.
+   Two things here are load-bearing rather than taste:
+   - The face is IBM Plex Mono because the field is built from block glyphs, and Martian Mono has
+     none of that range; a substituted glyph carries its own advance width and the character-cell
+     grid stops aligning. GlyphCoverageTest pins this.
+   - dim-3 at low opacity, and NEVER amber. §2.1 reserves the accent for live/earning data, and the
+     wallpaper is the largest surface in the client — an accent here would drown every cycle cell
+     and every income figure that has actually earned it. */
+.es-substrate { -fx-background-color: transparent; }
+
+/* ⚠ These are descendant selectors on purpose, and it is not stylistic. `.label` further down this
+   file sets `-fx-text-fill: -es-text`, and a bare `.es-substrate-field` has exactly the same
+   specificity — one class — so the LATER rule wins and the wallpaper silently paints in body-text
+   grey at four times the intended weight. Measured: the applied fill was #A9BCBD, not -es-dim-3,
+   while `-fx-opacity` from the same block applied fine, which is what makes this so easy to miss.
+   Two classes outrank `.label` regardless of where in the file this block sits. */
+.es-substrate > .es-substrate-field {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 11px;
+    -fx-text-fill: -es-dim-3;
+    /* Tuned by rendering, not by eye in a text editor. dim-3 over void at this opacity resolves to
+       roughly #1F2727 — between -es-rule and -es-rule-hi, i.e. hairline weight. That is the target:
+       the wallpaper should read as the same order of thing as a panel border, never as content. */
+    -fx-opacity: 0.55;
+}
+
+/* Chromatic aberration on the wallpaper — the two displaced channels, painted under the base layer
+   so the glyph edges leak colour instead of the whole field turning purple. These are the ONLY two
+   places in the client that name a colour outside the palette, and they are deliberate: a
+   convergence error is a property of the phosphor, not of the design system, so borrowing -es-alarm
+   for the warm side would make the wallpaper look like it was reporting a loss. Kept far below the
+   base layer's weight — the effect should be findable, not announced. */
+.es-substrate > .es-substrate-warm { -fx-text-fill: rgba(196, 66, 58, 0.30); -fx-opacity: 0.34; }
+.es-substrate > .es-substrate-cool { -fx-text-fill: rgba( 58, 176, 196, 0.30); -fx-opacity: 0.34; }
+
+/* ── The CRT artefact layer ────────────────────────────────────────────────────────────────────
+   §9 permitted these on 2026-07-26 as OPTIONAL effects; all three ship off. Bezel and vignette
+   remain cut, which is why there is no edge-darkening rule anywhere below.
+
+   ⚠ JavaFX has no `repeating-linear-gradient`. It parses as an unknown function and the whole
+   declaration is dropped SILENTLY at runtime — green build, no scanlines, no error. The repeat is
+   spelled as a cycle method inside `linear-gradient(from … to …, repeat, …)`, and the `from/to`
+   pair is what sets the period. Two pixels of line on a four-pixel pitch. */
+.es-crt-scanlines {
+    -fx-background-color: linear-gradient(from 0px 0px to 0px 4px, repeat,
+        rgba(0, 0, 0, 0.20) 0%, rgba(0, 0, 0, 0.20) 50%,
+        transparent 50%, transparent 100%);
+}
+
+/* The refresh bar: the bright band a camera records rolling down a CRT, because the tube's refresh
+   and the shutter are not in step. §9 allows a gradient when it is "hard-edged or near-transparent"
+   — this is emphatically the second. It is the one soft-edged thing in the client and it earns that
+   by being almost invisible: at 0.045 alpha it reads as the screen breathing, not as a shape. */
+.es-crt-roll {
+    -fx-background-color: linear-gradient(to bottom,
+        transparent 0%,
+        rgba(169, 188, 189, 0.018) 38%,
+        rgba(169, 188, 189, 0.045) 52%,
+        rgba(169, 188, 189, 0.014) 66%,
+        transparent 100%);
+}
+
+/* ── Radial aberration at the rim (the curvature slider) ──────────────────────────────────────
+   Four bands, each fading inward from its own edge. A corner is inside TWO of them, so it fringes
+   hardest; the edge midpoints fringe less; the centre is untouched. That is a radial profile built
+   out of linear gradients, which is the only kind JavaFX has.
+
+   ⚠ Every band runs warm on the OUTSIDE and cool just inboard of it — the same way round on all
+   four edges. That is not a stylistic choice: lateral chromatic aberration magnifies one channel
+   more than the other, so the red fringe sits outboard everywhere and the cyan inboard everywhere.
+   The first version made left/top warm and right/bottom cool, which looked reasonable and was
+   wrong — at the top-right and bottom-left corners the two bands then carried OPPOSITE channels and
+   cancelled, measured at R-B = -8 and +4 against +17 and -22 at the other two. Two strong corners
+   and two washed-out ones is the signature of that mistake.
+
+   It is a fringe, not an outline: it fades to nothing well before the centre, so it never closes
+   into a frame. A frame is a bezel, and §9 still cuts those.
+
+   Strength is set from Java as node opacity, driven by the slider. The colours stay here. */
+.es-crt-edge-left {
+    -fx-background-color: linear-gradient(to right,
+        rgba(196, 66, 58, 0.22) 0%, rgba( 58, 176, 196, 0.10) 26%, transparent 100%);
+}
+.es-crt-edge-right {
+    -fx-background-color: linear-gradient(to left,
+        rgba(196, 66, 58, 0.22) 0%, rgba( 58, 176, 196, 0.10) 26%, transparent 100%);
+}
+.es-crt-edge-top {
+    -fx-background-color: linear-gradient(to bottom,
+        rgba(196, 66, 58, 0.18) 0%, rgba( 58, 176, 196, 0.08) 26%, transparent 100%);
+}
+.es-crt-edge-bottom {
+    -fx-background-color: linear-gradient(to top,
+        rgba(196, 66, 58, 0.18) 0%, rgba( 58, 176, 196, 0.08) 26%, transparent 100%);
+}
+
+/* A tracking sliver: a flat lift, not a blur and not a glow — §9 still cuts both, and a real tape
+   artefact has hard edges anyway. */
+.es-crt-band { -fx-background-color: rgba(169, 188, 189, 0.05); }
+.es-crt-fringe-warm { -fx-background-color: rgba(196, 66, 58, 0.34); }
+.es-crt-fringe-cool { -fx-background-color: rgba( 58, 176, 196, 0.34); }
+
 /* Command strip. */
 .es-cmd {
     -fx-background-color: -es-panel;
@@ -529,6 +631,12 @@
    strip the look. It is halved in weight, because "10–15% of pixels carrying no meaning" is texture
    to one player and interference to another, and the accessible answer is quieter, not absent. */
 .es-theme-deck-hc .es-greeble { -fx-opacity: 0.5; }
+
+/* Same argument, applied harder to the wallpaper: it is the single largest expanse of no-meaning
+   texture in the client, so under high visibility it drops to a hint rather than halving. Quieter,
+   not absent — a player who wants it gone has Settings → Desk → Wallpaper: Off, and that is a
+   choice rather than something the accessibility theme decides for them. */
+.es-theme-deck-hc .es-substrate > .es-substrate-field { -fx-opacity: 0.14; }
 
 /*
  * ⚠ NO -fx-cursor DECLARATIONS IN THIS FILE. MEASURED, not a preference.

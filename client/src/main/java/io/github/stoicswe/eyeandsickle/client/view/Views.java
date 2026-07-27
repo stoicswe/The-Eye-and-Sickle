@@ -555,6 +555,74 @@ public final class Views {
             onDeskSettingsChanged.run();
         });
 
+        // The desk wallpaper. Three states rather than a checkbox, because "I want the texture but
+        // not the movement" is a real preference and WCAG 2.2.2 requires the pause to exist at all.
+        ChoiceBox<io.github.stoicswe.eyeandsickle.client.ui.WallpaperMode> wallpaper =
+                new ChoiceBox<>();
+        wallpaper.getItems()
+                .addAll(io.github.stoicswe.eyeandsickle.client.ui.WallpaperMode.selectable());
+        wallpaper.setValue(io.github.stoicswe.eyeandsickle.client.ui.WallpaperMode
+                .byId(profile.settings().wallpaper)
+                .orElse(io.github.stoicswe.eyeandsickle.client.ui.WallpaperMode.DRIFT));
+        wallpaper.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(io.github.stoicswe.eyeandsickle.client.ui.WallpaperMode m) {
+                return m == null ? "" : m.label();
+            }
+
+            @Override
+            public io.github.stoicswe.eyeandsickle.client.ui.WallpaperMode fromString(String s) {
+                return io.github.stoicswe.eyeandsickle.client.ui.WallpaperMode.DRIFT;
+            }
+        });
+        wallpaper.valueProperty().addListener((o, was, now) -> {
+            if (now != null) {
+                profile.settings().wallpaper = now.id();
+                profile.save();
+                onDeskSettingsChanged.run();
+            }
+        });
+
+        CheckBox scanlines = new CheckBox("CRT scanlines");
+        scanlines.setSelected(profile.settings().crtScanlines);
+        scanlines.selectedProperty().addListener((o, was, now) -> {
+            profile.settings().crtScanlines = now;
+            profile.save();
+            onDeskSettingsChanged.run();
+        });
+
+        CheckBox aberration = new CheckBox("Chromatic aberration");
+        aberration.setSelected(profile.settings().crtAberration);
+        aberration.selectedProperty().addListener((o, was, now) -> {
+            profile.settings().crtAberration = now;
+            profile.save();
+            onDeskSettingsChanged.run();
+        });
+
+        // A slider rather than a checkbox: curvature is the one artefact with a useful middle. A
+        // trace of rim aberration reads as glass; a lot of it reads as a cheap filter, and where the
+        // line falls between those is taste, which is exactly what a slider is for.
+        Slider curvature = new Slider(0, 100, profile.settings().crtCurvature);
+        curvature.setShowTickMarks(true);
+        curvature.setMajorTickUnit(25);
+        curvature.setBlockIncrement(5);
+        Label curvatureValue = io.github.stoicswe.eyeandsickle.client.ui.Ui.micro(
+                profile.settings().crtCurvature + "%");
+        curvature.valueProperty().addListener((o, was, now) -> {
+            profile.settings().crtCurvature = (int) Math.round(now.doubleValue());
+            curvatureValue.setText(profile.settings().crtCurvature + "%");
+            profile.save();
+            onDeskSettingsChanged.run();
+        });
+
+        CheckBox glitch = new CheckBox("Signal glitch");
+        glitch.setSelected(profile.settings().crtGlitch);
+        glitch.selectedProperty().addListener((o, was, now) -> {
+            profile.settings().crtGlitch = now;
+            profile.save();
+            onDeskSettingsChanged.run();
+        });
+
         ChoiceBox<io.github.stoicswe.eyeandsickle.client.ui.cursors.CursorSkin> cursor = new ChoiceBox<>();
         cursor.getItems().addAll(io.github.stoicswe.eyeandsickle.client.ui.cursors.CursorSkin.selectable());
         cursor.setValue(io.github.stoicswe.eyeandsickle.client.ui.cursors.CursorSkin
@@ -682,6 +750,35 @@ public final class Views {
                                 + "Bandwidth, so the budget below adds six always-free windows — the "
                                 + "monitor, terminal, log, manual, settings and switcher — to it. That "
                                 + "arithmetic is invented, which is why this is opt-in."),
+                        new Separator(),
+                        new Label("SCREEN"),
+                        new Label("WALLPAPER"),
+                        wallpaper,
+                        wrapped("Machine texture behind every window — the same alphabet as the greeble "
+                                + "strips, drawn far dimmer and never in amber. \"Still\" keeps the "
+                                + "texture and stops the movement. Turning on Reduce motion below stops "
+                                + "it too, without changing this setting."),
+                        scanlines,
+                        aberration,
+                        glitch,
+                        new Label("EDGE CURVATURE"),
+                        new HBox(8, curvature, curvatureValue),
+                        wrapped("Screen artefacts, all three off by default. Scanlines lay a dark band "
+                                + "across every other row of pixels and drift slowly, with a refresh bar "
+                                + "rolling down the screen — that is what makes them read as a tube "
+                                + "rather than as a texture. They cost real contrast on body text, which "
+                                + "is a trade to make deliberately rather than one the client makes for "
+                                + "you. Aberration separates the wallpaper into red and cyan a pixel "
+                                + "either side; it is not applied to the whole screen, which would cost "
+                                + "more per frame than the effect is worth. Signal glitch tears short "
+                                + "fragments off the edges of windows and the elements inside them, so a "
+                                + "busy desk breaks up more than an empty one. Reduce motion stops every "
+                                + "moving part and leaves the still ones drawn."),
+                        wrapped("Edge curvature raises the red/cyan separation towards the rim and the "
+                                + "corners, the way curved glass does — zero in the middle, worst at the "
+                                + "corners. It does NOT bend the interface: warping the picture would "
+                                + "need a shader we do not have, and faking it would put every click "
+                                + "somewhere other than where you see the control. Text stays straight."),
                         new Separator(),
                         new Label("NOTICES"),
                         notify,

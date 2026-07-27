@@ -116,6 +116,20 @@ The **Established spine is implemented and boots** (`ServerContextLoadsIT` start
 
 What is **stubbed at documented seams** (see `docs/design/15-open-questions.md` W-1…W-6): external DID→key resolution over the network, schematic ownership, gated-offering content, faction-tool forfeiture, and a production AT Proto provider — each a safe `@ConditionalOnMissingBean` default a real implementation supersedes. REST controllers exist only where a slice reached them; most surface is service-level. `[PROPOSAL]` game systems (minigame `05`, bots `10`, narrative `14`) are deliberately not implemented.
 
+### Releasing
+
+`.github/workflows/build.yml` builds and tests every push and PR. **Pushing a `v*` tag additionally publishes a GitHub Release** carrying the five client jars, the server's `-boot` jar, and a `SHA256SUMS` covering all of them:
+
+```bash
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+Files are renamed from the POM version to the tag (`the-eye-and-sickle-0.2.0-mac-aarch64.jar`), so the tag never has to agree with a `pom.xml` nobody remembered to bump. A tag containing a hyphen (`v1.0.0-rc1`) is published as a prerelease.
+
+- **The release is cut with `gh`, not a third-party action.** It is preinstalled on the runner, so a repo that publishes executables adds no supply-chain surface to do it. `permissions:` is `contents: read` for the workflow and widened to `contents: write` on the release job alone.
+- ⚠ **CI re-verifies each client jar's architecture** by running `file` on its `glass` native. JavaFX names natives for the OS but not the arch, so a packaging mistake produces five jars that all look right and half of which cannot start — the check exists because that exact bug has already happened here once. It is negative-tested: planting an x86_64 jar as `mac-aarch64` fails the job.
+- The `actions/*` steps are pinned to major tags; **pinning them to commit SHAs is the remaining hardening step** and is worth doing before the repo has anything to steal.
+
 ### Commands
 
 ```bash
@@ -147,7 +161,7 @@ per tier and nothing waited for it until 2026-07-26. They persist, survive a qui
 first tick back. The **pointer** is drawn by the game too (Settings → Pointer; system is the default and
 that is an accessibility floor, not a placeholder).
 
-⚠ **Five JavaFX behaviours here cost a debugging round each and are easy to hit again.** (1) A
+⚠ **Seven JavaFX behaviours here cost a debugging round each and are easy to hit again.** (1) A
 **managed** child of a `Pane` is repositioned by the Pane's `layoutChildren`, silently undoing
 `resizeRelocate` — every desk window is `setManaged(false)`, and without it the window manager works
 until the next layout pass and then stacks every panel at the origin. (2) In an **event filter**,
@@ -157,7 +171,16 @@ must convert with `sceneToLocal`, or they work on a bare panel and stop wherever
 recomputed per resize (§7.2). (4) **`-fx-cursor: url(...)` does not work** — it fails at apply time with
 `ClassCastException: String incompatible with Cursor`, so custom cursors must be set from Java.
 (5) **A CSS `-fx-cursor` on a node beats an inherited Scene cursor**, so a single `-fx-cursor: hand`
-in the stylesheet punches a system-cursor hole in every custom skin. All five are covered by tests.
+in the stylesheet punches a system-cursor hole in every custom skin. (6) **`theme.css` has a
+late `.label { -fx-text-fill: -es-text; }`, and a one-class selector cannot beat it** — equal
+specificity means the later rule wins, so a new `.es-thing` that sets a text fill silently paints in
+body-text grey while every *other* property in the same block applies normally. That split is what
+makes it hard to see; use a two-class selector (`.es-parent > .es-thing`). Measured on the wallpaper,
+which came out four times too bright. (7) **A width/height listener on the deck fires before the
+`BorderPane` has laid out its centre**, so `desk.getWidth()` is still the previous value inside
+`DeskManager.reflow()`. Windows survive it because they only clamp against the desk; anything sized
+*from* it does not, and the desk wallpaper stayed 0×0 forever while every widget-level check passed.
+Size such a node from `desk.widthProperty()` directly. All seven are covered by tests or by a probe.
 
 ⚠ **Every character the client draws must be in a bundled font, and textures go on IBM Plex.**
 Martian Mono maps ~638 codepoints against Plex's ~1049 and has **none** of the block-element or
@@ -201,6 +224,12 @@ wants `--enable-native-access=ALL-UNNAMED`. The module form from the classpath p
 `WARNING: Unknown module: javafx.graphics` and grants nothing. Verified on JDK 25 / JavaFX 26.0.2 —
 `client/pom.xml` and `.run/` deliberately differ for this reason.
 
-Client packaging (jlink/jpackage) is **not wired up** — `jlink` cannot link the current graph (an automatic module in the dependency tree). See the closing comment in `client/pom.xml` before attempting it.
+**`mvn clean install` builds a runnable jar for every platform**, in the `client-dist` module: `client-dist/target/eyeandsickle-client-dist-<version>-{win,mac,mac-aarch64,linux,linux-aarch64}.jar`, each run with `java -jar`. All five come off one machine because nothing is compiled per platform — only a different set of prebuilt JavaFX natives is packaged. Needs a JDK/JRE 25+ on the target; it does **not** bundle a runtime. `-Ddist.skip=true` skips the five uber jars when you want a fast build.
+
+⚠ **`client-dist` is a separate module on purpose — do not fold it into `client`.** Shade can only filter the dependencies of the project it runs in, so five jars means declaring all five JavaFX platform sets as dependencies. In `client` that would put every platform's natives on the **test and `javafx:run` classpath**, and JavaFX resolves a native by OS-specific *file name* — so on an Apple Silicon Mac the x86_64 `mac` jar's `libglass.dylib` can shadow the arm64 one purely by classpath order, silently, until something starts the toolkit. `client-dist` has no tests and nothing to run, so the same dependencies are harmless there.
+
+⚠ **There is deliberately no single all-platform jar, and it was built and measured before being rejected.** JavaFX puts natives at the jar root under names carrying the OS but *not* the architecture — `libglass.dylib` is the name on both Intel and Apple Silicon, `libglass.so` on both x64 and ARM Linux — so merging all five classifier jars has the two Mac builds silently overwrite each other (shade sees identical paths, keeps the last). The merged jar really did contain one x86_64 `libglass.dylib` and died on the arm64 machine that built it: `UnsatisfiedLinkError ... (have 'x86_64', need 'arm64')`. A true single jar needs the launcher to extract arch-scoped natives and point JavaFX at them via `javafx.cachedir` (layout `<dir>/<runtime version>/<os.arch>/`) — undocumented internals, silently wrong again if they move.
+
+**Self-contained installers (jlink/jpackage) are still not wired up** — `jlink` cannot link the current graph (an automatic module in the dependency tree), and `jpackage` **cannot cross-compile**: a Windows image must be built on Windows, so three platforms would need three machines. See the closing comment in `client/pom.xml` before attempting it.
 
 Keep this file's stack summary, invariant list, and layout in sync with reality as the code grows.

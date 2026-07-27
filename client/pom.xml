@@ -144,8 +144,142 @@
     </plugins>
   </build>
 
+
+  <profiles>
+    <!--
+      SELF-CONTAINED RUNNABLE JARS, one per platform, all buildable from ONE machine:
+
+          for p in win mac mac-aarch64 linux linux-aarch64; do
+            mvn -Pdist -Ddist.platform=$p -pl client -am package -DskipTests
+          done
+
+      produces client/target/eyeandsickle-client-<version>-<platform>.jar, each launched with
+      `java -jar <file>`. Unlike jpackage this needs no machine of the target OS, because
+      nothing is compiled per platform — only a different set of prebuilt JavaFX natives is
+      packaged. `dist.platform` defaults to this machine's, so a plain `mvn -Pdist ... package`
+      builds the one you can test locally.
+
+      ⚠ WHY NOT ONE JAR FOR EVERYTHING — this was built, measured and rejected, so please do
+      not "simplify" it back. JavaFX puts its natives at the JAR ROOT under names that carry
+      the OS but NOT the architecture: `libglass.dylib` is the name on both Intel and Apple
+      Silicon, and `libglass.so` on both x64 and ARM Linux. Merging all five classifier jars
+      therefore has the two Mac builds overwrite each other, and the two Linux builds likewise
+      — silently, because shade sees identical paths and keeps the last one. The resulting jar
+      really did contain a single x86_64 `libglass.dylib`, and it failed on the arm64 machine
+      that built it with:
+
+          UnsatisfiedLinkError ... (have 'x86_64', need 'arm64')
+
+      Windows-x64-plus-Intel-Mac-plus-x64-Linux in one file is achievable and is what that jar
+      was. It is not worth having: it excludes every Apple Silicon Mac, which is most of them.
+
+      A true single jar is possible but needs the launcher to extract arch-scoped natives and
+      point JavaFX at them through `javafx.cachedir` (whose layout is `<dir>/<runtime version>/
+      <os.arch>/`) — internals, undocumented, and silently wrong again if they ever change.
+      Per-platform jars cost one loop and depend on nothing.
+
+      ⚠ MUST RUN FROM THE CLASSPATH, which this client already requires: `Launcher` does not
+      extend Application precisely so the JVM does not look for JavaFX on the module path before
+      main() runs. `java -jar` is a classpath launch, so the two agree rather than fight. Do NOT
+      add module-info.java to make this "cleaner"; that recreates the jlink problem below.
+
+      ⚠ DOES NOT bundle a Java runtime — the player needs JDK/JRE 25+ on PATH. That is the
+      trade against jpackage, which does bundle one but CANNOT CROSS-COMPILE: a Windows image
+      must be built on Windows. This needs one machine; that needs three.
+
+      ⚠ On JDK 24+ a classpath launch warns unless started with the
+      `enable-native-access=ALL-UNNAMED` flag (two leading dashes; XML comments cannot contain
+      them). It is a warning, not a failure. The `javafx.graphics` form of that flag is WRONG
+      here and grants nothing — see CLAUDE.md; this is the one flag that differs by launch mode.
+    -->
+    <profile>
+      <id>dist</id>
+      <properties>
+        <!-- org.openjfx's parent pom sets ${javafx.platform} from os.name/os.arch, so the
+             default is whatever this machine is and a local `mvn -Pdist` is testable. -->
+        <dist.platform>${javafx.platform}</dist.platform>
+      </properties>
+      <dependencies>
+      <dependency>
+        <groupId>org.openjfx</groupId>
+        <artifactId>javafx-base</artifactId>
+        <version>${javafx.version}</version>
+        <classifier>${dist.platform}</classifier>
+      </dependency>
+      <dependency>
+        <groupId>org.openjfx</groupId>
+        <artifactId>javafx-graphics</artifactId>
+        <version>${javafx.version}</version>
+        <classifier>${dist.platform}</classifier>
+      </dependency>
+      <dependency>
+        <groupId>org.openjfx</groupId>
+        <artifactId>javafx-controls</artifactId>
+        <version>${javafx.version}</version>
+        <classifier>${dist.platform}</classifier>
+      </dependency>
+      <dependency>
+        <groupId>org.openjfx</groupId>
+        <artifactId>javafx-fxml</artifactId>
+        <version>${javafx.version}</version>
+        <classifier>${dist.platform}</classifier>
+      </dependency>
+      </dependencies>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-shade-plugin</artifactId>
+            <executions>
+              <execution>
+                <phase>package</phase>
+                <goals><goal>shade</goal></goals>
+                <configuration>
+                  <shadedArtifactAttached>true</shadedArtifactAttached>
+                  <shadedClassifierName>${dist.platform}</shadedClassifierName>
+                  <createDependencyReducedPom>false</createDependencyReducedPom>
+                  <transformers>
+                    <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                      <mainClass>io.github.stoicswe.eyeandsickle.client.Launcher</mainClass>
+                      <manifestEntries>
+                        <!-- Jackson ships multi-release jars; without this the JDK ignores their
+                             versioned classes and Jackson fails in ways that look like ours. -->
+                        <Multi-Release>true</Multi-Release>
+                      </manifestEntries>
+                    </transformer>
+                    <!-- ServiceLoader files must be CONCATENATED, not overwritten. Jackson 3
+                         discovers modules this way, and last-one-wins would drop every provider
+                         but one — surfacing as a save that will not deserialise rather than as
+                         anything resembling a packaging error. -->
+                    <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                  </transformers>
+                  <filters>
+                    <filter>
+                      <artifact>*:*</artifact>
+                      <excludes>
+                        <!-- Several copies of the same descriptor cannot coexist, and a classpath
+                             launch never reads them anyway. -->
+                        <exclude>module-info.class</exclude>
+                        <exclude>META-INF/versions/*/module-info.class</exclude>
+                        <!-- Signatures do not survive repackaging: the digests stop matching the
+                             contents and the JVM refuses the jar with a SecurityException. -->
+                        <exclude>META-INF/*.SF</exclude>
+                        <exclude>META-INF/*.DSA</exclude>
+                        <exclude>META-INF/*.RSA</exclude>
+                      </excludes>
+                    </filter>
+                  </filters>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+
   <!--
-    NO `dist` PROFILE YET — deliberately, and this is worth reading before you
+    NO SELF-CONTAINED INSTALLER YET — deliberately, and this is worth reading before you
     add one back.
 
     docs/architecture/01 §1 lists self-contained packaging (jlink/jpackage) as a

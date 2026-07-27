@@ -257,7 +257,8 @@ class GlyphCoverageTest {
             // silently sends those characters to a host-OS fallback.
             String css = Files.readString(Path.of(
                     "src/main/resources/io/github/stoicswe/eyeandsickle/client/ui/theme.css"));
-            for (String textureClass : List.of(".es-greeble", ".es-boot-logo", ".es-cage")) {
+            for (String textureClass :
+                    List.of(".es-greeble", ".es-boot-logo", ".es-cage", ".es-substrate-field")) {
                 String rule = ruleFor(css, textureClass);
                 assertThat(rule)
                         .as("%s must be pinned to IBM Plex, not the label face", textureClass)

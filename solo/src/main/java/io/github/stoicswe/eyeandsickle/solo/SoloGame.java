@@ -113,13 +113,18 @@ public final class SoloGame {
     public void resume() {
         Instant now = clock.instant();
         long recovered = ComputeRules.settleRecovered(save.rig, now);
-        long accrued = MiningRules.accrueDeployedMiners(save, now);
         // ⚠ Tasks settle HERE, not only in tick(). resume() sets lastTick = now, so the first tick
         // after loading sees zero elapsed time and returns early — a six-minute scan that ended
         // while the game was closed would sit at 100% forever, never completing and never logging
         // its finding. Offline work belongs on the offline path, next to the miner accrual that
         // already lives here for exactly the same reason.
         settleTasks(now);
+        // Second sweep, and it is not redundant. Under UI-6's hold-then-recover a finished task only
+        // becomes RECOVERING inside settleTasks above, dated from when it ended — so a scan that
+        // finished a week ago is, at this instant, a recovering allocation whose time has long since
+        // passed. Without this the player would watch a week-old scan recover in front of them.
+        recovered += ComputeRules.settleRecovered(save.rig, now);
+        long accrued = MiningRules.accrueDeployedMiners(save, now);
 
         // The log's primary job: telling a returning player what happened while they were gone.
         // Without this, offline income is invisible and a player has no way to tell it from a bug.
@@ -162,13 +167,16 @@ public final class SoloGame {
         }
         boolean changed = false;
 
+        // Tasks first: under UI-6 a finished scan releases its held cycles into RECOVERING, and a
+        // short scan on a lean rig can finish and fully recover inside one tick. Settling recovery
+        // first would leave those cycles a tick behind the readout that just said the scan was done.
+        changed |= settleTasks(now);
+
         long recovered = ComputeRules.settleRecovered(save.rig, now);
         if (recovered > 0) {
             EventLog.info(save, "compute", recovered + " cycles recovered and are available again.", now);
         }
         changed |= recovered > 0;
-
-        changed |= settleTasks(now);
 
         long selfYield = MiningRules.selfMiningYield(save.rig.selfMiningCycles, elapsed);
         if (selfYield > 0) {
@@ -237,24 +245,36 @@ public final class SoloGame {
     /**
      * Runs a rig scan at one of the three tiers.
      *
-     * <p>Costs are spent rather than reserved, so they come back on the Thermal Budget curve. What the
-     * player buys with a more expensive tier is signal strength, not certainty — see {@code
-     * docs/education/08-detection-and-defence.md} §3.5, which uses these exact three numbers to teach
-     * the false-positive trade.
+     * <p>What the player buys with a more expensive tier is signal strength, not certainty — see
+     * {@code docs/education/08-detection-and-defence.md} §3.5, which uses these exact three numbers
+     * to teach the false-positive trade.
      *
-     * @return the recovering allocation, or empty if the rig cannot afford the tier
+     * <h2>Hold, then recover (UI-6, decided 2026-07-26)</h2>
+     *
+     * <p>A scan's cycles are <b>held for the scan's duration and only then start recovering</b> on
+     * the Thermal Budget curve. They used to be spent immediately and recover in parallel with the
+     * scan, which made {@code docs/design/04-mining.md} §3.2's published asymmetry false on a lean
+     * rig: a Thorough Scan's 35 cycles were back in about four minutes, before the six-minute scan
+     * it paid for had even finished. §3.2 promises the player is "effectively down 35 cycles for far
+     * longer than the scan runs", and now they are, on every rig rather than only a loaded one.
+     *
+     * <p>⚠ <b>This is a real price rise</b> — roughly double the wall-clock cost of a Thorough Scan
+     * — and {@code CLAUDE.md} is explicit that {@code 03}/{@code 04} are calibrated as a set. It was
+     * taken as a decision rather than an implementation detail; see the resolution log in
+     * {@code docs/design/15-open-questions.md} §3 for what was re-checked.
+     *
+     * @return the held allocation, or empty if the rig cannot afford the tier
      */
     public Optional<AllocationState> scan(ScanTier tier) {
         Instant now = clock.instant();
-        AllocationState a = ComputeRules.spend(
-                save.rig, ComputeConsumer.ACTIVE_TOOL, "scan --" + tier.flag(), tier.cycles(), now);
+        AllocationState a = ComputeRules.reserve(
+                save.rig, ComputeConsumer.ACTIVE_TOOL, "scan --" + tier.flag(), tier.cycles());
         if (a == null) {
             return Optional.empty();
         }
-        // The scan now actually runs for the duration docs/design/04 §3.2 publishes, instead of the
-        // duration being a number in a log line that nothing ever waited for. The cycles are
-        // unchanged — spent here, recovering on the thermal curve — because §3.2 lists Compute and
-        // Duration as separate columns. See TaskState's class comment.
+        // Held, not spent: settleTasks hands it to ComputeRules.beginRecovery when the scan ends.
+        // Stamped so the rig monitor can draw the hold as progress the same way it draws a recovery.
+        a.startedAt = now;
         save.tasks.add(new TaskState(
                 "scan",
                 "scan --" + tier.flag(),
@@ -317,6 +337,16 @@ public final class SoloGame {
             save.tasks.remove(task);
             changed = true;
             EventLog.notice(save, "scan", task.label + " finished. " + scanFinding(), now);
+
+            // UI-6: the held cycles only NOW start coming back, and the wait is dated from the
+            // task's own end rather than from `now` — a scan that finished while the game was closed
+            // must not restart its recovery clock the moment the player opens the client.
+            Duration recovery = ComputeRules.beginRecovery(save.rig, task.allocationId, task.endsAt);
+            if (recovery != null) {
+                EventLog.info(save, "compute",
+                        task.cycles + " cycles released; ~" + recovery.toSeconds() + "s to recover.",
+                        task.endsAt);
+            }
         }
         return changed;
     }

@@ -15,15 +15,20 @@ import java.util.UUID;
  * and the published figure was decoration. A rig readout cannot show what is running if nothing
  * running is modelled.
  *
- * <h2>What this deliberately does NOT change</h2>
+ * <h2>A task holds its cycles (UI-6, decided 2026-07-26)</h2>
  *
- * <b>The cycles still spend immediately and recover on the Thermal Budget curve.</b> §3.2 puts
- * Compute and Duration in separate columns and then says "Scan cycles recover on the Thermal Budget
- * curve" — the cost and the wait are two different things, and holding the cycles for the scan's
- * duration <em>and then</em> recovering them would roughly double the real cost of a Thorough Scan.
- * {@code CLAUDE.md} is explicit that the economy numbers in {@code design/03} and {@code 04} are
- * calibrated as a set; this change adds a clock, not a price. The alternative reading is recorded as
- * an open question rather than silently adopted.
+ * <b>The cycles are held for the task's duration and begin recovering when it ends</b>, via
+ * {@link io.github.stoicswe.eyeandsickle.solo.rules.ComputeRules#beginRecovery}. This class shipped
+ * on 2026-07-26 with the opposite behaviour — spend immediately, recover in parallel with the scan —
+ * on the reading that §3.2 lists Compute and Duration as separate columns. That was raised as
+ * <b>UI-6</b> and decided the other way, because §3.2's own next sentence promises the player is
+ * "effectively down 35 cycles for far longer than the scan runs" and under spend-immediately that
+ * was false on any lean rig: the 35 cycles came back in about four minutes, inside the six-minute
+ * scan that bought them.
+ *
+ * <p>⚠ It roughly doubles a Thorough Scan's real cost, which is a <em>price</em> change and not a
+ * clock change — {@code CLAUDE.md} is explicit that {@code design/03} and {@code 04} are calibrated
+ * as a set. See {@code docs/design/15-open-questions.md} §3 for what was re-checked with it.
  *
  * <h2>Persistence</h2>
  *
@@ -53,10 +58,13 @@ public final class TaskState {
     /**
      * What this cost, in cycles.
      *
-     * <p>Stored rather than looked up through {@link #allocationId}, because the allocation can
-     * finish recovering while the task is still running — a Thorough Scan costs 35 cycles that come
-     * back in under three minutes on a lean rig, but the scan itself runs for six. Reading the live
-     * allocation made the readout show "0C" halfway through a scan the player had just paid 35 for.
+     * <p>Stored rather than looked up through {@link #allocationId}. Under the old spend-immediately
+     * model this was load-bearing — the allocation could finish recovering mid-scan and the readout
+     * showed "0C" halfway through a scan the player had just paid 35 cycles for. Hold-then-recover
+     * removes that particular failure, since the allocation now outlives the task by construction.
+     * It stays stored anyway: the completion log line quotes it <em>after</em> the task is off the
+     * list, and a readout that has to chase a foreign object to name its own cost is one refactor
+     * away from the same bug in a new shape.
      */
     public long cycles = 0L;
 

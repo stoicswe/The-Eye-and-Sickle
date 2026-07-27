@@ -34,13 +34,22 @@ import javafx.scene.layout.VBox;
  *       structural rather than chromatic.
  * </ol>
  *
- * <p><b>The band name is not replaced.</b> §2.2.4's requirement that the chip "carry the band name"
- * still holds and {@code DeckShell} still prints it beside this — which
- * {@code docs/client/07-accessibility.md} §5.2 would require anyway, since meaning may never rest on
- * appearance alone. The thermometer is an addition to the readout, not a substitution for it.
+ * <h2>Where the band name went (UI-8, decided 2026-07-26)</h2>
  *
- * <p>Logged as <b>UI-8</b> in {@code docs/design/15-open-questions.md}: this extends a contract
- * document's rule, and the extension should be confirmed rather than assumed.
+ * <b>The band name is not printed on the strip.</b> §2.2.4 requires the chip to "carry the band
+ * name" and the strip cell is {@code KeyValue.keyOnly("Personal heat")} — label, thermometer, no
+ * name. That was a deliberate call, confirmed when UI-8 was decided: the strip stays visually quiet
+ * and the name lives in this widget's tooltip.
+ *
+ * <p>⚠ <b>It is a knowing departure from a contract, and one thing had to be done to keep it
+ * honest.</b> {@code docs/client/07-accessibility.md} §5.2 forbids meaning resting on appearance
+ * alone, and a hover tooltip is not an answer for anyone who does not hover — JavaFX tooltips are
+ * mouse-only. So the band name is also set as this node's <b>accessible text</b>, which is the same
+ * fix {@code CL-10} used for the gloss bar: the tooltip and the accessible name carry identical
+ * content down two different paths. Visually the meaning still rests on the coloured bulb plus lit
+ * cell count; §5.2 is satisfied for assistive technology and knowingly stretched for a sighted
+ * player who does not hover. Recorded rather than assumed — if that trade stops being acceptable,
+ * the fix is one line in {@code DeckShell}: {@code KeyValue.of("Personal heat", band.label())}.
  *
  * <h2>The bulb carries the band</h2>
  *
@@ -125,6 +134,14 @@ public final class ThermoMeter extends HBox {
             // point is that there is a real bottom to the scale.
             bulb.getStyleClass().add("es-thermo-fill-" + band.index());
         }
+
+        // The band name down the OTHER path. The strip prints no name (UI-8), so without this the
+        // only textual statement of which band the player is in would be mouse-only — and
+        // docs/client/07 §5.2 does not let meaning rest on appearance. Same two-path fix as CL-10's
+        // gloss bar. The number goes with it: a screen reader has no bulb to read.
+        setFocusTraversable(false);
+        setAccessibleText(Ui.upper("personal heat " + personalHeat + " of 100, " + band.label())
+                + ". " + band.consequence());
 
         // The tooltip is the consequence, not the number: a band name alone is trivia, and
         // docs/client/01 §2.2.4's whole point is that the player's decision is about sweep odds.

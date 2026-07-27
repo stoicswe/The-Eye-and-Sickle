@@ -336,6 +336,14 @@ Two closed on implementation; what survives is below, plus what the implementati
   shortcut while removing the need for it.
 
 - **UI-2: is Bandwidth the right cap on open windows, and what is the arithmetic?**
+  ⚠ **Reviewed 2026-07-26 and deliberately left open** — asked, and the answer was "keep the
+  mechanism, keep it opt-in". So nothing below is decided and the `[PROPOSAL]` tag stands. One thing
+  the review did establish and worth not re-deriving: **`11` §2 defines Bandwidth as "how many
+  engagements can run at once"** and gives the example "you can have cycles free and still be
+  bandwidth-blocked from another engagement" — which reads as an *outward operation*, not as looking
+  at a panel. That is the argument against the whole idea, and it is the first thing to weigh when
+  this is taken up. It was not adopted, because §8 is a decided document and this is its mechanic.
+
   §8 wants the desk to be a mechanic rather than a skin, and names Bandwidth (`11` §2) as the cap on
   simultaneous open tool windows. The mechanism is built (`DeskManager.setWindowCap`) and **ships
   off**. The problem is calibration, not plumbing: a starting rig has `bandwidth = 1`, so capping
@@ -361,7 +369,15 @@ Two closed on implementation; what survives is below, plus what the implementati
   The unresolved half is real and structural: uppercase-everything and 11px character cells assume
   Latin script and short strings.
 
-- **UI-5: uOS Classic lost its chrome, and it is worth confirming that was right.**
+- **UI-5 ✅ RESOLVED 2026-07-26 — confirmed: Classic stays flat, and keeps its name.**
+  Asked and answered. Classic keeps its *palette* (light field, black hairlines) on the deck's flat
+  geometry and gains no exemption from §9. The reasoning that decided it is the one below: one theme
+  exempt from the contract every other theme is held to is worse than a theme that is no longer a
+  period costume, and Classic's real value — the most legible non-accessibility skin in the client,
+  at 21:1 — is carried entirely by the palette, which survived. The name stays too; renaming was
+  offered and declined. Superseded text follows.
+
+- **UI-5 (superseded, kept for the record): uOS Classic lost its chrome, and it is worth confirming that was right.**
   Classic was added on 2026-07-25 as "System 7 meets a Unix workstation" — light grey chassis,
   bevelled controls. §9 makes bevels, drop shadows and rounded corners build-blocking, so what
   survived the overhaul is Classic's *palette* (light field, black hairlines) on the deck's flat
@@ -370,7 +386,15 @@ Two closed on implementation; what survives is below, plus what the implementati
   theme is held to, which seemed worse. **Flagged rather than assumed:** it was a named request, and
   the request is not fully honoured any more.
 
-- **UI-6: should a scan HOLD its cycles for its duration?**
+- **UI-6 ✅ RESOLVED 2026-07-26 — yes. Hold, then recover.** A scan's cycles are held for its
+  published Duration and only then enter the Thermal Budget curve. Moved into
+  `04-mining.md` §3.2 (the source of truth) with the reasoning, and into `01-core-resources.md`
+  §1.3's recovery-curve proposal, whose anchors are stated *relative to the run duration* and
+  therefore now **compose rather than overlap** — a Thorough Scan at 50% load is ~1× held + ~2×
+  recovering ≈ 3× its run duration before the rig is whole. **This is a price rise, not a clock
+  change**, and §3 below records what was re-checked with it. Superseded text follows.
+
+- **UI-6 (superseded, kept for the record): should a scan HOLD its cycles for its duration?**
   Implementing the activity readout forced this into the open. Until 2026-07-26 a scan was
   instantaneous: `SoloGame.scan()` spent the cycles and returned, and the Duration column
   `04-mining.md` §3.2 publishes (~30s / ~2 min / ~6 min) was a number in a log line that nothing ever
@@ -415,11 +439,51 @@ Two closed on implementation; what survives is below, plus what the implementati
      cell-based, zone-gapped column with a bulb. The collision guarded against was structural, and
      structurally they are nothing alike.
 
-  **The band name was not removed** — §2.2.4 requires the chip to carry it, `../client/07` §5.2
-  forbids meaning resting on appearance, and it is still printed beside the thermometer. ⚠ **This
-  should be confirmed rather than treated as settled**: §2.2.4 is a contract, and the change reads
-  its intent rather than its letter. If the intent was "no vertical fill of any kind", revert to the
-  chip.
+  **✅ RESOLVED 2026-07-26 — the thermometer stays, and the band name stays in the tooltip.** The
+  extension above is confirmed rather than reverted. The band-name half was decided the other way
+  from what this entry originally recorded, and the original text was **factually wrong about the
+  code**, which is worth stating plainly: it claimed the name was "still printed beside the
+  thermometer", and it was not — `DeckShell` renders the cell as `KeyValue.keyOnly("Personal heat")`,
+  so the strip carries the label and the meter and no band name at all. That was a deliberate
+  request from 2026-07-26 that this entry never absorbed.
+
+  ⚠ **What the confirmation required.** §2.2.4 wants the chip to carry the band name and
+  `../client/07` §5.2 forbids meaning resting on appearance alone; a hover tooltip answers neither
+  for a player who does not hover, and JavaFX tooltips are mouse-only. So the band name and the
+  numeric heat are now also `ThermoMeter`'s **accessible text** — the same two-path fix **CL-10**
+  used for the gloss bar. Assistive technology gets a sentence; a sighted player who never hovers
+  reads the coloured bulb and the lit cell count. That second half is a **knowing stretch of §5.2**,
+  recorded here rather than smoothed over. Reverting it is one line: `KeyValue.of("Personal heat",
+  band.label())`.
+
+- **UI-9 (new, found by rendering UI-8): the thermometer's five-band fill ramp is non-monotonic in
+  luminance in every theme.** Measured with the WCAG relative-luminance formula over the
+  `es-thermo-fill-0…4` colours actually in the stylesheets, not assumed:
+
+  | theme | band 0 | band 1 | band 2 | band 3 | band 4 (named hacker) |
+  |---|---|---|---|---|---|
+  | `deck` | 0.252 | 0.481 | 0.243 | 0.518 | **0.159** |
+  | `deck-hc` | 0.832 | 1.000 | 0.518 | 0.594 | **0.326** |
+  | `uos-phosphor` | 0.319 | 0.491 | 0.384 | 0.741 | **0.290** |
+  | `uos-classic` | 0.023 | 0.005 | 0.228 | 0.103 | 0.075 |
+
+  In all four, **the hottest band is darker than the coldest** — on `deck`, band 4 sits at 0.159
+  against band 0's 0.252 — and the ramp zig-zags twice on the way up. In greyscale, or for a player
+  who reads brightness as intensity, the signal *inverts* at exactly the band that matters most.
+
+  This is the same failure **AX-5** found and fixed on 2026-07-25, in a new place: AX-5 repaired the
+  *uOS heat-chip* ramp to a measured 5.86:1 monotonic run, and the thermometer — added a day later —
+  introduced its own ramp by reusing general palette tokens (`-es-dim-1`, `-es-text`,
+  `-es-amber-mid`, `-es-amber`, `-es-alarm`) whose luminances were never chosen to sequence.
+
+  ⚠ **Not simply a bug to fix quietly**, which is why it is logged rather than patched: the fix
+  means either five new heat-specific tokens per theme (four stylesheets, and §2.1 reserves amber for
+  live/earning data, which heat is not) or re-pointing the existing five, which are shared with other
+  components. Both are palette decisions against a contract. **Mitigating, and the reason this is not
+  urgent:** unlike AX-5's chip, magnitude here is *also* carried by lit-cell count and by zone
+  position, so meaning does not rest on the ramp alone — §5.2 is not breached by it. It is a ramp
+  that misleads rather than one that hides. Take it with the generated per-theme palette that
+  **AX-5b** is already waiting on.
 
 ## 3. Resolution log
 
@@ -498,6 +562,46 @@ Record resolutions here when they land (date — question — outcome — where 
   **The operator name now shows its own bytes.** `HALFLIGHT` prints `48 41 4C 46 4C 49 47 48 54` underneath, elided past ten bytes. It hexes the *displayed* uppercase form so each pair lines up with the glyph above it, and it encodes `getBytes(UTF_8)` rather than per-`char` — encoding per char would print UTF-16 code units and quietly teach something false. It is the cheapest available demonstration of the one idea `../education/01-foundations.md` exists to teach: text is bytes. A player who notices `H` is `48` and that lowercase would be `68` has found the bit that separates ASCII case.
 
   **Renaming is solo-only, structurally.** `SoloGame.rename` is deliberately NOT on the `GameSession` port: online, a handle comes from an AT Proto DID and the server owns it (**I14**), so putting it on the port would advertise a capability that must never work there. A capability that must be impossible is best made absent rather than guarded. Handles are restricted to printable ASCII and 24 characters — not arbitrary limits, but because the strip prints the name as bytes and a name that is always elided is a name the player never sees.
+
+- 2026-07-26 — **Four UI questions taken to a decision: UI-5 confirmed, UI-6 changed the economy, UI-8 confirmed with a caveat, UI-2 deliberately left open** — recorded in `04-mining.md` §3.2, `01-core-resources.md` §1.3, `../client/06-resource-and-inventory-ui.md` §2.5, and §2 above. These were raised on 2026-07-26 and would otherwise have shipped as decided-by-default, which is the failure the section exists to prevent.
+
+  **UI-6 is the one with teeth: a scan now HOLDS its cycles for its published Duration and only then starts recovering.** It was spend-immediately, on the reading that §3.2 lists Compute and Duration as separate columns. §3.2's *next sentence* is what overturned it — it promises a Thorough Scan leaves the player "effectively down 35 cycles for far longer than the scan runs", and under spend-immediately that was true only on an already-loaded rig. On a lean one the 35 cycles were back in about four minutes, **inside the six-minute scan that paid for them**, so the published Duration cost nothing at all in the case the paragraph was written about. ⚠ **This roughly doubles a Thorough Scan's real cost and is a price change, not a clock change.** `CLAUDE.md` requires re-checking the tables that depend on a moved number, and that was done rather than assumed:
+  - **`01` §1.3's recovery anchors survive but now compose.** "~2× its run duration to fully recover" at 50% load was always a statement about the *recovery*, not the total — so the figure is unchanged and the total is now ~3× the run duration (~6× at 85%). §1.3 says so explicitly now, because that is the sentence a future tuner reads before moving `base_rate` or `k`.
+  - **The load factor that sets the curve excludes the releasing allocation** (`ComputeRules.loadFactorExcluding`). Measuring load with the scan's own cycles still counted would charge the scan a recovery penalty *for its own cycles* — a second, compounding cost nothing asked for, which would have made the change quietly worse than the doubling it was decided on.
+  - **The three published cost/duration figures are untouched** (5/15/35 cycles, ~30s/~2min/~6min), so every curriculum entry that quotes them still holds. Checked all four: `education/02`'s `locality`, `memory-hierarchy` and `thermal-budget` pages and `education/08`'s defence-budget page. Two of them — the ones saying an overextended player is "down 35 cycles for far longer than the scan ran" — become *more* true, since that is now the case on every rig rather than only a loaded one.
+  - **Recovery is dated from the task's end, not from the player's next tick.** A scan that finished while the game was closed must not restart its recovery clock on load, or a week away returns a rig still nursing Tuesday's scan. Same argument as `settleRecovered` settling on the resume path; both are covered by tests.
+  - ⚠ **`resume()` needs two recovery sweeps and the second is not redundant** — a finished task only becomes `RECOVERING` inside `settleTasks`, dated from when it ended, so without a sweep after it the player watches a week-old scan recover in front of them.
+  - **`../client/06` §2.5's compute journal is now two rows for a scan**, held and released, with the load multiplier on the *release* row: under hold-then-recover the load that sets the curve is the load when the cycles let go, which need not be the load when the player pressed the button.
+
+  **UI-8 confirmed, and the entry that recorded it was wrong about the code.** The banded thermometer stays. The band name stays *out* of the strip — `KeyValue.keyOnly("Personal heat")` — which UI-8's own text had claimed was not the case. Since `../client/07` §5.2 forbids meaning resting on appearance and a JavaFX tooltip is mouse-only, the band name and the numeric heat are now `ThermoMeter`'s **accessible text** as well, which is **CL-10**'s two-path fix reused. The remaining stretch of §5.2 is recorded in §2 rather than smoothed over.
+
+  ⚠ **Rendering the confirmation is what found UI-9**, a new question: the thermometer's five-band ramp is **non-monotonic in luminance in all four themes**, with the hottest band *darker* than the coldest in every one (`deck`: 0.159 vs 0.252). That is **AX-5**'s failure in a new place — AX-5 fixed the uOS heat *chip* on 2026-07-25 and the thermometer, added a day later, built its own ramp out of general palette tokens that were never chosen to sequence. Logged rather than patched, because the fix is a palette decision against a contract; see §2. It is also a standing vindication of checking by rendering: `UiContractTest` is green, every colour is a token, no rule is broken, and the meter still tells the player the wrong story as it climbs.
+
+  **UI-2 was reviewed and left open on purpose** — the Bandwidth window cap keeps its mechanism and stays defaulted off. Recorded because "asked and deliberately not decided" is a different state from "never asked", and the next session should not spend the question again. The argument against it that the review surfaced is now written into §2.
+
+  **UI-5 confirmed:** uOS Classic stays flat and keeps its name. No theme gets an exemption from §9.
+
+- 2026-07-26 — **The desk got a wallpaper, and §9's screen-artefact ban was amended around it** — recorded in `ui-design-language.md` §9.1 and §12, `client/ui/widgets/Substrate.java`, `client/ui/CrtOverlay.java`, `client/ui/WallpaperMode.java`. Two changes, one of them to a contract.
+
+  **§9 previously read "CRT scanlines, vignette, bezel, chromatic aberration — explicitly cut, do not reintroduce."** On explicit direction it now permits **scanlines, chromatic aberration and light VHS glitch as optional, player-switchable effects**; **bezel and vignette stay cut**. The line the list draws is now *switchability* rather than the effects themselves, and that is faithful to the original argument rather than a softening of it: the entry was never really about how artefacts look, it was that an interface which permanently degrades its own legibility is lying about what it can show. A toggle answers that completely, and all three ship **off**. `ScreenArtefactTest` asserts the defaults, asserts bezel and vignette are still named as cut, and greps the stylesheet for `radial-gradient` — the only way a vignette could be drawn here — so the amendment cannot quietly widen.
+
+  ⚠ **Chromatic aberration is scoped and the scope is stated in the UI itself.** Full-scene aberration would mean snapshotting and recompositing the whole scene every frame, and there are no shaders available; it is applied to the **wallpaper** (a text node, so three offset labels rather than a raster) and to the **edges of glitch bands**, which is where a tape artefact bleeds colour anyway. The Settings copy says so, because the alternative is a bug report from someone expecting a fringe on the terminal.
+
+  **The wallpaper is greeble at desk scale**, not a new visual idea: §4's exact alphabet, ~7% cell occupancy, `dim-3` at 0.55 opacity — which resolves to about `#1F2727` over the void, i.e. **hairline weight**, deliberately the same order of thing as a panel border. Never amber (§2.1's accent reservation matters most on the largest surface in the client). It has **three states rather than a checkbox** — off, still, drifting — because **WCAG 2.2.2 (Pause, Stop, Hide)** requires automatically-starting motion over five seconds to be pausable, and folding pause into "off" would satisfy the letter while forcing a player who wants texture without movement to give up both. Rows drift at three different rates: a field sliding as one sheet reads as a scrolling raster, which §9.1 still does not want.
+
+  ⚠ **Rendering it found two JavaFX traps, and a green build had reported the feature as done while the desk was empty.** Both are now in `CLAUDE.md`'s list, which went from five to seven. (1) **`theme.css`'s late `.label { -fx-text-fill: -es-text; }` beats any one-class selector** by ordering at equal specificity — so `-fx-opacity` from the wallpaper's own block applied while `-fx-text-fill` was silently discarded, painting it in body-text grey at four times the intended weight. The split between which properties survive is what makes it nearly invisible on inspection. (2) **A width/height listener on the deck fires before the `BorderPane` has laid out its centre**, so `desk.getWidth()` inside `DeskManager.reflow()` is still the previous value; windows survive that because they only clamp against the desk, but the wallpaper was sized from it and stayed **0×0 permanently**. Both were found by measuring — a pixel histogram of the bare desk returned *two* colours — and neither would have failed any test that existed. `DeckSnapshot` now writes a **bare-desk frame**, because every other snapshot tiles four windows edge to edge and therefore covers the one layer being checked.
+
+  **Two revisions the same day, both from looking at the result.** (a) **Glitch was rebuilt to tear at edges.** It shipped first as full-width tracking bands and that was wrong: a real signal breaks up where it changes fastest — window frames, panel borders, table rules, the edges of readouts — and a band floating over empty desk has nothing to be an artefact *of*. `DeckShell` now supplies the overlay with the bounds of every open window frame plus a bounded walk of the elements inside it, and slivers are torn sideways off those. It self-scales in the right direction as a side effect: **a bare desk barely glitches, a crowded one glitches most.** (b) **Scanlines were animated**, because a still line pattern is a Moiré texture rather than a tube. They now drift one pixel every ~500ms and carry a **refresh bar** rolling down the screen, which is the artefact a camera pointed at a CRT actually records. The drift is deliberately slow: fast drift over body text is a shimmer that is tiring to read through, which would undo §9.1's own condition 2.
+
+  ⚠ **The refresh bar is the one soft-edged thing in the client**, and it is permitted by §9's existing wording rather than by a further amendment — gradients are allowed where "hard-edged or **near-transparent**", and every stop in it is under 0.05 alpha, which `ScreenArtefactTest` enforces as a ceiling.
+
+  ⚠ **The scanline period is genuinely duplicated** — the gradient's `to 0px 4px` in `theme.css` and `CrtOverlay.SCAN_PERIOD` in Java, because §7.2 means JavaFX cannot look a *size* up from CSS and the roll cannot read the pattern it is rolling. If they diverge the lines jump once per cycle instead of wrapping, which reads as a rendering stutter rather than as a wrong constant. A test asserts they match; that is the only defence available.
+
+  **A third revision, and a fourth thing added.** (c) **The glitch was rebuilt again, to displace real elements.** Anchoring it to edges was right; *drawing slivers over* those edges was not, because painted marks read as decoration sitting on the screen while a tape fault **moves the image**. It now sets `translateX` on real nodes — a render transform, so no layout pass — and stutters in **bursts**: quiet 3.5–12s, then 3–8 frames at 90ms re-randomising each frame. The original held one pose for 1.4s, which reads as a rendering fault rather than damage; a VHS tear is a snap. ⚠ It mutates nodes it does not own, so each displacement stores the node's **previous** translation and is restored on burst end, switch-off and dispose — restoring a hard zero would silently destroy a translation set elsewhere in the client. (d) **A curvature slider** was added, and §9.1 gained simulated tube curvature as a permitted optional effect. It does **not** warp the interface and the setting says so: barrel distortion needs a shader we do not have, and the render-to-texture alternative *breaks input* — hit-testing would use undistorted geometry, so every click would land away from the control. What it scales is radial rim aberration, measured at full strength as R−B of **−2 at centre, −11 at the edge midpoints, −19 at all four corners**.
+
+  ⚠ **The first aberration model was measurably wrong and the render caught it.** Left/top warm and right/bottom cool looks reasonable; it makes the two bands carry *opposite* channels at the top-right and bottom-left corners, where they cancel — +4 and −8 against +17 and −22 at the other two. Lateral CA magnifies one channel more than the other, so red is outboard on **every** edge and cyan inboard on every edge. Two strong corners and two washed-out ones is that mistake's signature, and it is invisible without sampling the pixels.
+
+  **Reachable from both paths (pillar C1):** Settings → Screen, and the `wallpaper` and `crt` commands (`crt curvature <0-100>`), through the same profile and the same apply call so they cannot disagree.
 
 ## 4. How to use this doc
 

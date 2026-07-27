@@ -80,32 +80,68 @@ class SoloGameTest {
         }
 
         @Test
-        @DisplayName("a scan's cycles go to RECOVERING, not straight back")
-        void scanRecovers(@TempDir Path dir) {
+        @DisplayName("UI-6: a running scan HOLDS its cycles — they do not start recovering yet")
+        void scanHoldsWhileItRuns(@TempDir Path dir) {
             SoloGame game = freshGame(dir);
             assertThat(game.scan(SoloGame.ScanTier.THOROUGH)).isPresent();
 
             ComputeBudget budget = game.computeBudget();
-            assertThat(budget.recovering()).isEqualTo(Cycles.of(Balance.SCAN_THOROUGH_CYCLES));
+            // The point of the decision: while the scan runs the cycles are gone, not coming back.
+            assertThat(budget.recovering()).isEqualTo(Cycles.of(0));
+            assertThat(budget.allocated()).isEqualTo(Cycles.of(Balance.SCAN_THOROUGH_CYCLES));
             assertThat(budget.available()).isEqualTo(Cycles.of(100 - Balance.SCAN_THOROUGH_CYCLES));
             assertThat(budget.reconciles()).isTrue();
         }
 
         @Test
+        @DisplayName("UI-6: the cycles start recovering only once the scan ends")
+        void scanRecoversAfterItEnds(@TempDir Path dir) {
+            TestClock clock = new TestClock(T0);
+            SoloGame game = SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", clock);
+            game.scan(SoloGame.ScanTier.THOROUGH);
+
+            // Just short of the published ~6 min: still held, still not recovering.
+            clock.advance(Duration.ofSeconds(SoloGame.ScanTier.THOROUGH.seconds() - 5));
+            game.tick();
+            assertThat(game.computeBudget().allocated()).isEqualTo(Cycles.of(Balance.SCAN_THOROUGH_CYCLES));
+            assertThat(game.computeBudget().recovering()).isEqualTo(Cycles.of(0));
+
+            // Past the end: the scan is done and NOW the thermal curve starts.
+            clock.advance(Duration.ofSeconds(10));
+            game.tick();
+            assertThat(game.computeBudget().allocated()).isEqualTo(Cycles.of(0));
+            assertThat(game.computeBudget().recovering()).isEqualTo(Cycles.of(Balance.SCAN_THOROUGH_CYCLES));
+            assertThat(game.computeBudget().reconciles()).isTrue();
+        }
+
+        @Test
         @DisplayName("recovery is slower on a loaded rig — the Thermal Budget shape")
         void recoveryIsSlowerUnderLoad(@TempDir Path dir, @TempDir Path dir2) {
-            SoloGame idle = freshGame(dir);
-            idle.scan(SoloGame.ScanTier.FULL);
-            Instant idleReady = idle.state().rig.allocations.getFirst().recoversAt;
-
-            SoloGame busy = freshGame(dir2);
-            busy.allocateSelfMining(80);
-            busy.scan(SoloGame.ScanTier.FULL);
-            Instant busyReady = busy.state().rig.allocations.getFirst().recoversAt;
+            // Under hold-then-recover, recoversAt only exists after the scan has finished — so both
+            // rigs have to be run past the tier's duration before there is anything to compare.
+            Instant idleReady = recoveryDeadlineAfterFullScan(dir, 0);
+            Instant busyReady = recoveryDeadlineAfterFullScan(dir2, 80);
 
             // design/01 §1.3: "slower the closer the rig sits to capacity". This is the whole
             // reason over-committing compounds rather than merely costing.
             assertThat(busyReady).isAfter(idleReady);
+        }
+
+        /** Runs a Full Scan to completion on a rig carrying {@code selfMining} cycles. */
+        private Instant recoveryDeadlineAfterFullScan(Path dir, int selfMining) {
+            TestClock clock = new TestClock(T0);
+            SoloGame game = SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", clock);
+            if (selfMining > 0) {
+                game.allocateSelfMining(selfMining);
+            }
+            game.scan(SoloGame.ScanTier.FULL);
+            clock.advance(Duration.ofSeconds(SoloGame.ScanTier.FULL.seconds() + 1));
+            game.tick();
+            return game.state().rig.allocations.stream()
+                    .filter(a -> "RECOVERING".equals(a.state))
+                    .findFirst()
+                    .orElseThrow()
+                    .recoversAt;
         }
 
         @Test
@@ -120,6 +156,24 @@ class SoloGameTest {
             game.tick();
             assertThat(game.computeBudget().available()).isEqualTo(Cycles.of(100));
             assertThat(game.computeBudget().recovering()).isEqualTo(Cycles.of(0));
+        }
+
+        @Test
+        @DisplayName("UI-6: a scan that finished while the game was closed recovers from when it ended")
+        void offlineScanDoesNotRestartItsRecoveryClock(@TempDir Path dir) {
+            Path save = dir.resolve("save.json");
+            TestClock clock = new TestClock(T0);
+            SoloGame game = SoloGame.open(new SaveStore(save), "operator", clock);
+            game.scan(SoloGame.ScanTier.THOROUGH);
+            game.persist();
+
+            // A week away. The scan ended six minutes in and its recovery finished long before now,
+            // so the rig must be whole — not still nursing Tuesday's scan in front of the player.
+            TestClock later = new TestClock(T0.plus(Duration.ofDays(7)));
+            SoloGame resumed = SoloGame.open(new SaveStore(save), "operator", later);
+            assertThat(resumed.computeBudget().available()).isEqualTo(Cycles.of(100));
+            assertThat(resumed.computeBudget().recovering()).isEqualTo(Cycles.of(0));
+            assertThat(resumed.tasks()).isEmpty();
         }
     }
 

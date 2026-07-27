@@ -247,7 +247,45 @@ Any of these individually undoes the look. Treat as build-blocking.
 - Gradient fills — hazard stripes and the sweep bar are the only gradients, both hard-edged or near-transparent
 - Icon fonts and Material/Lucide icon sets — glyphs are drawn from ASCII and box-drawing characters
 - Removing greeble because it "doesn't do anything"
-- CRT scanlines, vignette, bezel, chromatic aberration — explicitly cut, do not reintroduce
+- **Bezel** — a drawn monitor casing, screen curvature, or any frame implying the interface sits inside a pictured device. Still cut, without exception.
+- **Vignette** — corner and edge darkening. Still cut: it dims real content by position rather than by meaning, and the corners are where tiled windows go.
+- Any screen artefact that is **not** switchable off by the player (see §9.1)
+
+### 9.1 Screen artefacts — permitted, on conditions (amended 2026-07-26)
+
+**This list previously read "CRT scanlines, vignette, bezel, chromatic aberration — explicitly cut, do not reintroduce." That was amended on explicit direction.** Three of those four are now permitted:
+
+| Artefact | Status | Ships |
+|---|---|---|
+| **CRT scanlines** | Permitted | Off |
+| **Chromatic aberration** | Permitted | Off |
+| **Light VHS-style glitch** — brief displacement torn off *edges* | Permitted | Off |
+| **Simulated tube curvature** — radial rim aberration on a slider | Permitted | 0 |
+| **Bezel** | **Still cut** | — |
+| **Vignette** | **Still cut** | — |
+
+Four conditions, and they are what make the amendment safe rather than a hole in the list:
+
+1. **Every artefact is off by default and switchable off permanently.** This is the whole distinction the rejection list was protecting. An effect the player switches on is a costume; an effect welded to the interface is a claim about fidelity that the interface then has to keep making while the player is trying to read a number. Settings → Screen, and the `crt` command.
+2. **No artefact may reduce the legibility of a figure the player is required to read.** Scanlines cost contrast on body text — that is exactly why they are opt-in rather than a default, and why the high-visibility theme does not turn them on for anyone.
+3. **Still no blur and no glow.** §9's ban on those is unchanged and machine-checked. A scanline is a hard-edged band and a glitch sliver is a flat lift with hard edges — real artefacts on real hardware are hard-edged too, so nothing is given up. The **one** exception is the refresh bar, which §9's own wording already allows: gradients are permitted where they are "hard-edged or **near-transparent**", and every stop in it is below 0.05 alpha. A test enforces that ceiling.
+4. **Motion artefacts obey §5.** Scanline drift, the refresh bar and the glitch all step in whole pixels and never tween, and `prefers-reduced-motion` stops all three — leaving the lines drawn and perfectly still. Aberration never moved.
+
+**Glitch displaces the picture; it does not paint on it.** Two wrong versions preceded this one and both are worth recording. It began as full-width tracking bands — but a real signal does not degrade uniformly, it breaks up where the signal changes fastest, so it was re-anchored to **window frames, panel borders, table rules and the edges of readouts**. That was still not right, because it *drew coloured slivers over* an interface that never moved, and painted marks read as decoration sitting on the screen. A tape or timebase fault **moves the image**. So the glitch now sets `translateX` on real nodes — a render transform, no layout pass — and a row of text that jumps four pixels sideways and back reads instantly as the signal failing. The drawn fringes remain, but their job is now the colour bleed on the edges of the elements that *moved*.
+
+It is also **bursty rather than periodic**: quiet for 3.5–12 seconds, then 3–8 frames at 90ms that re-randomise every frame, then quiet again for a different interval. The first build held one displaced pose for 1.4 seconds, which reads as a rendering fault rather than tape damage — a VHS tear is a snap. Intermittency is what makes an artefact read as damage at all; something on a regular beat reads as a feature of the interface, and something constant stops being noticed within a minute. ⚠ Because it mutates nodes it does not own, every displacement is recorded with its **previous** translation and restored on burst end, on switch-off and on dispose — restoring a hard zero would destroy any translation another part of the client had set, and a decorative effect that quietly breaks a real animation is worse than one that does not run.
+
+Anchoring to elements also makes the effect self-scaling in the right direction: **a bare desk barely glitches and a crowded one glitches most**, so the artefact tracks how much interface is actually on screen.
+
+**Curvature is a slider, and it does not warp the picture.** ⚠ Real barrel distortion is a per-pixel remap needing either a pixel shader (JavaFX exposes none) or a per-frame render-to-texture mapped onto a 3D mesh. The second is not just expensive — it **breaks input**, because hit-testing would still use the undistorted geometry and every click would land somewhere other than where the player sees the control. A curvature setting that silently made the UI unclickable is a far worse outcome than one that does less than its name suggests, so the interface stays flat and the Settings copy says so outright.
+
+What the slider does scale is the artefact curved glass actually produces: **radial chromatic aberration at the rim** — zero at the centre, stronger at the edges, strongest in the corners. Built from four edge bands, since a corner sits inside two of them at once; measured at full strength as R−B of −2 at centre, −11 at the edge midpoints and −19 at all four corners. ⚠ Every band runs **warm outboard, cool inboard, the same way round on all four edges**, because lateral CA magnifies one channel more than the other. Making left/top warm and right/bottom cool looks reasonable and is wrong — the two bands then carry opposite channels at the top-right and bottom-left corners and cancel, which measured as +4 and −8 against +17 and −22 at the other two. Two strong corners and two washed-out ones is that mistake's signature. It stays a fringe rather than an outline: it fades out well before the centre and never closes into a frame, because a frame is a bezel.
+
+**Scanlines move, and that is what makes them a tube.** A still line pattern is a Moiré texture; the slow vertical drift plus a refresh bar rolling down it is what a camera pointed at a CRT actually records. Both live under the single scanline switch, because nobody enables scanlines wanting a static one. ⚠ The drift is deliberately slow — fast drift over body text is a shimmer that is tiring to read through, which would undo condition 2.
+
+⚠ **Chromatic aberration is scoped, and the scope is honest.** Full-scene aberration would mean snapshotting and recompositing the whole scene every frame; there are no shaders available. It is applied to the **desk wallpaper**, which is text and can afford three layers, and to the **edges of glitch bands**, which is where a tape artefact bleeds colour anyway. It is not applied to the terminal, the tables or the meters, and the setting's own help text says so.
+
+**The greeble budget now has a second consumer.** §4 budgets "roughly 10–15% of pixels" to meaningless texture. The desk wallpaper is greeble at desk scale and spends from that same budget, which is why it is held near 10% occupancy of cells, drawn in `dim-3` at ~0.34 opacity, and **never in amber** — §2.1's accent reservation matters most on the largest surface in the client.
 
 ---
 
@@ -279,6 +317,9 @@ The first JavaFX pass is done when:
 ## 12. What implementation changed, and what it cost
 
 Recorded here rather than only in the resolution log, because these are the places where following this document had a consequence someone will want the reasoning for.
+
+- **§9's screen-artefact ban was amended, and §9.1 is the replacement.** Scanlines, chromatic aberration and light VHS glitch are permitted as **optional, off-by-default, player-switchable** effects; bezel and vignette stay cut. The line the list now draws is *switchability* rather than the effects themselves — the original entry's real argument was never "artefacts look bad", it was that an interface which permanently degrades its own legibility is lying about what it can show, and a toggle answers that completely. Implemented as `ui/CrtOverlay` (scanlines, tracking bands, band fringe) and `ui/widgets/Substrate#setAberration`. ⚠ Aberration is **scoped to the wallpaper and the glitch bands** and cannot be full-scene — see §9.1.
+- **The desk has a wallpaper, and it spends §4's greeble budget.** `ui/widgets/Substrate` is greeble at desk scale: the same alphabet §4 fixes, sparse enough to sit near 10% cell occupancy, in `dim-3` at ~0.34 opacity, **never amber**. It has three states — off, still, drifting — rather than a checkbox, because **WCAG 2.2.2 (Pause, Stop, Hide)** requires that automatically-starting motion lasting over five seconds be pausable, and because "I want the texture but not the movement" is a real preference that a boolean forces a player to lose. Rows drift at three different rates: a field sliding as one sheet would read as a scrolling raster, which is the thing §9.1 still does not want.
 
 - **The `native` theme family is gone.** §0 cancels AtlantaFX and OS-native theming, so there is nothing left for a system light mode to match. What replaced seven stylesheets is **one component sheet plus palette overlays of ~40 lines each** — `theme.css` owns every component rule, geometry, hairline and motion, and a variant owns colours only. A test enforces that an overlay never sets a size, a font or a border width, because the moment one does, the guarantee that a widget cannot look right in one theme and broken in another is gone.
 - **uOS Classic is no longer System 7 chrome.** Bevels, drop shadows and rounded corners are all on §9's build-blocking list. What survived is its *palette* — a light field with black hairlines — which was always the part doing the work, since it made Classic the most legible skin in the client. The period bevelling did not survive this document, and keeping it would have left one theme exempt from the contract every other theme is held to.
