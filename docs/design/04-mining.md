@@ -182,3 +182,55 @@ Hijack, sabotage, and crack are collectively why **Provenance Tracer** (`07-reco
 - Miner-focused bot frame: `10-botnets.md` §2
 - Economy context and variance warnings: `03-economy.md`
 - Open questions touching mining: OQ-3 (partial sweeps), OQ-4 (buffer size), OQ-6 (Detection Array role), OQ-7 (crack profitability vs. security incentive)
+
+---
+
+## 6. The process table — the manual audit, implemented — [PROPOSAL]
+
+§3.1 has always said that a hidden miner is findable *by hand*: "the discrepancy is always present in the data — cycle totals that don't add up." Until now that was a sentence with no mechanic behind it. The rig monitor's five tabs are the mechanic.
+
+### 6.1 Five tabs, because each one is a question
+
+**Overview · CPU · MEMORY · DISK · NETWORK**, in that order — cheapest signal to most specific. A player who suspects something walks rightwards. Every tab lists the same processes with different columns: the player's own tools and reservations, the system's own processes, and anything else that happens to be running.
+
+**The rig runs a FreeBSD-shaped system, and the table is FreeBSD's.** Kernel threads are bracketed (`[pagedaemon]`, `[g_up]`, `[bufdaemon]`), pid 0 is the kernel and pid 1 is `init`, and the service accounts are real ones — `root`, `daemon`, `operator`, `nobody`, `unbound`, `_dhcp`, `ntpd`. All three conventions transfer to a real machine, which is the point.
+
+> ⚠ A handful of rows are the fiction's own — `cyclesd`, `netd`, `ledgerd`, `vaultd`, `provenanced`, `attestd`, `syspolicyd`, `pulsed` — and they are flagged as such in the source rather than left to be assumed. Nothing here may quietly assert that FreeBSD ships a `cyclesd`. `netd` in particular is invented because real FreeBSD has no single networking daemon (the stack is in the kernel), and inventing a plausible-sounding *real* name would have been exactly the wrong mapping.
+
+### 6.1a The figures move, on a five-second tick
+
+Two kinds of number, and conflating them is what looks fake:
+
+- **Gauges** — `%CPU`, threads, memory, idle wakeups — **wander** around a resting level the process keeps. A smoothed walk, not a fresh random draw each interval: white noise reads as a slot machine, not a computer, and a player watching one row learns nothing from it. Threads hold for about a minute at a time, because threads do not fidget every five seconds on a real machine.
+- **Counters** — CPU time, bytes read and written, packets in and out — **only ever increase**, monotonic by construction rather than by tuning. A byte total that ticked backwards is the single most obviously-fabricated thing a process table can do.
+
+⚠ **CPU time accumulates at the process's *resting* share, never its instantaneous one.** Deriving the rate from the wandering gauge makes `intervals × rate` fall the moment the gauge dips. A test caught this.
+
+Sorting a column therefore does what it does on a real monitor: **rows jump and re-order** as processes get busier and quieter. Which makes a row that stays pinned at the top of `%CPU` worth a second look — and is why the table's own repaint runs on its own five-second clock rather than on the game's change signal, which on an idle rig may never fire.
+
+### 6.2 How a parasite hides
+
+A parasite wears a costume chosen **once, when it is planted**, and never re-rolled — a disguise that changed between readings would be unfindable by construction. There are five:
+
+| Disguise | What it does | The tell |
+|---|---|---|
+| **Tool twin** | Takes the exact name of a tool the player runs | Two rows called `scan --full` |
+| **System mimic** | A plausible daemon name, under an odd account | Its user appears **exactly once** in the table; real service accounts appear on several rows |
+| **Typosquat** | A real daemon's name, one character off (`syspolicvd`) | The real one is in the same table — sort by name and they land together |
+| **Resource hog** | No name games; just sits at the top of a column | Nothing the player started accounts for it |
+| **Stopped clock** | Claims heavy CPU with almost no accumulated CPU time | `% CPU` against `CPU TIME`, two columns apart |
+
+Two more tells come free and apply to every disguise: **a five-figure pid** on something claiming to have started at boot, and **network traffic** on something that should be local (only work reaching other machines has traffic — the same rule the noise meter uses).
+
+⚠ **Every tell is a *relationship*, never a marker.** A row against another row, or a row against itself. That is why there is no `rogue` field on the wire type, no "suspicious" style class, and no column that scores anything: a renderer that painted the answer would turn an investigation into spot-the-red-row.
+
+⚠ **None of them is hard.** Two seconds once you know where to look, and invisible to a glance. Making the audit a ten-minute puzzle would push players back onto buying scans, which is the opposite of what §3.1 wants.
+
+### 6.3 Killing a row, and what it costs
+
+Right-click any row.
+
+- **A tool of your own** stops where it is and **keeps what it managed**: a half-finished audit names half the parasites it was going to, a killed sweep reports the machines it had already reached. The result is a **truncation of the frozen answer**, never a fresh smaller roll — otherwise a kill would be a re-roll a player could force at will.
+  > ⚠ **The cycles are not refunded and the recovery is the full one.** Stopping early buys back your *time*, never your *capacity*. Without that, "start everything and kill the losers" is free.
+- **A parasite** dies and its cycles come back. Its **buffer is forfeit** — a crack is what takes a buffer (§5), and a kill that also paid would collapse three of §5's four responses into one. What a kill buys is *immediacy*: no breach, no attention, no puzzle. **It works without an audit**, which is the payoff for reading the table.
+- **A system process cannot be killed, only restarted.** The rig needs it. Restarting takes down every running tool that depended on it, and each of those pays exactly the price above. That cascade is what makes suspecting a system row a decision rather than a free click — today `netd` carries sweeps and `auditd` carries scans.

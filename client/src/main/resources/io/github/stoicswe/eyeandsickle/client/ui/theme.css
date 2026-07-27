@@ -1296,6 +1296,28 @@
    background it also sets applied, which is the exact half-applied failure this stylesheet's header
    warns about. Same fill as the graph's mark, because it is the same selection. */
 .es-netlist .es-netlist-selected { -fx-text-fill: -es-text-hi; -fx-background-color: -es-panel-hi; }
+
+/* ══ THE PROCESS TABLE (docs/design/04 §3.1 — the manual audit) ══════════════════════════════
+ *
+ * ⚠ THERE IS NO ROW STYLE THAT MEANS "SUSPICIOUS", AND ADDING ONE DELETES THE FEATURE.
+ *
+ * A parasite hides in this table by looking like the rows around it. Every tell is in the DATA — a
+ * name one character off the daemon below it, a user nothing else runs as, a CPU figure that does not
+ * match its own accumulated CPU time — and a stylesheet that painted the answer would turn an
+ * investigation into a game of spot-the-red-row. The only visual distinction any row gets is
+ * `.es-netlist-selected`, which is the player's own doing.
+ *
+ * Character cells, so a column can be read down: the whole table exists to be compared vertically,
+ * and a proportional face would make two figures of the same magnitude different widths. */
+.es-proctable .es-proc-row,
+.es-proctable .es-proc-head {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 11px;
+}
+.es-proctable .es-proc-row  { -fx-text-fill: -es-text; }
+/* The header is a control — clicking it sorts — so it answers the pointer like every other one. */
+.es-proctable .es-proc-head:hover { -fx-text-fill: -es-text-hi; }
+.es-proctable .es-proc-row:hover  { -fx-text-fill: -es-text-hi; }
 .es-netlist-head { -fx-border-color: transparent transparent -es-rule transparent; -fx-border-width: 0 0 1 0; -fx-padding: 0 0 5 0; }
 .es-netlist-row  { -fx-padding: 1 0 1 0; }
 

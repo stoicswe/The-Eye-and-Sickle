@@ -12,6 +12,7 @@ import io.github.stoicswe.eyeandsickle.client.ui.widgets.CycleGrid;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.Greeble;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.KeyValue;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.Note;
+import io.github.stoicswe.eyeandsickle.client.ui.widgets.ProcessTableView;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.SweepPanel;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeAllocation;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeBudget;
@@ -25,6 +26,7 @@ import javafx.geometry.Pos;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.FlowPane;
+import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
@@ -121,8 +123,63 @@ public final class RigMonitorView {
 
         VBox notes = new VBox(UiTokens.SPACE_2);
 
-        root.getChildren().addAll(head, greeble, grid, activity, working, notes);
+        // ---------------------------------------------------------------- tabs
+        //
+        // Five views of one machine, in escalation order. Overview is the panel that was already
+        // here; the other four are the process table, which is what makes docs/design/04 §3.1's
+        // "manual audit" an act rather than a sentence.
+        RigTab[] tab = {RigTab.OVERVIEW};
+        ProcessTableView table = new ProcessTableView();
+        VBox overview = new VBox(UiTokens.SPACE_6, greeble, grid, activity, working, notes);
         VBox.setVgrow(grid, Priority.SOMETIMES);
+
+        Label tableNote = Ui.small(
+                "Everything running on this rig. Nothing here is labelled hostile — right-click a row "
+                        + "to kill it, sort a column to compare. A process that is not yours has to "
+                        + "look like one that is, and looking like one is not the same as being one.");
+        tableNote.setWrapText(true);
+
+        VBox tableSide = new VBox(UiTokens.SPACE_3, tableNote, table);
+        VBox.setVgrow(tableSide, Priority.ALWAYS);
+
+        HBox tabs = Ui.row(UiTokens.SPACE_3);
+        tabs.getStyleClass().add("es-breach-picker");
+        List<BreachView.Chip> tabChips = new ArrayList<>();
+        Runnable[] applyTab = new Runnable[1];
+        for (RigTab value : RigTab.values()) {
+            BreachView.Chip chip = new BreachView.Chip(value.control(RigTab.OVERVIEW), "es-breach-chip-quiet");
+            chip.setAccessibleText("Show the " + value.label().toLowerCase(Locale.ROOT) + " view of the rig.");
+            chip.onInvoke(() -> {
+                tab[0] = value;
+                applyTab[0].run();
+            });
+            tabChips.add(chip);
+            tabs.getChildren().add(chip);
+        }
+
+        applyTab[0] = () -> {
+            for (int i = 0; i < tabChips.size(); i++) {
+                RigTab value = RigTab.values()[i];
+                BreachView.Chip chip = tabChips.get(i);
+                chip.setText(Ui.upper(value.control(tab[0])));
+                chip.getStyleClass().remove("es-breach-chip-loud");
+                if (value == tab[0]) {
+                    chip.getStyleClass().add("es-breach-chip-loud");
+                }
+            }
+            visible(overview, tab[0].isOverview());
+            visible(tableSide, !tab[0].isOverview());
+            if (!tab[0].isOverview()) {
+                table.setColumns(tab[0].columns());
+            }
+        };
+
+        VBox notices = new VBox(UiTokens.SPACE_2);
+        table.bind(session::processes);
+        table.setOnKill(process -> report(notices, session.killProcess(process.processId())));
+        table.setOnRestart(process -> report(notices, session.restartProcess(process.processId())));
+
+        root.getChildren().addAll(head, tabs, notices, overview, tableSide);
 
         Runnable refresh = () -> {
             ComputeBudget budget = session.computeBudget();
@@ -148,14 +205,45 @@ public final class RigMonitorView {
                     + Math.round(status.load() * 100) + "% load"));
 
             notes.getChildren().setAll(notesFor(session, budget, status));
+
+            // ⚠ Deliberately NOT read here. The table runs its own five-second clock (see
+            // ProcessTableView.bind) because the figures advance whether or not the game does — an
+            // idle rig fires no session change at all, and a table that froze the moment the player
+            // stopped doing anything would be stale exactly when they were reading it.
         };
 
+        applyTab[0].run();
+        report(notices, null);
         refresh.run();
         session.onChange(s -> refresh.run());
 
         ScrollPane scroll = new ScrollPane(root);
         scroll.setFitToWidth(true);
         return scroll;
+    }
+
+    /**
+     * Prints whatever the rules said about a kill or a restart, and nothing of the view's own.
+     *
+     * <p>⚠ Success is reported too, not only refusal. Killing a row makes it vanish from a table of a
+     * dozen similar rows, and a player who is not certain they clicked the right one needs the engine
+     * to say what went — otherwise the most consequential action on this panel is also its quietest.
+     */
+    private static void report(VBox notices, GameSession.Outcome outcome) {
+        if (outcome == null) {
+            notices.getChildren().clear();
+        } else if (outcome.succeeded()) {
+            notices.getChildren().setAll(Note.consequence("", "Done. The log has the detail."));
+        } else {
+            notices.getChildren().setAll(Note.consequence("", outcome.message()));
+        }
+        visible(notices, !notices.getChildren().isEmpty());
+    }
+
+    /** Shows or hides a node and takes it out of the layout with it. */
+    private static void visible(javafx.scene.Node node, boolean show) {
+        node.setVisible(show);
+        node.setManaged(show);
     }
 
     /**

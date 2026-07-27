@@ -280,6 +280,12 @@ public final class Targets {
             allocation.startedAt = now;
             miner.allocationId = allocation.allocationId;
         }
+        // The costume it wears in the process table, chosen once and then a fact about this miner.
+        // Drawn here rather than at first render, because a disguise that changed between repaints
+        // would be unfindable by construction — see Disguise.
+        Rng rng = Rng.of(save);
+        io.github.stoicswe.eyeandsickle.solo.proc.Disguise.dress(save, miner, rng);
+        rng.commit(save);
         save.rig.foreignMiners.add(miner);
         return miner;
     }

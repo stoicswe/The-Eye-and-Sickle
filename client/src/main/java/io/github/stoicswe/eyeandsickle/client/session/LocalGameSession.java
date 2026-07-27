@@ -365,6 +365,25 @@ public final class LocalGameSession implements GameSession {
         return game.noise();
     }
 
+    @Override
+    public List<io.github.stoicswe.eyeandsickle.protocol.game.RigProcess> processes() {
+        return game.processes();
+    }
+
+    @Override
+    public Outcome killProcess(String processId) {
+        return apply(game.killProcess(processId));
+    }
+
+    @Override
+    public Outcome restartProcess(String processId) {
+        return apply(game.restartProcess(processId));
+    }
+
+    private Outcome apply(io.github.stoicswe.eyeandsickle.solo.proc.ProcessRules.Outcome outcome) {
+        return outcome.refused() ? Outcome.refused(outcome.why()) : changed(Outcome.ok());
+    }
+
     // ── Filing what has been found ────────────────────────────────────────────────────────────
     //
     // Every refusal below is the rules' own sentence, passed through unedited. The view and the

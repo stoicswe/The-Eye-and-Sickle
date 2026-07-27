@@ -528,6 +528,26 @@ public final class SoloGame {
         return io.github.stoicswe.eyeandsickle.solo.rules.NoiseRules.level(save, clock.instant());
     }
 
+    // ── The process table (docs/design/04 §3.1, the manual audit) ─────────────────────────────
+    //
+    // Thin like the rest of this facade. What the table contains, how a parasite hides in it and
+    // what killing a row costs all live in solo/proc/; nothing below decides anything.
+
+    /** Everything running on the rig, as rows. ⚠ Nothing in a row says which one is the parasite. */
+    public List<io.github.stoicswe.eyeandsickle.protocol.game.RigProcess> processes() {
+        return io.github.stoicswe.eyeandsickle.solo.proc.ProcessTable.of(save, clock.instant());
+    }
+
+    /** Stops a process the player may stop. Refuses, in words, when they may not. */
+    public io.github.stoicswe.eyeandsickle.solo.proc.ProcessRules.Outcome killProcess(String processId) {
+        return io.github.stoicswe.eyeandsickle.solo.proc.ProcessRules.kill(save, processId, clock.instant());
+    }
+
+    /** Restarts a daemon, taking every tool that depended on it down with it. */
+    public io.github.stoicswe.eyeandsickle.solo.proc.ProcessRules.Outcome restartProcess(String processId) {
+        return io.github.stoicswe.eyeandsickle.solo.proc.ProcessRules.restart(save, processId, clock.instant());
+    }
+
     // ── Filing what has been found (the folder tree) ──────────────────────────────────────────
     //
     // Thin like the rest of this facade. The rules — and every refusal's wording — live in

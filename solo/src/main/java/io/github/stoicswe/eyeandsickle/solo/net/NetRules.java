@@ -429,6 +429,36 @@ public final class NetRules {
     }
 
     /**
+     * Cuts a sweep's frozen result down to the fraction it managed before it was killed.
+     *
+     * <h2>⚠ A truncation of the stored answer, never a new roll</h2>
+     *
+     * {@link #beginSweep} decides the whole sweep at commission precisely so that quitting cannot
+     * change it. Killing early therefore takes the machines it had already reached — the first
+     * {@code round(progress × n)} of them, in the order they were found — and drops the rest. Asking
+     * the rules for a fresh, smaller sweep would be a re-roll the player could force at will, which
+     * is the exploit every frozen outcome in this engine exists to close.
+     *
+     * <p>The counter-hack is dropped with the tail. It is the network answering a sweep that ran to
+     * completion, and one the player pulled the plug on halfway did not finish provoking anybody —
+     * which is a real and legible reason to kill a deep sweep that is making you nervous.
+     *
+     * @param progress how far it got, {@code [0, 1]}
+     */
+    public static void truncate(TaskState task, double progress) {
+        Encoded encoded = decode(task);
+        double fraction = Math.max(0.0d, Math.min(1.0d, progress));
+        int keep = (int) Math.round(encoded.found().size() * fraction);
+        List<String> kept = encoded.found().subList(0, Math.max(0, Math.min(encoded.found().size(), keep)));
+        task.outcome = encode(
+                encoded.toolId(),
+                encoded.vantage(),
+                encoded.inRange(),
+                fraction >= 1.0d ? encoded.counterHackDepth() : -1,
+                kept);
+    }
+
+    /**
      * Decodes a finished sweep's frozen result without applying it — the readout's seam.
      *
      * <p>Tolerant of a malformed line for the same reason {@code ScanRules.finding} is: a save
@@ -504,6 +534,13 @@ public final class NetRules {
             miner.allocationId = allocation.allocationId;
         }
         save.rig.foreignMiners.add(miner);
+
+        // Dressed on the way in, from the same generator the sweep already committed. A parasite
+        // planted by a counter-hack hides exactly as well as the tutorial one — the log announces the
+        // EVENT, and finding the PROCESS is still the player's job.
+        Rng disguiseRng = Rng.of(save);
+        io.github.stoicswe.eyeandsickle.solo.proc.Disguise.dress(save, miner, disguiseRng);
+        disguiseRng.commit(save);
 
         int heat = Balance.netCounterHackHeat(depth);
         save.personalHeat = Math.min(Balance.PERSONAL_HEAT_MAX, save.personalHeat + heat);

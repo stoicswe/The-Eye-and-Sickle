@@ -52,6 +52,34 @@ public final class MinerState {
      */
     public boolean discovered = false;
 
+    /**
+     * How this parasite hides in the process table — see {@code net.Disguise}.
+     *
+     * <h2>Chosen once, at plant time, and never re-rolled</h2>
+     *
+     * ⚠ A disguise that changed between repaints would be unfindable by construction: the player
+     * would compare two readings of the same table, see two different lies, and correctly conclude
+     * the table is noise. It is drawn from the persisted RNG when the miner is planted and then it is
+     * a fact about that miner, like its tier.
+     *
+     * <p>Empty on a save written before disguises existed, which {@code Disguise.of} reads as the
+     * plainest one — a parasite from an older build hides badly rather than not at all.
+     */
+    public String disguise = "";
+
+    /**
+     * The name it wears in the process table, decided with the disguise.
+     *
+     * <p>Stored rather than derived because two of the disguises copy something that can change: a
+     * tool twin copies a tool the player was running <em>at the time</em>, and the player may never
+     * run it again. Re-deriving would make the parasite rename itself the moment its cover story
+     * stopped being true, which is the one thing a hidden process must never do.
+     */
+    public String disguiseName = "";
+
+    /** The account it claims to run under. Part of the tell on two of the disguises. */
+    public String disguiseUser = "";
+
     // ------------------------------------------------------------------ the crack (design/04 §5.1)
 
     /**

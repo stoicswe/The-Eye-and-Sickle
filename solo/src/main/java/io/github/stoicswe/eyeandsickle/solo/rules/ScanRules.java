@@ -223,6 +223,50 @@ public final class ScanRules {
     }
 
     /**
+     * Cuts an audit's frozen finding down to what it managed before it was killed.
+     *
+     * <h2>⚠ A truncation of the stored answer, never a new roll</h2>
+     *
+     * The finding — including any false positive — is decided at commission so that a scan
+     * completing while the game is closed reports what it would have reported in session. Killing
+     * early keeps the first {@code round(progress × n)} parasites it had named and drops the rest.
+     * Re-rolling a smaller scan would be a re-roll the player could force at will.
+     *
+     * <p>The sentence is rewritten from the kept ids rather than edited, because the original line
+     * states a count and a list and both change. A partial audit that still claimed "2 found" while
+     * naming one would be worse than no audit: the player would go looking for a process that this
+     * scan never actually saw.
+     *
+     * @param progress how far it got, {@code [0, 1]}
+     */
+    public static void truncate(TaskState task, double progress) {
+        if (task == null) {
+            return;
+        }
+        List<String> found = task.foundMinerIds == null ? List.of() : List.copyOf(task.foundMinerIds);
+        double fraction = Math.max(0.0d, Math.min(1.0d, progress));
+        int keep = Math.max(0, Math.min(found.size(), (int) Math.round(found.size() * fraction)));
+        List<String> kept = found.subList(0, keep);
+
+        task.foundMinerIds = new ArrayList<>(kept);
+        StringBuilder line = new StringBuilder();
+        if (kept.isEmpty()) {
+            line.append("Stopped before it named anything.");
+        } else {
+            line.append(kept.size())
+                    .append(kept.size() == 1 ? " foreign miner found before it stopped."
+                            : " foreign miners found before it stopped.");
+        }
+        // Said plainly, because the difference between "clean" and "unfinished" is the whole value
+        // of the result. A partial audit reporting a clean bill of health is a lie the player would
+        // reasonably act on.
+        line.append(" A partial audit is not a clean one: it checked ")
+                .append(Math.round(fraction * 100))
+                .append("% of what it was going to.");
+        task.outcome = line.toString();
+    }
+
+    /**
      * What {@code settleTasks} prints when a scan completes.
      *
      * <p>Falls back for saves written before findings were captured. The fallback says plainly that

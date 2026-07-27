@@ -306,6 +306,27 @@ public final class RemoteGameSession implements GameSession {
         return java.util.List.of();
     }
 
+    // ── The process table ─────────────────────────────────────────────────────────────────────
+    //
+    // What is running on a rig, and what a parasite is disguised as, are the server's answers (I14).
+    // An empty table is the honest one for a transport that does not exist: a fabricated process
+    // list would be the client inventing the thing the whole audit mechanic is about.
+
+    @Override
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.RigProcess> processes() {
+        return java.util.List.of();
+    }
+
+    @Override
+    public Outcome killProcess(String processId) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome restartProcess(String processId) {
+        return unavailable();
+    }
+
     // ── Filing what has been found ────────────────────────────────────────────────────────────
     //
     // The player's filing is state a home server owns like any other (I14) — a folder names a

@@ -223,6 +223,40 @@ public interface GameSession extends AutoCloseable {
     /** Everything downloaded so far. */
     List<io.github.stoicswe.eyeandsickle.protocol.game.NetDocument> documents();
 
+    // ── The process table ─────────────────────────────────────────────────────────────────────
+    //
+    // docs/design/04-mining.md §3.1 has always described a manual audit and nothing ever implemented
+    // one. This is it: everything running on the rig, as rows, with a parasite hiding among them in
+    // whatever costume the rules gave it.
+
+    /**
+     * Everything running on the rig.
+     *
+     * <p>⚠ <b>No row says which one is hostile.</b> A parasite hides by looking like the others, and
+     * the only thing that gives it away is the data — a name one character off a real daemon, a user
+     * nothing else runs as, a CPU figure that does not match its own accumulated CPU time. A flag the
+     * client could paint red would turn an investigation into a highlight. See {@code RigProcess}.
+     */
+    List<io.github.stoicswe.eyeandsickle.protocol.game.RigProcess> processes();
+
+    /**
+     * Stops a process.
+     *
+     * <p>A tool of the player's own ends where it stands and <b>keeps what it had</b> — its cycles
+     * still take the full thermal recovery, because stopping early buys back time and never capacity.
+     * A parasite goes, and its buffer is forfeit; a crack is what takes a buffer. A system process is
+     * refused, in words, and offered {@link #restartProcess} instead.
+     */
+    Outcome killProcess(String processId);
+
+    /**
+     * Restarts a system process, taking down every running tool that depended on it.
+     *
+     * <p>Each of those is ended exactly as {@link #killProcess} would end it. That cascade is the
+     * price, and it is what makes suspecting a system row a decision rather than a free click.
+     */
+    Outcome restartProcess(String processId);
+
     // ── Filing what has been found ────────────────────────────────────────────────────────────
     //
     // Folders are the player's own annotation over what they have discovered, and nothing in the
