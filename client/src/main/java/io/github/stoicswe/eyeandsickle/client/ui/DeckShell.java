@@ -1014,6 +1014,16 @@ public final class DeckShell {
         var saved = profile.settings().deskLayout;
         saved.clear();
         for (DeskManager.DeskWindow window : desk.windows()) {
+            // ⚠ The breach window is never restored, because a breach in progress is never resumed.
+            //
+            // An attempt is abandoned when the save is opened (SoloGame.backfill), so bringing the
+            // window back would raise an exploit console onto a breach that no longer exists —
+            // an empty target list where the player left a live attempt, which reads as the game
+            // having lost their progress rather than as the rule it is. Every other window is a
+            // readout and comes back exactly as it was.
+            if (WindowSpec.BREACH.id().equals(window.id())) {
+                continue;
+            }
             var state = new ClientProfile.DeskWindowState();
             DeskManager.Geometry geometry = window.geometry();
             state.x = geometry.x();

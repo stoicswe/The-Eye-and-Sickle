@@ -91,7 +91,11 @@ public final class BreachView {
     private BreachView() {}
 
     public static Region create(GameSession session) {
-        return create(session, null, null);
+        return create(session, null, null, new BreachArming());
+    }
+
+    public static Region create(GameSession session, TermDatabase terms, ClientProfile profile) {
+        return create(session, terms, profile, new BreachArming());
     }
 
     /**
@@ -104,7 +108,8 @@ public final class BreachView {
      * not a fallback: a definition the curriculum has not written yet must not be improvised here
      * ({@code docs/education/00-curriculum-and-method.md} §1.2).
      */
-    public static Region create(GameSession session, TermDatabase terms, ClientProfile profile) {
+    public static Region create(
+            GameSession session, TermDatabase terms, ClientProfile profile, BreachArming arming) {
         VBox root = new VBox(UiTokens.SPACE_6);
         root.getStyleClass().add("es-body-pad");
 
@@ -184,8 +189,31 @@ public final class BreachView {
 
         BreachTargetList targets = new BreachTargetList(session);
 
+        // ---------------------------------------------------------------- the launch panel
+        //
+        // The one control that spends. Above the list rather than inside it, because there is
+        // exactly one thing that can be started and there should be exactly one button that starts
+        // it — see BreachArming for why arming and firing are two steps. It is also the door the
+        // network map opens onto: a machine picked on the graph arrives here already armed, and the
+        // player's next act is a single deliberate press.
+        Label armedLabel = Ui.value("");
+        Label armedFacts = Ui.small("");
+        armedFacts.setWrapText(true);
+        Chip start = new Chip("Start breach", "es-breach-chip-loud");
+        start.setAccessibleText("Begin the breach on the armed target. This reserves its compute for "
+                + "the whole attempt and cannot be undone into a refund.");
+        Chip disarm = new Chip("Clear", "es-breach-chip-quiet");
+        disarm.setAccessibleText("Un-arm the target without starting anything.");
+        VBox launch = new VBox(UiTokens.SPACE_3,
+                armedLabel, armedFacts, Ui.row(UiTokens.SPACE_3, start, disarm));
+        // Both classes: `-launch` is the panel's own frame, `-picker` is what scopes the chip rules
+        // (they are declared under it, because the cost-strip block only styles chips inside a
+        // breach and these two live outside one).
+        launch.getStyleClass().addAll("es-breach-launch", "es-breach-picker");
+
         root.getChildren().addAll(
-                head, crackNote, notices, viewport, gauges, selectionRow, boards, outcome, ledger, targets);
+                head, crackNote, notices, viewport, gauges, selectionRow, boards, outcome, ledger,
+                launch, targets);
 
         presenter.bind(viewport, meter, ledger, strip, comb, rack, map, slate);
         presenter.setNoticeSink(text -> {
@@ -206,7 +234,37 @@ public final class BreachView {
             selection.valueNode().setAccessibleText("Selected: " + selection.get());
         });
 
-        targets.setOnBegin(t -> presenter.begin(t.targetId()));
+        // Picking a row arms it. Nothing is spent, and picking the armed row again clears it — so
+        // there is always a way back to "nothing chosen" without having to choose something else.
+        targets.setOnSelect(t ->
+                arming.arm(t.targetId().equals(arming.armed()) ? "" : t.targetId()));
+        disarm.onInvoke(() -> arming.arm(""));
+        // ⚠ The launch control is DEAD FOR ONE PULSE after it appears, and this is not defensive
+        // programming — it is a bug that was reproduced.
+        //
+        // Pressing BREACH on the network map raises this window from inside the click handler. The
+        // launch panel is then created under a pointer that is still down, and the release lands on
+        // START BREACH: one click on a map cell reserved twelve cycles and opened a breach the
+        // player never asked for. That is precisely the mis-click BreachArming splits aiming from
+        // firing to prevent, arriving through the window manager instead of through the list.
+        //
+        // A pulse is imperceptible to a person and unbridgeable by a single event, so a human click
+        // always works and a same-event one never does. It is not a two-press confirm: the user
+        // asked for one button and one click, and making the primary action a double-press to fix a
+        // race would be paying for the fix in the wrong currency.
+        boolean[] live = {false};
+        start.onInvoke(() -> {
+            if (!live[0] || !arming.isArmed()) {
+                return;
+            }
+            String armed = arming.armed();
+            // Disarmed BEFORE the attempt, not after. beginBreach either opens a breach — in which
+            // case the launch panel is hidden anyway — or refuses, and a refusal that left the
+            // target armed would leave a START BREACH button sitting under the sentence explaining
+            // why it will not work.
+            arming.arm("");
+            presenter.begin(armed);
+        });
 
         // Two presses, in place, rather than a confirmation dialog. `aborted` is a persisted outcome
         // with real consequences (docs/design/05 §4), so a mis-key must not be able to spend one —
@@ -247,6 +305,37 @@ public final class BreachView {
             visible(ledger, open);
             visible(targets, !open);
             visible(crackNote, open && found.get().minerCrack());
+
+            // ---- the launch panel
+            //
+            // Shown only when there is no breach running: while one is open the whole panel below is
+            // the breach, and a second "start" control would be offering to begin an attempt on top
+            // of the one in progress.
+            Optional<io.github.stoicswe.eyeandsickle.protocol.game.BreachTarget> armedTarget =
+                    open ? Optional.empty() : session.breachTargets().stream()
+                            .filter(t -> t.targetId().equals(arming.armed()))
+                            .findFirst();
+            // An armed id that is no longer in the list is dropped rather than kept: a machine can
+            // stop being a target between arming and pressing — somebody breached it, the compute
+            // went — and a button pointing at a target the rules would now refuse reads as broken.
+            if (!open && arming.isArmed() && armedTarget.isEmpty()) {
+                arming.arm("");
+            }
+            boolean wasShowing = launch.isVisible();
+            visible(launch, armedTarget.isPresent());
+            if (armedTarget.isPresent() && !wasShowing) {
+                live[0] = false;
+                javafx.application.Platform.runLater(() -> live[0] = true);
+            }
+            targets.setSelected(open ? "" : arming.armed());
+            armedTarget.ifPresent(t -> {
+                armedLabel.setText(Ui.upper(
+                        (t.label().isBlank() ? t.targetId() : t.label()) + " · " + t.address()));
+                armedFacts.setText("Tier " + t.difficultyTier().tier() + " · "
+                        + t.computeCost() + " cycles, reserved for the whole attempt and released "
+                        + "into thermal recovery however it ends"
+                        + (t.minerCrack() ? " · your own rig, so no heat on any outcome." : "."));
+            });
 
             if (open) {
                 BreachSnapshot snapshot = found.get();

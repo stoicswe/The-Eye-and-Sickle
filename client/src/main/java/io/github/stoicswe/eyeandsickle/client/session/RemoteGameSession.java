@@ -146,6 +146,20 @@ public final class RemoteGameSession implements GameSession {
         return connected;
     }
 
+    /**
+     * Silence, until a server says otherwise.
+     *
+     * <p>⚠ Not derived from {@link #lastBudget}. Noise is a rule — which consumers reach other
+     * machines, which running work is loud — and re-deriving it here would put a second
+     * implementation of that rule in the client, which is the thing moving it into the engine was
+     * meant to stop. A disconnected session reporting a quiet rig is also the safer error: a meter
+     * that invented loudness would have the player scrubbing logs over nothing.
+     */
+    @Override
+    public double noise() {
+        return 0.0d;
+    }
+
     // ------------------------------------------------------------------ intents
 
     /**
@@ -290,5 +304,46 @@ public final class RemoteGameSession implements GameSession {
     @Override
     public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.NetDocument> documents() {
         return java.util.List.of();
+    }
+
+    // ── Filing what has been found ────────────────────────────────────────────────────────────
+    //
+    // The player's filing is state a home server owns like any other (I14) — a folder names a
+    // discovered address, and which addresses are discovered is the server's answer. So there is
+    // nothing to hand back and nothing to accept until the transport exists.
+
+    @Override
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.NetFolder> folders() {
+        return java.util.List.of();
+    }
+
+    @Override
+    public java.util.List<String> unfiledNodes() {
+        return java.util.List.of();
+    }
+
+    @Override
+    public Outcome createFolder(String parentId, String name) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome renameFolder(String folderId, String name) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome moveFolder(String folderId, String newParentId) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome removeFolder(String folderId) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome fileNode(String address, String folderId) {
+        return unavailable();
     }
 }

@@ -29,6 +29,29 @@ public final class MinerState {
     /** Hidden from routine listings but not from a manual audit ({@code docs/design/09}). */
     public boolean rootkitWrapped = false;
 
+    /**
+     * Whether an audit has actually <b>named</b> this process — the flag the rig readout is gated on.
+     *
+     * <h2>⚠ Until this is true the rig monitor may not attribute a single cycle to it</h2>
+     *
+     * The compute grid gets its slices from {@code ComputeRules.snapshot}, which omits an undiscovered
+     * parasite's allocation entirely. The cycles are still gone — the rig has less to give, work takes
+     * longer, and a command that needs more than is left is refused — but nothing on screen says
+     * <em>why</em>, because nothing in the fiction knows. A readout that labelled the theft the moment
+     * it happened would hand the player the answer to the question the whole audit ladder in
+     * {@code docs/design/04-mining.md} §3.2 exists to sell, at a price of zero.
+     *
+     * <p>What is left visible is the arithmetic, and that is the point rather than a consolation.
+     * {@code §3.1} makes noticing that the numbers do not reconcile "the game's second-strongest
+     * tutorial vector": claimed plus free plus recovering comes to less than the rig's ceiling, and
+     * the missing cells are drawn dark and unlabelled. A player who adds up sees it; a player who
+     * glances does not; nobody is told.
+     *
+     * <p>False on a save written before this field existed, which is the honest default — a parasite
+     * from an older build has not been audited by this build's rules either.
+     */
+    public boolean discovered = false;
+
     // ------------------------------------------------------------------ the crack (design/04 §5.1)
 
     /**

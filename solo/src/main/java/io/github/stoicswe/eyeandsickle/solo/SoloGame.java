@@ -8,6 +8,8 @@ import io.github.stoicswe.eyeandsickle.solo.rules.ComputeRules;
 import io.github.stoicswe.eyeandsickle.solo.rules.EventLog;
 import io.github.stoicswe.eyeandsickle.solo.rules.LedgerRules;
 import io.github.stoicswe.eyeandsickle.solo.rules.MiningRules;
+import io.github.stoicswe.eyeandsickle.solo.rules.ScanRules;
+import io.github.stoicswe.eyeandsickle.solo.state.MinerState;
 import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import io.github.stoicswe.eyeandsickle.solo.state.AllocationState;
 import io.github.stoicswe.eyeandsickle.solo.state.DefenseState;
@@ -19,6 +21,7 @@ import io.github.stoicswe.eyeandsickle.protocol.game.NetDocument;
 import io.github.stoicswe.eyeandsickle.protocol.game.NetMap;
 import io.github.stoicswe.eyeandsickle.protocol.game.SweepReport;
 import io.github.stoicswe.eyeandsickle.solo.breach.Rng;
+import io.github.stoicswe.eyeandsickle.solo.net.FolderRules;
 import io.github.stoicswe.eyeandsickle.solo.net.NetRules;
 import io.github.stoicswe.eyeandsickle.solo.net.SweepTier;
 import io.github.stoicswe.eyeandsickle.solo.net.TopologyGenerator;
@@ -85,10 +88,93 @@ public final class SoloGame {
         SoloSave loaded = store.load();
         if (loaded == null) {
             loaded = newCharacter(handleIfNew, clock.instant());
+        } else {
+            backfill(loaded, clock.instant());
         }
         SoloGame game = new SoloGame(store, loaded, clock);
         game.resume();
         return game;
+    }
+
+    /**
+     * Brings a save written by an older build up to what this one expects.
+     *
+     * <h2>The world, for a character created before there was one</h2>
+     *
+     * {@code TopologyGenerator.generate} is idempotent — it returns immediately when {@code topology}
+     * is already set — so this rolls a world exactly once, for a save that has never had one, from
+     * that save's own persisted seed. It is not a reroll and cannot become one.
+     *
+     * <p>⚠ <b>The alternative was tried and it is not "harmless".</b> {@code SoloSave.topology} used
+     * to be documented as deliberately left null on an old save, so that "an old character keeps
+     * working with an empty map rather than being handed a freshly rolled world on load". That
+     * reasoning is right about regeneration and wrong about the outcome: a null topology is not a
+     * small world, it is <em>no</em> world. {@code NetRules.view} returns an empty map, {@code net}
+     * lists nothing, and {@code beginSweep} refuses every sweep at every tier — permanently, with the
+     * refusal that reaches the player naming compute the rig has plenty of. A character in that state
+     * cannot reach the network half of the game at all and has no way to find out why. Backfilling
+     * costs nothing and is the only reading under which they can.
+     *
+     * <h2>Filing</h2>
+     *
+     * {@code netFolders} is left empty rather than seeded — a folder is the player's own decision and
+     * there is no default filing that would not be somebody's clutter. {@code FolderRules.repair}
+     * handles the older shape (a node with no {@code folderId} at all) on the first read.
+     */
+    private static void backfill(SoloSave save, Instant now) {
+        boolean hadNoWorld = save.topology == null;
+        TopologyGenerator.generate(save, now);
+        if (hadNoWorld && save.topology != null) {
+            EventLog.notice(save, "net",
+                    "network interface came up: this character predates the map. `sweep` now works.", now);
+        }
+        if (save.netFolders == null) {
+            save.netFolders = new java.util.ArrayList<>();
+        }
+        abandonBreachInProgress(save, now);
+    }
+
+    /**
+     * A breach that was still live when the game closed is <b>abandoned, as an abort</b>.
+     *
+     * <h2>An attempt does not survive a quit</h2>
+     *
+     * Everything else with a duration does — a scan finishes while the client is shut, deployed
+     * miners accrue, a sweep settles on the first tick back — because all of those are work the rig
+     * is doing. A breach is not: it is the player sitting at a console, and there is nobody at the
+     * console when the game is closed. Resuming one would also mean the desk restoring an exploit
+     * window onto a half-played puzzle the player has no memory of.
+     *
+     * <h2>⚠ Abandoned as an ABORT, not deleted — and the difference is an exploit</h2>
+     *
+     * Clearing {@code activeBreach} outright is one line shorter and hands the player a free escape:
+     * a losing attempt could be made never to have happened by quitting, which is precisely the
+     * reroll-by-reloading this engine refuses everywhere else (a scan's finding, a sweep's result and
+     * a breach board are all frozen at commission for the same reason). Routing it through
+     * {@code BreachRules.abort} records the {@code aborted} resolution and releases the reserved
+     * compute, so quitting mid-attempt costs exactly what walking away costs — which is what
+     * {@code docs/design/05-hacking-minigame.md} §4 calls "a sanctioned outcome, not a loss of nerve".
+     *
+     * <p>A breach that had already <em>resolved</em> is left alone: the outcome slate is where a loss
+     * becomes comprehensible ({@code 05} §1 constraint 4), and a player who quit rather than read it
+     * should still get to.
+     */
+    private static void abandonBreachInProgress(SoloSave save, Instant now) {
+        if (save.activeBreach == null || !save.activeBreach.outcome.isEmpty()) {
+            return;
+        }
+        String label = save.activeBreach.targetLabel;
+        BreachRules.abort(save, now);
+        // Then cleared. abort() RESOLVES the breach rather than removing it — the outcome slate is
+        // where a loss becomes comprehensible — but a slate the player never saw the breach for is
+        // not comprehension, it is an unexplained screen where the target list should be. The log
+        // line below is the right home for "this happened while you were away", which is what
+        // resume()'s whole logging block exists for.
+        BreachRules.dismiss(save);
+        EventLog.notice(save, "breach",
+                "the attempt on " + label + " did not survive the session; it is recorded as aborted "
+                        + "and its cycles are recovering.",
+                now);
     }
 
     /** The engine's current time. Every timestamp it writes comes from here. */
@@ -314,15 +400,29 @@ public final class SoloGame {
         // Held, not spent: settleTasks hands it to ComputeRules.beginRecovery when the scan ends.
         // Stamped so the rig monitor can draw the hold as progress the same way it draws a recovery.
         a.startedAt = now;
-        save.tasks.add(new TaskState(
-                "scan",
-                "scan --" + tier.flag(),
-                a.allocationId,
-                tier.cycles(),
-                now,
-                now.plusSeconds(tier.seconds())));
+
+        // ⚠ A scan takes LONGER on an infested rig, and the penalty is baked into the deadline here
+        // rather than re-derived at settlement. That is what makes it true offline, and it stops a
+        // player dodging it by cracking the parasite while the audit is in flight.
+        long seconds = ComputeRules.slowedSeconds(save.rig, tier.seconds());
+
+        // ⚠ The finding is ROLLED NOW and frozen, so an audit that completes while the game is closed
+        // reports and reveals exactly what it would have in session. ScanRules.roll was written for
+        // this and had never been called by anything but its own tests — until this line, a scan
+        // reported a hard-coded stub that did not look at save.rig.foreignMiners at all, so no audit
+        // in the game could find the parasite the tutorial plants on every new rig.
+        Rng rng = Rng.of(save);
+        ScanRules.Finding finding = ScanRules.roll(save, tier.name(), rng);
+        rng.commit(save);
+
+        TaskState task = new TaskState(
+                "scan", "scan --" + tier.flag(), a.allocationId, tier.cycles(), now, now.plusSeconds(seconds));
+        task.outcome = finding.line();
+        task.foundMinerIds = new java.util.ArrayList<>(finding.foundMinerIds());
+        save.tasks.add(task);
+
         EventLog.notice(save, "scan",
-                "scan --" + tier.flag() + " started: " + tier.cycles() + " cycles, ~" + tier.seconds() + "s.",
+                "scan --" + tier.flag() + " started: " + tier.cycles() + " cycles, ~" + seconds + "s.",
                 now);
         return Optional.of(a);
     }
@@ -400,6 +500,76 @@ public final class SoloGame {
     /** Whether the player owns a sweep tier. The refusal wording belongs to the caller. */
     public boolean ownsSweep(SweepTier tier) {
         return NetRules.owns(save, tier);
+    }
+
+    /**
+     * Whether this character has a generated world at all.
+     *
+     * <p>Exists so the session layer can tell three refusals apart that {@link #sweep} collapses into
+     * one empty {@link Optional}: the tool is not owned, the rig cannot afford the cycles, or there is
+     * no network to sweep. That third case used to be reported as "not enough available compute",
+     * which is the wrong sentence in the worst way — it names a resource the player has plenty of and
+     * sends them to fix something that is not broken. {@link #open} backfills a missing world so the
+     * case should now be unreachable, and the distinction stays because "should be unreachable" is
+     * not a wording a player ever wants to be on the wrong side of.
+     */
+    public boolean hasNetwork() {
+        return save.topology != null;
+    }
+
+    /**
+     * How loud the rig is right now, 0–1 — see
+     * {@link io.github.stoicswe.eyeandsickle.solo.rules.NoiseRules}.
+     *
+     * <p>⚠ Read through the session clock. A running sweep's window is measured against it, and
+     * {@code Instant.now()} here would report a test clock's sweeps as long finished.
+     */
+    public double noise() {
+        return io.github.stoicswe.eyeandsickle.solo.rules.NoiseRules.level(save, clock.instant());
+    }
+
+    // ── Filing what has been found (the folder tree) ──────────────────────────────────────────
+    //
+    // Thin like the rest of this facade. The rules — and every refusal's wording — live in
+    // solo/net/FolderRules; nothing below decides anything.
+
+    /** The player's folders, parents before children, ready to indent by depth. */
+    public List<io.github.stoicswe.eyeandsickle.protocol.game.NetFolder> folders() {
+        return FolderRules.tree(save);
+    }
+
+    /** Discovered machines the player has not filed anywhere. */
+    public List<String> unfiledNodes() {
+        return FolderRules.unfiled(save);
+    }
+
+    /** Creates a folder. The {@code parentId} is {@code ""} for a top-level one. */
+    public FolderRules.Result createFolder(String parentId, String name) {
+        return FolderRules.create(save, parentId, name, clock.instant());
+    }
+
+    public FolderRules.Refusal renameFolder(String folderId, String name) {
+        return FolderRules.rename(save, folderId, name);
+    }
+
+    public FolderRules.Refusal moveFolder(String folderId, String newParentId) {
+        return FolderRules.move(save, folderId, newParentId);
+    }
+
+    /** Removes a folder, lifting whatever was inside it up a level. Never recursive. */
+    public FolderRules.Refusal removeFolder(String folderId) {
+        return FolderRules.remove(save, folderId);
+    }
+
+    /** Files a discovered machine under a folder, or unfiles it when {@code folderId} is blank. */
+    public FolderRules.Refusal fileNode(String address, String folderId) {
+        return FolderRules.file(save, address, folderId);
+    }
+
+    /** A folder by the {@code /a/b} path the player typed, or empty. Identity is the id, not this. */
+    public Optional<String> folderIdAtPath(String path) {
+        var folder = FolderRules.byPath(save, path);
+        return folder == null ? Optional.empty() : Optional.of(folder.folderId);
     }
 
     /** How far the player can see. Raised only by schematic — never bought. */
@@ -490,7 +660,20 @@ public final class SoloGame {
                             "Something answered the sweep in the other direction.", task.endsAt);
                 }
             } else {
-                EventLog.notice(save, "scan", task.label + " finished. " + scanFinding(), now);
+                // The audit names what it found, and naming it is what makes the cycles visible: a
+                // discovered parasite's allocation rejoins ComputeRules.snapshot, so the grid stops
+                // being short and starts saying "Foreign miner". Until this line runs the theft is
+                // real and unattributed, which is the whole shape of docs/design/04 §3.1.
+                int named = revealFound(task);
+                EventLog.notice(save, "scan",
+                        task.label + " finished. " + ScanRules.finding(task), task.endsAt);
+                if (named > 0) {
+                    EventLog.warning(save, "scan",
+                            named + (named == 1 ? " process is" : " processes are")
+                                    + " now accounted for on the rig monitor. `crack` takes the buffer; "
+                                    + "cracking on your own rig costs no heat.",
+                            task.endsAt);
+                }
             }
 
             // UI-6: the held cycles only NOW start coming back, and the wait is dated from the
@@ -507,21 +690,33 @@ public final class SoloGame {
     }
 
     /**
-     * What a completed scan reports.
+     * Marks the parasites a finished audit named, and returns how many were newly revealed.
      *
-     * <p>⚠ Deliberately honest about being a stub. {@code docs/design/04-mining.md} §3.2 makes the
-     * tiers differ in what they <em>find</em> — Quick sees unhidden T2–T3 miners, Thorough sees
-     * rootkit-wrapped ones — and solo has no foreign miners to find yet, because deployment onto
-     * NPC nodes is not built. Returning a confident "nothing found" for a Thorough Scan would be a
-     * lie the player would reasonably act on, so it says what it actually checked.
+     * <h2>This is the only thing in the engine that sets {@code MinerState.discovered}</h2>
+     *
+     * Until it runs, an undiscovered parasite's cycles are gone from the rig and absent from the
+     * published ledger — the numbers do not reconcile and nothing says why
+     * ({@code docs/design/04-mining.md} §3.1). After it runs the allocation rejoins the snapshot and
+     * the grid attributes it. The audit ladder in §3.2 is what a player is buying when they run a
+     * scan, and this line is what they get for it.
+     *
+     * <p>⚠ Idempotent, and it has to be: {@code settleTasks} is reached from both {@code resume} and
+     * {@code tick}, and a save whose task list was duplicated by a bad merge must still reveal each
+     * parasite once. Counting only transitions from false is what makes the log line honest rather
+     * than re-announcing a process the player audited last week.
      */
-    private String scanFinding() {
-        long foreign = save.knownNodes.stream()
-                .filter(n -> n.hostsForeignMiner)
-                .count();
-        return foreign == 0
-                ? "No foreign miner on this rig. Manual audit still sees things a scan does not."
-                : foreign + " node(s) host something that is not yours.";
+    private int revealFound(TaskState task) {
+        if (task.foundMinerIds == null || task.foundMinerIds.isEmpty()) {
+            return 0;
+        }
+        int revealed = 0;
+        for (MinerState miner : save.rig.foreignMiners) {
+            if (!miner.discovered && task.foundMinerIds.contains(miner.minerId)) {
+                miner.discovered = true;
+                revealed++;
+            }
+        }
+        return revealed;
     }
 
     /** Arms a defence, holding its compute until disarmed. Never generates heat (Invariant I9). */

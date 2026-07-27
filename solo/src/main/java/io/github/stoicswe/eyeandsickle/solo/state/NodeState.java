@@ -42,6 +42,18 @@ public final class NodeState {
     /** How much the player has learned. Recon raises it; it never decreases. */
     public int reconLevel = 0;
 
+    /**
+     * Which {@link FolderState} the player has filed this machine under, or {@code ""} for unfiled.
+     *
+     * <p>On the player's record rather than as a list of addresses on the folder, so a machine cannot
+     * be in two folders and cannot be in a folder that no longer exists without the inconsistency
+     * being one field. {@code FolderRules} unfiles a node whose folder has gone rather than leaving a
+     * dangling id, which is what keeps the tree renderable from this list alone.
+     *
+     * <p>⚠ Mechanically inert. Nothing in the rules reads it — see {@link FolderState}.
+     */
+    public String folderId = "";
+
     public Instant discoveredAt = Instant.now();
 
     /** Difficulty tier for a breach attempt against this node. */

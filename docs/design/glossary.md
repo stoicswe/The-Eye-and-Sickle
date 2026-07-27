@@ -33,6 +33,25 @@ Canonical terms and their code-name conventions. When implementing, use these na
 - **Crack / Kill / Hijack / Sabotage** — the four responses to a discovered foreign miner (`04` §5).
 - **Rootkit-wrapped** — a deployed miner hidden from routine scans but not from manual audit (`09`).
 
+## Network & discovery (`07` §5, [PROPOSAL])
+
+- **Network sweep** — the discovery action: probes machines within the hop ceiling of the current vantage. Code name `net-sweep` / `SweepTier`. ⚠ **Not the Eye's "Sweep" above**, which removes NPC-hosted miners — two unrelated mechanics that English gave the same word. Code never says `sweep` unqualified: the discovery action is `net-sweep*` and `NetRules.beginSweep`; the Eye's is miner seizure.
+- **Sweep tier** — `BASE` / `WIDE` / `DEEP`. Buys **sensitivity**, never reach; running one costs cycles and noise and never ethecoin.
+- **Vantage** — the machine hops are measured *from*. Moved with `connect`, and only to a host the player holds. Position substitutes for reach, and position is earned rather than bought.
+- **Hop ceiling** — how far a sweep sees from the vantage: 1, or 2 with the Topology Mapper schematic. The one number ethecoin may never move (**I2**).
+- **Sighting** — one machine *as the player knows it*, never as it is. Distinct from the host record behind it.
+- **Contact / identified** — detected-but-untyped versus type established. The gap between them is what the Passive Sniffer sells.
+- **Bridge stub** — the far side of a bridge: publishes the peer **server's name** and nothing else.
+- **Folder / filing** — the player's own bookmarking of discovered machines (`07` §5.4). Mechanically inert: no gate, no cost, no limit, and nothing in the rules reads it. Code name `FolderState` / `FolderRules`; a machine's membership is `NodeState.folderId`.
+
+## Compute & theft (`01` §1.3, §1.5)
+
+- **Thermal recovery** — how spent cycles come back: slower the busier the rig, **capped at 5 minutes** clean and **10 minutes** on a rig being robbed. Code name `ThermalRules.recoveryTime`.
+- **Stolen cycles / theft share** — capacity held by a process the player did not put there, over the rig's ceiling. Slows every task and every recovery, **whether or not it has been found**. Code name `ComputeRules.stolenShare`.
+- **Discovered (a parasite)** — whether an audit has *named* the process. ⚠ Until it is true the rig monitor attributes nothing to it and it is not a breach target; the cycles are simply missing. Code name `MinerState.discovered`.
+- **Unaccounted-for** — ceiling minus allocated minus recovering minus free. Non-zero exactly when something unaudited is taking cycles. Drawn as dark unlabelled cells, never as an alarm.
+- **Armed (a breach target)** — chosen but not committed to. Arming is free and reversible; **START BREACH** is the spend. Code name `BreachArming`.
+
 ## The breach (`05`, [PROPOSAL])
 
 - **Breach attempt** — one instance of the core hacking minigame against a target node.

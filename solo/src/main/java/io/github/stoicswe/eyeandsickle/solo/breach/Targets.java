@@ -8,6 +8,7 @@ import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.rules.ComputeRules;
 import io.github.stoicswe.eyeandsickle.solo.state.AllocationState;
 import io.github.stoicswe.eyeandsickle.solo.state.ItemState;
+import io.github.stoicswe.eyeandsickle.solo.state.HostState;
 import io.github.stoicswe.eyeandsickle.solo.state.MinerState;
 import io.github.stoicswe.eyeandsickle.solo.state.NodeState;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
@@ -95,6 +96,18 @@ public final class Targets {
                 : "not enough available compute - " + cost + " needed, " + free + " free";
 
         for (MinerState miner : save.rig.foreignMiners) {
+            // ⚠ A parasite nobody has audited is not a target, because it is not KNOWN.
+            //
+            // It used to be listed the moment it was planted, which handed a new character the
+            // tutorial crack before they had run a single scan — and, worse, told them a process was
+            // stealing from them at the same moment the rig monitor was being careful not to
+            // (MinerState.discovered). Two windows disagreeing about what the player knows is worse
+            // than either answer, and this is the one that costs nothing to fix: `scan --full` finds
+            // the tutorial miner, and the audit → crack pipeline is what docs/design/04-mining.md
+            // §3.1 and §3.2 describe in the first place.
+            if (!miner.discovered) {
+                continue;
+            }
             out.add(new BreachTarget(
                     "miner:" + miner.minerId,
                     "localhost",
@@ -115,6 +128,15 @@ public final class Targets {
         }
 
         for (NodeState node : save.knownNodes) {
+            // Already breached machines stay in the list and stay un-attemptable. Removing them
+            // would answer "why is it gone" with silence; a row carrying the reason is the same
+            // choice every other refusal on this list makes.
+            HostState host = host(save, node.address);
+            boolean held = host != null && host.foothold;
+            String nodeRefusal = held
+                    ? "already breached — you hold a foothold here; `connect " + node.address
+                            + "` to sweep from it"
+                    : refusal;
             out.add(new BreachTarget(
                     "node:" + node.address,
                     node.address,
@@ -144,10 +166,23 @@ public final class Targets {
                     node.honeypotSuspected,
                     0L,
                     cost,
-                    refusal.isEmpty(),
-                    refusal));
+                    nodeRefusal.isEmpty(),
+                    nodeRefusal));
         }
         return out;
+    }
+
+    /** Ground truth for one address, or null. Only ever consulted for a fact the player already has. */
+    private static HostState host(SoloSave save, String address) {
+        if (save.topology == null || save.topology.hosts == null) {
+            return null;
+        }
+        for (HostState candidate : save.topology.hosts) {
+            if (candidate.address.equals(address)) {
+                return candidate;
+            }
+        }
+        return null;
     }
 
     public static Optional<BreachTarget> byId(SoloSave save, String targetId) {

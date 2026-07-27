@@ -88,6 +88,16 @@ public class EyeAndSickleClient extends Application {
     private Stage stage;
     private io.github.stoicswe.eyeandsickle.client.ui.DeckShell deck;
 
+    /**
+     * Where the breach window is pointed, shared by the two windows that can point it.
+     *
+     * <p>One instance for the life of the client rather than one per window open: the network map
+     * arms it and the breach window reads it, and a per-window instance would mean the map aimed at
+     * a copy nobody was looking at. It holds no game state — see {@link BreachArming}.
+     */
+    private final io.github.stoicswe.eyeandsickle.client.view.BreachArming arming =
+            new io.github.stoicswe.eyeandsickle.client.view.BreachArming();
+
     @Override
     public void start(Stage primaryStage) {
         this.stage = primaryStage;
@@ -443,6 +453,9 @@ public class EyeAndSickleClient extends Application {
         // Accelerators open a window ON THE DESK. Routing them through the registry's Stage path
         // would open a second OS window and break §0's whole premise from a keystroke.
         registry.installAllAccelerators(scene, deck::show);
+        // The map's BREACH control raises the breach window without knowing a deck exists. Wired
+        // here because this is the first moment there is a deck to raise it on.
+        arming.setOpener(() -> deck.show(WindowSpec.BREACH));
         GlobalShortcuts.install(scene, globalHandlers());
 
         // Escape opens the pause menu. A filter rather than a handler, so it fires even while a text
@@ -509,8 +522,8 @@ public class EyeAndSickleClient extends Application {
         return switch (spec) {
             case RIG_MONITOR -> RigMonitorView.create(session, terms, profile);
             case TERMINAL -> TerminalView.create(shell);
-            case BREACH -> BreachView.create(session, terms, profile);
-            case NETMAP -> NetMapView.create(session);
+            case BREACH -> BreachView.create(session, terms, profile, arming);
+            case NETMAP -> NetMapView.create(session, arming);
             case AUDIT -> Views.audit(session, shell);
             case MINING -> Views.mining(session);
             case STORAGE -> Views.storage(session);

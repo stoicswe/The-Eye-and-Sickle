@@ -426,6 +426,22 @@
     -fx-background-color: -es-alarm;
 }
 
+/*
+ * Capacity that is gone with nothing to attribute it to — a parasite no audit has named yet.
+ *
+ * ⚠ THIS IS THE QUIETEST CELL IN THE GRID ON PURPOSE, AND IT MUST STAY THAT WAY. The rig only
+ * reports a process it has audited, so in the fiction nobody knows these cycles are missing. A flat
+ * dead fill, no outline, no blink, and no legend row (CycleGrid.Owner.HIDDEN filters it out): dark
+ * enough to read as a hole rather than as a state, solid enough to be countable by somebody who is
+ * counting. It used to be `.es-cell-unknown` — blinking alarm red, labelled "Unaccounted" — which
+ * announced a theft the player had not detected and gave away the product docs/design/04 §3.2 sells
+ * the whole scan ladder for.
+ *
+ * The moment an audit names the process its allocation rejoins the ledger and the same cycles are
+ * drawn as an ordinary consumer with an alarm note beside them. That transition IS the product.
+ */
+.es-cell-hidden { -fx-background-color: -es-panel; }
+
 /* Legend isolation: instant, no transition (§4). */
 .es-cell-muted { -fx-opacity: 0.22; }
 
@@ -1196,13 +1212,47 @@
 /* THE ONE ALARM IN THE FEATURE. A suspected honeypot is the only thing here worth a warning. */
 .es-netmap .es-netmap-trap       { -fx-text-fill: -es-alarm; }
 
+/* The machine the player has picked — what CONNECT, DOWNLOAD and a breach act on.
+ *
+ * ⚠ THE THIRD SIGNAL, NEVER THE ONLY ONE. The cell is already double-framed (╔═╗ against the
+ * ordinary ┌─┐ and the vantage's ┏━┓) and its address already carries a → pointer, both drawn into
+ * the character grid by NetCanvas.cellText. This adds the fill, which is the fastest of the three to
+ * spot and the only one that disappears in a greyscale capture or a screen reader — §4.4's "weight
+ * first, the grey ramp second" is exactly the rule that forbids it standing alone.
+ *
+ * ⚠ Placed after every state rule above so it wins at equal specificity. A selected contact and a
+ * selected foothold must read as equally selected: this mark answers "which one am I about to act
+ * on", which is a different question from "what standing do I have on it", and letting the state
+ * ramp override it would make the answer depend on the question nobody asked. */
+.es-netmap .es-netmap-selected {
+    -fx-text-fill: -es-text-hi;
+    -fx-background-color: -es-panel-hi;
+}
+
 .es-netmap .es-netmap-edge     { -fx-text-fill: -es-rule-hi; }
 .es-netmap .es-netmap-lateral  { -fx-text-fill: -es-rule; }
 .es-netmap .es-netmap-server   { -fx-text-fill: -es-dim-2; }
 .es-netmap .es-netmap-layer    { -fx-text-fill: -es-dim-2; }
 .es-netmap .es-netmap-legend   { -fx-text-fill: -es-dim-2; }
 
-.es-netmap-control {
+/* ── controls ────────────────────────────────────────────────────────────────────────────────
+ *
+ * ⚠ TWO CLASSES, AND MERGING THEM IS THE BUG THIS BLOCK EXISTS TO PREVENT.
+ *
+ * `.es-netmap-control` is a VIEW TOGGLE (GRAPH / LIST / FOLDERS). It has two states and paints the
+ * inactive one in -es-dim-1, so on this panel that grey means, specifically, "not the one in force".
+ *
+ * `.es-netmap-action` is a BUTTON (the sweep ladder, CONNECT, the filing verbs). It has no inactive
+ * state. It used to carry the toggle's class, which parked it permanently in the toggle's OFF
+ * colour — three sweep buttons sitting next to two toggles, never brightening, in the exact grey the
+ * panel uses to mean unavailable. They read as disabled and were reported as disabled and
+ * unpressable, having always been pressable. An action gets the ordinary text fill, plus a hover and
+ * a pressed state so the affordance is answered by the pointer instead of guessed at.
+ *
+ * ⚠ Descendant selectors, like the rest of this block: the late `.label { -fx-text-fill: -es-text; }`
+ * beats a one-class rule at equal specificity, so a bare `.es-netmap-action` would silently paint in
+ * body grey while every other property in it applied. */
+.es-netmap-control, .es-netmap-action {
     -fx-padding: 2 7 2 7;
     -fx-border-color: -es-rule-hi;
     -fx-border-width: 1;
@@ -1210,9 +1260,42 @@
 .es-netmap .es-netmap-control    { -fx-text-fill: -es-dim-1; }
 .es-netmap .es-netmap-control-on { -fx-text-fill: -es-text-hi; }
 
+.es-netmap .es-netmap-action     { -fx-text-fill: -es-text; }
+/* Hover and pressed carry the whole affordance. §4.4 keeps this panel on the cold ramp — no amber
+   anywhere, a network host is not earning — so the answer is a brighter fill and a brighter edge,
+   which survives a greyscale capture and does not depend on separating hues. */
+.es-netmap .es-netmap-action:hover {
+    -fx-text-fill: -es-text-hi;
+    -fx-border-color: -es-text-hi;
+}
+.es-netmap .es-netmap-action:pressed {
+    -fx-text-fill: -es-void;
+    -fx-background-color: -es-text-hi;
+    -fx-border-color: -es-text-hi;
+}
+
+/* ── the filing tree ─────────────────────────────────────────────────────────────────────────
+ *
+ * The grey ramp here encodes STRUCTURE rather than certainty: a folder is the player's own word and
+ * reads at full strength, a filed machine is dimmer because its own row in the LIST view is where
+ * its facts live. `-on` is the selected row, and there are two independent selections on this view —
+ * one folder and one machine — so both can be lit at once. That is deliberate: filing is "this
+ * machine, that folder", and a single-selection list would make it a two-step dialog. */
+.es-netfolders .es-netfolder-row   { -fx-text-fill: -es-text; }
+.es-netfolders .es-netfolder-node  { -fx-text-fill: -es-dim-1; }
+.es-netfolders .es-netfolder-on    { -fx-text-fill: -es-text-hi; }
+.es-netfolders .es-netfolder-row:hover,
+.es-netfolders .es-netfolder-node:hover { -fx-text-fill: -es-text-hi; }
+
 .es-netlist .es-netlist-head  { -fx-text-fill: -es-dim-2; }
 .es-netlist .es-netlist-muted { -fx-text-fill: -es-dim-2; }
 .es-netlist .es-netlist-empty { -fx-text-fill: -es-dim-2; }
+/* ⚠ After `-muted`, and that is the whole reason it is here rather than beside the map's selection
+   rule fifty lines up. Equal specificity means the later rule wins, and a contact row carries
+   `-muted` — so a selected contact declared first would silently paint in dim grey while the
+   background it also sets applied, which is the exact half-applied failure this stylesheet's header
+   warns about. Same fill as the graph's mark, because it is the same selection. */
+.es-netlist .es-netlist-selected { -fx-text-fill: -es-text-hi; -fx-background-color: -es-panel-hi; }
 .es-netlist-head { -fx-border-color: transparent transparent -es-rule transparent; -fx-border-width: 0 0 1 0; -fx-padding: 0 0 5 0; }
 .es-netlist-row  { -fx-padding: 1 0 1 0; }
 
@@ -1331,6 +1414,52 @@
 .es-cost-strip .es-breach-chip-loud   { -fx-text-fill: -es-text-hi; }
 .es-cost-strip .es-breach-chip-bypass { -fx-text-fill: -es-alarm; -fx-border-color: -es-alarm; }
 .es-cost-strip .es-breach-chip-off    { -fx-text-fill: -es-dim-3; -fx-border-color: -es-rule; }
+
+/* ── Choosing a target: the order chips, the armed row, and the one control that spends ────────
+ *
+ * ⚠ The chip rules above are scoped to `.es-cost-strip`, so a Chip used ANYWHERE ELSE renders
+ * unstyled — which is how the target list's controls came out as bare text. These are the rest of
+ * them. Same shape, different question: the cost strip prices a move inside a breach, this prices
+ * the decision to start one.
+ *
+ * ⚠ NO AMBER, INCLUDING ON START BREACH. D-7 rations the whole breach feature to exactly one amber
+ * element — the extracted-yield line on a successful crack — and a launch button is the most
+ * tempting place in the client to spend that budget somewhere else. It is carried by weight instead:
+ * the brightest fill and edge on the panel, inverted when pressed. */
+.es-breach-picker .es-breach-chip {
+    -fx-padding: 2 7 2 7;
+    -fx-border-color: -es-rule-hi;
+    -fx-border-width: 1;
+}
+.es-breach-picker .es-breach-chip-quiet { -fx-text-fill: -es-dim-1; }
+.es-breach-picker .es-breach-chip-loud  { -fx-text-fill: -es-text-hi; -fx-border-color: -es-text-hi; }
+.es-breach-picker .es-breach-chip:hover {
+    -fx-text-fill: -es-text-hi;
+    -fx-border-color: -es-text-hi;
+}
+.es-breach-picker .es-breach-chip:pressed {
+    -fx-text-fill: -es-void;
+    -fx-background-color: -es-text-hi;
+    -fx-border-color: -es-text-hi;
+}
+
+/* The launch panel: the target you are pointed at, and the press that commits to it. */
+.es-breach-launch {
+    -fx-border-color: -es-rule-hi;
+    -fx-border-width: 1;
+    -fx-padding: 9;
+}
+
+/* The armed row in the target list.
+ *
+ * ⚠ After `.es-row:hover`, so an armed row stays visibly armed while the pointer is somewhere else
+ * on the list — equal specificity means the later rule wins, and a highlight that only showed under
+ * the cursor would be a highlight that answers "where am I pointing" rather than "what did I pick". */
+.es-row-armed {
+    -fx-background-color: -es-panel-hi;
+    -fx-border-color: -es-text-hi;
+    -fx-border-width: 0 0 0 2;
+}
 
 /* ── The attention ledger: every action and what it cost, kept ──────────────────────────────── */
 .es-ledger .es-ledger-cell  { -fx-font-family: "IBM Plex Mono", monospace; -fx-font-size: 11px; }

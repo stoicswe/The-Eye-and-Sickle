@@ -54,8 +54,18 @@ final class BreachTestKit {
         return save;
     }
 
-    /** The one crack target on this rig — a foreign miner, never a node ({@code 04} §5.1). */
+    /**
+     * The one crack target on this rig — a foreign miner, never a node ({@code 04} §5.1).
+     *
+     * <p>⚠ Marks every parasite <b>discovered</b> first, because an unaudited one is not a target at
+     * all ({@code Targets.available}). These tests are about what a crack DOES; the audit that makes
+     * one available is {@code SoloGameTest}'s subject, and threading a scan through every fixture
+     * here would bury the behaviour under an unrelated pipeline.
+     */
     static BreachTarget crackTarget(SoloSave save) {
+        for (var miner : save.rig.foreignMiners) {
+            miner.discovered = true;
+        }
         return Targets.available(save).stream().filter(BreachTarget::minerCrack).findFirst().orElseThrow();
     }
 

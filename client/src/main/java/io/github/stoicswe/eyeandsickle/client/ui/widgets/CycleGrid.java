@@ -126,30 +126,34 @@ public final class CycleGrid extends VBox {
     private void relayoutLegend() {
         legend.getChildren().clear();
         legend.getColumnConstraints().clear();
-        if (slices.isEmpty()) {
+        // ⚠ HIDDEN is filtered out here and nowhere else, so the cells exist and the row does not.
+        // A legend entry is a NAME, and naming unattributed capacity is precisely what the readout
+        // must not do before an audit — see Owner.HIDDEN.
+        List<Slice> listed = slices.stream().filter(s -> s.owner() != Owner.HIDDEN).toList();
+        if (listed.isEmpty()) {
             return;
         }
         double width = legend.getWidth() > 0 ? legend.getWidth() : LEGEND_MIN_COLUMN;
-        int columns = Math.max(1, Math.min(slices.size(), (int) Math.floor(width / LEGEND_MIN_COLUMN)));
+        int columns = Math.max(1, Math.min(listed.size(), (int) Math.floor(width / LEGEND_MIN_COLUMN)));
         for (int i = 0; i < columns; i++) {
             var constraint = new javafx.scene.layout.ColumnConstraints();
             constraint.setPercentWidth(100.0 / columns);
             constraint.setFillWidth(true);
             legend.getColumnConstraints().add(constraint);
         }
-        for (int i = 0; i < slices.size(); i++) {
-            legend.add(legendRow(slices.get(i)), i % columns, i / columns);
+        for (int i = 0; i < listed.size(); i++) {
+            legend.add(legendRow(listed.get(i)), i % columns, i / columns);
         }
         // Fill the remainder of the last row. The legend's background IS the 1px gap between rows,
         // so an empty grid cell is not empty on screen — it is a solid block of rule colour sitting
         // where a row should be, which reads as a rendering fault.
-        int remainder = slices.size() % columns;
+        int remainder = listed.size() % columns;
         if (remainder != 0) {
             for (int column = remainder; column < columns; column++) {
                 Region filler = new Region();
                 filler.getStyleClass().add("es-legend-row");
                 filler.setMaxWidth(Double.MAX_VALUE);
-                legend.add(filler, column, slices.size() / columns);
+                legend.add(filler, column, listed.size() / columns);
             }
         }
     }
@@ -243,7 +247,31 @@ public final class CycleGrid extends VBox {
         RELAY_HOP("es-cell-relay", false),
         RECOVERING("es-cell-recovering", true),
         FREE("es-cell-free", false),
-        UNKNOWN("es-cell-unknown", true);
+        UNKNOWN("es-cell-unknown", true),
+
+        /**
+         * Capacity that is gone and unattributed — drawn, dark, and <b>never in the legend</b>.
+         *
+         * <h2>The one owner that says nothing</h2>
+         *
+         * A parasite the player has not audited is omitted from the published ledger entirely
+         * ({@code ComputeRules.snapshot}), so the rig is short and nothing names the shortfall. These
+         * cells are that shortfall made countable. They are deliberately not {@link #UNKNOWN}: that
+         * one blinks in alarm red and carries a legend row reading "Unaccounted", which is the readout
+         * telling the player they are being robbed — for free, before the audit that
+         * {@code docs/design/04-mining.md} §3.2 sells exactly that answer for.
+         *
+         * <p>What is left is the arithmetic, and §3.1 calls noticing it "the game's second-strongest
+         * tutorial vector": claimed plus recovering plus free comes to less than the ceiling the
+         * headline states. A player who counts sees a hole. A player who glances sees a slightly
+         * emptier grid. Nobody is told anything.
+         *
+         * <p>⚠ Once an audit names the process its allocation rejoins the snapshot as an ordinary
+         * {@code DEPLOYED_MINER} row, so these cells become a labelled {@link #UNKNOWN} slice with an
+         * alarm and a note. The transition from silence to alarm <em>is</em> the product the scan
+         * ladder sells.
+         */
+        HIDDEN("es-cell-hidden", false);
 
         private final String styleClass;
         private final boolean blinks;

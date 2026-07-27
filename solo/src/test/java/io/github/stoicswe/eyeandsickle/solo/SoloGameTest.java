@@ -432,14 +432,67 @@ class SoloGameTest {
             assertThat(game.computeBudget().available())
                     .as("Invariant I6: a deployed miner spends the host's cycles, not the deployer's")
                     .isEqualTo(Cycles.of(Balance.STARTING_CYCLES - Balance.TUTORIAL_MINER_HOST_CYCLES));
-            assertThat(game.computeBudget().reconciles()).isTrue();
+
+            // ⚠ The ledger does NOT reconcile, and that is now the point rather than a bug.
+            //
+            // This assertion used to read isTrue(), because the parasite's allocation was published
+            // from the moment it was planted — so the rig monitor said "Foreign miner 6C" to a player
+            // who had never run an audit, which hands them free the one thing docs/design/04 §3.2
+            // sells the whole scan ladder for. An UNDISCOVERED parasite is omitted from the snapshot
+            // instead: the cycles are gone, nothing attributes them, and claimed + recovering + free
+            // comes up exactly six short of the rig's ceiling.
+            //
+            // That gap IS §3.1's "second-strongest tutorial vector" — the player notices the numbers
+            // do not add up, and nobody tells them why.
+            assertThat(game.computeBudget().reconciles())
+                    .as("an unaudited parasite is unattributed, so the ledger is short by its appetite")
+                    .isFalse();
+            assertThat(game.computeBudget().unaccountedFor())
+                    .isEqualTo(Cycles.of(Balance.TUTORIAL_MINER_HOST_CYCLES));
         }
 
         @Test
-        @DisplayName("that parasite is a reachable breach target, so the core loop is playable at once")
-        void tutorialMinerIsABreachTarget(@TempDir Path dir) {
-            SoloGame game = SoloGame.open(
-                    new SaveStore(dir.resolve("save.json")), "operator", new TestClock(T0));
+        @DisplayName("an audit that names the parasite is what makes its cycles appear on the readout")
+        void auditingAttributesTheTheft(@TempDir Path dir) {
+            TestClock clock = new TestClock(T0);
+            SoloGame game = SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", clock);
+
+            // A Thorough Scan sees everything, including a rootkit-wrapped miner (docs/design/04
+            // §3.2). Before it lands the theft is real and unattributed; after it lands the same
+            // cycles are a named row and the ledger balances again.
+            assertThat(game.scan(SoloGame.ScanTier.THOROUGH)).isPresent();
+            assertThat(game.state().rig.foreignMiners.getFirst().discovered).isFalse();
+
+            clock.advance(Duration.ofHours(1));
+            game.tick();
+
+            assertThat(game.state().rig.foreignMiners.getFirst().discovered)
+                    .as("the audit is the only thing in the engine that sets this")
+                    .isTrue();
+            assertThat(game.computeBudget().reconciles())
+                    .as("a named parasite is attributed, so the readout adds up again")
+                    .isTrue();
+        }
+
+        @Test
+        @DisplayName("that parasite becomes a breach target once an audit has found it — not before")
+        void tutorialMinerIsABreachTargetAfterTheAudit(@TempDir Path dir) {
+            TestClock clock = new TestClock(T0);
+            SoloGame game = SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", clock);
+
+            // ⚠ This used to assert a target on the first frame. Listing an unaudited parasite told
+            // the player a process was stealing from them at the same moment the rig monitor was
+            // being careful not to — two windows disagreeing about what the player knows, which is
+            // worse than either answer on its own. The pipeline is now the one docs/design/04 §3.1
+            // and §3.2 actually describe: notice, audit, then crack.
+            assertThat(game.breachTargets()).isEmpty();
+
+            // `--full`, not `--quick`: the tutorial miner is T1 and a Quick Scan sees unhidden T2+
+            // only (§3.2). The cheap scan genuinely cannot find it, which is the ladder working.
+            assertThat(game.scan(SoloGame.ScanTier.FULL)).isPresent();
+            clock.advance(Duration.ofHours(1));
+            game.tick();
+
             assertThat(game.breachTargets()).hasSize(1);
             assertThat(game.breachTargets().getFirst().minerCrack()).isTrue();
         }

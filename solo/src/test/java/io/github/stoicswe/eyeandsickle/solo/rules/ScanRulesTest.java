@@ -59,7 +59,7 @@ class ScanRulesTest {
                 save.defenses.add(array);
             }
             Rng rng = Rng.of(save);
-            String line = ScanRules.roll(save, tier, rng);
+            String line = ScanRules.roll(save, tier, rng).line();
             rng.commit(save);
             if (line.contains("Also flagged")) {
                 hits++;
@@ -96,7 +96,7 @@ class ScanRulesTest {
             for (int i = 0; i < 200; i++) {
                 SoloSave save = save(i * 97L + 3L);
                 Rng rng = Rng.of(save);
-                String line = ScanRules.roll(save, "QUICK", rng);
+                String line = ScanRules.roll(save, "QUICK", rng).line();
                 if (!line.contains("Also flagged")) {
                     continue;
                 }
@@ -120,7 +120,7 @@ class ScanRulesTest {
             for (int i = 0; i < 100; i++) {
                 bare.rngSeed = i * 13L;
                 Rng rng = Rng.of(bare);
-                assertThat(ScanRules.roll(bare, "QUICK", rng)).doesNotContain("Also flagged");
+                assertThat(ScanRules.roll(bare, "QUICK", rng).line()).doesNotContain("Also flagged");
                 rng.commit(bare);
             }
         }
@@ -222,7 +222,7 @@ class ScanRulesTest {
             miner.label = "unregistered process";
 
             Rng rng = Rng.of(save);
-            assertThat(ScanRules.roll(save, "THOROUGH", rng)).contains("unregistered process");
+            assertThat(ScanRules.roll(save, "THOROUGH", rng).line()).contains("unregistered process");
         }
     }
 

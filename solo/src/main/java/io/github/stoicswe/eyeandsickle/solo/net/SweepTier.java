@@ -41,24 +41,44 @@ import java.util.Optional;
 public enum SweepTier {
 
     /** The starting instrument. Two cycles, twenty seconds, one hop, and it finds the loud things. */
-    BASE("net-sweep", 1, Balance.NET_SWEEP_BASE_CYCLES, Balance.NET_SWEEP_BASE_SECONDS, "sweep"),
+    BASE(
+            "net-sweep",
+            1,
+            Balance.NET_SWEEP_BASE_CYCLES,
+            Balance.NET_SWEEP_BASE_NOISE,
+            Balance.NET_SWEEP_BASE_SECONDS,
+            "sweep"),
 
     /** 25 EC. The same distance, listened to harder — the first upgrade a new player buys. */
-    WIDE("net-sweep-wide", 2, Balance.NET_SWEEP_WIDE_CYCLES, Balance.NET_SWEEP_WIDE_SECONDS, "sweep --wide"),
+    WIDE(
+            "net-sweep-wide",
+            2,
+            Balance.NET_SWEEP_WIDE_CYCLES,
+            Balance.NET_SWEEP_WIDE_NOISE,
+            Balance.NET_SWEEP_WIDE_SECONDS,
+            "sweep --wide"),
 
     /** 55 EC. Near-certain on infrastructure, and it finally makes quiet desktops reliable. */
-    DEEP("net-sweep-deep", 3, Balance.NET_SWEEP_DEEP_CYCLES, Balance.NET_SWEEP_DEEP_SECONDS, "sweep --deep");
+    DEEP(
+            "net-sweep-deep",
+            3,
+            Balance.NET_SWEEP_DEEP_CYCLES,
+            Balance.NET_SWEEP_DEEP_NOISE,
+            Balance.NET_SWEEP_DEEP_SECONDS,
+            "sweep --deep");
 
     private final String itemId;
     private final int tier;
     private final long cycles;
+    private final long noiseCycles;
     private final long seconds;
     private final String label;
 
-    SweepTier(String itemId, int tier, long cycles, long seconds, String label) {
+    SweepTier(String itemId, int tier, long cycles, long noiseCycles, long seconds, String label) {
         this.itemId = itemId;
         this.tier = tier;
         this.cycles = cycles;
+        this.noiseCycles = noiseCycles;
         this.seconds = seconds;
         this.label = label;
     }
@@ -73,16 +93,25 @@ public enum SweepTier {
     }
 
     /**
-     * Cycles held for the sweep's whole duration.
+     * Cycles held for the sweep's whole duration — what the rig cannot use while it runs.
      *
-     * <p>⚠ Also the sweep's noise, by construction. Reserved as a {@code CONTROL_CHANNEL} allocation,
-     * which the implemented noise model counts as "work that reaches other machines"
-     * ({@code docs/design/15-open-questions.md} §3, 2026-07-26) — so 2 / 5 / 9 lands as
-     * Low / Low / Moderate on {@code docs/design/07-recon-tools.md} §1's scale with no second
-     * constant to keep in step.
+     * <p>⚠ <b>No longer the same number as {@link #noiseCycles()}, and they must not be re-merged.</b>
+     * See {@code Balance.NET_SWEEP_BASE_NOISE}: identifying the two made a sweep read as silent on the
+     * meter and made it read <em>quieter</em> the larger the player's rig grew.
      */
     public long cycles() {
         return cycles;
+    }
+
+    /**
+     * How loud the sweep is while it runs, on the noise meter's cycle scale.
+     *
+     * <p>Every tier is loud, and the ladder is loudness as well as sensitivity — see
+     * {@code Balance.NET_SWEEP_BASE_NOISE}. It contributes nothing once the sweep has settled:
+     * {@code NoiseRules} counts only sweeps that are still running.
+     */
+    public long noiseCycles() {
+        return noiseCycles;
     }
 
     public long seconds() {

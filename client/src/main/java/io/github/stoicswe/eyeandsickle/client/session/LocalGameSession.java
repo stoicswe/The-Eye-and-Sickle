@@ -216,14 +216,40 @@ public final class LocalGameSession implements GameSession {
 
     // ------------------------------------------------------------------ intents
 
+    /**
+     * The one refusal a rig gives when it has not got the capacity — and the one hint a player gets
+     * that something is eating it.
+     *
+     * <h2>Why every caller says this in the same words</h2>
+     *
+     * A parasite the player has not audited is invisible on the readout by design
+     * ({@code ComputeRules.snapshot}): the cycles are gone and nothing attributes them. That is the
+     * right amount of silence right up until the moment it stops a command, and then silence would be
+     * indistinguishable from a bug — the player asks for a nine-cycle sweep, the rig says no, and
+     * every number they can see says they could afford it. So this message exists, it fires on every
+     * capacity refusal in the port, and it carries the three figures that make the discrepancy
+     * derivable: what was needed, what is free, and <b>what the rig's ceiling is</b>.
+     *
+     * <p>⚠ It must never mention a parasite, a rogue process, or an audit. It reports a shortfall,
+     * which is the only thing the rig honestly knows. The player who compares "12 free of 100"
+     * against a grid showing 75 committed has found the gap themselves, which is
+     * {@code docs/design/04-mining.md} §3.1 working exactly as written; a message that named the cause
+     * would be the refusal doing the audit's job for free.
+     */
+    private Outcome notEnoughCycles(long needed) {
+        var budget = computeBudget();
+        return Outcome.refused("command could not be executed: not enough cycles to compute — "
+                + needed + " needed, " + budget.available().cycles() + " free of "
+                + budget.total().cycles());
+    }
+
     @Override
     public Outcome allocateSelfMining(long cycles) {
         if (cycles < 0) {
             return Outcome.usage("cycles must not be negative");
         }
         if (!game.allocateSelfMining(cycles)) {
-            return Outcome.refused("not enough available compute — the rig has "
-                    + computeBudget().available().cycles() + " free");
+            return notEnoughCycles(cycles);
         }
         return changed(Outcome.ok("self-mining set to " + cycles + " cycles"));
     }
@@ -238,8 +264,7 @@ public final class LocalGameSession implements GameSession {
         }
         return game.scan(t)
                 .map(a -> changed(Outcome.ok("scan --" + t.flag() + " started; " + t.cycles() + " cycles committed")))
-                .orElseGet(() -> Outcome.refused("not enough available compute — " + t.cycles() + " needed, "
-                        + computeBudget().available().cycles() + " free"));
+                .orElseGet(() -> notEnoughCycles(t.cycles()));
     }
 
     // ── The breach ────────────────────────────────────────────────────────────────────────────
@@ -318,9 +343,72 @@ public final class LocalGameSession implements GameSession {
             // must read as "not yet, and here is why" rather than as an obstruction.
             return Outcome.gated("requires " + tier.get().itemId());
         }
+        // ⚠ Checked before the compute refusal, and the order is the fix rather than a tidy-up. A
+        // character created before the world generator existed has a null topology, so beginSweep
+        // returns empty for a reason that has nothing to do with cycles — and this method used to
+        // report every one of those as "not enough available compute", sending the player to free up
+        // capacity they already had while the real answer was that they had no network at all.
+        // SoloGame.open backfills the world now, so this should be unreachable; it stays because a
+        // refusal that names the wrong resource is the most expensive kind of wrong.
+        if (!game.hasNetwork()) {
+            return Outcome.refused(
+                    "this character has no network yet — reopen the save to bring the interface up");
+        }
         return game.sweep(tier.get())
-                .map(t -> changed(Outcome.ok("sweep started from " + game.net().vantageAddress())))
-                .orElseGet(() -> Outcome.refused("not enough available compute for that sweep"));
+                .map(t -> changed(Outcome.ok("sweep started from " + game.net().vantageAddress()
+                        + " — " + tier.get().cycles() + " cycles held, and loud until it ends")))
+                .orElseGet(() -> notEnoughCycles(tier.get().cycles()));
+    }
+
+    @Override
+    public double noise() {
+        return game.noise();
+    }
+
+    // ── Filing what has been found ────────────────────────────────────────────────────────────
+    //
+    // Every refusal below is the rules' own sentence, passed through unedited. The view and the
+    // shell both print it, so there is exactly one wording per failure and neither surface can
+    // invent a friendlier one that says something slightly different.
+
+    @Override
+    public List<io.github.stoicswe.eyeandsickle.protocol.game.NetFolder> folders() {
+        return game.folders();
+    }
+
+    @Override
+    public List<String> unfiledNodes() {
+        return game.unfiledNodes();
+    }
+
+    @Override
+    public Outcome createFolder(String parentId, String name) {
+        var result = game.createFolder(parentId, name);
+        return result.refused() ? Outcome.refused(result.why()) : changed(Outcome.ok());
+    }
+
+    @Override
+    public Outcome renameFolder(String folderId, String name) {
+        return apply(game.renameFolder(folderId, name));
+    }
+
+    @Override
+    public Outcome moveFolder(String folderId, String newParentId) {
+        return apply(game.moveFolder(folderId, newParentId));
+    }
+
+    @Override
+    public Outcome removeFolder(String folderId) {
+        return apply(game.removeFolder(folderId));
+    }
+
+    @Override
+    public Outcome fileNode(String address, String folderId) {
+        return apply(game.fileNode(address, folderId));
+    }
+
+    private Outcome apply(io.github.stoicswe.eyeandsickle.solo.net.FolderRules.Refusal refusal) {
+        return refusal.refused() ? Outcome.refused(refusal.why()) : changed(Outcome.ok());
     }
 
     @Override
@@ -372,8 +460,7 @@ public final class LocalGameSession implements GameSession {
         }
         return game.arm(kind, tier, cycles)
                 .map(d -> changed(Outcome.ok(kind + " armed; " + cycles + " cycles reserved while it runs")))
-                .orElseGet(() -> Outcome.refused("not enough available compute — " + cycles + " needed, "
-                        + computeBudget().available().cycles() + " free"));
+                .orElseGet(() -> notEnoughCycles(cycles));
     }
 
     @Override

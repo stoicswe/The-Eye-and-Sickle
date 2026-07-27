@@ -90,7 +90,8 @@ public final class NetCanvas {
             int row,
             String styleClass,
             String text,
-            boolean stub) {}
+            boolean stub,
+            boolean selected) {}
 
     /**
      * The finished picture.
@@ -126,19 +127,37 @@ public final class NetCanvas {
      * @param packetPhase the animation step; only ever moves the one {@code ·}
      */
     public static Painted paint(NetMap map, int maxRows, int packetPhase) {
+        return paint(map, maxRows, packetPhase, "");
+    }
+
+    /**
+     * Draws the whole map, marking one machine as the one the player has picked.
+     *
+     * @param selectedAddress the machine CONNECT, DOWNLOAD and the breach would act on; {@code ""}
+     *     for none. An address that is not on the map marks nothing and is not an error — a
+     *     selection outlives the sighting that produced it by a repaint or two, and a renderer that
+     *     threw on that would crash on the frame after a machine went out of view
+     */
+    public static Painted paint(NetMap map, int maxRows, int packetPhase, String selectedAddress) {
         NetMap safe = map == null ? NetMap.empty() : map;
         String strip = serverStrip(safe);
         NetLayout.Result layout = NetLayout.of(safe, maxRows);
         if (layout.layers() == 0) {
             return new Painted(List.of(), List.of(), List.of(), List.of(), "", strip, 0, 0, 0, 0);
         }
-        return new Canvas(safe, layout, Math.max(1, maxRows), packetPhase, strip).paint();
+        String selected = selectedAddress == null ? "" : selectedAddress;
+        return new Canvas(safe, layout, Math.max(1, maxRows), packetPhase, strip, selected).paint();
     }
 
     /** The grid as text, one line per row. The seam every geometric test reads. */
     public static String frame(NetMap map, int maxRows, int packetPhase) {
+        return frame(map, maxRows, packetPhase, "");
+    }
+
+    /** The grid as text with one machine marked — the seam the selection tests read. */
+    public static String frame(NetMap map, int maxRows, int packetPhase, String selectedAddress) {
         StringBuilder out = new StringBuilder();
-        for (String line : paint(map, maxRows, packetPhase).lines()) {
+        for (String line : paint(map, maxRows, packetPhase, selectedAddress).lines()) {
             out.append(line).append('\n');
         }
         return out.toString();
@@ -181,6 +200,7 @@ public final class NetCanvas {
         private final int maxRows;
         private final int packetPhase;
         private final String serverStrip;
+        private final String selected;
 
         private final int layers;
         private final int rows;
@@ -199,12 +219,19 @@ public final class NetCanvas {
         /** A bridge's far side: where it is drawn, and the only fact it carries. */
         private record Stub(String bridgeAddress, String peerServerName, int layer, int row) {}
 
-        private Canvas(NetMap map, NetLayout.Result layout, int maxRows, int packetPhase, String serverStrip) {
+        private Canvas(
+                NetMap map,
+                NetLayout.Result layout,
+                int maxRows,
+                int packetPhase,
+                String serverStrip,
+                String selected) {
             this.map = map;
             this.layout = layout;
             this.maxRows = maxRows;
             this.packetPhase = packetPhase;
             this.serverStrip = serverStrip;
+            this.selected = selected;
 
             for (NetLayout.Placed placed : layout.placed()) {
                 slotOf.put(placed.sighting().address(), new int[] {placed.layer(), placed.row()});
@@ -307,7 +334,8 @@ public final class NetCanvas {
             for (NetLayout.Placed placed : layout.placed()) {
                 Sighting sighting = placed.sighting();
                 boolean vantage = isVantage(sighting);
-                String block = cellText(sighting, vantage);
+                boolean picked = !selected.isEmpty() && selected.equals(sighting.address());
+                String block = cellText(sighting, vantage, picked);
                 blit(placed.layer(), placed.row(), block);
                 pieces.add(new Piece(
                         sighting.address(),
@@ -316,7 +344,8 @@ public final class NetCanvas {
                         placed.row(),
                         styleFor(sighting, vantage),
                         block,
-                        false));
+                        false,
+                        picked));
             }
         }
 
@@ -325,7 +354,16 @@ public final class NetCanvas {
                 String block = stubText(stub.peerServerName());
                 blit(stub.layer(), stub.row(), block);
                 pieces.add(new Piece(
-                        "", stub.peerServerName(), stub.layer(), stub.row(), "es-netmap-dark", block, true));
+                        "",
+                        stub.peerServerName(),
+                        stub.layer(),
+                        stub.row(),
+                        "es-netmap-dark",
+                        block,
+                        true,
+                        // A stub is never the selection. It has no address the player has been sold,
+                        // so there is nothing for CONNECT or a breach to act on and nothing to mark.
+                        false));
             }
         }
 
@@ -593,21 +631,58 @@ public final class NetCanvas {
      * answered by frame weight before a single glyph is read, and stays answered in greyscale — which
      * is the acceptance test for the whole panel, because the palette reserves its one accent for
      * live/earning data and a network node is not earning.
+     *
+     * <h2>The selected machine gets a double frame and a pointer at its address</h2>
+     *
+     * <pre>
+     * selected: ╔════════════╗        selected AND the vantage: ┏━━━━━━━━━━━━┓
+     *           ║ ░░--------·║                                  ┃ ██ TERMINAL┃
+     *           ╚════════════╝                                  ┗━━━━━━━━━━━━┛
+     *          ▌10.0.0.7                                       ▌10.0.0.1
+     * </pre>
+     *
+     * <p>Three frame weights, and their precedence is not arbitrary. <b>Vantage outranks
+     * selection</b>: where the player is standing is a fact about the whole map — every hop count on
+     * it is measured from there — while a selection is a transient intention, and a mark that could
+     * hide the frame of reference would cost more than it bought. So the bar beside the address
+     * carries selection <em>unconditionally</em> and the double frame carries it only where there is
+     * a frame weight going spare. Selecting the vantage is still unmistakable; it just says so with
+     * the bar rather than with the box.
+     *
+     * <p>Both marks are geometric and neither changes a width. That is the requirement rather than a
+     * preference: the bar replaces the blank the address line already began with, and the frame
+     * swaps characters one for one, so a selection cannot shear the column it is in. A selection
+     * carried by colour alone would also be invisible in greyscale and silent to a screen reader,
+     * which §4.4's "weight first, the grey ramp second" exists to prevent.
      */
-    static String cellText(Sighting sighting, boolean vantage) {
-        char tl = vantage ? AsciiCanvas.HEAVY_TL : AsciiCanvas.LIGHT_TL;
-        char tr = vantage ? AsciiCanvas.HEAVY_TR : AsciiCanvas.LIGHT_TR;
-        char bl = vantage ? AsciiCanvas.HEAVY_BL : AsciiCanvas.LIGHT_BL;
-        char br = vantage ? AsciiCanvas.HEAVY_BR : AsciiCanvas.LIGHT_BR;
-        char horizontal = vantage ? AsciiCanvas.HEAVY_H : AsciiCanvas.LIGHT_H;
-        char vertical = vantage ? AsciiCanvas.HEAVY_V : AsciiCanvas.LIGHT_V;
+    static String cellText(Sighting sighting, boolean vantage, boolean selected) {
+        // Vantage first — see the class note on precedence. `selected && !vantage` rather than a
+        // three-way pick, so that adding a fourth weight later cannot silently reorder these two.
+        boolean doubled = selected && !vantage;
+        char tl = vantage ? AsciiCanvas.HEAVY_TL : doubled ? AsciiCanvas.BOX_TL : AsciiCanvas.LIGHT_TL;
+        char tr = vantage ? AsciiCanvas.HEAVY_TR : doubled ? AsciiCanvas.BOX_TR : AsciiCanvas.LIGHT_TR;
+        char bl = vantage ? AsciiCanvas.HEAVY_BL : doubled ? AsciiCanvas.BOX_BL : AsciiCanvas.LIGHT_BL;
+        char br = vantage ? AsciiCanvas.HEAVY_BR : doubled ? AsciiCanvas.BOX_BR : AsciiCanvas.LIGHT_BR;
+        char horizontal = vantage ? AsciiCanvas.HEAVY_H : doubled ? AsciiCanvas.BOX_H : AsciiCanvas.LIGHT_H;
+        char vertical = vantage ? AsciiCanvas.HEAVY_V : doubled ? AsciiCanvas.BOX_V : AsciiCanvas.LIGHT_V;
 
         String rule = String.valueOf(horizontal).repeat(UiTokens.NET_NODE_COLS - 2);
         String interior = blank(1) + glyphFor(sighting, vantage) + blank(1) + padRight(kindOf(sighting), KIND_COLS);
+        // ⚠ The bar takes the address line's existing leading blank rather than being prepended.
+        // Prepending would push the line one column wide and shear everything to its right — the
+        // failure NET_NODE_COLS exists to make impossible, arriving through the one line nobody
+        // thinks of as part of the box.
+        //
+        // ⚠ A BAR, NOT AN ARROWHEAD. `→` was the obvious choice and is already this map's glyph for
+        // the head of an edge entering a cell (see route()), so a selection drawn with one would be
+        // indistinguishable from the nine arrowheads a two-hop map already has. A gutter bar is the
+        // standard idiom for "this row", is not used anywhere else on this surface, and reads at a
+        // glance without being confusable with anything the routing draws.
+        String lead = selected ? String.valueOf(AsciiCanvas.BAR_HALF) : blank(1);
         return tl + rule + tr
                 + "\n" + vertical + clip(interior, UiTokens.NET_NODE_COLS - 2) + vertical
                 + "\n" + bl + rule + br
-                + "\n" + padRight(blank(1) + sighting.address(), UiTokens.NET_NODE_COLS);
+                + "\n" + padRight(lead + sighting.address(), UiTokens.NET_NODE_COLS);
     }
 
     /**

@@ -51,21 +51,33 @@ class NetMapViewTest {
     class Toggle {
 
         @Test
-        @DisplayName("toggling switches between the two views and back")
+        @DisplayName("toggling cycles through every view and comes back round")
         void switches() {
             assertThat(NetMapView.Display.GRAPH.toggled()).isEqualTo(NetMapView.Display.LIST);
-            assertThat(NetMapView.Display.LIST.toggled()).isEqualTo(NetMapView.Display.GRAPH);
-            assertThat(NetMapView.Display.GRAPH.toggled().toggled())
-                    .isEqualTo(NetMapView.Display.GRAPH);
+            assertThat(NetMapView.Display.LIST.toggled()).isEqualTo(NetMapView.Display.FOLDERS);
+            assertThat(NetMapView.Display.FOLDERS.toggled()).isEqualTo(NetMapView.Display.GRAPH);
+
+            // Cycling once per view returns to the start from wherever it began. Asserted as a loop
+            // rather than as three hard-coded hops so adding a fourth view cannot leave one of them
+            // unreachable while the test still passes.
+            for (NetMapView.Display start : NetMapView.Display.values()) {
+                NetMapView.Display at = start;
+                for (int i = 0; i < NetMapView.Display.values().length; i++) {
+                    at = at.toggled();
+                }
+                assertThat(at).as("cycling from %s returns to it", start).isEqualTo(start);
+            }
         }
 
         @Test
-        @DisplayName("exactly one view shows at a time — there is no state where both or neither do")
+        @DisplayName("exactly one view shows at a time — there is no state where two or none do")
         void exactlyOne() {
             for (NetMapView.Display display : NetMapView.Display.values()) {
-                assertThat(display.showsGraph() ^ display.showsList())
-                        .as("%s shows exactly one view", display)
-                        .isTrue();
+                long showing = java.util.stream.Stream
+                        .of(display.showsGraph(), display.showsList(), display.showsFolders())
+                        .filter(Boolean::booleanValue)
+                        .count();
+                assertThat(showing).as("%s shows exactly one view", display).isEqualTo(1);
             }
         }
 
@@ -116,6 +128,68 @@ class NetMapViewTest {
         void empty() {
             assertThat(NetText.rows(NetMap.empty(), false)).isEmpty();
             assertThat(NetText.serverStrip(NetMap.empty())).contains("CEILING 1 HOP");
+        }
+    }
+
+    @Nested
+    @DisplayName("the filing tree, as text")
+    class Folders {
+
+        private static io.github.stoicswe.eyeandsickle.protocol.game.NetFolder folder(
+                String name, String path, int depth, List<String> addresses, int subtree) {
+            return new io.github.stoicswe.eyeandsickle.protocol.game.NetFolder(
+                    "id-" + name, "", name, path, depth, addresses, subtree);
+        }
+
+        @Test
+        @DisplayName("a folder indents by its depth and reports what is under it, sub-folders included")
+        void shape() {
+            List<String> lines = NetText.folderRows(
+                    List.of(
+                            folder("eye", "/eye", 0, List.of("10.0.0.4"), 2),
+                            folder("relays", "/eye/relays", 1, List.of("10.0.0.9"), 1)),
+                    List.of());
+
+            assertThat(lines).containsExactly(
+                    "+ eye (2)",
+                    "  - 10.0.0.4",
+                    "  + relays (1)",
+                    "    - 10.0.0.9");
+        }
+
+        @Test
+        @DisplayName("an empty folder says so rather than reading as a gap")
+        void emptyFolder() {
+            assertThat(NetText.folderRows(List.of(folder("spare", "/spare", 0, List.of(), 0)), List.of()))
+                    .containsExactly("+ spare (0)", "  - " + NetText.EMPTY_FOLDER);
+        }
+
+        @Test
+        @DisplayName("machines in no folder are listed under a bucket, not silently omitted")
+        void unfiledIsVisible() {
+            // A player who cannot see what they have not filed cannot file it. The bucket has no id
+            // and nothing can be moved into it by name — unfiling is what puts a machine here.
+            assertThat(NetText.folderRows(List.of(), List.of("10.0.0.4", "10.0.0.9")))
+                    .containsExactly("+ unfiled (2)", "  - 10.0.0.4", "  - 10.0.0.9");
+        }
+
+        @Test
+        @DisplayName("the tree is plain ASCII, so it survives a copy-paste into a bug report")
+        void asciiOnly() {
+            String drawn = String.join("\n", NetText.folderRows(
+                    List.of(folder("eye", "/eye", 0, List.of("10.0.0.4"), 1)), List.of("10.0.0.9")));
+            // Box-drawing glyphs would be prettier and would not survive being pasted somewhere with
+            // a different font. They are also one more range for GlyphCoverageTest to police.
+            assertThat(drawn.chars().allMatch(c -> c < 128)).isTrue();
+        }
+
+        @Test
+        @DisplayName("no folders and nothing unfiled is an empty list, and the caller shows the instruction")
+        void emptyState() {
+            assertThat(NetText.folderRows(List.of(), List.of())).isEmpty();
+            // docs/design/ui-design-language.md §6: an empty state is an instruction, not a mood
+            // piece. What the player cannot see here is that folders exist at all.
+            assertThat(NetText.NO_FOLDERS).contains("folder");
         }
     }
 

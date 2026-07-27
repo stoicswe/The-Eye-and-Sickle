@@ -189,12 +189,21 @@ public final class RigMonitorView {
                     CycleGrid.Owner.RECOVERING, (int) recovering, "Thermal recovery", "returning"));
         }
 
-        // Not a rounding artefact and not a display gap: capacity the rig is spending on something
-        // it cannot name. See the class comment.
+        // Capacity that is gone with nothing to attribute it to.
+        //
+        // ⚠ Drawn as HIDDEN — dark, inert, and absent from the legend — rather than as the blinking
+        // UNKNOWN alarm it used to be. The rig only reports a parasite it has AUDITED
+        // (ComputeRules.snapshot omits the rest), so this gap is, in the fiction, capacity nobody
+        // knows is missing. Painting it in alarm red with a label reading "Unaccounted" was the
+        // readout announcing a theft the player has not detected, which hands them free the answer
+        // docs/design/04-mining.md §3.2 sells the whole scan ladder for.
+        //
+        // What survives is §3.1's actual mechanic: claimed + recovering + free comes to less than
+        // the "/ 100 cycles" the headline states, and there is a hole in the grid where the
+        // difference is. A player who counts finds it. Nobody is told.
         long unknown = budget.unaccountedFor().cycles();
         if (unknown > 0) {
-            slices.add(new CycleGrid.Slice(
-                    CycleGrid.Owner.UNKNOWN, (int) unknown, "Unaccounted", "unknown owner"));
+            slices.add(new CycleGrid.Slice(CycleGrid.Owner.HIDDEN, (int) unknown, "", ""));
         }
 
         long available = budget.available().cycles();
@@ -250,11 +259,30 @@ public final class RigMonitorView {
     private static List<Region> notesFor(GameSession session, ComputeBudget budget, RigStatus status) {
         List<Region> notes = new ArrayList<>();
 
-        if (!budget.reconciles()) {
+        // ⚠ THERE IS DELIBERATELY NO NOTE FOR AN UNRECONCILED LEDGER.
+        //
+        // There was one, and it read "N cycles are being spent by something not in this list —
+        // `scan --full` is the only thing that will name it". It was accurate, well-meant, and it
+        // gave away the entire audit ladder: a player who has run no scan was told both that they
+        // were being robbed and exactly how much for. docs/design/04-mining.md §3.1 asks the player
+        // to NOTICE that the numbers do not add up; a note that points at the gap is not noticing,
+        // it is being told, and once the game tells you there is nothing left for §3.2 to sell.
+        //
+        // The gap is still there, in the headline arithmetic and as a hole in the grid. What is gone
+        // is the commentary. A parasite the player HAS audited gets a note below — naming something
+        // already known is consequence, not revelation.
+
+        long foreign = 0L;
+        for (var allocation : budget.allocations()) {
+            if (allocation.consumer() == ComputeConsumer.DEPLOYED_MINER && !allocation.isRecovering()) {
+                foreign += allocation.cycles().cycles();
+            }
+        }
+        if (foreign > 0) {
             notes.add(Note.loss(
-                    budget.unaccountedFor().cycles() + " cycles are being spent by something not in this list.",
-                    "The rig is billing capacity it cannot attribute. `scan --full` costs 35 cycles "
-                            + "and is the only thing that will name it."));
+                    foreign + (foreign == 1 ? " cycle is" : " cycles are") + " running somebody else's work.",
+                    "You have found it; it is still there. `crack` takes its buffer and the cycles "
+                            + "back, and cracking on your own rig costs no heat."));
         }
 
         if (status.bufferCapMinorUnits() > 0 && status.bufferFill() >= 1.0) {

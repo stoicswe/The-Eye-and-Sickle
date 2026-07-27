@@ -118,6 +118,20 @@ public interface GameSession extends AutoCloseable {
      */
     boolean connected();
 
+    /**
+     * How loud the rig is right now, 0–1 — <b>not</b> how busy it is.
+     *
+     * <p>⚠ A rig at full load on self-mining, defences and local scans reads <b>zero</b>, and that is
+     * the whole point rather than an edge case: Invariants <b>I4</b> and <b>I9</b> and
+     * {@code docs/design/04-mining.md} §3.1 each make one of those silent, and together they are the
+     * quiet-play strategy the economy is built to reward. What is loud is work that reaches machines
+     * the player does not own.
+     *
+     * <p>The rules answer this, not the view. It was computed in {@code RigStatus} until 2026-07-27,
+     * which put three invariants inside a view class and gave a home server no way to disagree.
+     */
+    double noise();
+
     // ------------------------------------------------------------------ intents
 
     /** Commits cycles to self-mining. Safe, silent, zero-heat (I4), online-only (I5). */
@@ -208,6 +222,48 @@ public interface GameSession extends AutoCloseable {
 
     /** Everything downloaded so far. */
     List<io.github.stoicswe.eyeandsickle.protocol.game.NetDocument> documents();
+
+    // ── Filing what has been found ────────────────────────────────────────────────────────────
+    //
+    // Folders are the player's own annotation over what they have discovered, and nothing in the
+    // rules reads one back — filing a machine changes no cost, no gate and no chance. They are on
+    // the port rather than in client-side settings for one reason: a folder may only hold an address
+    // the player has actually discovered, and "have I discovered this" is a rules question the client
+    // is specifically not allowed to answer (Invariant I14). A client-side store would either
+    // duplicate knownNodes or accept any address it was handed, and the second is a free oracle for
+    // the one thing every sweep tier is sold on.
+
+    /**
+     * The folder tree, <b>parents before children, siblings by name</b>.
+     *
+     * <p>The order is the contract, not an incidental. Both surfaces that draw this — the map window
+     * and the terminal — indent by {@code depth} and walk the list once; if either did its own
+     * traversal the two would eventually sort siblings differently, which is the C1 parity failure
+     * that is hardest to notice.
+     */
+    List<io.github.stoicswe.eyeandsickle.protocol.game.NetFolder> folders();
+
+    /** Discovered machines not filed anywhere, ascending by address. */
+    List<String> unfiledNodes();
+
+    /** Creates a folder under {@code parentId}, or under nothing when it is blank. */
+    Outcome createFolder(String parentId, String name);
+
+    Outcome renameFolder(String folderId, String name);
+
+    /** Moves a folder under a new parent. Refused when that would put it inside itself. */
+    Outcome moveFolder(String folderId, String newParentId);
+
+    /**
+     * Removes a folder, lifting what was inside it up a level.
+     *
+     * <p>Never recursive. Filing carries no risk lesson, so there is nothing to be gained by making a
+     * mis-click expensive — the worst outcome of a wrong removal is a flattened level.
+     */
+    Outcome removeFolder(String folderId);
+
+    /** Files a discovered machine under a folder, or unfiles it when {@code folderId} is blank. */
+    Outcome fileNode(String address, String folderId);
 
     /** Buys from the market. Refused — not thrown — when the player cannot afford it or a gate blocks. */
     Outcome purchase(String offeringId);

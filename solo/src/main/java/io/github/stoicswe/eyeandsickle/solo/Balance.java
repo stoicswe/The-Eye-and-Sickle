@@ -145,20 +145,81 @@ public final class Balance {
     // ------------------------------------------------------------------ thermal budget
 
     /**
-     * Thermal Budget recovery, first pass — {@code docs/design/01-core-resources.md} §1.3, which is
-     * explicitly tagged <strong>[PROPOSAL]</strong> with numbers "for playtest".
+     * Thermal Budget recovery — {@code docs/design/01-core-resources.md} §1.3, which is explicitly
+     * tagged <strong>[PROPOSAL]</strong> with numbers "for playtest".
      *
-     * <p>The curve is {@code base_rate × (1 − load_factor)^k}: recovery is slower the closer the rig
-     * sits to capacity, so a rig running flat out takes much longer to get spent cycles back. That
-     * <em>shape</em> is the design commitment; these two constants are not.
+     * <p>The curve is <b>bounded</b>: recovery is quick in general, slower the closer the rig sits to
+     * capacity, and can never take longer than {@link #THERMAL_MAX_CLEAN_SECONDS} on a rig with
+     * nothing stealing from it. That <em>shape</em> is the design commitment; the numbers are not.
+     *
+     * <h2>⚠ The old formulation was unbounded, and that was the bug</h2>
+     *
+     * It was {@code rate = 0.5 × (1 − load)² × thermalBudget}, with the time as {@code cycles / rate}.
+     * The shape was right and the tail was not: as load approaches capacity the rate approaches zero,
+     * so the time approaches <em>infinity</em>. Measured on a real save — a Thorough Scan's 35 cycles
+     * on a rig at 90% load took <b>36 minutes</b> to come back, and two cycles at 82% load took a
+     * hundred seconds. A player who over-commits should be inconvenienced, not benched, and there was
+     * no number in the design that said where the ceiling was because the formula had none.
+     *
+     * <p>The replacement expresses the ceiling directly: the time is a <em>fraction</em> of a
+     * published maximum rather than a quotient that can run away. See {@code ThermalRules}.
      *
      * <p>{@code docs/education/02-computer-architecture.md} deliberately states the shape and no
      * number in its {@code thermal-budget(7)} page, precisely so a tuning pass here cannot falsify a
      * teaching page. Keep it that way.
      */
-    public static final double THERMAL_BASE_RATE_CYCLES_PER_SECOND = 0.5d;
-
     public static final double THERMAL_LOAD_EXPONENT = 2.0d;
+
+    /**
+     * The longest a recovery may take on a rig with nothing stealing from it: <b>five minutes</b>.
+     *
+     * <p>Reached only in the corner it describes — returning most of the rig's capacity while the
+     * rest of it is pinned. It is an asymptote rather than a clip, so load still reads all the way up
+     * instead of flattening into a plateau where 80% and 95% feel identical.
+     */
+    public static final long THERMAL_MAX_CLEAN_SECONDS = 300L;
+
+    /**
+     * The longest a recovery may take at all: <b>ten minutes</b>, and only a rig being comprehensively
+     * robbed gets near it.
+     *
+     * <p>⚠ <b>Rogue processes are the only thing that may lift the ceiling above
+     * {@link #THERMAL_MAX_CLEAN_SECONDS}, and this is the second of two ways they slow a rig down.</b>
+     * The first is ordinary and needs no special case: a parasite holds cycles, so it raises the load
+     * factor, so it slows recovery through the curve every other consumer uses. This one is the
+     * thermal half — a machine with something else running on it sheds heat worse — and it is
+     * separate on purpose, because a player who has cleared their own allocations down to nothing and
+     * <em>still</em> sees a slow recovery has been handed the discrepancy
+     * {@code docs/design/04-mining.md} §3.1 is built on.
+     */
+    public static final long THERMAL_MAX_INFESTED_SECONDS = 600L;
+
+    /**
+     * What fraction of the ceiling an <em>idle</em> rig still charges, so recovery is never free.
+     *
+     * <p>Zero here would make an idle rig return cycles instantly, which deletes the resource: the
+     * whole point of {@code 01} §1.3 is that spending is a commitment over time rather than a toll.
+     */
+    public static final double THERMAL_IDLE_FLOOR = 0.12d;
+
+    /** Nothing takes less than this, so a completed recovery is always something the player saw. */
+    public static final long THERMAL_MIN_SECONDS = 2L;
+
+    /**
+     * How much slower work runs when parasites are eating the rig — {@code 1.0} means a rig with half
+     * its capacity stolen runs everything <b>50% slower</b>.
+     *
+     * <p><strong>[PROPOSAL]</strong>. Proportional and honest: the machine has less of itself to give,
+     * so everything it does takes longer. It applies to a task's <em>duration</em> and not to its
+     * price, because the cycles a tool needs are a property of the tool and the time it takes is a
+     * property of the machine running it.
+     *
+     * <p>⚠ <b>It applies whether or not the player has found the parasite</b>, which is the point.
+     * Alongside the cycles that simply are not there, a rig that has quietly become sluggish is the
+     * cheapest possible hint that something is wrong — and unlike a warning, it cannot be dismissed,
+     * ignored or read as a false positive.
+     */
+    public static final double THEFT_SLOWDOWN = 1.0d;
 
     // ------------------------------------------------------------------ starting position
 
@@ -807,18 +868,46 @@ public final class Balance {
      * Compute each sweep tier holds while it runs — inside {@code docs/design/07-recon-tools.md}
      * §1's established 2–14 recon range.
      *
-     * <p>⚠ <b>These are also the sweep's noise, by construction, and that is deliberate.</b> The
-     * implemented noise model is the sum of cycles running through {@code CONTROL_CHANNEL},
-     * {@code RELAY_HOP} and {@code BOT_FRAME} — "work that reaches other machines"
-     * ({@code docs/design/15-open-questions.md} §3, 2026-07-26). A sweep reaches other machines, so
-     * reserving through {@code CONTROL_CHANNEL} makes 2 / 5 / 9 cycles land as Low / Low / Moderate
-     * on {@code 07}'s scale with no second source of truth to keep in step. Ping Sweep remains the
-     * only High-noise recon tool and the only one that notifies its target; nothing here does either.
+     * <p>⚠ <b>These are the sweep's price in capacity, and are no longer also its noise.</b> They
+     * used to be both, via the {@code CONTROL_CHANNEL} reservation, and the identity was elegant and
+     * measurably wrong on screen: noise is drawn as outward cycles over <em>rig capacity</em>, so a
+     * base sweep on a 100-cycle rig moved the meter by two percent — indistinguishable from silence,
+     * and getting quieter the bigger the player's rig grew, which inverts the reading. Loudness is
+     * now stated separately in {@link #NET_SWEEP_BASE_NOISE} and the two are free to differ, because
+     * how much of your machine a job occupies and how much racket it makes outside it are genuinely
+     * different quantities. See {@code docs/design/08-stealth-and-noise.md} §1: noise is generated by
+     * <em>acting</em>, and the act here is touching machines that are not yours.
      */
     public static final long NET_SWEEP_BASE_CYCLES = 2L;
 
     public static final long NET_SWEEP_WIDE_CYCLES = 5L;
     public static final long NET_SWEEP_DEEP_CYCLES = 9L;
+
+    /**
+     * How loud each sweep tier is while it runs, on the same 0–{@code totalCycles} scale the noise
+     * meter reads — so 35 on a 100-cycle rig is a bit over a third of the meter.
+     *
+     * <p><strong>[PROPOSAL]</strong>. A sweep is intrusive by construction: it puts packets on
+     * machines the player does not own and has no business touching, and
+     * {@code docs/design/08-stealth-and-noise.md} §1 makes that exactly what noise measures. Every
+     * tier is therefore loud, and the ladder is loudness, not just sensitivity — a deep sweep listens
+     * harder <em>by shouting louder</em>, which is what makes buying up the ladder a decision rather
+     * than a strict upgrade. The precedent is {@code docs/design/07-recon-tools.md} §1's Ping Sweep,
+     * the one recon tool the table already marks <b>High</b> for exactly this reason.
+     *
+     * <p>⚠ <b>It is loud only while it runs.</b> The allocation goes into thermal recovery the moment
+     * the sweep settles, and recovering cycles are excluded from the noise sum — so the meter drops
+     * back to whatever the rig was doing before. Noise is a rate, not a debt; what persists after a
+     * loud act is <em>heat</em>, which is a different field and is charged by different rules.
+     *
+     * <p>⚠ Deliberately below {@code totalCycles} even at the top of the ladder. A tier that pinned
+     * the meter would erase the distinction between "loud" and "as loud as this rig gets", and the
+     * player needs the headroom to read a sweep running <em>on top of</em> something else.
+     */
+    public static final long NET_SWEEP_BASE_NOISE = 35L;
+
+    public static final long NET_SWEEP_WIDE_NOISE = 55L;
+    public static final long NET_SWEEP_DEEP_NOISE = 80L;
 
     /**
      * Wall-clock duration of each sweep tier, in seconds.

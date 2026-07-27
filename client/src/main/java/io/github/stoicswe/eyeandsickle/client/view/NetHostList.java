@@ -57,6 +57,8 @@ public final class NetHostList extends VBox {
     private NetMap map = NetMap.empty();
     private Consumer<String> onNode = address -> {};
     private boolean verbose;
+    private String selected = "";
+    private String paintedFor = "";
 
     public NetHostList() {
         super(UiTokens.SPACE_2);
@@ -93,6 +95,20 @@ public final class NetHostList extends VBox {
         apply();
     }
 
+    /**
+     * Marks the machine the player has picked — the same one the graph double-frames.
+     *
+     * <p>Here for parity rather than for its own sake: the three views select one thing, so a player
+     * who picks a machine in the graph and switches to the list must not have to find it again by
+     * reading addresses. The mark is a style class only, because unlike the graph this surface has a
+     * {@code STATE} column carrying the row's standing in words already — a geometric marker here
+     * would be a second vocabulary for a fact the row states.
+     */
+    public void setSelected(String address) {
+        this.selected = address == null ? "" : address;
+        apply();
+    }
+
     /** Called with a row's address when it is clicked or activated from the keyboard. */
     public void setOnNode(Consumer<String> onNode) {
         this.onNode = onNode == null ? address -> {} : onNode;
@@ -120,10 +136,13 @@ public final class NetHostList extends VBox {
 
     private void apply() {
         List<String> lines = NetText.rows(map, verbose);
-        if (lines.equals(rendered) && !rows.getChildren().isEmpty()) {
+        // The selection joins the comparison key. It is a visible change the lines alone do not
+        // carry, so leaving it out would mean clicking a row repainted nothing until the next sweep.
+        if (lines.equals(rendered) && selected.equals(paintedFor) && !rows.getChildren().isEmpty()) {
             return;
         }
         rendered = List.copyOf(lines);
+        paintedFor = selected;
         rows.getChildren().clear();
 
         if (lines.isEmpty()) {
@@ -155,6 +174,9 @@ public final class NetHostList extends VBox {
     private Label row(Sighting sighting, String text) {
         Label label = new Label(text);
         label.getStyleClass().addAll("es-netlist-row", "es-focusable");
+        if (sighting.address().equals(selected)) {
+            label.getStyleClass().add("es-netlist-selected");
+        }
         if (!sighting.vantage() && !sighting.foothold()) {
             // The grey ramp, second. The distinction that matters most on this panel — where the
             // player can actually operate from — is already carried by the STATE column in words,

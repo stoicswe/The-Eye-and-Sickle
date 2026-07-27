@@ -335,6 +335,11 @@ class NetRulesTest {
                 // ⚠ Invariant I9's payoff: the planted miner is a crack target on the player's own
                 // rig, which generates NO heat on any outcome. Getting counter-hacked hands the
                 // player the safest teaching target in the game.
+                // ⚠ Audited first, because an unaudited parasite is not a target. The counter-hack
+                // announces itself in the log — "something swept back" — but announcing the EVENT
+                // and naming the PROCESS are different things, and only the second makes it
+                // crackable. What is asserted here is that a real, crackable miner was planted.
+                planted.discovered = true;
                 boolean crackable = Targets.available(save).stream().anyMatch(BreachTarget::minerCrack);
                 assertThat(crackable).isTrue();
             }

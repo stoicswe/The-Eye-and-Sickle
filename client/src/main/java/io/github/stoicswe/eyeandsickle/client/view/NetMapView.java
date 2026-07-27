@@ -8,6 +8,7 @@ import io.github.stoicswe.eyeandsickle.client.ui.netmap.NetLegend;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.KeyValue;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.Note;
 import io.github.stoicswe.eyeandsickle.protocol.game.NetDocument;
+import io.github.stoicswe.eyeandsickle.protocol.game.NetFolder;
 import io.github.stoicswe.eyeandsickle.protocol.game.NetMap;
 import io.github.stoicswe.eyeandsickle.protocol.game.Sighting;
 import java.util.List;
@@ -16,6 +17,7 @@ import java.util.Optional;
 import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
+import javafx.scene.control.TextField;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -80,10 +82,11 @@ public final class NetMapView {
      */
     enum Display {
         GRAPH,
-        LIST;
+        LIST,
+        FOLDERS;
 
         Display toggled() {
-            return this == GRAPH ? LIST : GRAPH;
+            return values()[(ordinal() + 1) % values().length];
         }
 
         boolean showsGraph() {
@@ -92,6 +95,10 @@ public final class NetMapView {
 
         boolean showsList() {
             return this == LIST;
+        }
+
+        boolean showsFolders() {
+            return this == FOLDERS;
         }
 
         /**
@@ -113,6 +120,24 @@ public final class NetMapView {
      * state; nothing here is static and nothing survives a close.
      */
     public static Region create(GameSession session) {
+        return create(session, new BreachArming());
+    }
+
+    /**
+     * Builds the window, with a handle on the breach window's aim.
+     *
+     * <p>The map is where a player <em>finds</em> a machine and the breach window is where they
+     * attack one, and until this existed the journey between the two was: read an address off the
+     * graph, open another window, find the same address in a list of a dozen. {@code BREACH} closes
+     * that — it arms the breach window at the selected machine and raises it, and the player's next
+     * act is one deliberate press on a control that says what it will cost.
+     *
+     * <p>⚠ It arms; it does not attack. See {@link BreachArming}: a breach reserves compute for the
+     * whole attempt and aborting is a sanctioned outcome rather than a refund, so the click that
+     * chooses a target and the click that commits to one must not be the same click — least of all
+     * on a graph, where the cells move whenever a sweep lands.
+     */
+    public static Region create(GameSession session, BreachArming arming) {
         VBox root = new VBox(UiTokens.SPACE_5);
         root.getStyleClass().addAll("es-netmap", "es-body-pad");
 
@@ -132,41 +157,102 @@ public final class NetMapView {
             repaint[0].run();
         };
 
+        String[] selectedFolder = {""};
+
         NetHostList list = new NetHostList();
         list.setOnNode(select);
         NetGraph graph = new NetGraph(select);
         NetLegend legend = new NetLegend();
+        NetFolderList folders = new NetFolderList();
+        folders.setOnNode(select);
+        folders.setOnFolder(folderId -> {
+            // A second click on the folder already selected clears it. Without that there is no way
+            // back to "no folder chosen" except picking a different one, and NEW FOLDER at the top
+            // level would become unreachable the moment anything was selected.
+            selectedFolder[0] = selectedFolder[0].equals(folderId) ? "" : folderId;
+            repaint[0].run();
+        });
 
         BreachView.Chip graphControl = control(Display.GRAPH.control(Display.GRAPH));
         BreachView.Chip listControl = control(Display.LIST.control(Display.GRAPH));
+        BreachView.Chip folderControl = control(Display.FOLDERS.control(Display.GRAPH));
         graphControl.setAccessibleText("Show the network as a graph.");
         listControl.setAccessibleText("Show the network as a list of every discovered machine.");
+        folderControl.setAccessibleText("Show how you have filed what you have found.");
 
         // One sweep control: a key and its three sensitivities, in ascending order. All three are
         // always offered. Hiding the two the player has not bought would be the client evaluating a
         // gate (docs/client/04 §3.4, I14) — and the refusal the rules give when an unowned tool is
         // run is a better teacher than an absent control, because it names what is missing.
-        BreachView.Chip sweepBase = control("BASE");
-        BreachView.Chip sweepWide = control("WIDE");
-        BreachView.Chip sweepDeep = control("DEEP");
-        sweepBase.setAccessibleText("Run the base network sweep from the current vantage.");
-        sweepWide.setAccessibleText("Run the wide network sweep — the same reach, more sensitivity.");
-        sweepDeep.setAccessibleText("Run the deep network sweep — the same reach, most sensitivity.");
+        //
+        // ⚠ These carry `es-netmap-action`, NOT the `es-netmap-control` the two view toggles use,
+        // and the distinction is a bug fix rather than a flourish. A toggle has two states and paints
+        // the inactive one in -es-dim-1; a sweep control has no such state and so sat permanently in
+        // the colour this panel's own vocabulary uses for "not the one in force". Three buttons that
+        // never brighten, in a row next to two that do, read as disabled — and were reported as
+        // disabled. An action is not a toggle and must not borrow a toggle's off state.
+        //
+        // Each names its price, for the same reason `sweep -n` prints one: a control whose cost is
+        // invisible until you press it is a control a cautious player does not press.
+        BreachView.Chip sweepBase = action("BASE 2C");
+        BreachView.Chip sweepWide = action("WIDE 5C");
+        BreachView.Chip sweepDeep = action("DEEP 9C");
+        sweepBase.setAccessibleText(
+                "Run the base network sweep from the current vantage. Two cycles, about twenty "
+                        + "seconds, and loud while it runs. It costs no ethecoin.");
+        sweepWide.setAccessibleText(
+                "Run the wide network sweep — the same reach, more sensitivity. Five cycles, about "
+                        + "forty-five seconds, and louder. It costs no ethecoin.");
+        sweepDeep.setAccessibleText(
+                "Run the deep network sweep — the same reach, most sensitivity. Nine cycles, about "
+                        + "ninety seconds, and loudest. It costs no ethecoin.");
         HBox sweepGroup = Ui.row(UiTokens.SPACE_2,
                 Ui.label("Sweep"), sweepBase, sweepWide, sweepDeep);
 
         HBox controls = Ui.row(UiTokens.SPACE_3,
-                graphControl, listControl, Ui.spacer(), sweepGroup);
+                graphControl, listControl, folderControl, Ui.spacer(), sweepGroup);
 
         // ---------------------------------------------------------------- selection
         KeyValue selection = KeyValue.of("Selected", "NONE");
         Label detail = Ui.small("");
         detail.setWrapText(true);
-        BreachView.Chip connect = control("CONNECT");
-        BreachView.Chip download = control("DOWNLOAD");
+        BreachView.Chip connect = action("CONNECT");
+        BreachView.Chip download = action("DOWNLOAD");
+        BreachView.Chip breach = action("BREACH");
+        BreachView.Chip fileHere = action("FILE HERE");
+        BreachView.Chip unfile = action("UNFILE");
         connect.setAccessibleText("Move the vantage to the selected machine. Requires a foothold.");
         download.setAccessibleText("Recover a document from the selected machine.");
-        HBox selectionRow = Ui.row(UiTokens.SPACE_3, selection, connect, download);
+        breach.setAccessibleText(
+                "Aim the breach window at the selected machine and open it. Nothing is spent until "
+                        + "you start the breach there.");
+        fileHere.setAccessibleText("Put the selected machine into the selected folder.");
+        unfile.setAccessibleText("Take the selected machine out of whatever folder it is in.");
+        HBox selectionRow = Ui.row(
+                UiTokens.SPACE_3, selection, breach, connect, download, fileHere, unfile);
+
+        // ---------------------------------------------------------------- filing
+        //
+        // Its own strip, shown only with the folder view. The alternative — folding these into the
+        // row above — was tried on paper and puts six controls on one line, of which the meaning of
+        // three depends on which of two selections is live. A player cannot read that.
+        KeyValue folderSelection = KeyValue.of("Folder", "TOP LEVEL");
+        TextField folderName = new TextField();
+        folderName.setPromptText("folder name");
+        folderName.setPrefColumnCount(18);
+        folderName.setAccessibleText("Name for a new folder, or a new name for the selected one.");
+        BreachView.Chip newFolder = action("NEW");
+        BreachView.Chip renameFolder = action("RENAME");
+        BreachView.Chip removeFolder = action("REMOVE");
+        BreachView.Chip toTop = action("TO TOP");
+        newFolder.setAccessibleText(
+                "Make a folder with the typed name, inside the selected folder or at the top level.");
+        renameFolder.setAccessibleText("Rename the selected folder to the typed name.");
+        removeFolder.setAccessibleText(
+                "Remove the selected folder. What was inside it moves up one level; nothing is lost.");
+        toTop.setAccessibleText("Move the selected folder back out to the top level.");
+        HBox folderRow = Ui.row(UiTokens.SPACE_3,
+                folderSelection, folderName, newFolder, renameFolder, removeFolder, toTop);
 
         // ---------------------------------------------------------------- activity and notices
         Label activity = new Label();
@@ -186,22 +272,30 @@ public final class NetMapView {
         // and neither can reflow, so the scroll goes here and the panel around it still does.
         ScrollPane graphScroll = scroller(graph);
         ScrollPane listScroll = scroller(list);
-        StackPane area = new StackPane(graphScroll, listScroll);
+        ScrollPane folderScroll = scroller(folders);
+        StackPane area = new StackPane(graphScroll, listScroll, folderScroll);
         VBox.setVgrow(area, Priority.ALWAYS);
 
         root.getChildren().addAll(
-                strip, controls, selectionRow, detail, activity, notices, area, legend, reader);
+                strip, controls, selectionRow, folderRow, detail, activity, notices, area, legend, reader);
 
         // ---------------------------------------------------------------- wiring
         Runnable applyDisplay = () -> {
             graphControl.setText(Ui.upper(Display.GRAPH.control(display[0])));
             listControl.setText(Ui.upper(Display.LIST.control(display[0])));
+            folderControl.setText(Ui.upper(Display.FOLDERS.control(display[0])));
             mark(graphControl, display[0].showsGraph());
             mark(listControl, display[0].showsList());
+            mark(folderControl, display[0].showsFolders());
             visible(graphScroll, display[0].showsGraph());
             visible(listScroll, display[0].showsList());
+            visible(folderScroll, display[0].showsFolders());
             // The legend names the graph's glyph vocabulary and nothing else, so it goes with it.
             visible(legend, display[0].showsGraph());
+            // The filing strip is only meaningful beside the tree it acts on. Hidden rather than
+            // disabled: a disabled control still asks to be understood, and there is nothing to
+            // understand about REMOVE while a graph is on screen.
+            visible(folderRow, display[0].showsFolders());
         };
 
         graphControl.onInvoke(() -> {
@@ -210,6 +304,10 @@ public final class NetMapView {
         });
         listControl.onInvoke(() -> {
             display[0] = Display.LIST;
+            applyDisplay.run();
+        });
+        folderControl.onInvoke(() -> {
+            display[0] = Display.FOLDERS;
             applyDisplay.run();
         });
 
@@ -229,6 +327,18 @@ public final class NetMapView {
         sweepWide.onInvoke(() -> report.accept(session.sweep("--wide")));
         sweepDeep.onInvoke(() -> report.accept(session.sweep("--deep")));
 
+        breach.onInvoke(() -> {
+            if (selected[0].isBlank()) {
+                return;
+            }
+            // The `node:` prefix is the rules' own target id (see Targets.available). Built here
+            // rather than looked up because the map holds an address and the breach window holds
+            // ids, and one of the two has to translate — but the SHAPE is the rules', which is why
+            // the armed id is handed straight to beginBreach without a second translation.
+            arming.arm("node:" + selected[0]);
+            arming.open();
+        });
+
         connect.onInvoke(() -> {
             if (selected[0].isBlank()) {
                 return;
@@ -242,13 +352,79 @@ public final class NetMapView {
             report.accept(session.download(selected[0]));
         });
 
+        // ---------------------------------------------------------------- filing intents
+        //
+        // Every one of these hands the port a selection and prints whatever came back. None of them
+        // checks whether the operation is legal first: whether a name collides, whether a folder can
+        // hold another level, whether an address has been discovered are all rules questions, and a
+        // view that pre-empted them would be a second implementation that eventually disagreed. The
+        // only guards here are "is anything selected", which is a question about this panel.
+
+        fileHere.onInvoke(() -> {
+            // Both, for the reason spelled out at the visibility guard: a blank folder id means
+            // unfile, so acting on a half-made selection here would do the opposite of the label.
+            if (selected[0].isBlank() || selectedFolder[0].isBlank()) {
+                return;
+            }
+            report.accept(session.fileNode(selected[0], selectedFolder[0]));
+        });
+        unfile.onInvoke(() -> {
+            if (selected[0].isBlank()) {
+                return;
+            }
+            report.accept(session.fileNode(selected[0], ""));
+        });
+
+        Runnable create = () -> {
+            GameSession.Outcome outcome = session.createFolder(selectedFolder[0], folderName.getText());
+            if (outcome.succeeded()) {
+                folderName.clear();
+            }
+            report.accept(outcome);
+        };
+        newFolder.onInvoke(create);
+        renameFolder.onInvoke(() -> {
+            if (selectedFolder[0].isBlank()) {
+                return;
+            }
+            GameSession.Outcome outcome = session.renameFolder(selectedFolder[0], folderName.getText());
+            if (outcome.succeeded()) {
+                folderName.clear();
+            }
+            report.accept(outcome);
+        });
+        removeFolder.onInvoke(() -> {
+            if (selectedFolder[0].isBlank()) {
+                return;
+            }
+            GameSession.Outcome outcome = session.removeFolder(selectedFolder[0]);
+            if (outcome.succeeded()) {
+                // The folder is gone, so the selection pointing at it is too. Leaving it would
+                // arm RENAME and REMOVE against an id the rules would now refuse, and the refusal
+                // would read as a bug rather than as the stale pointer it is.
+                selectedFolder[0] = "";
+            }
+            report.accept(outcome);
+        });
+        toTop.onInvoke(() -> {
+            if (selectedFolder[0].isBlank()) {
+                return;
+            }
+            report.accept(session.moveFolder(selectedFolder[0], ""));
+        });
+        // Enter in the name field is the same action as NEW — the shape every dialog in this client
+        // already has, and the one a player types without being told.
+        folderName.setOnAction(event -> create.run());
+
         repaint[0] = () -> {
             NetMap map = session.net();
 
             // One read, one instance, both views. The two surfaces cannot disagree about what has
             // been discovered because there is nothing for them to disagree from.
             graph.setMap(map);
+            graph.setSelected(selected[0]);
             list.setMap(map);
+            list.setSelected(selected[0]);
             String header = NetText.serverStrip(map);
             strip.setText(header);
             // Read aloud, a run of padding is silence. The column gaps become sentence breaks so a
@@ -263,9 +439,44 @@ public final class NetMapView {
                     : map.at(selected[0]);
             selection.set(chosen.map(Sighting::address).orElse("NONE"));
             detail.setText(chosen.map(NetHostList::describe).orElse(
-                    "Pick a machine in either view. The list and the graph select the same thing."));
+                    "Pick a machine in any view. All three select the same thing."));
             visible(connect, chosen.isPresent());
             visible(download, chosen.map(Sighting::documentAvailable).orElse(false));
+            // Offered for anything but the player's own rig. Whether the machine can actually be
+            // attempted — compute, an existing foothold, a gate — is the rules' answer, and this
+            // panel does not pre-empt it (C4): the breach window shows the target with the rules'
+            // own verdict beside it, which is a better teacher than a control that is simply absent.
+            visible(breach, chosen.map(s -> !s.vantage()).orElse(false));
+
+            // ---- filing
+            //
+            // The tree is read every repaint like everything else on this panel; a selection that
+            // no longer names a live folder falls back to the top level rather than leaving three
+            // controls armed against an id the rules would refuse.
+            List<NetFolder> tree = session.folders();
+            boolean folderLives = tree.stream().anyMatch(f -> f.folderId().equals(selectedFolder[0]));
+            if (!folderLives) {
+                selectedFolder[0] = "";
+            }
+            folders.setTree(tree, session.unfiledNodes());
+            folders.setSelectedFolder(selectedFolder[0]);
+            folders.setSelectedNode(selected[0]);
+
+            String folderLabel = tree.stream()
+                    .filter(f -> f.folderId().equals(selectedFolder[0]))
+                    .map(NetFolder::path)
+                    .findFirst()
+                    .orElse("TOP LEVEL");
+            folderSelection.set(folderLabel);
+            // ⚠ FILE HERE needs BOTH selections, and the guard is real rather than cosmetic: a
+            // blank folder id is how the port spells "unfile", so a FILE HERE offered with no
+            // folder chosen would quietly do the opposite of what it says. UNFILE needs only the
+            // machine, which is why the two are separate controls and not one toggle.
+            visible(fileHere, chosen.isPresent() && !selectedFolder[0].isBlank());
+            visible(unfile, chosen.isPresent());
+            visible(renameFolder, !selectedFolder[0].isBlank());
+            visible(removeFolder, !selectedFolder[0].isBlank());
+            visible(toTop, !selectedFolder[0].isBlank());
 
             String work = sweepInProgress(session);
             activity.setText(work);
@@ -339,6 +550,22 @@ public final class NetMapView {
      */
     private static BreachView.Chip control(String text) {
         return new BreachView.Chip(text, "es-netmap-control");
+    }
+
+    /**
+     * A control that <em>does</em> something, as opposed to one that selects a view.
+     *
+     * <p>⚠ <b>The separate class is a bug fix and must not be collapsed back into
+     * {@link #control}.</b> A view toggle has two states and paints its off state in {@code -es-dim-1};
+     * an action has no off state, so putting one in the toggle's class parked it permanently in the
+     * colour this panel uses to mean "not the one in force". Three sweep buttons that never brighten,
+     * sitting next to two toggles that do, read as greyed out — and were reported as greyed out and
+     * unpressable, despite always having been pressable. The stylesheet gives this class the ordinary
+     * text fill plus a hover and a pressed state, so the affordance is carried by response to the
+     * pointer rather than by the player guessing.
+     */
+    private static BreachView.Chip action(String text) {
+        return new BreachView.Chip(text, "es-netmap-action");
     }
 
     /** Marks a control as the one currently in force. Paired with the bracket, never alone. */

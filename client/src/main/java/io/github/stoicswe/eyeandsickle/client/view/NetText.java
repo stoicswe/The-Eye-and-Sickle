@@ -1,7 +1,9 @@
 package io.github.stoicswe.eyeandsickle.client.view;
 
 import io.github.stoicswe.eyeandsickle.protocol.game.HostKind;
+import io.github.stoicswe.eyeandsickle.client.session.GameSession;
 import io.github.stoicswe.eyeandsickle.protocol.game.NetDocument;
+import io.github.stoicswe.eyeandsickle.protocol.game.NetFolder;
 import io.github.stoicswe.eyeandsickle.protocol.game.NetMap;
 import io.github.stoicswe.eyeandsickle.protocol.game.ServerRef;
 import io.github.stoicswe.eyeandsickle.protocol.game.Sighting;
@@ -246,6 +248,80 @@ public final class NetText {
                 + pad("DEPTH " + depth + " FROM HOME", 23)
                 + pad("HOSTS SEEN " + map.sightings().size(), 18)
                 + "CEILING " + ceiling + (ceiling == 1 ? " HOP" : " HOPS");
+    }
+
+    // ── the folder tree ──────────────────────────────────────────────────────────────────────
+
+    /**
+     * The empty state for the filing view.
+     *
+     * <p>Same rule as {@link #EMPTY}: an instruction, not a mood piece. What a player cannot see when
+     * this is on screen is that folders exist at all, so it names the verb and what goes in one.
+     */
+    public static final String NO_FOLDERS =
+            "No folders yet. A folder is somewhere to put a machine you want to come back to — "
+                    + "make one, then file anything you have found into it. Nothing about a machine "
+                    + "changes when you do.";
+
+    /** The row a folder holding nothing gets, so an empty folder is visibly a folder and not a gap. */
+    static final String EMPTY_FOLDER = "(empty)";
+
+    /**
+     * The whole filing, as lines: every folder in order, each followed by what is in it.
+     *
+     * <p>⚠ <b>The list is walked, never re-traversed.</b> {@link GameSession#folders()} publishes
+     * parents before children with siblings already sorted, and the depth to indent by; doing a
+     * second traversal here would give this renderer its own opinion about sibling order and let the
+     * window and the terminal disagree about the shape of a thing they both draw. Same C1 discipline
+     * as the node table above, and the failure it prevents is much harder to spot.
+     *
+     * <p>Indentation is two spaces per level and the marker is {@code + } for a folder and
+     * {@code - } for a machine, so the shape survives a copy-paste out of the terminal into a bug
+     * report — which box-drawing glyphs do not, and which is also why they are not used here despite
+     * being available (an ASCII tree is one fewer thing for {@code GlyphCoverageTest} to police).
+     *
+     * @param unfiled discovered machines in no folder; rendered under a trailing pseudo-folder so
+     *     they are visible rather than merely absent. A player who cannot see what they have not
+     *     filed cannot file it.
+     */
+    public static List<String> folderRows(List<NetFolder> folders, List<String> unfiled) {
+        List<String> out = new ArrayList<>();
+        for (NetFolder folder : folders) {
+            out.add(folderRow(folder));
+            for (String address : folder.addresses()) {
+                out.add("  ".repeat(folder.depth() + 1) + "- " + address);
+            }
+            if (folder.addresses().isEmpty() && folder.subtreeCount() == 0) {
+                out.add("  ".repeat(folder.depth() + 1) + "- " + EMPTY_FOLDER);
+            }
+        }
+        if (unfiled != null && !unfiled.isEmpty()) {
+            out.add("+ " + UNFILED + " (" + unfiled.size() + ")");
+            for (String address : unfiled) {
+                out.add("  - " + address);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * What the unfiled bucket is called.
+     *
+     * <p>⚠ Not a real folder and it must never become one — it has no id, so nothing can be moved
+     * <em>into</em> it by name and no intent can target it. Unfiling is done by filing a machine to
+     * a blank folder, which is one operation rather than two, and there is nothing here for a player
+     * to accidentally rename or delete.
+     */
+    static final String UNFILED = "unfiled";
+
+    /** One folder's own line: indent, marker, name, and how much is under it. */
+    static String folderRow(NetFolder folder) {
+        return "  ".repeat(folder.depth())
+                + "+ "
+                + folder.name()
+                + " ("
+                + folder.subtreeCount()
+                + ")";
     }
 
     // ── documents ────────────────────────────────────────────────────────────────────────────

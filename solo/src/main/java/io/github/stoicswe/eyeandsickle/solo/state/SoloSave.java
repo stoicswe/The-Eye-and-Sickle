@@ -69,6 +69,18 @@ public final class SoloSave {
     public List<ItemState> items = new ArrayList<>();
     public List<LedgerEntryState> ledger = new ArrayList<>();
     public List<NodeState> knownNodes = new ArrayList<>();
+
+    /**
+     * The player's own filing of what they have discovered — see {@link FolderState}.
+     *
+     * <p>Sits beside {@link #knownNodes} rather than inside {@link #topology} on purpose. A folder is
+     * not part of the world; it is an annotation <em>over</em> the world, it survives independently of
+     * whether a topology has been generated yet, and putting it under a field that is null on an old
+     * save would make the whole feature inaccessible for exactly the characters most likely to have
+     * a long list of machines to file.
+     */
+    public List<FolderState> netFolders = new ArrayList<>();
+
     public List<DefenseState> defenses = new ArrayList<>();
 
     /**
@@ -142,10 +154,19 @@ public final class SoloSave {
     /**
      * The generated world: virtual servers, their machines, and the links between them.
      *
-     * <p>Written once by {@code TopologyGenerator.generate} at {@code newCharacter} and never
-     * regenerated — {@code NetRules} treats a non-null value as final. Null on a save written before
-     * this existed, which those rules read as "no network", so an old character keeps working with an
-     * empty map rather than being handed a freshly rolled world on load.
+     * <p>Written once by {@code TopologyGenerator.generate} and never regenerated — {@code NetRules}
+     * treats a non-null value as final, and {@code generate} returns immediately when it finds one.
+     *
+     * <p>⚠ <b>A save written before this field existed is backfilled on load, in
+     * {@code SoloGame.open}, and that is not the same thing as regenerating.</b> This javadoc used to
+     * say the opposite — that an old character "keeps working with an empty map" — and the sentence
+     * was wrong in the only way that matters: a null topology is not a small world, it is <em>no</em>
+     * world, so {@code NetRules.view} returns {@link
+     * io.github.stoicswe.eyeandsickle.protocol.game.NetMap#empty()} and {@code beginSweep} refuses
+     * every sweep at every tier, forever, with no wording that could tell the player why. That is not
+     * a character that keeps working; it is one whose entire network half is permanently dead.
+     * Backfilling costs nothing (the world is rolled from the save's own persisted seed) and is the
+     * only reading under which the pre-topology character can ever reach the feature.
      *
      * <p>⚠ {@link #CURRENT_FORMAT} is deliberately <b>not</b> bumped for this. {@code SaveStore}
      * refuses only saves whose format is <em>greater</em> than the build's, and Jackson leaves a

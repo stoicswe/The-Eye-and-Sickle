@@ -77,12 +77,28 @@ import java.util.Set;
  * whether the player was watching, and under a persisted RNG it would also be a reroll a player could
  * force by quitting.
  *
- * <h2>The sweep's compute IS its noise</h2>
+ * <h2>A sweep is cheap and loud, and those are two different numbers</h2>
  *
- * Cycles are reserved through {@link ComputeConsumer#CONTROL_CHANNEL}, which the implemented noise
- * model counts as work that reaches other machines. So 2 / 5 / 9 cycles land as Low / Low / Moderate
- * on {@code docs/design/07-recon-tools.md} §1's scale with no second constant to keep in step, and
- * Ping Sweep stays the only High-noise recon tool and the only one that notifies its target.
+ * Cycles are reserved through {@link ComputeConsumer#CONTROL_CHANNEL} — work that reaches other
+ * machines — but the <em>loudness</em> is stated separately on the task
+ * ({@link TaskState#noiseCycles}, from {@link SweepTier#noiseCycles()}) rather than inferred from the
+ * cycle count. The two were once the same value and the identity was wrong on screen: noise renders
+ * as outward cycles over rig capacity, so a two-cycle sweep moved the meter by two percent and got
+ * quieter as the player's rig grew. A sweep now costs almost nothing and shouts, which is what
+ * {@code docs/design/08-stealth-and-noise.md} §1 describes and what makes it a decision.
+ *
+ * <p>⚠ It shouts <b>only while it runs</b>. {@code NoiseRules} counts a task while {@code now} is
+ * inside its window and the allocation goes into thermal recovery at settlement, so a finished sweep
+ * contributes exactly nothing — no trailing figure, no decay curve to tune. What a loud act leaves
+ * behind is heat, which is a persisted field charged by different rules.
+ *
+ * <h2>A sweep never costs ethecoin</h2>
+ *
+ * ⚠ There is no {@code LedgerRules} call on this path and there must never be one. The tiers are
+ * bought once with ethecoin, which is breadth and therefore Invariant <b>I2</b>-legal; <em>running</em>
+ * one spends the player's own cycles and their own exposure and nothing else. A per-run charge would
+ * make discovery — the thing every other network mechanic is downstream of — meterable in currency,
+ * and a player short of ethecoin would be unable to find the machines that are how you earn it.
  */
 public final class NetRules {
 
@@ -349,18 +365,27 @@ public final class NetRules {
         int counterHackDepth =
                 roll < Balance.netCounterHackChance(deepestInRange) ? deepestInRange : -1;
 
+        // ⚠ Longer on an infested rig, baked in at commission — see ComputeRules.slowedSeconds. A
+        // sweep that takes 26 seconds instead of 20 is the cheapest hint in the game that something
+        // is eating the machine, and it costs nothing to notice.
+        long seconds = ComputeRules.slowedSeconds(save.rig, tier.seconds());
         TaskState task = new TaskState(
                 "sweep",
                 tier.label(),
                 allocation.allocationId,
                 tier.cycles(),
                 now,
-                now.plusSeconds(tier.seconds()));
+                now.plusSeconds(seconds));
+        // The sweep's loudness, declared on the task rather than derived from its cycles. It is
+        // present-tense by construction: NoiseRules counts a task only while it is still running, so
+        // the meter drops back the instant this one's countdown reaches zero.
+        task.noiseCycles = tier.noiseCycles();
         task.outcome = encode(tier.itemId(), vantage, candidates.size(), counterHackDepth, found);
         save.tasks.add(task);
 
         EventLog.notice(save, "net",
-                tier.label() + ": " + tier.cycles() + " cycles held, ~" + tier.seconds() + "s.", now);
+                tier.label() + ": " + tier.cycles() + " cycles held, ~" + seconds
+                        + "s, and loud the whole time.", now);
         return Optional.of(task);
     }
 

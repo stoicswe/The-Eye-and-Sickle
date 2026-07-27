@@ -170,7 +170,16 @@ class HomeFloorTest {
 
             var task = NetRules.beginSweep(save, SweepTier.BASE, NetTestKit.T0).orElseThrow();
             assertThat(task.cycles).isEqualTo(Balance.NET_SWEEP_BASE_CYCLES);
-            assertThat(task.endsAt).isEqualTo(NetTestKit.T0.plusSeconds(Balance.NET_SWEEP_BASE_SECONDS));
+
+            // ⚠ The published twenty seconds is a property of the TOOL; what it actually takes is a
+            // property of the MACHINE. A fresh character is born with the tutorial parasite eating
+            // six of a hundred cycles, so everything on that rig runs ~6% slower until it is cracked
+            // — which is the cheapest hint in the game that something is wrong, and the reason this
+            // asserts a bound rather than an equality. Cracking the parasite gives the time back.
+            long published = NetTestKit.T0.plusSeconds(Balance.NET_SWEEP_BASE_SECONDS).getEpochSecond();
+            assertThat(task.endsAt.getEpochSecond())
+                    .as("never faster than the published duration, and slowed only by theft")
+                    .isBetween(published, published + Balance.NET_SWEEP_BASE_SECONDS);
             // Held, not spent: the cycles are gone for the duration and only then start recovering,
             // which is the UI-6 shape a scan already takes.
             assertThat(io.github.stoicswe.eyeandsickle.solo.rules.ComputeRules.availableCycles(save.rig))

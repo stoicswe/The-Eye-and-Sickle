@@ -378,9 +378,39 @@ public final class TumblerRack extends VBox {
         return list != null && index < list.size() && list.get(index) != null ? list.get(index) : "";
     }
 
-    private static String centre(String glyph) {
-        int pad = (TUMBLER_COLS - glyph.length()) / 2;
-        return " ".repeat(Math.max(0, pad)) + glyph;
+    /**
+     * Centres a glyph in a tumbler-wide cell — <b>padded on both sides</b>.
+     *
+     * <h2>⚠ Padding one side only put every caret over the wrong tumbler</h2>
+     *
+     * This used to return {@code "  ∧"}: left-padded to the centre and then stopped, three characters
+     * where the box below it is five ({@code ┌───┐}). The column is a {@code VBox} with
+     * {@link Pos#TOP_CENTER}, so JavaFX centred that three-character string inside the five-character
+     * column — which put the glyph <em>one cell right of the box's own centre</em>, hard against the
+     * gap to the next tumbler.
+     *
+     * <p>The visible symptom is not a cosmetic one. Every arrow appeared to sit above the tumbler to
+     * its right, so the arrow a player read as the second one was position one's caret and clicking
+     * it changed the left-most column. The handler was correct the whole time; the picture was lying
+     * about which control was which, which is the worst kind of layout bug because the player
+     * reasonably concludes the game is mis-wired.
+     *
+     * <p>Returning exactly {@link #TUMBLER_COLS} characters is the fix and also the invariant: a
+     * character-cell column whose rows are not all the same width cannot be centred, only
+     * approximately centred, and "approximately" is one cell here.
+     */
+    // Package-private so the centring can be asserted without a toolkit. TumblerRack extends VBox
+    // and every one of its Labels dies at static-init time with no display (see NetCanvas's note),
+    // so a static method is the only part of this class a headless test can reach — and it is the
+    // part that was wrong.
+    static String centre(String glyph) {
+        String text = glyph == null ? "" : glyph;
+        if (text.length() >= TUMBLER_COLS) {
+            return text;
+        }
+        int left = (TUMBLER_COLS - text.length()) / 2;
+        int right = TUMBLER_COLS - text.length() - left;
+        return " ".repeat(left) + text + " ".repeat(right);
     }
 
     private static Label cell(String text, double width) {

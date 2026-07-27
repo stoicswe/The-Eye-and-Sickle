@@ -68,6 +68,28 @@ public final class TaskState {
      */
     public long cycles = 0L;
 
+    /**
+     * How much racket this task makes on other people's machines while it runs, in cycles on the
+     * noise meter's scale. Zero for work that never leaves the rig.
+     *
+     * <p>⚠ <b>Not {@link #cycles}, and the separation is the whole reason this field exists.</b> How
+     * much of your own machine a job occupies and how much noise it makes outside it are different
+     * quantities: a sweep is two cycles and one of the loudest things in the game, while a Thorough
+     * Scan is thirty-five cycles and completely silent because it never touches anything that is not
+     * yours ({@code docs/design/04-mining.md} §3.1). Deriving one from the other made a sweep read as
+     * silence on the meter and — worse — made it read <em>quieter</em> the bigger the player's rig
+     * grew, which inverts what the instrument is for.
+     *
+     * <p>Stated here rather than looked up per task kind so that {@code NoiseRules} needs to know
+     * nothing about what kinds of work exist. A future loud task declares its own loudness and the
+     * meter is correct with no edit, which is the opposite of the switch statement this replaced.
+     *
+     * <p>Zero on a save written before this field existed. That is the honest default: a task from an
+     * older build has no stated loudness, and inventing one would put noise on the meter the player
+     * cannot account for.
+     */
+    public long noiseCycles = 0L;
+
     public Instant startedAt = Instant.now();
 
     public Instant endsAt = Instant.now();
@@ -80,6 +102,20 @@ public final class TaskState {
      * rig's state at completion time would quietly change depending on whether the player watched.
      */
     public String outcome = "";
+
+    /**
+     * For a scan: which parasites this audit actually named, decided at commission.
+     *
+     * <p>⚠ Separate from {@link #outcome}, which carries the prose. The ids are what
+     * {@code MinerState.discovered} is set from at settlement, and that flag is the only thing that
+     * lets the rig monitor attribute stolen cycles — so recovering them by parsing the sentence would
+     * work until somebody reworded it, and would then fail silently as a scan that reports a find and
+     * reveals nothing.
+     *
+     * <p>Empty for every other kind of task, and for a scan from a build that predated this field.
+     * Empty means "named nothing", which is the reading that cannot reveal a parasite nobody paid for.
+     */
+    public java.util.List<String> foundMinerIds = new java.util.ArrayList<>();
 
     public TaskState() {}
 

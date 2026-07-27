@@ -88,6 +88,7 @@ public final class NetGraph extends VBox {
     private final Consumer<String> onNode;
 
     private NetMap current = NetMap.empty();
+    private String selected = "";
     private List<String> lines = List.of();
     private int packet;
     private int packetCells;
@@ -125,6 +126,24 @@ public final class NetGraph extends VBox {
         // from here"; keeping a phase across a change of vantage would put the dot on a run that
         // belongs to a different machine.
         this.packet = 0;
+        render();
+    }
+
+    /**
+     * Marks the machine the player has picked — what CONNECT, DOWNLOAD and a breach would act on.
+     *
+     * <p>Repaints only when the answer changes, so a refresh that touched nothing but the clock —
+     * which is most of them — costs nothing here.
+     *
+     * @param address {@code ""} clears the mark. An address not on the map marks nothing, which is
+     *     the correct behaviour for a selection that outlived its sighting by a frame
+     */
+    public void setSelected(String address) {
+        String wanted = address == null ? "" : address;
+        if (wanted.equals(selected)) {
+            return;
+        }
+        selected = wanted;
         render();
     }
 
@@ -178,7 +197,7 @@ public final class NetGraph extends VBox {
             return;
         }
         packet++;
-        NetCanvas.Painted painted = NetCanvas.paint(current, UiTokens.NET_MAX_ROWS, packet);
+        NetCanvas.Painted painted = NetCanvas.paint(current, UiTokens.NET_MAX_ROWS, packet, selected);
         if (painted.gaps().size() != gaps.size()) {
             // The picture changed shape under us, which a phase step alone cannot do. Rebuilding is
             // the only safe answer: painting half of one map over half of another is how a renderer
@@ -194,7 +213,7 @@ public final class NetGraph extends VBox {
     }
 
     private void render() {
-        NetCanvas.Painted painted = NetCanvas.paint(current, UiTokens.NET_MAX_ROWS, packet);
+        NetCanvas.Painted painted = NetCanvas.paint(current, UiTokens.NET_MAX_ROWS, packet, selected);
         lines = painted.lines();
         packetCells = painted.packetCells();
         serverStrip.setText(painted.serverStrip());
@@ -265,6 +284,14 @@ public final class NetGraph extends VBox {
                 ? "The network continues on " + piece.peerServerName()
                         + ". Beyond your reach from here — cross the bridge to see it."
                 : describe(current.at(piece.address()).orElse(null));
+
+        if (piece.selected()) {
+            // The third signal, after the double frame and the pointer at the address. Colour alone
+            // would be invisible in greyscale and silent to a screen reader, which is why it is the
+            // last of the three rather than the only one — §4.4, weight first and the ramp second.
+            label.getStyleClass().add("es-netmap-selected");
+            words = "Selected. " + words + " CONNECT, DOWNLOAD and a breach act on this one.";
+        }
 
         Tooltip tip = new Tooltip(words);
         tip.setWrapText(true);

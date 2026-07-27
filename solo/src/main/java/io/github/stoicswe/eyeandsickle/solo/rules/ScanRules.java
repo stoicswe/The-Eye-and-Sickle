@@ -124,11 +124,16 @@ public final class ScanRules {
      * generator whose consumption depends on what it produced makes the stream shape depend on the
      * code path, and then a replay from a stored seed stops being a replay.
      */
-    public static String roll(SoloSave save, String tier, Rng rng) {
+    public static Finding roll(SoloSave save, String tier, Rng rng) {
         List<String> hits = new ArrayList<>();
+        List<String> found = new ArrayList<>();
         for (MinerState miner : save.rig.foreignMiners) {
             if (sensitiveTo(tier, miner, rng)) {
                 hits.add(miner.label.isEmpty() ? "an unregistered process" : miner.label);
+                // Carried by id, not by label. Two parasites can share a name — the counter-hack
+                // plants every one of them as "unregistered process" — and marking by label would
+                // reveal both when the scan only saw one.
+                found.add(miner.minerId);
             }
         }
         boolean falsePositive = rng.nextDouble() < falsePositiveRate(tier, detectionArrayTier(save));
@@ -153,7 +158,35 @@ public final class ScanRules {
         if (hits.isEmpty() && !falsePositive) {
             line.append(" Manual audit still sees things a scan does not.");
         }
-        return line.toString();
+        return new Finding(line.toString(), List.copyOf(found));
+    }
+
+    /**
+     * A scan's decided result: the sentence the player reads, and which parasites it actually named.
+     *
+     * <h2>Why the ids travel separately from the prose</h2>
+     *
+     * The sentence is what the log prints; the ids are what {@code MinerState.discovered} is set from,
+     * and setting that flag is what lets the rig monitor attribute the stolen cycles at last. Parsing
+     * the ids back out of the sentence would work today and would break the first time somebody
+     * reworded it — and the failure would be silent, leaving a scan that reports a find and reveals
+     * nothing.
+     *
+     * <p>⚠ <b>Both halves are frozen onto the task at commission and applied at settlement.</b> A scan
+     * that finished while the game was closed therefore reveals exactly what it would have revealed in
+     * session. Rolling at completion would make the answer depend on whether the player was watching,
+     * and under the persisted RNG it would also be a reroll they could force by quitting.
+     *
+     * @param line the player-facing sentence, already including any false positive
+     * @param foundMinerIds the parasites this scan genuinely saw; empty is a clean result and not a
+     *     guarantee
+     */
+    public record Finding(String line, List<String> foundMinerIds) {
+
+        public Finding {
+            line = line == null ? "" : line;
+            foundMinerIds = foundMinerIds == null ? List.of() : List.copyOf(foundMinerIds);
+        }
     }
 
     /**

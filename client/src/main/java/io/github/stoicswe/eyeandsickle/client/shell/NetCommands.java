@@ -3,6 +3,7 @@ package io.github.stoicswe.eyeandsickle.client.shell;
 import io.github.stoicswe.eyeandsickle.client.session.GameSession;
 import io.github.stoicswe.eyeandsickle.client.view.NetText;
 import io.github.stoicswe.eyeandsickle.protocol.game.NetDocument;
+import io.github.stoicswe.eyeandsickle.protocol.game.NetFolder;
 import io.github.stoicswe.eyeandsickle.protocol.game.NetMap;
 import java.util.ArrayList;
 import java.util.List;
@@ -66,12 +67,12 @@ public final class NetCommands {
      * already has for the breach — delete this table and read it instead. Until then, changing the
      * sweep ladder's cost or duration means changing this too.
      */
-    private record Sweep(String flag, String itemId, String label, long cycles, long seconds) {}
+    private record Sweep(String flag, String itemId, String label, long cycles, long noise, long seconds) {}
 
     private static final List<Sweep> SWEEPS = List.of(
-            new Sweep("", "net-sweep", "sweep", 2, 20),
-            new Sweep("--wide", "net-sweep-wide", "sweep --wide", 5, 45),
-            new Sweep("--deep", "net-sweep-deep", "sweep --deep", 9, 90));
+            new Sweep("", "net-sweep", "sweep", 2, 35, 20),
+            new Sweep("--wide", "net-sweep-wide", "sweep --wide", 5, 55, 45),
+            new Sweep("--deep", "net-sweep-deep", "sweep --deep", 9, 80, 90));
 
     /**
      * Registers the four verbs.
@@ -245,6 +246,259 @@ public final class NetCommands {
                     });
                     return new Command.Output(out, outcome.status());
                 }));
+
+        registerFolders(registry);
+    }
+
+    // ------------------------------------------------------------------ filing
+
+    /**
+     * The filing verbs: {@code folders}, {@code mkdir}, {@code mvdir}, {@code rmdir}, {@code file}.
+     *
+     * <h2>The names are the real ones, and one of them deliberately is not</h2>
+     *
+     * {@code mkdir} and {@code rmdir} are the Unix verbs a player either already knows or is being
+     * taught here to carry back out ({@code docs/client/04-terminology-and-education.md}). Moving is
+     * {@code mvdir} rather than {@code mv} for one reason: real {@code mv} moves <em>anything</em>,
+     * and a player who learned that {@code mv} in this game meant "re-parent a folder" would have
+     * learned something false about the system it is named after. Teaching nothing beats teaching a
+     * wrong mapping — {@code CLAUDE.md}'s rule for the curriculum, applied to a verb.
+     *
+     * <h2>Folders are named by path here and by id in the window</h2>
+     *
+     * A path is what a person can type; an id is what survives a rename. Both surfaces resolve to the
+     * same intent, and the resolution happens in the rules ({@code FolderRules.byPath}) rather than
+     * here — a shell that walked the tree itself would be a second implementation of the lookup, and
+     * would be the one that disagreed about case.
+     */
+    private static void registerFolders(Shell.CommandRegistry registry) {
+
+        registry.add(new Verb(
+                "folders",
+                List.of("lsdir"),
+                "How you have filed the machines you have found.",
+                false,
+                List.of(
+                        "folders                    the whole tree, and what is not filed yet",
+                        "",
+                        "A source, so it may head a pipeline:  folders | grep 10.0.4",
+                        "",
+                        "Filing is yours and nothing reads it back. A machine in a folder is not easier",
+                        "to breach, cheaper to sweep or more likely to be found; folders cost nothing,",
+                        "there is no limit on them, and nothing is gated on how many you have. They are",
+                        "somewhere to put the address you will want in an hour and will not remember.",
+                        "",
+                        "The count after a folder's name is everything filed under it INCLUDING its",
+                        "sub-folders, which is the number that tells you whether opening it is worth it."),
+                inv -> {
+                    List<NetFolder> folders = inv.session().folders();
+                    List<String> unfiled = inv.session().unfiledNodes();
+                    if (folders.isEmpty() && unfiled.isEmpty()) {
+                        return Command.Output.ok(NetText.NO_FOLDERS);
+                    }
+                    return Command.Output.ok(NetText.folderRows(folders, unfiled));
+                }));
+
+        registry.add(new Verb(
+                "mkdir",
+                List.of(),
+                "Make a folder to file machines into.",
+                true,
+                List.of(
+                        "mkdir <name>               a folder at the top level",
+                        "mkdir <parent>/<name>      a folder inside an existing one",
+                        "",
+                        "Paths are '/'-separated and case-insensitive, so a name cannot contain a '/'.",
+                        // The depth is quoted from the rules, the same way the sweep table above
+                        // quotes the sweep ladder's costs and for the same reason: the port
+                        // publishes no per-limit read, and help that could not say what the limit is
+                        // would be help worth nothing. It decides nothing — the rules refuse on
+                        // their own number regardless of what is printed here.
+                        "Sub-folders nest 5 deep at most — deep enough for any real filing of a few",
+                        "hundred machines, shallow enough that the deepest row still fits beside its",
+                        "address.",
+                        "",
+                        "Two folders in the same place cannot share a name. Two in different places can."),
+                inv -> {
+                    String path = inv.stage().argument(0).orElse("");
+                    if (path.isBlank()) {
+                        return Command.Output.usage("mkdir <name> — or <parent>/<name> to nest it");
+                    }
+                    String parentPath = parentOf(path);
+                    String name = leafOf(path);
+                    String parentId = "";
+                    if (!parentPath.isEmpty()) {
+                        parentId = folderId(inv.session(), parentPath);
+                        if (parentId.isEmpty()) {
+                            return Command.Output.usage(
+                                    "mkdir: no folder at '" + parentPath + "' — run `folders` for what there is");
+                        }
+                    }
+                    GameSession.Outcome outcome = inv.session().createFolder(parentId, name);
+                    return outcome.succeeded()
+                            ? new Command.Output(List.of("created " + path), outcome.status())
+                            : Command.Output.of(outcome);
+                }));
+
+        registry.add(new Verb(
+                "rmdir",
+                List.of(),
+                "Remove a folder. What was inside it moves up a level.",
+                true,
+                List.of(
+                        "rmdir <path>               remove one folder",
+                        "",
+                        "NOT RECURSIVE, AND THAT IS DELIBERATE. Sub-folders and filed machines re-parent",
+                        "to wherever the removed folder was, so the worst a mistaken rmdir can do is",
+                        "flatten a level. Nothing about a machine is lost — filing is a note you wrote,",
+                        "not a thing you own, and there is no risk lesson worth teaching by deleting it."),
+                inv -> {
+                    String path = inv.stage().argument(0).orElse("");
+                    if (path.isBlank()) {
+                        return Command.Output.usage("rmdir <path> — run `folders` for what there is");
+                    }
+                    String id = folderId(inv.session(), path);
+                    if (id.isEmpty()) {
+                        return Command.Output.usage("rmdir: no folder at '" + path + "'");
+                    }
+                    GameSession.Outcome outcome = inv.session().removeFolder(id);
+                    return outcome.succeeded()
+                            ? new Command.Output(
+                                    List.of("removed " + path + "; what was in it moved up a level"),
+                                    outcome.status())
+                            : Command.Output.of(outcome);
+                }));
+
+        registry.add(new Verb(
+                "mvdir",
+                List.of(),
+                "Move or rename a folder.",
+                true,
+                List.of(
+                        "mvdir <path> <new-parent>  put it inside another folder",
+                        "mvdir <path> /             put it back at the top level",
+                        "mvdir <path> --name <new>  rename it where it is",
+                        "",
+                        "NOT `mv`. Real mv(1) moves anything — files, directories, across a filesystem —",
+                        "and a verb here that meant only 'reparent a folder' would teach you something",
+                        "false about the command it borrowed its name from. To move a MACHINE into a",
+                        "folder, that is file(1); a machine is not a file on your disk and does not",
+                        "pretend to be one.",
+                        "",
+                        "A folder cannot be moved inside itself or inside anything it already contains."),
+                inv -> {
+                    String path = inv.stage().argument(0).orElse("");
+                    if (path.isBlank()) {
+                        return Command.Output.usage("mvdir <path> <new-parent>  |  mvdir <path> --name <new>");
+                    }
+                    String id = folderId(inv.session(), path);
+                    if (id.isEmpty()) {
+                        return Command.Output.usage("mvdir: no folder at '" + path + "'");
+                    }
+                    String rename = inv.stage().flag("name").orElse("");
+                    if (!rename.isBlank()) {
+                        return Command.Output.of(inv.session().renameFolder(id, rename));
+                    }
+                    String target = inv.stage().argument(1).orElse("");
+                    if (target.isBlank()) {
+                        return Command.Output.usage(
+                                "mvdir <path> <new-parent> — or '/' for the top level, or --name to rename");
+                    }
+                    String parentId = "/".equals(target.trim()) ? "" : folderId(inv.session(), target);
+                    if (parentId.isEmpty() && !"/".equals(target.trim())) {
+                        return Command.Output.usage("mvdir: no folder at '" + target + "'");
+                    }
+                    return Command.Output.of(inv.session().moveFolder(id, parentId));
+                }));
+
+        registry.add(new Verb(
+                "file",
+                List.of(),
+                "Put a machine you have discovered into a folder.",
+                true,
+                List.of(
+                        "file <address> <path>      file it there",
+                        "file <address> --out       take it out of whatever folder it is in",
+                        "",
+                        "A machine is in one folder or none, the way a file is in one directory. Filing",
+                        "it again elsewhere moves it rather than copying it.",
+                        "",
+                        "Only an address you have actually DISCOVERED can be filed, and the refusal for",
+                        "an address you have not found is word-for-word the refusal for one that does not",
+                        "exist. That is on purpose: two different answers would let you map the whole",
+                        "world one guess at a time without ever running a sweep."),
+                inv -> {
+                    String address = inv.stage().argument(0).orElse("");
+                    if (address.isBlank()) {
+                        return Command.Output.usage("file <address> <folder>  |  file <address> --out");
+                    }
+                    if (inv.stage().hasFlag("out")) {
+                        GameSession.Outcome out = inv.session().fileNode(address, "");
+                        return out.succeeded()
+                                ? new Command.Output(List.of(address + " is no longer in a folder"), out.status())
+                                : Command.Output.of(out);
+                    }
+                    String path = inv.stage().argument(1).orElse("");
+                    if (path.isBlank()) {
+                        return Command.Output.usage(
+                                "file <address> <folder> — `folders` lists them, `mkdir` makes one");
+                    }
+                    String id = folderId(inv.session(), path);
+                    if (id.isEmpty()) {
+                        return Command.Output.usage("file: no folder at '" + path + "'");
+                    }
+                    GameSession.Outcome outcome = inv.session().fileNode(address, id);
+                    return outcome.succeeded()
+                            ? new Command.Output(List.of("filed " + address + " under " + path), outcome.status())
+                            : Command.Output.of(outcome);
+                }));
+    }
+
+    /**
+     * The id of the folder at a {@code /a/b} path, or {@code ""}.
+     *
+     * <p>Resolved against the published tree rather than by asking the rules to walk it, because the
+     * port hands over {@link NetFolder#path()} already built — matching on it means the shell and the
+     * window agree on what a path <em>is</em> by construction, including how a name containing spaces
+     * renders. Case-insensitive for the same reason the rules are: the tree is a label the player
+     * chose and refusing {@code /Eye} for a folder called {@code eye} helps nobody.
+     */
+    private static String folderId(GameSession session, String path) {
+        String wanted = normalisePath(path);
+        if (wanted.isEmpty()) {
+            return "";
+        }
+        for (NetFolder folder : session.folders()) {
+            if (normalisePath(folder.path()).equalsIgnoreCase(wanted)) {
+                return folder.folderId();
+            }
+        }
+        return "";
+    }
+
+    private static String normalisePath(String path) {
+        String out = path == null ? "" : path.trim();
+        while (out.startsWith("/")) {
+            out = out.substring(1);
+        }
+        while (out.endsWith("/")) {
+            out = out.substring(0, out.length() - 1);
+        }
+        return out;
+    }
+
+    /** Everything before the last {@code /}, or {@code ""} for a top-level name. */
+    private static String parentOf(String path) {
+        String normalised = normalisePath(path);
+        int cut = normalised.lastIndexOf('/');
+        return cut < 0 ? "" : normalised.substring(0, cut);
+    }
+
+    /** The last segment. Left untrimmed of inner spaces — a folder may legitimately be called two words. */
+    private static String leafOf(String path) {
+        String normalised = normalisePath(path);
+        int cut = normalised.lastIndexOf('/');
+        return cut < 0 ? normalised : normalised.substring(cut + 1);
     }
 
     // ------------------------------------------------------------------ rendering
@@ -269,7 +523,10 @@ public final class NetCommands {
         out.add("would run " + sweep.label() + " (" + sweep.itemId() + ")");
         out.add("published cost: " + sweep.cycles() + " cycles, held for about "
                 + sweep.seconds() + "s and released into thermal recovery when it ends");
-        out.add("the cycles it holds ARE its noise: a sweep is work that reaches other machines");
+        out.add("costs no ethecoin, at any tier — the tool is bought once, running it is cycles only");
+        out.add("published noise: " + sweep.noise() + " while it runs, and NOTHING after it ends");
+        out.add("  a sweep is cheap and loud: it puts packets on machines that are not yours, which is");
+        out.add("  what noise measures. It is not your load. When the countdown ends the meter drops.");
         out.add("vantage: " + vantage(session));
         out.add("ceiling: " + ceiling(session) + " — a tier buys sensitivity inside that, never more of it");
         out.add("available: " + session.computeBudget().available().cycles() + " cycles");
