@@ -4,6 +4,15 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
+  <!--
+    ⚠ ${revision}, never a literal version — every other module does the same and it is not
+    cosmetic. The root pom is itself <version>${revision}</version> (the CI-friendly pattern,
+    resolved at install time by flatten-maven-plugin), so a hard-coded parent version does not
+    match the pom sitting at relativePath and Maven falls back to the repository. On a developer
+    machine that SUCCEEDS, because a previous `mvn install` left eyeandsickle-parent there — and
+    it fails on a clean checkout with "'parent.relativePath' points at wrong local POM", which
+    is exactly how this reached CI green-locally and broken-there.
+  -->
   <parent>
     <groupId>io.github.stoicswe.eyeandsickle</groupId>
     <artifactId>eyeandsickle-parent</artifactId>
@@ -60,7 +69,7 @@
     <dependency>
       <groupId>io.github.stoicswe.eyeandsickle</groupId>
       <artifactId>eyeandsickle-client</artifactId>
-      <version>${project.version}</version>
+      <version>${revision}</version>
     </dependency>
 
     <!--
