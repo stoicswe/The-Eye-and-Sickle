@@ -62,7 +62,10 @@ class RunningTaskTest {
     }
 
     private static LocalGameSession session(Path dir, MutableClock clock) {
-        return new LocalGameSession(SoloGame.open(new SaveStore(dir.resolve("s.json")), "op", clock));
+        // Tutorial parasite removed — these tests are about the scan's hold-then-recover arithmetic,
+        // not about the miner that a new character is born with. See TestSaves.
+        return new LocalGameSession(io.github.stoicswe.eyeandsickle.client.support.TestSaves.bare(
+                new SaveStore(dir.resolve("s.json")), "op", clock));
     }
 
     @Nested
@@ -175,13 +178,15 @@ class RunningTaskTest {
             // the player is away has to still be there when they return.
             Path file = dir.resolve("s.json");
             MutableClock clock = new MutableClock(T0);
-            SoloGame first = SoloGame.open(new SaveStore(file), "op", clock);
+            SoloGame first = io.github.stoicswe.eyeandsickle.client.support.TestSaves.bare(
+                    new SaveStore(file), "op", clock);
             new LocalGameSession(first).scan("full");
             first.persist();
 
             MutableClock later = new MutableClock(T0.plus(Duration.ofHours(2)));
             LocalGameSession reopened =
-                    new LocalGameSession(SoloGame.open(new SaveStore(file), "op", later));
+                    new LocalGameSession(io.github.stoicswe.eyeandsickle.client.support.TestSaves.bare(
+                            new SaveStore(file), "op", later));
 
             reopened.tick();
             assertThat(reopened.tasks()).as("the scan finished while away").isEmpty();

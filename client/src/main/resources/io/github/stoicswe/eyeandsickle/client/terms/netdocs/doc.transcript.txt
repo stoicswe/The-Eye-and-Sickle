@@ -1,0 +1,18 @@
+Recovered from a file store, with two minutes missing at the head.
+
+  — ...no, it went green. It went green and then it went green again,
+    which is the part being reported.
+  — Twice.
+  — Twice, four seconds apart, and nothing between them.
+  — Then there is nothing to escalate. Green is the resolved state.
+  — Something has to leave the resolved state before it can enter it.
+  — Not necessarily. Log it as resolved and note the duplicate.
+  — Under what.
+  — Under duplicate.
+
+  [pause, 11 seconds]
+
+  — There is no code for a thing that resolved without happening.
+  — Then it did not happen.
+
+The remainder of the call is not present on this store.

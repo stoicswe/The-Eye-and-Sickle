@@ -101,6 +101,22 @@ Automated, compute-expensive, faster:
 
 > **Decided 2026-07-26 (UI-6).** This was previously spend-immediately: the cycles went onto the recovery curve the moment the scan started, so on a lean rig a Thorough Scan's 35 cycles were back in about four minutes — *inside* the six-minute scan that paid for them, which made the paragraph above false for exactly the players it was written about. Hold-then-recover is the reading that makes the published Duration cost something. It roughly doubles a Thorough Scan's real cost; see `15-open-questions.md` §3 for what was re-checked alongside it.
 
+### 3.2a Scans can be wrong (decided 2026-07-26, closing DF-5)
+
+**A scan result is evidence, not a verdict.** Every tier can produce a **false positive** — a hit on something innocent — and the cheaper tiers do it more often. Signal quality, not just sensitivity, is what a more expensive tier buys.
+
+| Scan | False-positive rate | Reading |
+|---|---|---|
+| **Quick** | High | Cheap, fast, and it will send you chasing ghosts |
+| **Full** | Moderate | The working default |
+| **Thorough** | Low | Expensive in both compute and attention, and it earns it |
+
+A standing **Detection Array** (`09`) cuts these rates further — that is now its entire distinct role (OQ-6).
+
+**Why this was added rather than left out.** `../education/08-detection-and-defence.md` teaches `false-positive(7)`, `base-rate-fallacy(7)` and `alert-fatigue(7)` — three of the curriculum's strongest pages, all resting on the fact that real detectors mostly fire on innocent things. §3.2's scan tiers implied it and never delivered it, so **the game contradicted its own manual**, which `CLAUDE.md` treats as worse than teaching nothing at all. It also makes the Thorough Scan's price legible: you are buying a result you can *act on* without a second look.
+
+⚠ It strengthens §3.1's manual investigation rather than competing with it. A scan hit is now a lead to corroborate against the compute ledger — exactly the cross-referencing §3.1 calls the game's second-strongest tutorial vector — instead of an answer that makes investigation pointless.
+
 ### 3.3 Detection legibility (the established answer)
 
 Nothing announces itself. **Signal strength is what the player pays for**, and the choice between free-but-slow manual work and fast-but-costly automation belongs to the player. The passive alternative (Detection Array, `09-defense-and-hardening.md`) reserves compute permanently to raise per-tick discovery chance — whether it stays distinct from scans is OQ-6.

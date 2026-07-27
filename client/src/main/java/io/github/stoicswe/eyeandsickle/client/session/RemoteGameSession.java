@@ -222,4 +222,73 @@ public final class RemoteGameSession implements GameSession {
             l.accept(this);
         }
     }
+
+    // ── The breach ────────────────────────────────────────────────────────────────────────────
+    //
+    // Reads return a last-known value — an empty list, no breach in progress — rather than null or
+    // an exception, because a network hiccup must never empty a HUD mid-decision (CL-8). Intents
+    // return 69 EX_UNAVAILABLE rather than 1 REFUSED: claiming a *rule* declined the request would
+    // be a lie about where the decision came from, and the player would go looking for a rule that
+    // does not exist.
+
+    @Override
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.BreachTarget> breachTargets() {
+        return java.util.List.of();
+    }
+
+    @Override
+    public java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.BreachSnapshot> breach() {
+        return java.util.Optional.empty();
+    }
+
+    @Override
+    public Outcome beginBreach(String targetId) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome breachAction(String actionId, String argument) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome abortBreach() {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome dismissBreach() {
+        return unavailable();
+    }
+
+    // ── The network ───────────────────────────────────────────────────────────────────────────
+    //
+    // Reads hand back an empty last-known view rather than null (CL-8: a hiccup must never empty a
+    // HUD mid-decision); intents return 69 EX_UNAVAILABLE rather than 1 REFUSED, because saying a
+    // rule declined would be a lie about where the decision came from.
+
+    @Override
+    public io.github.stoicswe.eyeandsickle.protocol.game.NetMap net() {
+        return io.github.stoicswe.eyeandsickle.protocol.game.NetMap.empty();
+    }
+
+    @Override
+    public Outcome sweep(String flag) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome connectTo(String address) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome download(String address) {
+        return unavailable();
+    }
+
+    @Override
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.NetDocument> documents() {
+        return java.util.List.of();
+    }
 }

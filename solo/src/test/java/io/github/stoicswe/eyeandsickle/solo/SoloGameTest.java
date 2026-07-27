@@ -14,6 +14,7 @@ import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.time.Duration;
 import java.time.Instant;
 import org.junit.jupiter.api.DisplayName;
@@ -34,7 +35,33 @@ class SoloGameTest {
     private static final Instant T0 = Instant.parse("2026-07-25T12:00:00Z");
 
     private static SoloGame freshGame(Path dir) {
-        return SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", new TestClock(T0));
+        return bare(new SaveStore(dir.resolve("save.json")), new TestClock(T0));
+    }
+
+    /**
+     * A character with the tutorial parasite removed.
+     *
+     * <p>{@code SoloGame.newCharacter} plants a foreign miner on every new rig, because
+     * {@code docs/design/04} §5.1 makes cracking one the tutorial for the whole breach system and a
+     * fresh character would otherwise have no reachable target at all. By <b>Invariant I6</b> that
+     * miner draws the <em>host's</em> cycles, so a brand-new rig genuinely has
+     * {@code 100 - Balance.TUTORIAL_MINER_HOST_CYCLES} available rather than 100.
+     *
+     * <p>⚠ The tests in this class are about <b>compute arithmetic</b> — allocation, the recovery
+     * curve, the budget reconciling exactly — and not about the tutorial. Rewriting every
+     * expectation to {@code 100 - 6} would bury that arithmetic under an unrelated constant and
+     * would have to be redone the day the tutorial's cost changes. Removing the parasite keeps each
+     * assertion saying the thing it was written to say; {@link Breach} covers the parasite itself,
+     * which is where that behaviour belongs.
+     */
+    private static SoloGame bare(SaveStore store, java.time.Clock clock) {
+        SoloGame game = SoloGame.open(store, "operator", clock);
+        var rig = game.state().rig;
+        for (var miner : List.copyOf(rig.foreignMiners)) {
+            rig.allocations.removeIf(a -> a.allocationId.equals(miner.allocationId));
+        }
+        rig.foreignMiners.clear();
+        return game;
     }
 
     @Nested
@@ -97,7 +124,7 @@ class SoloGameTest {
         @DisplayName("UI-6: the cycles start recovering only once the scan ends")
         void scanRecoversAfterItEnds(@TempDir Path dir) {
             TestClock clock = new TestClock(T0);
-            SoloGame game = SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", clock);
+            SoloGame game = bare(new SaveStore(dir.resolve("save.json")), clock);
             game.scan(SoloGame.ScanTier.THOROUGH);
 
             // Just short of the published ~6 min: still held, still not recovering.
@@ -130,7 +157,7 @@ class SoloGameTest {
         /** Runs a Full Scan to completion on a rig carrying {@code selfMining} cycles. */
         private Instant recoveryDeadlineAfterFullScan(Path dir, int selfMining) {
             TestClock clock = new TestClock(T0);
-            SoloGame game = SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", clock);
+            SoloGame game = bare(new SaveStore(dir.resolve("save.json")), clock);
             if (selfMining > 0) {
                 game.allocateSelfMining(selfMining);
             }
@@ -148,7 +175,7 @@ class SoloGameTest {
         @DisplayName("recovered cycles come back once their time has passed")
         void recoveredCyclesReturn(@TempDir Path dir) {
             TestClock clock = new TestClock(T0);
-            SoloGame game = SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", clock);
+            SoloGame game = bare(new SaveStore(dir.resolve("save.json")), clock);
             game.scan(SoloGame.ScanTier.QUICK);
             assertThat(game.computeBudget().available()).isEqualTo(Cycles.of(95));
 
@@ -163,14 +190,14 @@ class SoloGameTest {
         void offlineScanDoesNotRestartItsRecoveryClock(@TempDir Path dir) {
             Path save = dir.resolve("save.json");
             TestClock clock = new TestClock(T0);
-            SoloGame game = SoloGame.open(new SaveStore(save), "operator", clock);
+            SoloGame game = bare(new SaveStore(save), clock);
             game.scan(SoloGame.ScanTier.THOROUGH);
             game.persist();
 
             // A week away. The scan ended six minutes in and its recovery finished long before now,
             // so the rig must be whole — not still nursing Tuesday's scan in front of the player.
             TestClock later = new TestClock(T0.plus(Duration.ofDays(7)));
-            SoloGame resumed = SoloGame.open(new SaveStore(save), "operator", later);
+            SoloGame resumed = bare(new SaveStore(save), later);
             assertThat(resumed.computeBudget().available()).isEqualTo(Cycles.of(100));
             assertThat(resumed.computeBudget().recovering()).isEqualTo(Cycles.of(0));
             assertThat(resumed.tasks()).isEmpty();
@@ -185,7 +212,7 @@ class SoloGameTest {
         @DisplayName("a full rig self-mines 40 EC/hr — the design/03 §1 figure")
         void selfMiningRate(@TempDir Path dir) {
             TestClock clock = new TestClock(T0);
-            SoloGame game = SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", clock);
+            SoloGame game = bare(new SaveStore(dir.resolve("save.json")), clock);
             game.allocateSelfMining(100);
             clock.advance(Duration.ofHours(1));
             game.tick();
@@ -198,14 +225,14 @@ class SoloGameTest {
         @DisplayName("INVARIANT I5 — self-mining earns nothing while the client is closed")
         void selfMiningIsOnlineOnly(@TempDir Path dir) throws IOException {
             Path file = dir.resolve("save.json");
-            SoloGame first = SoloGame.open(new SaveStore(file), "operator", new TestClock(T0));
+            SoloGame first = bare(new SaveStore(file), new TestClock(T0));
             first.allocateSelfMining(100);
             first.persist();
 
             // Reopen a week later. If self-mining paid out for time away it would be the safest AND
             // the best income in the game, and every other risk in the design would be optional.
             SoloGame later =
-                    SoloGame.open(new SaveStore(file), "operator", new TestClock(T0.plus(Duration.ofDays(7))));
+                    bare(new SaveStore(file), new TestClock(T0.plus(Duration.ofDays(7))));
             assertThat(later.balance().minorUnits()).isZero();
             assertThat(Files.exists(file)).isTrue();
         }
@@ -214,7 +241,7 @@ class SoloGameTest {
         @DisplayName("INVARIANT I5 — a deployed miner does accrue while away, up to the cap")
         void deployedMinersAreTheOnlyOfflineIncome(@TempDir Path dir) {
             Path file = dir.resolve("save.json");
-            SoloGame game = SoloGame.open(new SaveStore(file), "operator", new TestClock(T0));
+            SoloGame game = bare(new SaveStore(file), new TestClock(T0));
 
             NodeState node = new NodeState();
             node.address = "10.0.0.7";
@@ -227,7 +254,7 @@ class SoloGameTest {
             game.persist();
 
             SoloGame later =
-                    SoloGame.open(new SaveStore(file), "operator", new TestClock(T0.plus(Duration.ofDays(7))));
+                    bare(new SaveStore(file), new TestClock(T0.plus(Duration.ofDays(7))));
             MinerState after = later.state().knownNodes.getFirst().deployedMiners.getFirst();
 
             long cap = MiningRules.bufferCap(after);
@@ -309,7 +336,7 @@ class SoloGameTest {
         @DisplayName("timestamps are written as readable ISO-8601, not epoch numbers")
         void timestampsAreReadable(@TempDir Path dir) throws IOException {
             Path file = dir.resolve("save.json");
-            SoloGame.open(new SaveStore(file), "operator", new TestClock(T0)).persist();
+            bare(new SaveStore(file), new TestClock(T0)).persist();
 
             // It is the player's file on the player's disk; they should be able to read it.
             assertThat(Files.readString(file)).contains("2026-");
@@ -340,7 +367,7 @@ class SoloGameTest {
         @DisplayName("no temporary file is left behind after a save")
         void noTempFileLeftBehind(@TempDir Path dir) throws IOException {
             Path file = dir.resolve("save.json");
-            SoloGame.open(new SaveStore(file), "operator", new TestClock(T0)).persist();
+            bare(new SaveStore(file), new TestClock(T0)).persist();
 
             try (var entries = Files.list(dir)) {
                 assertThat(entries.map(p -> p.getFileName().toString()))
@@ -383,6 +410,38 @@ class SoloGameTest {
             SoloSave save = SoloGame.newCharacter("operator", T0);
             save.rig.selfMiningCycles = 5_000L; // hand-edited save, which is a thing that happens
             assertThat(ComputeRules.availableCycles(save.rig)).isZero();
+        }
+    }
+
+    @Nested
+    @DisplayName("the breach")
+    class Breach {
+
+        @Test
+        @DisplayName("a new character is born with a parasite, and Invariant I6 makes the HOST pay")
+        void tutorialMinerCostsTheHost(@TempDir Path dir) {
+            // Not decoration: docs/design/04 §5.1 makes cracking a miner the tutorial for the whole
+            // breach system, and without one planted here the core loop is unreachable on a fresh
+            // save. It also makes §3.1's audit mechanic true on day one — the ledger no longer adds
+            // up, so there is finally a discrepancy to notice.
+            SoloGame game = SoloGame.open(
+                    new SaveStore(dir.resolve("save.json")), "operator", new TestClock(T0));
+
+            assertThat(game.state().rig.foreignMiners).hasSize(1);
+            assertThat(game.computeBudget().total()).isEqualTo(Cycles.of(Balance.STARTING_CYCLES));
+            assertThat(game.computeBudget().available())
+                    .as("Invariant I6: a deployed miner spends the host's cycles, not the deployer's")
+                    .isEqualTo(Cycles.of(Balance.STARTING_CYCLES - Balance.TUTORIAL_MINER_HOST_CYCLES));
+            assertThat(game.computeBudget().reconciles()).isTrue();
+        }
+
+        @Test
+        @DisplayName("that parasite is a reachable breach target, so the core loop is playable at once")
+        void tutorialMinerIsABreachTarget(@TempDir Path dir) {
+            SoloGame game = SoloGame.open(
+                    new SaveStore(dir.resolve("save.json")), "operator", new TestClock(T0));
+            assertThat(game.breachTargets()).hasSize(1);
+            assertThat(game.breachTargets().getFirst().minerCrack()).isTrue();
         }
     }
 }

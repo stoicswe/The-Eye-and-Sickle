@@ -242,6 +242,106 @@ public final class LocalGameSession implements GameSession {
                         + computeBudget().available().cycles() + " free"));
     }
 
+    // ── The breach ────────────────────────────────────────────────────────────────────────────
+    //
+    // Every method here is a translation and nothing more: the engine returns a BreachResult, and
+    // this converts it into the port's Outcome vocabulary. The engine's own types stop at this
+    // class — the view never sees a BreachResult, only a protocol snapshot and an Outcome, which is
+    // what lets the identical view work against a home server.
+
+    @Override
+    public List<io.github.stoicswe.eyeandsickle.protocol.game.BreachTarget> breachTargets() {
+        return game.breachTargets();
+    }
+
+    @Override
+    public java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.BreachSnapshot> breach() {
+        return game.breachSnapshot();
+    }
+
+    @Override
+    public Outcome beginBreach(String targetId) {
+        return translate(game.beginBreach(targetId));
+    }
+
+    @Override
+    public Outcome breachAction(String actionId, String argument) {
+        return translate(game.breachAction(actionId, argument));
+    }
+
+    @Override
+    public Outcome abortBreach() {
+        return translate(game.abortBreach());
+    }
+
+    @Override
+    public Outcome dismissBreach() {
+        return game.dismissBreach()
+                ? changed(Outcome.ok("outcome cleared"))
+                : Outcome.ok("nothing to clear");
+    }
+
+    /**
+     * BreachResult → Outcome.
+     *
+     * <p>The three-way split is deliberate and matches the rest of the client's vocabulary: a
+     * <em>gated</em> result is {@code 77 EX_NOPERM} with the requirement in words, never a refusal
+     * with a price, so a gate reads as "not yet, and here is why" rather than as an obstruction.
+     * A refusal is a rule declining; only an applied move counts as a state change worth telling
+     * the views about.
+     */
+    private Outcome translate(io.github.stoicswe.eyeandsickle.solo.breach.BreachResult result) {
+        if (result.gated()) {
+            return Outcome.gated(result.message());
+        }
+        if (!result.applied()) {
+            return Outcome.refused(result.message());
+        }
+        return changed(Outcome.ok(result.message()));
+    }
+
+    // ── The network ───────────────────────────────────────────────────────────────────────────
+
+    @Override
+    public io.github.stoicswe.eyeandsickle.protocol.game.NetMap net() {
+        return game.net();
+    }
+
+    @Override
+    public Outcome sweep(String flag) {
+        var tier = io.github.stoicswe.eyeandsickle.solo.net.SweepTier.byFlag(flag == null ? "" : flag);
+        if (tier.isEmpty()) {
+            return Outcome.usage("unknown sweep tier '" + flag + "' — expected --wide or --deep, or no flag");
+        }
+        if (!game.ownsSweep(tier.get())) {
+            // 77 EX_NOPERM with the requirement in words, never a refusal with a price: a gate
+            // must read as "not yet, and here is why" rather than as an obstruction.
+            return Outcome.gated("requires " + tier.get().itemId());
+        }
+        return game.sweep(tier.get())
+                .map(t -> changed(Outcome.ok("sweep started from " + game.net().vantageAddress())))
+                .orElseGet(() -> Outcome.refused("not enough available compute for that sweep"));
+    }
+
+    @Override
+    public Outcome connectTo(String address) {
+        return game.connectTo(address)
+                ? changed(Outcome.ok("vantage moved to " + address + "; sweeps now measure hops from there"))
+                : Outcome.refused("cannot connect to '" + address + "' — you must hold a host to use it as a vantage");
+    }
+
+    @Override
+    public Outcome download(String address) {
+        return game.download(address)
+                .map(d -> changed(Outcome.ok("downloaded: " + d.title())))
+                .orElseGet(() -> Outcome.refused("nothing to download from '" + address + "'"));
+    }
+
+    @Override
+    public List<io.github.stoicswe.eyeandsickle.protocol.game.NetDocument> documents() {
+        return game.documents();
+    }
+
     @Override
     public Outcome collect() {
         long collected = game.collect();

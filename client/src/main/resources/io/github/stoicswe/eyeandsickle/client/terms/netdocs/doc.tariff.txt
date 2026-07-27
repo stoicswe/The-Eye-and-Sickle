@@ -1,0 +1,16 @@
+Retained for reconciliation only. Not for quotation.
+
+  BAND A   metered, per unit           full rate
+  BAND B   metered, per unit           full rate less handling
+  BAND C   unmetered, per premises     flat
+  BAND D   unmetered, per premises     flat, discretionary
+  BAND E   not billed
+
+Band E was created for premises whose meters could not be read, and was
+intended to hold four addresses for one quarter. It held four hundred
+and eleven for six years. Nobody was ever billed for them and nobody
+was ever told they were not being billed, so nobody asked why a meter
+that could not be read was still reporting.
+
+The schedule that replaced this one has no Band E. The addresses were
+not moved. They were removed.

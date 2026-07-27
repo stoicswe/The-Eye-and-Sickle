@@ -139,6 +139,73 @@ public final class UiTokens {
     /** How often live readouts twitch to a new figure. */
     public static final double TWITCH_MS = 1900;
 
+    // ── The breach (docs/design/05) ───────────────────────────────────────────────────────────
+    //
+    // Every one of these is load-bearing, not a probe. §5 allows step timing only, so the three
+    // durations below are periods between discrete repaints — nothing here interpolates.
+
+    /** The viewport's scan line advances one row on this period. */
+    public static final double BREACH_SCAN_MS = 220;
+
+    /** Fast flicker for an unknown port slot — the only thing in the breach that moves quickly. */
+    public static final double BREACH_PULSE_MS = 90;
+
+    /** Ambient re-draw for the lattice packet and other slow instrument motion. */
+    public static final double BREACH_TICKER_MS = 1400;
+
+    /**
+     * The attention meter is CELLS, never a continuous bar (§4) — same argument as the cycle grid:
+     * a smooth bar implies a precision the model does not have, and attention is countable.
+     */
+    public static final int ATTENTION_CELLS_MAX = 40;
+
+    public static final int ATTENTION_CELLS_PER_ROW = 10;
+
+    public static final double ATTENTION_CELL_WIDTH = 6;
+
+    public static final double ATTENTION_CELL_HEIGHT = 10;
+
+    /** The character grid the breach viewport draws its ASCII render into. */
+    public static final int VIEWPORT_ROWS = 18;
+
+    public static final int VIEWPORT_COLS = 54;
+
+    /** How many actions the attention ledger keeps. §4 requires the player can always see what
+     * each action cost, so this is deep enough to cover a whole breach rather than a screenful. */
+    public static final int LEDGER_MAX_ROWS = 60;
+
+    // ── The network map (docs/design/07) ──────────────────────────────────────────────────────
+    //
+    // The graph is laid out in CHARACTER CELLS, not pixels — a node box is a fixed rectangle of
+    // glyphs and edges are routed along cell lanes between them. These are counts, not sizes, which
+    // is why they are ints.
+    //
+    // ⚠ A character cell is roughly twice as tall as it is wide. A node box that is square in cells
+    // renders as a tall rectangle on screen, so NET_NODE_COLS is deliberately about double
+    // NET_NODE_LINES to come out visually square. Same correction CoreCage's project() applies for
+    // the same reason.
+
+    /** Glyph columns in one node box. */
+    public static final int NET_NODE_COLS = 18;
+
+    /** Glyph rows in one node box. About half the columns — see the aspect note above. */
+    public static final int NET_NODE_LINES = 4;
+
+    /** Columns reserved between hop layers for edge routing. */
+    public static final int NET_LATERAL_COLS = 10;
+
+    /** Blank columns between adjacent node boxes in the same layer. */
+    public static final int NET_GAP_COLS = 3;
+
+    /** How many parallel routing lanes an edge may pick, so parallel edges do not overdraw. */
+    public static final int NET_LANES = 3;
+
+    /** The tallest a rendered column may get before the view scrolls rather than shrinking. */
+    public static final int NET_MAX_ROWS = 60;
+
+    /** A packet steps one cell along its edge on this period. Step timing (§5), never a tween. */
+    public static final double NET_PACKET_MS = 240;
+
     // ── Fonts ─────────────────────────────────────────────────────────────────────────────────
 
     /**

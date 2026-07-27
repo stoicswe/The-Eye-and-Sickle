@@ -30,11 +30,11 @@ Offensive tools used during a breach (`05-hacking-minigame.md`). Every tool carr
 
 **Overflow Kit** — the definitional proof-of-skill item: it *skips a puzzle layer*, so you must prove you can clear that layer class manually first (`02` §2.4). **Very high noise** is the balancing cost — bypassing the puzzle screams. It's a panic button with a siren attached, never a default.
 
-**Credential Harvester** — the pivoting enabler and the reason breaching one node can cascade into a network. Sickle-reputation-gated because free pivoting would distort the raid economy. Interacts with the Traversal/Credential classes: harvested creds open linked nodes without re-solving auth.
+**Credential Harvester** — the pivoting enabler and the reason breaching one node can cascade into a network. Sickle-reputation-gated because free pivoting would distort the raid economy. Interacts with the Traversal and **Logic** classes: harvested creds open linked nodes without re-solving the rule.
 
 **Zero-Day** — see §3; the most tightly controlled item in the game.
 
-**Side-Channel Reader** — the patient operator's tool: learn a node's contents *without entering*, zero noise, at a steep compute cost (14) and a late schematic gate. Counters the Timing class and enables "case the target, then decide" play. The high compute cost is what stops it from being a free universal scanner.
+**Side-Channel Reader** — the patient operator's tool: learn a node's contents *without entering*, zero noise, at a steep compute cost (14) and a late schematic gate. **Counters the Enumeration class** (repointed 2026-07-26 when Timing closed — see `05` §3.1) and enables "case the target, then decide" play. Under `05` §4's attention budget it is the only action in the game costing **zero attention**, which is its whole identity: everything else you do to a node spends from the bar, and this does not. The high compute cost is what stops it from being a free universal scanner.
 
 ## 3. Zero-Days — the hard rule
 
@@ -56,7 +56,7 @@ Tying tools to the proposed puzzle classes (`05` §3.1). Speculative — reconci
 |---|---|---|
 | Port Sweep | Enumeration | Reveals node structure |
 | Fuzzer | Logic | Brute-forces the rule instead of deducing it (loudly) |
-| Rainbow Table | Credential | Instant vs. weak/reused creds |
+| Rainbow Table | Logic | Instant vs. weak/reused creds |
 | Credential Harvester | Credential / Traversal | Reuses creds to skip auth on linked nodes |
 | Side-Channel Reader | Timing | Reads contents without triggering the window |
 | Overflow Kit | *any* layer | Universal bypass; the proof-of-skill escape hatch |

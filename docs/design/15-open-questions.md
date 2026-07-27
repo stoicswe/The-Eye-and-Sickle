@@ -20,9 +20,9 @@ These carry over verbatim in intent from the consolidated design doc. Each has a
 
 **OQ-4 — Buffer capacity calibration.** 4 hours/miner (`04` §2.3) is a starting figure. *Watch for:* how real session lengths and log-off-with-network-live frequency interact with the cap. *Resolves with:* session-length + offline-network telemetry. Status: starting value.
 
-**OQ-5 — Schematic material conversion rate.** How much generic contribution material a schematic costs (`10` §1a, `02` §2.2) is unset. *Watch for:* too cheap → bot sacrifice becomes a reliable ceiling-grind despite the tier gate; too expensive → salvage is decorative. Status: unset, needs a first number.
+**OQ-5 ✅ RESOLVED 2026-07-26 — ~10 destroyed bot instances (~300 EC of value), tier-gated.** Moved to `02` §2.2. Superseded text: **Schematic material conversion rate.** How much generic contribution material a schematic costs (`10` §1a, `02` §2.2) is unset. *Watch for:* too cheap → bot sacrifice becomes a reliable ceiling-grind despite the tier gate; too expensive → salvage is decorative. Status: unset, needs a first number.
 
-**OQ-6 — Detection-array redundancy.** With discovery resolved via manual investigation + scan tiers (`04` §3), the passive Detection Array (`09`) may be redundant. *Decision needed:* confirm it has a distinct role or fold it into scan efficiency. Status: open, low urgency.
+**OQ-6 ✅ RESOLVED 2026-07-26 — kept, redefined as signal quality.** It now cuts the false-positive rate rather than raising discovery chance, which makes it non-redundant by construction. Moved to `09`. Superseded text: **Detection-array redundancy.** With discovery resolved via manual investigation + scan tiers (`04` §3), the passive Detection Array (`09`) may be redundant. *Decision needed:* confirm it has a distinct role or fold it into scan efficiency. Status: open, low urgency.
 
 **OQ-7 — Cracking vs. detection incentive.** Profitable hostile-miner cracking (`04` §5) slightly weakens the case for committing compute to security at all. *Watch for:* whether "leave miners to crack them for profit" dominates "defend to prevent them." Status: probably healthy, visible only in playtest numbers.
 
@@ -31,9 +31,9 @@ These carry over verbatim in intent from the consolidated design doc. Each has a
 These are **not** established design. They exist because the proposal docs filled gaps, and each gap-fill raised its own questions. If the user rejects a proposal, delete its questions.
 
 ### From `05-hacking-minigame.md` (the whole doc is proposed)
-- **P-1:** Is a 5-class puzzle family right, or does it dilute mastery? (Could ship 2–3.)
-- **P-2:** Real-time trace timer vs. turn/probe-budget. Turn-based is more accessible and arguably truer to Pillar 1 — strong candidate to switch.
-- **P-3:** How much does manual play actually beat bot play (seconds)? This is *the* number behind Invariant I10; unmeasurable until the real puzzle exists.
+- **P-1 ✅ RESOLVED 2026-07-26 — three classes** (Enumeration, Logic, Traversal). Moved to `05` §3.1.
+- **P-2 ✅ RESOLVED 2026-07-26 — turn-based attention budget**, no wall clock anywhere in a breach. Moved to `05` §4.
+- **P-3 (open, and now answerable):** how much does manual play beat bot play? *The* number behind Invariant I10. It was denominated in **seconds** and therefore hostage to reflexes and hardware; under `05` §4 it is a **difference in probe count on the same layer** — deterministic and testable. Still needs the puzzle to exist.
 - **P-4:** Do the five classes map cleanly to distinct tools (`06`/`07`), or do some tools end up class-less?
 
 ### From `13-multiplayer-and-federation-play.md`
@@ -602,6 +602,35 @@ Record resolutions here when they land (date — question — outcome — where 
   ⚠ **The first aberration model was measurably wrong and the render caught it.** Left/top warm and right/bottom cool looks reasonable; it makes the two bands carry *opposite* channels at the top-right and bottom-left corners, where they cancel — +4 and −8 against +17 and −22 at the other two. Lateral CA magnifies one channel more than the other, so red is outboard on **every** edge and cyan inboard on every edge. Two strong corners and two washed-out ones is that mistake's signature, and it is invisible without sampling the pixels.
 
   **Reachable from both paths (pillar C1):** Settings → Screen, and the `wallpaper` and `crt` commands (`crt curvature <0-100>`), through the same profile and the same apply call so they cannot disagree.
+
+- 2026-07-26 — **The core loop was specified: `05-hacking-minigame.md` stopped being a proposal** — recorded in `05` (§3.1, §4, §5, §6), `04` §3.2a, `09`, `02` §2.2 and `06`. Eight questions closed in one pass: **P-1, P-2, P-4, OQ-5, OQ-6, DF-5**, plus two doc corrections. `05` was the keystone — its own header noted that "every tool, every gate, every risk system is defined in terms of a puzzle that doesn't have rules yet".
+
+  **P-2 is the load-bearing one: a breach is turn-based, on an attention budget, with no wall clock.** Each layer grants a budget scaled by `difficultyTier`; every action spends from it at a published rate (quiet read 1, ordinary probe 2, loud tool 6, Overflow bypass nearly all of it). Three reasons, in order of weight: Pillar 1 says the puzzle *is* the game and a clock makes it partly a reflex test; **Invariant I10 becomes measurable**, because the bot-versus-human gap is now a probe count rather than seconds — deterministic and tunable instead of varying with hardware and reaction time; and the accessibility risk `05` §5 flagged simply disappears. ⚠ **§2's economy-facing contract did not change** — `traceProgress` is now attention consumed as a fraction of the budget — which is exactly what §2 was written separately to survive.
+
+  **P-1 followed from P-2 rather than from taste.** Five classes became three (Enumeration, Logic, Traversal) by applying §3.1's own merge rule — *"if two classes reduce to the same optimal input pattern, merge them"*. **Timing** had no expression in a probe budget: its skill was "sequencing, rhythm, patience", which is an action skill. **Credential** was already Logic; the proposed table gave one "pattern deduction" and the other "reconstruct a rule from probe responses", which is the same verb. Keeping both would have shipped precisely the reskin §3.1 warns against.
+
+  **P-4: no tool was cut.** The three orphaned by the merge were repointed — Rainbow Table and Credential Harvester to **Logic** (they reveal part of a rule or skip a deduction step, which is what they always did), and Side-Channel Reader to **Enumeration**, where it becomes the only action in the game costing **zero attention**. "Read without entering" is a far stronger identity under a budget than it was under a clock.
+
+  **DF-5 and OQ-6 were solved by the same stroke.** Scans can now be **wrong** — every tier has a false-positive rate, high on Quick and low on Thorough — which closes a real contradiction: `education/08` teaches `false-positive(7)`, `base-rate-fallacy(7)` and `alert-fatigue(7)`, so the game was contradicting its own manual, which `CLAUDE.md` rates worse than teaching nothing. It also makes the Thorough Scan's price legible: you are buying a result you can act on without a second look. That in turn gave the **Detection Array** a distinct job — it cuts the false-positive rate instead of raising discovery chance, so scans buy *sensitivity* and the Array buys *precision*. Two different axes, non-redundant by construction rather than by tuning, and OQ-6 closes without deleting the one item that makes standing compute worth committing.
+
+  ⚠ **`05` §5 was factually wrong and is corrected.** It opened "Because the client is multi-window (`../architecture/01`)" and demanded a single-window fallback. `ui-design-language.md` §0 cancelled that model; there is one undecorated window with a window manager inside it. The accessibility concern is now answered twice — one OS window, and after §4 no time pressure to manage it under.
+
+  **Deliberately not decided:** the multiplayer, social and narrative questions (**D-1/2, S-1/2/3, N-1/2**). Multiplayer is blocked on something no decision fixes — **CL-8** records that `RemoteGameSession` exists but its transport, OAuth flow and reconnect loop do not — so settling the duel-quorum boundary now would fix rules for a system nothing can exercise. **N-2** (critical-path schematic beats) is content authoring rather than mechanics. Also still open: **E-1** (vault expansion reconciliation), and the four calibration questions **OQ-1/3/4/7**, which their own entries say resolve with playtest telemetry and would only gain a false authority from being decided at a desk.
+
+- 2026-07-27 — **Network discovery: topology generation, the `sweep` verb, and a graph view** — recorded in `07-recon-tools.md`'s hop model (unchanged, and that is the point), `solo/net/`, `protocol/game/Net*`, `client/ui/netmap/` and `client/view/NetMapView`. The problem was concrete: discovery was unusable at the start of the game, so the core loop had nothing to point at.
+
+  **The load-bearing decision is that schematics buy reach and ethecoin buys sensitivity.** `07` is Established and makes hop range a *ceiling* on information — which is exactly why the Topology Mapper is schematic-gated, since **Invariant I2** forbids ethecoin buying a ceiling. A noise-probability discovery model threatened that directly: if a better sweep tier saw further, EC would buy reach. The reconciliation keeps both halves: **hop range is raised only by schematic/story gates and never by a tier or by noise**, and within the reach a player already has, sweep tier and target noise together set the *probability* of detection. Sensitivity is breadth, which I2 permits. Verified in play: hop ceiling reads 1 with no Topology Mapper.
+
+  **`sweep` is a new verb, deliberately not `scan`.** `04` §3.2's `scan` audits your own rig for parasites; `sweep` probes a network you do not own. Collapsing them would have made one of the two a lie, and the distinction is worth teaching on its own.
+
+  **Generation**: 5–7 virtual servers, ≤50 machines each, from a depth-biased spanning tree with depth-preserving chords — chosen over a chain (no choice), a ring (ambiguous depth) and a random graph (connectivity becomes a retry loop rather than a construction). Measured over two fresh characters: 153 and 190 hosts across 5 and 6 servers, with average tier climbing **1.21 → 1.82 → 2.89 → 3.79 → 4.57** by depth from home. Home is easiest and depth is the difficulty gradient, exactly as briefed.
+
+  ⚠ **Three real bugs were found by running it, not by reading it.**
+  1. **Every character generated the identical world.** `SoloSave.rngSeed` has a constant default and nothing ever derived it, so the topology, detection rolls, loot and documents would have been the same for every player in every install — invisible until two people compared notes. `newCharacter` now derives the seed before anything draws from it.
+  2. **A completed sweep discovered nothing.** `settleTasks` logged `"scan ... finished"` for *every* task kind and deleted it, so `NetRules.settleSweep` was never called: the network stayed empty while the log claimed a scan had finished. A task list stopped having one kind of task in it and kept a single code path. It dispatches on kind now.
+  3. **`NetGraphTest.crossingsMerge` asserted a layout accident.** It required a rendered fixture to contain `┼`; no fixture produces one, because the router gives each edge its own lane. The test would have failed the day the router got *better*. Retargeted at the merge rule itself, which is total and round-trips — the structural evidence that merging happens in a real render lives in `fanOutMerges`, which passes.
+
+  ⚠ **Still owed: `docs/design/17-network-topology.md`.** The architect's spec — the generation algorithm, the detection formula and the sweep tier table — currently exists only in the workflow output and in code comments. `CLAUDE.md` requires the rule to live in a design doc, so this is a real gap and not a tidy-up.
 
 ## 4. How to use this doc
 

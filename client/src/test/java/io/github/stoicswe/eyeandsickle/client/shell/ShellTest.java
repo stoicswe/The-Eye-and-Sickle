@@ -29,7 +29,8 @@ class ShellTest {
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-07-25T12:00:00Z"), ZoneOffset.UTC);
 
     private static Shell shell(Path dir) {
-        GameSession session = new LocalGameSession(SoloGame.open(new SaveStore(dir.resolve("s.json")), "op", CLOCK));
+        GameSession session = new LocalGameSession(io.github.stoicswe.eyeandsickle.client.support.TestSaves.bare(
+                new SaveStore(dir.resolve("s.json")), "op", CLOCK));
         return new Shell(session, BuiltinCommands.registry());
     }
 

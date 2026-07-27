@@ -41,6 +41,13 @@ public enum WindowSpec {
     LEDGER("ledger", "Ledger", "a transaction log", "Every ethecoin movement and what caused it. The audit trail for your own balance.", 880, 560, 600, 360, KeyCode.DIGIT7, false, true, false),
     BOTNET("botnet", "Botnet", "jobs / systemctl", "Bot frames, their loadouts and what they are doing. Bots assist; they never solve it for you.", 780, 560, 520, 400, KeyCode.DIGIT8, false, true, false),
     DEFENSE("defense", "Defense", "a firewall / IDS console", "What is armed and what it costs to keep armed. Defending your own rig never generates heat.", 780, 560, 520, 380, KeyCode.DIGIT9, false, true, false),
+    // The core loop (docs/design/05). Given a letter rather than a digit because the digit row is
+    // full, and B is the one accelerator a player will reach for without being told.
+    // The network graph. Distinct from MAP, which is the known-node LIST — the user asked for both
+    // views and they answer different questions: the list is a table you sort, the graph is a shape
+    // you read. `N` because the digit row is full and it is the letter anyone would reach for.
+    NETMAP("netmap", "Network", "nmap / a topology view", "The network as a graph: your vantage, what a sweep has found, and the bridges out. Reach is a hard ceiling; a better sweep only finds quieter machines.", 1100, 780, 720, 480, KeyCode.N, false, true, false),
+    BREACH("breach", "Breach", "an exploit console", "The puzzle itself. Spend attention to clear a node's layers before the budget runs out; nothing here is on a clock.", 1080, 760, 720, 480, KeyCode.B, false, true, false),
 
     MARKET("market", "Market", "a package manager", "What is for sale, what it costs, and which gate stands in front of it.", 900, 640, 600, 440, KeyCode.M, true, true, false),
     IDENTITY("identity", "Identity", "whoami / id", "Your handle, faction standing and heat. Who the Eye thinks you are.", 560, 640, 420, 440, KeyCode.I, true, true, false),

@@ -33,7 +33,8 @@ class ShortcutsTest {
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-07-25T12:00:00Z"), ZoneOffset.UTC);
 
     private static Shell shell(Path dir) {
-        var session = new LocalGameSession(SoloGame.open(new SaveStore(dir.resolve("s.json")), "op", CLOCK));
+        var session = new LocalGameSession(io.github.stoicswe.eyeandsickle.client.support.TestSaves.bare(
+                new SaveStore(dir.resolve("s.json")), "op", CLOCK));
         return new Shell(session, BuiltinCommands.registry());
     }
 

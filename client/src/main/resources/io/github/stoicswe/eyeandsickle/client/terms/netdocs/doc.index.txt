@@ -1,0 +1,15 @@
+  INDEX A     premises by address
+  INDEX B     premises by meter
+  INDEX C     meters by premises
+  INDEX D     addresses not in A
+  INDEX E     entries in D, resolved
+  INDEX F     entries in D, unresolved
+  INDEX G     indexes
+
+Index D exists because Index A was built from the billing records and
+Index B from the survey, and the two do not agree. Index E and Index F
+exist because the disagreement was not resolvable in one pass. Index G
+exists because six indexes were more than one person could hold.
+
+Index D has grown in every period since it was created. Index E has not
+grown since the second period. Nobody has been assigned to Index F.

@@ -1150,6 +1150,211 @@
 }
 .es-cage-caption { -fx-text-fill: -es-dim-2; }
 
+/* ══ THE NETWORK MAP (docs/design/07 + the sweep model) ══════════════════════════════════════
+ *
+ * ⚠ Descendant selectors throughout, for the same reason as the breach block below: a late
+ * `.label { -fx-text-fill: -es-text; }` in this file beats any single-class selector at equal
+ * specificity, so a bare `.es-netmap-vantage` would silently paint in body-text grey.
+ *
+ * ⚠ NO AMBER ANYWHERE IN THIS BLOCK. §2.1 reserves the accent for live/earning data, and a network
+ * host is not earning — not even one you hold. Every state distinction here is carried by glyph
+ * weight first and the cold grey ramp second, which is also what keeps it legible to a player who
+ * cannot separate the hues (docs/client/07 §5.2). The single exception in the whole feature is
+ * `-es-alarm` on a suspected trap, which is a warning and is rationed to that one use.
+ *
+ * The ramp encodes CERTAINTY, deliberately: the less you know about a host, the dimmer it is, so a
+ * freshly-swept network reads as mostly dark and resolves as you learn it. */
+
+.es-netmap, .es-netlist {
+    -fx-background-color: -es-void;
+    -fx-border-color: -es-rule;
+    -fx-border-width: 1;
+    -fx-padding: 7;
+}
+
+.es-netmap .es-netmap-cell,
+.es-netmap .es-netmap-edge,
+.es-netmap .es-netmap-lateral {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 11px;
+}
+
+/* A contact: something is there, and that is ALL the base sweep tells you. Dimmest on purpose —
+   docs/design/07 sells knowing WHAT it is as the Passive Sniffer's whole job, and a contact that
+   read as clearly as an identified host would make that 15 EC pointless. */
+.es-netmap .es-netmap-contact    { -fx-text-fill: -es-dim-3; }
+/* Identified: a Passive Sniffer told you its type. */
+.es-netmap .es-netmap-identified { -fx-text-fill: -es-dim-1; }
+/* A host you hold — the brightest ordinary state, because it is the one you can act from. */
+.es-netmap .es-netmap-foothold   { -fx-text-fill: -es-text-hi; }
+/* Where you are sweeping FROM. Hops are counted from here, so it has to be unmissable. */
+.es-netmap .es-netmap-vantage    { -fx-text-fill: -es-text-hi; }
+/* A bridge to another server: the thing that makes the world bigger. */
+.es-netmap .es-netmap-bridge     { -fx-text-fill: -es-text; }
+/* Beyond the hop ceiling, or unresolved. */
+.es-netmap .es-netmap-dark       { -fx-text-fill: -es-dim-3; }
+/* THE ONE ALARM IN THE FEATURE. A suspected honeypot is the only thing here worth a warning. */
+.es-netmap .es-netmap-trap       { -fx-text-fill: -es-alarm; }
+
+.es-netmap .es-netmap-edge     { -fx-text-fill: -es-rule-hi; }
+.es-netmap .es-netmap-lateral  { -fx-text-fill: -es-rule; }
+.es-netmap .es-netmap-server   { -fx-text-fill: -es-dim-2; }
+.es-netmap .es-netmap-layer    { -fx-text-fill: -es-dim-2; }
+.es-netmap .es-netmap-legend   { -fx-text-fill: -es-dim-2; }
+
+.es-netmap-control {
+    -fx-padding: 2 7 2 7;
+    -fx-border-color: -es-rule-hi;
+    -fx-border-width: 1;
+}
+.es-netmap .es-netmap-control    { -fx-text-fill: -es-dim-1; }
+.es-netmap .es-netmap-control-on { -fx-text-fill: -es-text-hi; }
+
+.es-netlist .es-netlist-head  { -fx-text-fill: -es-dim-2; }
+.es-netlist .es-netlist-muted { -fx-text-fill: -es-dim-2; }
+.es-netlist .es-netlist-empty { -fx-text-fill: -es-dim-2; }
+.es-netlist-head { -fx-border-color: transparent transparent -es-rule transparent; -fx-border-width: 0 0 1 0; -fx-padding: 0 0 5 0; }
+.es-netlist-row  { -fx-padding: 1 0 1 0; }
+
+/* ══ THE BREACH (docs/design/05) ═════════════════════════════════════════════════════════════
+ *
+ * ⚠ EVERY text rule below is a DESCENDANT selector, and that is not style — it is the difference
+ * between working and silently not. `.label { -fx-text-fill: -es-text; }` sits further down this
+ * file, and a bare `.es-viewport-live` has exactly the same specificity, so the LATER rule wins and
+ * every glyph of this ASCII art would paint in body-text grey while every other property in the
+ * same block applied normally. That split is what makes it near-impossible to spot by eye. Two
+ * classes outrank `.label` wherever this block sits in the file.
+ *
+ * ⚠ AMBER DISCIPLINE. §2.1 reserves the accent for live/earning data. A breach is not earning, so
+ * there is exactly ONE amber rule in this entire block — `.es-breach-extract`, the yield pulled off
+ * a cracked miner, which genuinely is income. Nothing else: not the active layer, not a success
+ * stamp, not the attention meter. Reach for amber anywhere else here and it is wrong.
+ *
+ * Textures are pinned to IBM Plex Mono because they are built from box-drawing and block glyphs,
+ * and Martian Mono contains none of that range. */
+
+.es-viewport, .es-lattice, .es-port-comb, .es-tumbler, .es-attn, .es-ledger, .es-slate,
+.es-cost-strip {
+    -fx-background-color: -es-void;
+    -fx-border-color: -es-rule;
+    -fx-border-width: 1;
+    -fx-padding: 7;
+}
+
+/* ── The breach viewport: the target rendered as character cells ────────────────────────────── */
+.es-viewport > .es-viewport-dim,
+.es-viewport > .es-viewport-live,
+.es-viewport > .es-viewport-alarm {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 11px;
+}
+.es-viewport > .es-viewport-dim   { -fx-text-fill: -es-dim-3; }
+.es-viewport > .es-viewport-live  { -fx-text-fill: -es-text; }
+.es-viewport > .es-viewport-alarm { -fx-text-fill: -es-alarm; }
+.es-viewport .es-viewport-caption { -fx-padding: 5 0 0 0; }
+
+/* ── Enumeration: the port comb ─────────────────────────────────────────────────────────────── */
+.es-port-comb .es-port {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 11px;
+}
+.es-port-comb .es-port-unknown  { -fx-text-fill: -es-dim-3; }
+.es-port-comb .es-port-closed   { -fx-text-fill: -es-dim-2; }
+.es-port-comb .es-port-filtered { -fx-text-fill: -es-dim-1; }
+.es-port-comb .es-port-open     { -fx-text-fill: -es-text-hi; }
+.es-port-comb .es-port-declared { -fx-text-fill: -es-text; }
+/* The service banner — D-8's human-read step. Dim, because reading it is the player's job. */
+.es-port-comb .es-port-banner   { -fx-text-fill: -es-dim-1; }
+.es-port-comb .es-port-reading  { -fx-text-fill: -es-text; }
+
+/* ── Logic: the tumbler rack ────────────────────────────────────────────────────────────────── */
+.es-tumbler .es-tumbler-cell,
+.es-tumbler .es-tumbler-col,
+.es-tumbler .es-tumbler-caret {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 11px;
+}
+.es-tumbler .es-tumbler-cell         { -fx-text-fill: -es-text; }
+.es-tumbler .es-tumbler-col          { -fx-text-fill: -es-dim-2; }
+.es-tumbler .es-tumbler-caret        { -fx-text-fill: -es-text-hi; }
+.es-tumbler .es-tumbler-draft        { -fx-text-fill: -es-dim-1; }
+.es-tumbler .es-tumbler-locked       { -fx-text-fill: -es-text-hi; }
+.es-tumbler .es-tumbler-fact         { -fx-text-fill: -es-dim-1; }
+.es-tumbler .es-tumbler-keyspace     { -fx-text-fill: -es-dim-2; }
+.es-tumbler .es-tumbler-salted       { -fx-text-fill: -es-dim-2; }
+.es-tumbler .es-tumbler-unsalted     { -fx-text-fill: -es-text; }
+.es-tumbler .es-tumbler-salt         { -fx-text-fill: -es-dim-2; }
+.es-tumbler-head   { -fx-padding: 0 0 5 0; }
+.es-tumbler-row    { -fx-padding: 1 0 1 0; }
+.es-tumbler-volley { -fx-padding: 1 0 1 0; }
+/* A contradiction with what the player already knows. Alarm, because it is a real mistake. */
+.es-tumbler-inconsistent { -fx-border-color: -es-alarm; -fx-border-width: 0 0 0 2; -fx-padding: 1 0 1 5; }
+
+/* ── Traversal: the lattice ─────────────────────────────────────────────────────────────────── */
+.es-lattice .es-lattice-cell,
+.es-lattice .es-lattice-edge {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 11px;
+}
+.es-lattice .es-lattice-dark      { -fx-text-fill: -es-dim-3; }
+.es-lattice .es-lattice-seen      { -fx-text-fill: -es-dim-2; }
+.es-lattice .es-lattice-visited   { -fx-text-fill: -es-dim-1; }
+.es-lattice .es-lattice-here      { -fx-text-fill: -es-text-hi; }
+.es-lattice .es-lattice-objective { -fx-text-fill: -es-text-hi; }
+.es-lattice .es-lattice-trap      { -fx-text-fill: -es-alarm; }
+.es-lattice .es-lattice-edge      { -fx-text-fill: -es-rule-hi; }
+.es-lattice .es-lattice-rank      { -fx-text-fill: -es-dim-2; }
+.es-lattice .es-lattice-manifest  { -fx-text-fill: -es-dim-1; }
+
+/* ── The attention meter ────────────────────────────────────────────────────────────────────
+ * Cells, never a continuous bar — §4 of the design language forbids one, for the same reason the
+ * cycle grid is countable: a smooth bar implies a precision the model does not have. */
+.es-attn-cell           { -fx-background-color: -es-rule-hi; }
+.es-attn-cell-base      { -fx-background-color: -es-rule-hi; }
+.es-attn-cell-spent     { -fx-background-color: -es-dim-1; }
+/* The PREVIEW of what the move under the pointer would cost — §4's legibility requirement made
+   literal: the player sees the price before paying it, so a loss reads as "I was too loud". */
+.es-attn-cell-cost      { -fx-background-color: -es-dim-2; }
+.es-attn-cell-cost-on   { -fx-background-color: -es-text-hi; }
+.es-attn-cell-lost      { -fx-background-color: -es-alarm; }
+.es-attn .es-attn-caption { -fx-text-fill: -es-dim-2; }
+
+/* ── The cost strip: what each available move would spend ───────────────────────────────────── */
+.es-cost-strip .es-breach-chip {
+    -fx-padding: 2 7 2 7;
+    -fx-border-color: -es-rule-hi;
+    -fx-border-width: 1;
+}
+.es-cost-strip .es-breach-chip-free   { -fx-text-fill: -es-dim-1; }
+.es-cost-strip .es-breach-chip-quiet  { -fx-text-fill: -es-dim-1; }
+.es-cost-strip .es-breach-chip-probe  { -fx-text-fill: -es-text; }
+.es-cost-strip .es-breach-chip-loud   { -fx-text-fill: -es-text-hi; }
+.es-cost-strip .es-breach-chip-bypass { -fx-text-fill: -es-alarm; -fx-border-color: -es-alarm; }
+.es-cost-strip .es-breach-chip-off    { -fx-text-fill: -es-dim-3; -fx-border-color: -es-rule; }
+
+/* ── The attention ledger: every action and what it cost, kept ──────────────────────────────── */
+.es-ledger .es-ledger-cell  { -fx-font-family: "IBM Plex Mono", monospace; -fx-font-size: 11px; }
+.es-ledger .es-ledger-quiet  { -fx-text-fill: -es-dim-2; }
+.es-ledger .es-ledger-probe  { -fx-text-fill: -es-text; }
+.es-ledger .es-ledger-loud   { -fx-text-fill: -es-text-hi; }
+.es-ledger .es-ledger-strike { -fx-text-fill: -es-alarm; }
+.es-ledger .es-ledger-empty  { -fx-text-fill: -es-dim-2; }
+.es-ledger-head   { -fx-border-color: transparent transparent -es-rule transparent; -fx-border-width: 0 0 1 0; -fx-padding: 0 0 5 0; }
+.es-ledger-row    { -fx-padding: 1 0 1 0; }
+.es-ledger-rows   { -fx-padding: 5 0 0 0; }
+.es-ledger-scroll { -fx-background-color: transparent; }
+
+/* ── The outcome slate ──────────────────────────────────────────────────────────────────────── */
+.es-slate .es-slate-key         { -fx-text-fill: -es-dim-2; }
+.es-slate .es-slate-breached    { -fx-text-fill: -es-text-hi; }
+.es-slate .es-slate-failed      { -fx-text-fill: -es-alarm; }
+.es-slate .es-slate-aborted     { -fx-text-fill: -es-dim-1; }
+.es-slate .es-slate-consequence { -fx-text-fill: -es-text; }
+
+/* THE ONE AMBER IN THE BREACH. Yield pulled off a cracked miner is genuinely income, which is
+   exactly and only what §2.1 reserves the accent for. */
+.es-slate .es-breach-extract { -fx-text-fill: -es-amber; }
+
 /* The rail launcher's tooltip carries a title line and a sentence, so it needs room to breathe —
    the default single-line tooltip padding makes a four-line one look like a paragraph in a box. */
 .tooltip { -fx-padding: 8 11 9 11; -fx-max-width: 320px; }

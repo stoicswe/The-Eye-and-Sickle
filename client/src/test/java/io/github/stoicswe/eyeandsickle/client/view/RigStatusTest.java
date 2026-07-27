@@ -26,7 +26,8 @@ class RigStatusTest {
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-07-25T12:00:00Z"), ZoneOffset.UTC);
 
     private static LocalGameSession session(Path dir) {
-        return new LocalGameSession(SoloGame.open(new SaveStore(dir.resolve("s.json")), "op", CLOCK));
+        return new LocalGameSession(io.github.stoicswe.eyeandsickle.client.support.TestSaves.bare(
+                new SaveStore(dir.resolve("s.json")), "op", CLOCK));
     }
 
     @Nested

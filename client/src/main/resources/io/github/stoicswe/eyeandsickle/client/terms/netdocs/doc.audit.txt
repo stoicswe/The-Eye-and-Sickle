@@ -1,0 +1,17 @@
+FINDING. The reconciliation between the metered total and the billed
+total has balanced to the unit in every period examined, across nine
+periods, including two periods in which a substation was offline for
+part of the month.
+
+RISK. A reconciliation that never fails is not evidence that the two
+figures agree. It is evidence that one of them is derived from the
+other.
+
+RECOMMENDATION. Establish which figure is measured and which is
+computed, and from what.
+
+MANAGEMENT RESPONSE. The reconciliation is performed by an established
+procedure which has operated without exception since implementation. No
+change proposed.
+
+STATUS. Closed, management response accepted.

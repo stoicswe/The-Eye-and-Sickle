@@ -1,0 +1,14 @@
+  UNIT 04    withdrawn      returned to store
+  UNIT 07    withdrawn      returned to store
+  UNIT 11    withdrawn      returned to store
+  UNIT 12    withdrawn      not returned
+  UNIT 19    withdrawn      returned to store
+  UNIT 23    withdrawn      not returned
+  UNIT 24    withdrawn      not returned
+
+A withdrawn unit remains addressable until its address is released. The
+release is a separate procedure with a separate form and a separate
+signature, and it is the last thing anyone does on a Friday.
+
+Three of the seven were never returned to store. All seven are recorded
+as withdrawn. Four addresses have been released.

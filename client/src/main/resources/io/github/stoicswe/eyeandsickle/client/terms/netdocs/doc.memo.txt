@@ -1,0 +1,15 @@
+An anomaly is a reading that cannot be explained by the equipment that
+produced it. A reading that can be explained by the equipment is a
+fault, and faults are reported through the maintenance channel.
+
+Operators have been reporting faults as anomalies. The anomaly channel
+is monitored; the maintenance channel is not, in the sense that
+matters, because a fault is closed by fixing it and an anomaly is
+closed by explaining it.
+
+Explaining an anomaly reclassifies it as a fault. This is expected. A
+month in which no anomaly is reclassified is a month in which the
+channel was not used correctly.
+
+There is no channel for a reading nobody can explain and nobody can
+fix.

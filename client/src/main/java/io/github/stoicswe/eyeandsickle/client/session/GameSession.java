@@ -135,6 +135,80 @@ public interface GameSession extends AutoCloseable {
     /** Arms a defence. Defending your own rig never generates heat (Invariant I9). */
     Outcome arm(String kind, int tier);
 
+    // ── The breach (docs/design/05) ───────────────────────────────────────────────────────────
+    //
+    // Six methods, and every one of them takes or returns a PROTOCOL type rather than anything
+    // solo-shaped. That is the same seam ComputeBudget uses: the view binds to a BreachSnapshot and
+    // never learns whether a rules engine in this process produced it or a home server sent it.
+    // The engine's own types (BreachRules, BreachResult) stop at LocalGameSession.
+
+    /** Nodes the player could attempt right now. Empty until something is discovered. */
+    List<io.github.stoicswe.eyeandsickle.protocol.game.BreachTarget> breachTargets();
+
+    /**
+     * The breach in progress, if there is one.
+     *
+     * <p>⚠ A snapshot carries <b>only revealed information</b> — never the Logic code, the true port
+     * states or the true objective node. That is not paranoia about a save file the player can edit
+     * anyway; it is what keeps the puzzle honest when the same record travels over a wire, and it
+     * means a view physically cannot render a cheat even by accident.
+     */
+    java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.BreachSnapshot> breach();
+
+    /** Starts an attempt against a target. Reserves compute for the whole attempt. */
+    Outcome beginBreach(String targetId);
+
+    /**
+     * Spends attention on one move.
+     *
+     * @param actionId which move — see {@code BreachActionKind}
+     * @param argument the move's operand (a band, a code guess, a node id); {@code ""} when it has
+     *     none. A string rather than a typed union because the same call has to survive a REST hop.
+     */
+    Outcome breachAction(String actionId, String argument);
+
+    /** Walks away. No loot, attention already spent stays spent, no proof-of-skill credit. */
+    Outcome abortBreach();
+
+    /** Clears a finished breach's outcome slate once the player has read it. */
+    Outcome dismissBreach();
+
+    // ── The network (docs/design/07, and the sweep model) ─────────────────────────────────────
+    //
+    // `sweep` is NOT `scan`. `scan` (above) audits the player's OWN rig for foreign miners;
+    // `sweep` probes a network they do not own. Two activities, two verbs — the distinction is
+    // itself worth teaching, and collapsing them would make one of the two a lie.
+
+    /**
+     * The network as the player currently knows it: their vantage, the visible hosts and links.
+     *
+     * <p>⚠ Carries <b>only discovered hosts</b>. An undetected node is absent entirely — no
+     * placeholder, no "3 more nearby". A count would leak the thing the sweep is supposed to be
+     * for, and would make a better sweep tier pointless.
+     */
+    io.github.stoicswe.eyeandsickle.protocol.game.NetMap net();
+
+    /**
+     * Runs a sweep from the current vantage.
+     *
+     * <p>⚠ Hop range is a <b>hard ceiling</b> and no tier changes it (Invariant I2 — ethecoin never
+     * buys a ceiling; {@code docs/design/07} makes hop range exactly that, which is why the
+     * Topology Mapper is schematic-gated). A tier buys <em>sensitivity</em> within the reach the
+     * player already has. Schematics buy reach; ethecoin buys sensitivity.
+     *
+     * @param flag {@code ""}, {@code "--wide"} or {@code "--deep"}
+     */
+    Outcome sweep(String flag);
+
+    /** Moves the vantage to a host the player holds. Sweeping again measures hops from there. */
+    Outcome connectTo(String address);
+
+    /** Pulls a document off a host that carries one. */
+    Outcome download(String address);
+
+    /** Everything downloaded so far. */
+    List<io.github.stoicswe.eyeandsickle.protocol.game.NetDocument> documents();
+
     /** Buys from the market. Refused — not thrown — when the player cannot afford it or a gate blocks. */
     Outcome purchase(String offeringId);
 

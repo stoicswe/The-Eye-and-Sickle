@@ -17,7 +17,7 @@ The player is a target as well as an attacker — storage can be raided (`01` §
 | **Tarpit** | Slows every intruder action; doesn't stop them, buys response time | Ethecoin | 70 EC | 8 |
 | **Honeypot Stash** | Decoy high-hackable zone containing junk; raiders can't tell until extraction | Reputation | — | 12 |
 | **Auto-Counter Daemon** | Automatically launches a weak counter-attack when raided while offline | Schematic | — | 18 (permanent while armed) |
-| **Detection Array (T1–T3)** | Raises per-tick discovery chance against miners hosted on the player's rig | Schematic | — | 6 / 14 / 25 (permanent) |
+| **Detection Array (T1–T3)** | Improves scan **signal quality** — cuts the false-positive rate on your own rig | Schematic | — | 6 / 14 / 25 (permanent) |
 | **Rootkit Wrapper** | Hides a *deployed* miner from routine host scans and raises crack difficulty against it; does not survive a deliberate audit | Ethecoin | 50 EC | 2 per miner |
 | **Cold Storage Expansion** | Vault capacity, sub-linear scaling | Schematic + reputation | — | — |
 
@@ -33,7 +33,9 @@ The player is a target as well as an attacker — storage can be raided (`01` §
 
 **Auto-Counter Daemon** — offline retaliation: launches a weak counter when you're raided while logged off. Schematic-gated, heavy permanent compute (18). It doesn't win the fight; it makes raiding you *cost* something even in your absence, feeding the attacker some heat/handle exposure.
 
-**Detection Array (T1–T3)** — the *passive* alternative to active scanning (`04` §3): permanently reserves compute to raise per-tick discovery chance against miners on your rig. Whether it stays distinct from scan efficiency or folds into it is **OQ-6** — the one defense tool with an open design question about its role.
+**Detection Array (T1–T3)** — **redefined 2026-07-26, closing OQ-6.** It was "raises per-tick discovery chance", which did substantially the same job as a paid scan and was the reason OQ-6 asked whether it was redundant at all. It now does something no scan can: **it improves the quality of the signal rather than the chance of a hit.** Standing compute buys a lower false-positive rate on your own rig (`04` §3.2), so a Quick Scan on a well-instrumented rig lies to you less often than a Quick Scan on a bare one.
+
+That makes it non-redundant *by construction* rather than by tuning: scans buy sensitivity, the Array buys precision, and the two are different axes. It also gives the permanent compute reservation a legible payoff — you are paying, continuously, not to be sent chasing ghosts. Folding it into scan efficiency was the alternative and was rejected: it would have removed one of the few reasons to commit standing compute, which is what makes defence a real budget choice (§3).
 
 **Rootkit Wrapper** — the *offensive* defense item: hides your **deployed** miner from routine host scans and raises crack difficulty against it, but **does not survive a deliberate audit** (manual investigation, `04` §3.1, always finds it). This is the counter-play to hosts' detection, and it's what gives crack-difficulty scaling (`04` §5.1) an item to key off. 2 compute per wrapped miner, EC-gated.
 
@@ -56,4 +58,4 @@ If any archetype dominates in playtest, the lever is compute cost, not function.
 - What attackers bring: `06-intrusion-tools.md`
 - The breach these defenses modify: `05-hacking-minigame.md` §2 (target defense profile)
 - Canary/handle-tag → evidence: `12-identity-and-social.md`
-- Detection Array role question: `15-open-questions.md` OQ-6
+- Detection Array role: **OQ-6 resolved** 2026-07-26 — see above and `15-open-questions.md` §3

@@ -12,7 +12,9 @@ import io.github.stoicswe.eyeandsickle.client.teaching.TermDatabase;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeManager;
 import io.github.stoicswe.eyeandsickle.client.view.CommandPalette;
 import io.github.stoicswe.eyeandsickle.client.view.MainMenuView;
+import io.github.stoicswe.eyeandsickle.client.view.BreachView;
 import io.github.stoicswe.eyeandsickle.client.view.LogView;
+import io.github.stoicswe.eyeandsickle.client.view.NetMapView;
 import io.github.stoicswe.eyeandsickle.client.view.ManView;
 import io.github.stoicswe.eyeandsickle.client.view.MoreViews;
 import io.github.stoicswe.eyeandsickle.client.view.RigMonitorView;
@@ -271,6 +273,11 @@ public class EyeAndSickleClient extends Application {
                 commands, registry, themes, profile, () -> shell.history(),
                 this::showMainMenu, this::applyDeskSettings);
         ManCommands.register(commands, terms);
+        // Pillar C1: everything the breach window can do, the terminal can do. Both go through the
+        // same GameSession port, so the two cannot disagree about what a move costs or whether it
+        // was allowed.
+        io.github.stoicswe.eyeandsickle.client.shell.BreachCommands.register(commands);
+        io.github.stoicswe.eyeandsickle.client.shell.NetCommands.register(commands);
 
         registerWindows();
         registry.onThemeChange(() -> themes.applyAll());
@@ -502,6 +509,8 @@ public class EyeAndSickleClient extends Application {
         return switch (spec) {
             case RIG_MONITOR -> RigMonitorView.create(session, terms, profile);
             case TERMINAL -> TerminalView.create(shell);
+            case BREACH -> BreachView.create(session, terms, profile);
+            case NETMAP -> NetMapView.create(session);
             case AUDIT -> Views.audit(session, shell);
             case MINING -> Views.mining(session);
             case STORAGE -> Views.storage(session);

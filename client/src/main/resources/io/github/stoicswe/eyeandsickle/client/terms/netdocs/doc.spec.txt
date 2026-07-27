@@ -1,0 +1,14 @@
+  ...loop shall maintain return temperature within four degrees of
+  supply under continuous load. Excursions beyond four degrees shall be
+  logged. Excursions beyond eight degrees shall trip the load.
+
+  The trip shall be mechanical and shall not depend on the logging.
+
+A margin note, in pencil, in the specification's own hand:
+
+  The trip was made electrical in the second revision because the
+  mechanical part fouled, and the fouling was logged as an excursion.
+  The excursion that fouled it is therefore in the log twice and the
+  fouling is not in it at all.
+
+The remainder of the clause is not present. The page is cut, not torn.

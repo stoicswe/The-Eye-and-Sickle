@@ -42,7 +42,14 @@ Everything EC-gated must be **losable and replaceable** — this is what makes t
 
 Schematics are **found or earned at designer-paced milestones** — exploration rewards, story beats, deep-infrastructure objectives (e.g. Firmware Implant is explicitly recovered from deep inside Eye infrastructure, `11-rig-infrastructure.md`). They are never sold for EC, never RNG-farmable from repeatable content.
 
-Related resource: **generic schematic contribution material** — partial-progress salvage from tier-gated bot losses (`10-botnets.md` §1a). Conversion rate is open (OQ-5); the risk to hold in mind is that a cheap rate turns bot sacrifice into a ceiling-progression grind, which is exactly what this gate exists to prevent.
+Related resource: **generic schematic contribution material** — partial-progress salvage from tier-gated bot losses (`10-botnets.md` §1a).
+
+**Conversion rate (first number, decided 2026-07-26, closing OQ-5): a schematic costs material equivalent to roughly ten destroyed bot instances.** Anchored to `10` §2's published frame costs of 25–35 EC per instance, so about **300 EC of deliberately destroyed value** — derived from a number already in the economy rather than invented beside it. ⚠ Marked for playtest like every other figure in `03`.
+
+Two guards stay in force and are what make the rate safe at this level:
+
+- **Invariant I13's tier gate is unchanged.** Salvage only drops from losses at a sufficient engagement tier, so material can never shortcut a ceiling the player has not already reached. The rate sets *pace*, never *reach*.
+- The risk OQ-5 named — a cheap rate turning bot sacrifice into a ceiling-progression grind — is priced out: ten sacrificed instances is a deliberate, expensive act, not a loop anyone would farm.
 
 ### 2.3 Reputation gate
 

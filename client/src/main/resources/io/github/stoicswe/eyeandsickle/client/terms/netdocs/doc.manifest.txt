@@ -1,0 +1,14 @@
+  CRATE 1-7      cable, armoured, drum        signed off
+  CRATE 8-12     cable, armoured, drum        signed off
+  CRATE 13       enclosures, empty            signed off
+  CRATE 14       enclosures, empty            signed off
+  CRATE 15       enclosures                   —
+  CRATE 16-19    ballast                      signed off
+
+Crate 15 is listed as enclosures and weighs what four crates of
+enclosures weigh. The weight was recorded by the yard scale, which does
+not know what it is weighing and has no reason to be wrong.
+
+The manifest requires a countersignature at the receiving end. The
+receiving end is given as a bay number and not an address. There is no
+bay of that number at either yard the drums came through.

@@ -14,6 +14,20 @@ import io.github.stoicswe.eyeandsickle.solo.state.DefenseState;
 import io.github.stoicswe.eyeandsickle.solo.state.ItemState;
 import io.github.stoicswe.eyeandsickle.solo.state.NodeState;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
+import io.github.stoicswe.eyeandsickle.protocol.game.BreachAction;
+import io.github.stoicswe.eyeandsickle.protocol.game.NetDocument;
+import io.github.stoicswe.eyeandsickle.protocol.game.NetMap;
+import io.github.stoicswe.eyeandsickle.protocol.game.SweepReport;
+import io.github.stoicswe.eyeandsickle.solo.breach.Rng;
+import io.github.stoicswe.eyeandsickle.solo.net.NetRules;
+import io.github.stoicswe.eyeandsickle.solo.net.SweepTier;
+import io.github.stoicswe.eyeandsickle.solo.net.TopologyGenerator;
+import io.github.stoicswe.eyeandsickle.protocol.game.BreachSnapshot;
+import io.github.stoicswe.eyeandsickle.protocol.game.BreachTarget;
+import io.github.stoicswe.eyeandsickle.solo.breach.BreachResult;
+import io.github.stoicswe.eyeandsickle.solo.breach.BreachRules;
+import io.github.stoicswe.eyeandsickle.solo.breach.BreachSnapshots;
+import io.github.stoicswe.eyeandsickle.solo.breach.Targets;
 import io.github.stoicswe.eyeandsickle.solo.state.TaskState;
 import java.time.Clock;
 import java.time.Duration;
@@ -89,6 +103,31 @@ public final class SoloGame {
         s.createdAt = now;
         s.lastPlayedAt = now;
         s.ethecoinMinorUnits = Balance.STARTING_ETHECOIN_MINOR_UNITS;
+
+        // A parasite on the new rig, from the first second of the game.
+        //
+        // docs/design/04 §5.1 makes cracking a miner the tutorial case for the whole breach system:
+        // it is self-contained, it is on your own rig so it generates no heat (Invariant I9), and
+        // the buffer it has been filling is the prize. Without one planted here a fresh character
+        // has no reachable target at all and the core loop is unreachable until they discover a
+        // node — which is a long way into a game whose central pillar is "the puzzle IS the game".
+        //
+        // It also makes the audit mechanic true on day one: by Invariant I6 the miner draws the
+        // HOST's cycles, so the compute ledger no longer adds up, and docs/design/04 §3.1 calls
+        // noticing that discrepancy the game's second-strongest tutorial vector. There is now
+        // something to notice.
+        // ⚠ DERIVE THE SEED BEFORE ANYTHING DRAWS FROM IT. SoloSave.rngSeed has a constant
+        // default, so without this line every character in every install generates the identical
+        // world — the topology, the detection rolls, the loot and the documents would all be the
+        // same for everyone, and the bug is invisible until two players compare notes.
+        s.rngSeed = Rng.derive(s.characterId, now);
+
+        // The world: up to 7 virtual servers and their machines, generated once and persisted.
+        // Generated BEFORE the tutorial miner so the miner's own draws cannot shift the topology's
+        // position in the RNG stream — see Rng's contract about drawing unconditionally.
+        TopologyGenerator.generate(s, now);
+
+        Targets.plantTutorialMiner(s, now);
         return s;
     }
 
@@ -288,6 +327,101 @@ public final class SoloGame {
         return Optional.of(a);
     }
 
+    // ── The breach (docs/design/05) ───────────────────────────────────────────────────────────
+    //
+    // Thin on purpose. The rules live in solo/breach/ and this is the facade the session port binds
+    // to, in the same shape as scan() above: take the engine's clock, call the rules, let the rules
+    // own every decision. Nothing here interprets the game — if a rule appears in this block, it is
+    // in the wrong file.
+
+    /** Nodes the player could attempt right now. */
+    public List<BreachTarget> breachTargets() {
+        return Targets.available(save);
+    }
+
+    /** The breach in progress, as the client is allowed to see it. */
+    public Optional<BreachSnapshot> breachSnapshot() {
+        BreachSnapshot snapshot = BreachSnapshots.of(save);
+        return snapshot == null ? Optional.empty() : Optional.of(snapshot);
+    }
+
+    /** Starts an attempt. Reserves compute for its whole duration — see BreachRules. */
+    public BreachResult beginBreach(String targetId) {
+        Optional<BreachTarget> target = Targets.byId(save, targetId);
+        if (target.isEmpty()) {
+            return BreachResult.refused("no reachable node called '" + targetId + "'");
+        }
+        return BreachRules.begin(save, target.get(), clock.instant());
+    }
+
+    /** Spends attention on one move. */
+    public BreachResult breachAction(String actionId, String argument) {
+        return BreachRules.act(save, actionId, argument, clock.instant());
+    }
+
+    /** Walks away: no loot, no proof-of-skill credit, attention already spent stays spent. */
+    public BreachResult abortBreach() {
+        return BreachRules.abort(save, clock.instant());
+    }
+
+    /** Clears a finished breach's outcome once the player has read it. */
+    public boolean dismissBreach() {
+        return BreachRules.dismiss(save);
+    }
+
+    /** The moves available right now, each carrying the attention it would cost. */
+    public List<BreachAction> breachActions() {
+        return BreachRules.actions(save);
+    }
+
+    // ── The network (docs/design/07 + the sweep model) ────────────────────────────────────────
+    //
+    // Thin, like the breach facade above: the rules live in solo/net/ and this is only what the
+    // session port binds to. `sweep` is deliberately NOT `scan` — scan audits your own rig for
+    // parasites, sweep probes a network you do not own.
+
+    /** The network as the player knows it: vantage, discovered hosts, links. */
+    public NetMap net() {
+        return NetRules.view(save);
+    }
+
+    /**
+     * Runs a sweep from the current vantage.
+     *
+     * <p>⚠ The tier buys <b>sensitivity</b>, never reach. Hop ceiling comes from
+     * {@link NetRules#hopCeiling} and is raised only by the Topology Mapper schematic — Invariant
+     * I2 forbids ethecoin buying a ceiling, and {@code docs/design/07} names hop range as exactly
+     * that. Schematics buy reach; ethecoin buys sensitivity.
+     */
+    public Optional<TaskState> sweep(SweepTier tier) {
+        return NetRules.beginSweep(save, tier, clock.instant());
+    }
+
+    /** Whether the player owns a sweep tier. The refusal wording belongs to the caller. */
+    public boolean ownsSweep(SweepTier tier) {
+        return NetRules.owns(save, tier);
+    }
+
+    /** How far the player can see. Raised only by schematic — never bought. */
+    public int hopCeiling() {
+        return NetRules.hopCeiling(save);
+    }
+
+    /** Moves the vantage to a host the player holds; later sweeps measure hops from there. */
+    public boolean connectTo(String address) {
+        return NetRules.connect(save, address, clock.instant());
+    }
+
+    /** Pulls a document off a host that carries one. */
+    public Optional<NetDocument> download(String address) {
+        return NetRules.download(save, address, clock.instant());
+    }
+
+    /** Everything downloaded so far. */
+    public List<NetDocument> documents() {
+        return NetRules.documents(save);
+    }
+
     /**
      * Renames the operator.
      *
@@ -336,7 +470,28 @@ public final class SoloGame {
             }
             save.tasks.remove(task);
             changed = true;
-            EventLog.notice(save, "scan", task.label + " finished. " + scanFinding(), now);
+
+            // ⚠ DISPATCH ON KIND. This block used to log "scan ... finished" for EVERY task, which
+            // meant a completed sweep was quietly deleted without ever running discovery — the
+            // network stayed empty, the log claimed a scan had finished, and nothing anywhere said
+            // otherwise. A task list with more than one kind of task in it needs a switch, and the
+            // moment it grew a second kind it stopped having one.
+            if ("sweep".equals(task.kind)) {
+                SweepReport report = NetRules.settleSweep(save, task, task.endsAt);
+                EventLog.notice(save, "net",
+                        task.label + " finished. " + report.found() + " of " + report.inRange()
+                                + " machines in range answered."
+                                + (report.note().isEmpty() ? "" : " " + report.note()),
+                        task.endsAt);
+                if (report.counterHacked()) {
+                    // Loud, because it is the one outcome the player must not miss: something on the
+                    // network noticed the sweep and pushed back.
+                    EventLog.warning(save, "net",
+                            "Something answered the sweep in the other direction.", task.endsAt);
+                }
+            } else {
+                EventLog.notice(save, "scan", task.label + " finished. " + scanFinding(), now);
+            }
 
             // UI-6: the held cycles only NOW start coming back, and the wait is dated from the
             // task's own end rather than from `now` — a scan that finished while the game was closed

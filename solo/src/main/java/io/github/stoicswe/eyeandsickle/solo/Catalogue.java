@@ -89,6 +89,38 @@ public final class Catalogue {
                         Balance.DEFENSE_TARPIT_PRICE,
                         Balance.DEFENSE_TARPIT_CYCLES,
                         ""),
+                // ── the sweep ladder (docs/design/17) ────────────────────────────────────────────
+                //
+                // ⚠ Both are ETHECOIN-gated, and that classification is the ordered procedure in
+                // docs/design/02-unlock-gates.md §1.1 rather than taste. What they buy is the
+                // PROBABILITY of detecting what is already within reach — no new hop, no new field,
+                // no new class of node — which is breadth, and §1.1 step 4 puts breadth on ethecoin.
+                //
+                // ⚠ Neither changes the hop ceiling, at any price. Reach is the Topology Mapper's,
+                // and docs/design/07-recon-tools.md §2 makes it schematic-gated precisely because
+                // Invariant I2 says ethecoin never buys a ceiling. There is no code path from an
+                // offering to NetRules.hopCeiling, and a test enumerates this list to prove it.
+                //
+                // equippedCycles is 0: a sweep tool holds nothing while idle. Its compute is held for
+                // the duration of a sweep and released into recovery when the sweep ends.
+                new Offering(
+                        "net-sweep-wide",
+                        "Net Sweep (Wide)",
+                        "A wider sweep of the same distance. Finds quieter machines inside the reach "
+                                + "you already have. It does not reach further — reach is not for sale.",
+                        UnlockGate.ETHECOIN,
+                        Balance.NET_SWEEP_WIDE_PRICE,
+                        0,
+                        ""),
+                new Offering(
+                        "net-sweep-deep",
+                        "Net Sweep (Deep)",
+                        "The most sensitive instrument money buys. Near-certain on infrastructure, and "
+                                + "it finally makes quiet desktops reliable. Still one hop.",
+                        UnlockGate.ETHECOIN,
+                        Balance.NET_SWEEP_DEEP_PRICE,
+                        0,
+                        ""),
                 new Offering(
                         "relay-hop",
                         "Relay hop (one session)",

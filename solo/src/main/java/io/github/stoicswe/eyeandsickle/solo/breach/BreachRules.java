@@ -1,0 +1,739 @@
+package io.github.stoicswe.eyeandsickle.solo.breach;
+
+import io.github.stoicswe.eyeandsickle.protocol.game.BreachAction;
+import io.github.stoicswe.eyeandsickle.protocol.game.BreachActionKind;
+import io.github.stoicswe.eyeandsickle.protocol.game.BreachOutcome;
+import io.github.stoicswe.eyeandsickle.protocol.game.BreachTarget;
+import io.github.stoicswe.eyeandsickle.protocol.game.ComputeConsumer;
+import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
+import io.github.stoicswe.eyeandsickle.solo.Balance;
+import io.github.stoicswe.eyeandsickle.solo.rules.ComputeRules;
+import io.github.stoicswe.eyeandsickle.solo.rules.EventLog;
+import io.github.stoicswe.eyeandsickle.solo.rules.LedgerRules;
+import io.github.stoicswe.eyeandsickle.solo.rules.SalvageRules;
+import io.github.stoicswe.eyeandsickle.solo.state.AllocationState;
+import io.github.stoicswe.eyeandsickle.solo.state.AttentionEntryState;
+import io.github.stoicswe.eyeandsickle.solo.state.BreachState;
+import io.github.stoicswe.eyeandsickle.solo.state.ItemState;
+import io.github.stoicswe.eyeandsickle.solo.state.LayerState;
+import io.github.stoicswe.eyeandsickle.solo.state.MinerState;
+import io.github.stoicswe.eyeandsickle.solo.state.ResolutionState;
+import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+
+/**
+ * The breach: open one, take a turn, resolve it.
+ *
+ * <h2>Turn-based, and therefore clock-free</h2>
+ *
+ * {@code docs/design/05-hacking-minigame.md} §4, decided 2026-07-26: "a breach is turn-based. There
+ * is no wall clock anywhere in it." Every method here takes a {@code now} for one purpose only —
+ * timestamping what it writes — and nothing here has a deadline. That is why a breach needs no
+ * settlement path in {@code SoloGame.resume()} or {@code tick()}, and why it survives a quit for
+ * free: reloading puts the player back on the same turn.
+ *
+ * <h2>Attention is spent by doing, not by succeeding</h2>
+ *
+ * {@link #act} charges the action's cost <em>before</em> it evaluates the move. A probe that finds
+ * nothing costs the same as one that finds everything, because §4 prices actions against the target
+ * and the target does not know whether you learned anything. The one exception is a tool that never
+ * engaged at all — a Rainbow Table against a salted code — which is charged and then fully refunded
+ * so that the rule stays "charge first, evaluate second" with a single visible exception rather than
+ * a set of actions that might decline.
+ *
+ * <h2>The ledger is the feature, not the log</h2>
+ *
+ * Every accepted action appends a row, including ones that achieved nothing and ones the fiction
+ * refused. {@code 05} §1 constraint 4 requires a loss to read as <em>"I was too loud"</em> and never
+ * as <em>"the game decided"</em>, and §4 puts that requirement here: "the player must always be able
+ * to see which action cost what." A strike appends a <b>second</b> row for its penalty, so the
+ * three-attention alarm surcharge is attributable to the move that caused it rather than appearing
+ * as an unexplained gap in the arithmetic.
+ *
+ * <h2>Compute is held, then recovered (D-5, UI-6)</h2>
+ *
+ * An attempt reserves cycles once and holds them for its whole duration, releasing them onto the
+ * Thermal Budget curve at resolution — exactly the shape a scan takes since UI-6 ({@code
+ * docs/design/04-mining.md} §3.2). It creates no {@link io.github.stoicswe.eyeandsickle.solo.state.TaskState},
+ * because there is no duration to model.
+ */
+public final class BreachRules {
+
+    private BreachRules() {}
+
+    /**
+     * Actions whose refusal is a <em>gate</em> rather than a state problem.
+     *
+     * <p>{@code docs/client/04} §3.5 gives a gate its own exit status precisely so the requirement
+     * gets printed instead of a bare refusal — "a gate blocks this, and the requirement is printed",
+     * which is what makes a gate legible rather than merely obstructive. Every id here is blocked by
+     * not owning a tool from {@code docs/design/06-intrusion-tools.md} or {@code 07}.
+     */
+    private static final Set<String> TOOL_GATED =
+            Set.of("sidechannel", "volley", "rainbow", "harvest", "bypass");
+
+    // ================================================================== opening
+
+    /**
+     * Opens an attempt against {@code target}.
+     *
+     * <p>Every layer is generated here and persisted (D-4), including the ones the player has not
+     * reached — see {@link BoardFactory} for why generating lazily would be rerollable.
+     */
+    public static BreachResult begin(SoloSave save, BreachTarget target, Instant now) {
+        if (save.activeBreach != null) {
+            return BreachResult.refused("a breach is already open; abort it first");
+        }
+        if (target == null) {
+            return BreachResult.refused("no such target");
+        }
+        long cycles = Targets.attemptCycles(save);
+        AllocationState allocation = ComputeRules.reserve(
+                save.rig,
+                ComputeConsumer.ACTIVE_TOOL,
+                "breach --t" + target.difficultyTier().tier(),
+                cycles);
+        if (allocation == null) {
+            return BreachResult.refused("not enough available compute - " + cycles + " needed, "
+                    + ComputeRules.availableCycles(save.rig) + " free");
+        }
+        // Held, not spent: resolution hands it to ComputeRules.beginRecovery. Stamped so the rig
+        // monitor can draw the hold the same way it draws a scan's.
+        allocation.startedAt = now;
+
+        BreachState breach = new BreachState();
+        breach.targetId = target.targetId();
+        breach.targetLabel = target.label();
+        breach.difficultyTier = target.difficultyTier().tier();
+        breach.liveOrDormant = target.liveOrDormant().name();
+        breach.minerCrack = target.minerCrack();
+        breach.targetFirewallTier = target.firewallTier();
+        breach.targetTarpit = target.tarpit();
+        breach.targetCanaries = target.canaries();
+        breach.allocationId = allocation.allocationId;
+        breach.reservedCycles = cycles;
+
+        Rng rng = Rng.of(save);
+        BoardFactory.build(breach, rng);
+        rng.commit(save);
+
+        save.activeBreach = breach;
+        int budget = breach.layers.isEmpty() ? 0 : breach.layers.getFirst().budget;
+        EventLog.notice(save, "breach",
+                "breach opened on " + breach.targetLabel + ": tier " + breach.difficultyTier + ", "
+                        + breach.layers.size() + " layer(s), " + budget + " attention.",
+                now);
+        return BreachResult.applied("breach opened on " + breach.targetLabel + "; " + cycles + " cycles held");
+    }
+
+    // ================================================================== a turn
+
+    /**
+     * Takes one turn.
+     *
+     * <p>The order is deliberate and is the same order the ledger reads in: charge, act, record,
+     * punish, resolve. Charging first is §4's "attention is spent by doing". Recording before
+     * punishing is what puts the strike's penalty on its own row underneath the move that caused it.
+     */
+    public static BreachResult act(SoloSave save, String actionId, String argument, Instant now) {
+        BreachState breach = save.activeBreach;
+        if (breach == null) {
+            return BreachResult.refused("no breach is open");
+        }
+        if (!breach.outcome.isEmpty()) {
+            return BreachResult.refused("this breach has already resolved; dismiss it to continue");
+        }
+        LayerState layer = activeLayer(breach);
+        if (layer == null) {
+            return BreachResult.refused("no layer is active");
+        }
+        BreachAction action = null;
+        for (BreachAction candidate : actions(save)) {
+            if (candidate.actionId().equals(actionId)) {
+                action = candidate;
+                break;
+            }
+        }
+        if (action == null) {
+            return BreachResult.refused("no such move on this layer: " + actionId);
+        }
+        if (!action.enabled()) {
+            return TOOL_GATED.contains(actionId)
+                    ? BreachResult.gated(action.refusal())
+                    : BreachResult.refused(action.refusal());
+        }
+
+        Rng rng = Rng.of(save);
+        int cost = action.attentionCost();
+        if ("step".equals(actionId)) {
+            // The destination's own surcharge, per docs/design/05 §3.8's "2 + node.stepCost". It
+            // cannot go on the chip, because a chip does not know which node is selected — so the
+            // per-node cost is published on the lattice itself, where the player reads it before
+            // choosing, and it lands here.
+            cost += TraversalRules.stepCostOf(layer, argument);
+        }
+        int spentBefore = layer.spent;
+        if (!isBookkeeping(actionId)) {
+            layer.spent = Math.min(layer.budget, layer.spent + cost);
+        }
+
+        Move move = dispatch(save, layer, actionId, argument, rng);
+
+        if (move.bookkeeping()) {
+            // Composition, not a move: no charge, no ledger row, no probe count. The RNG is still
+            // committed because a dispatch may have drawn even when nothing was spent.
+            rng.commit(save);
+            return BreachResult.applied(move.result());
+        }
+        if (move.refunded()) {
+            // Restored, not decremented. The charge above clamps at the budget, so on a nearly
+            // exhausted layer subtracting the nominal cost would refund less than was taken — the
+            // ledger's running total would stop reconciling with the meter in the one situation
+            // where the player is counting most carefully.
+            layer.spent = spentBefore;
+            cost = 0;
+        }
+        if (action.kind() == BreachActionKind.PROBE || action.kind() == BreachActionKind.LOUD_TOOL) {
+            layer.probesUsed++;
+        }
+        breach.noise += noiseFor(action.kind()) + move.extraNoise();
+        ledger(breach, layer, action, cost, move.result(), move.strike());
+
+        if (move.strike()) {
+            strike(save, breach, layer, move, now);
+        }
+
+        if (move.cleared()) {
+            // A bypass is not a solve, and the distinction survives all the way to the resolution
+            // record: docs/design/02 §2.4's proof-of-skill needs the class *solved*, and the Overflow
+            // Kit exists precisely to skip solving it (docs/design/06 §2).
+            layer.state = "bypass".equals(actionId) ? "BYPASSED" : "CLEARED";
+            advance(save, breach, now);
+        } else if (layer.strikes >= layer.strikeLimit) {
+            // A lockout ends the layer, and a layer that cannot be cleared ends the attempt.
+            layer.state = "LOCKED";
+            resolve(save, breach, BreachOutcome.FAILED, now);
+        } else if (layer.spent >= layer.budget) {
+            resolve(save, breach, BreachOutcome.FAILED, now);
+        }
+
+        rng.commit(save);
+        return BreachResult.applied(move.result());
+    }
+
+    /** Walks away. Attention spent is gone, noise made stays made ({@code 05} §4.1). */
+    public static BreachResult abort(SoloSave save, Instant now) {
+        BreachState breach = save.activeBreach;
+        if (breach == null) {
+            return BreachResult.refused("no breach is open");
+        }
+        if (!breach.outcome.isEmpty()) {
+            return BreachResult.refused("this breach has already resolved; dismiss it to continue");
+        }
+        resolve(save, breach, BreachOutcome.ABORTED, now);
+        return BreachResult.applied("disengaged from " + breach.targetLabel);
+    }
+
+    /**
+     * Clears a resolved breach off the save.
+     *
+     * <p>Separate from resolution on purpose: the outcome slate is where a loss becomes
+     * comprehensible ({@code 05} §1 constraint 4), and a resolution that cleared itself would mean a
+     * player who quit in frustration came back with no way to read why they lost.
+     *
+     * @return false when there was nothing to dismiss, or the breach is still live
+     */
+    public static boolean dismiss(SoloSave save) {
+        if (save.activeBreach == null || save.activeBreach.outcome.isEmpty()) {
+            return false;
+        }
+        save.activeBreach = null;
+        return true;
+    }
+
+    // ================================================================== the move list
+
+    /**
+     * Every move that is legal right now, priced.
+     *
+     * <p>The price is attached to the action rather than left for the client to derive, which is
+     * {@code docs/design/05-hacking-minigame.md} §4's legibility requirement made structural: the
+     * cost is visible before the click, on every action, always. A client that computed costs itself
+     * would be a second implementation of the balance table, in the module that is never
+     * authoritative (Invariant I14).
+     */
+    public static List<BreachAction> actions(SoloSave save) {
+        BreachState breach = save.activeBreach;
+        if (breach == null || !breach.outcome.isEmpty()) {
+            return List.of();
+        }
+        LayerState layer = activeLayer(breach);
+        if (layer == null) {
+            return List.of();
+        }
+        List<BreachAction> out = new ArrayList<>();
+        switch (layer.puzzleClass) {
+            case "LOGIC" -> logicActions(save, breach, layer, out);
+            case "TRAVERSAL" -> traversalActions(save, breach, layer, out);
+            default -> enumerationActions(save, breach, layer, out);
+        }
+        out.add(bypassAction(save, breach, layer));
+        return List.copyOf(out);
+    }
+
+    /** What one action would cost right now, or {@code -1} if it is not on the board. */
+    public static int attentionCost(SoloSave save, String actionId) {
+        for (BreachAction action : actions(save)) {
+            if (action.actionId().equals(actionId)) {
+                return action.attentionCost();
+            }
+        }
+        return -1;
+    }
+
+    private static void enumerationActions(
+            SoloSave save, BreachState breach, LayerState layer, List<BreachAction> out) {
+        int bands = EnumerationRules.bandCount(layer);
+        out.add(action("sweep", BreachActionKind.QUIET_READ, "SWEEP BAND",
+                "counts the open ports in a band, never which",
+                surcharged(breach, Balance.ATTENTION_QUIET_READ), "band 0-" + (bands - 1), true, ""));
+        out.add(action("probe", BreachActionKind.PROBE, "PROBE SLOT", "resolves one slot exactly",
+                surcharged(breach, Balance.ATTENTION_PROBE), "slot 0-" + (layer.slots - 1), true, ""));
+        out.add(action("banner", BreachActionKind.LOUD_TOOL, "GRAB BANNER",
+                "reveals a slot and both neighbours, loudly",
+                surcharged(breach, Balance.ATTENTION_LOUD_TOOL), "slot 0-" + (layer.slots - 1), true, ""));
+
+        boolean owned = Targets.owns(save, "side-channel-reader");
+        boolean spent = layer.knownOpenTotal >= 0;
+        out.add(action("sidechannel", BreachActionKind.SIDE_CHANNEL, "SIDE-CHANNEL",
+                "reads the total without entering",
+                // ⚠ The Tarpit surcharge deliberately does not apply. docs/design/06 §2 calls zero
+                // attention the Side-Channel Reader's "whole identity" and docs/design/05 §4 makes
+                // it the only zero-attention action in the game; a defence that made it cost one
+                // would quietly delete the single thing that distinguishes it.
+                Balance.ATTENTION_SIDE_CHANNEL, "", owned && !spent,
+                !owned
+                        ? "requires the Side-Channel Reader, which is behind a late schematic gate"
+                        : "the side channel is spent on this layer"));
+
+        out.add(action("mark", BreachActionKind.PROBE, "MARK SLOT", "adds or removes a slot from your map",
+                0, "slot 0-" + (layer.slots - 1), true, ""));
+        out.add(action("declare", BreachActionKind.PROBE, "DECLARE MAP",
+                "submits your map; wrong is a strike, and it only tells you how many",
+                surcharged(breach, Balance.ATTENTION_PROBE), "", true, ""));
+    }
+
+    private static void logicActions(
+            SoloSave save, BreachState breach, LayerState layer, List<BreachAction> out) {
+        out.add(action("set", BreachActionKind.PROBE, "SET POSITION", "composes the next guess",
+                0, "position:symbol, e.g. 2:%", true, ""));
+        out.add(action("listen", BreachActionKind.QUIET_READ, "LISTEN",
+                "one true statement about the code",
+                surcharged(breach, Balance.ATTENTION_QUIET_READ), "", !layer.factDeck.isEmpty(),
+                "there is nothing left to overhear on this layer"));
+
+        boolean complete = !layer.draft.isEmpty() && !layer.draft.contains("");
+        out.add(action("probe", BreachActionKind.PROBE, "PROBE", "submits the draft; exact and partial come back",
+                surcharged(breach, Balance.ATTENTION_PROBE), "", complete,
+                "the draft is incomplete - set every position first"));
+
+        boolean fuzzer = Targets.owns(save, "fuzzer");
+        out.add(action("volley", BreachActionKind.LOUD_TOOL, "FUZZER VOLLEY",
+                Balance.BREACH_LOGIC_VOLLEY_SIZE + " guesses at once, exact counts only",
+                surcharged(breach, Balance.ATTENTION_LOUD_TOOL), "", fuzzer,
+                "requires the Fuzzer (25 EC)"));
+
+        boolean rainbow = Targets.owns(save, "rainbow-table");
+        out.add(action("rainbow", BreachActionKind.PROBE, "RAINBOW TABLE",
+                layer.salted ? "this lock is salted; the table will find nothing" : "reveals two positions",
+                surcharged(breach, Balance.ATTENTION_PROBE), "", rainbow,
+                "requires the Rainbow Table (60 EC plus its schematic)"));
+
+        boolean harvester = Targets.owns(save, "credential-harvester");
+        out.add(action("harvest", BreachActionKind.PROBE, "HARVEST",
+                "names every symbol in use, skipping a deduction step",
+                surcharged(breach, Balance.ATTENTION_CREDENTIAL_HARVESTER), "", harvester,
+                "requires the Credential Harvester, which is Sickle-reputation gated"));
+    }
+
+    private static void traversalActions(
+            SoloSave save, BreachState breach, LayerState layer, List<BreachAction> out) {
+        out.add(action("listen", BreachActionKind.QUIET_READ, "LISTEN",
+                "recovers an adjacent node's log fragment",
+                surcharged(breach, Balance.ATTENTION_QUIET_READ), "node id or hostname", true, ""));
+        out.add(action("step", BreachActionKind.PROBE, "STEP",
+                Targets.owns(save, "topology-mapper")
+                        ? "moves one hop and reveals two, on the Topology Mapper"
+                        : "moves one hop and reveals what it can see",
+                surcharged(breach, Balance.ATTENTION_PROBE), "node id or hostname", true, ""));
+        out.add(action("traceroute", BreachActionKind.LOUD_TOOL, "TRACEROUTE",
+                "maps two ranks ahead and flags traps, loudly",
+                surcharged(breach, Balance.ATTENTION_LOUD_TOOL), "", true, ""));
+        out.add(action("extract", BreachActionKind.PROBE, "EXTRACT",
+                "takes the objective, if you have picked the right one",
+                surcharged(breach, Balance.ATTENTION_PROBE), "node id or hostname", true, ""));
+
+        boolean canGoBack = TraversalRules.node(layer, layer.currentNodeId) != null
+                && TraversalRules.node(layer, layer.currentNodeId).rank > 0;
+        out.add(action("back", BreachActionKind.PROBE, "BACK",
+                "one rank back, at full price - a wrong branch is paid for twice",
+                surcharged(breach, Balance.ATTENTION_PROBE), "", canGoBack,
+                "you are already at the entry"));
+    }
+
+    /**
+     * The Overflow Kit chip.
+     *
+     * <h2>⚠ One bypass per attempt, not per layer</h2>
+     *
+     * {@code docs/design/05-hacking-minigame.md} §3.1: "Breaching means clearing every layer <b>or
+     * bypassing one</b> with the Overflow Kit." Read as once-per-layer, a tier-4 attempt could be
+     * bypassed end to end for three presses — the Kit would skip the entire puzzle, which is the
+     * meta-rule {@code CLAUDE.md} states as <em>"the puzzle is the game — never let anything skip it
+     * wholesale"</em>. Once per attempt is the reading that leaves the Kit what {@code
+     * docs/design/06-intrusion-tools.md} §2 calls it: "a panic button with a siren attached, never a
+     * default."
+     *
+     * <p>Caught by running a tier-3 attempt to a {@code BREACHED} outcome without solving a single
+     * layer.
+     */
+    private static BreachAction bypassAction(SoloSave save, BreachState breach, LayerState layer) {
+        boolean owned = Targets.owns(save, "overflow-kit");
+        boolean spent = breach.layers.stream().anyMatch(l -> "BYPASSED".equals(l.state));
+        return action("bypass", BreachActionKind.BYPASS, "OVERFLOW KIT",
+                "clears this layer outright, once per attempt; the cost is the point",
+                surcharged(breach, bypassCost(layer)), "", owned && !spent,
+                !owned
+                        ? "requires the Overflow Kit, which is proof-of-skill gated - solve this class first"
+                        : "the overflow kit is spent; one layer per attempt");
+    }
+
+    /** {@code ceil(budget * 0.80)} — {@code docs/design/05-hacking-minigame.md} §4's "most of the bar". */
+    static int bypassCost(LayerState layer) {
+        return (int) Math.ceil(layer.budget * Balance.ATTENTION_BYPASS_FRACTION);
+    }
+
+    /**
+     * Adds the Tarpit surcharge.
+     *
+     * <p>{@code docs/design/09-defense-and-hardening.md} §1: a Tarpit "slows every intruder action".
+     * With no clock left in the breach, "slows" can only mean "costs more", and a surcharge per
+     * action is the translation that punishes the play the Tarpit was written to punish — many small
+     * moves — rather than duplicating the Firewall's flat difficulty add.
+     *
+     * <p>Zero-cost actions stay zero: a surcharge on composing your own guess would be charging the
+     * player for thinking.
+     */
+    private static int surcharged(BreachState breach, int base) {
+        if (base <= 0 || !breach.targetTarpit) {
+            return base;
+        }
+        return base + Balance.TARPIT_ATTENTION_SURCHARGE;
+    }
+
+    private static BreachAction action(
+            String id,
+            BreachActionKind kind,
+            String label,
+            String detail,
+            int cost,
+            String argumentHint,
+            boolean enabled,
+            String refusal) {
+        return new BreachAction(id, kind, label, detail, cost, argumentHint, enabled, enabled ? "" : refusal);
+    }
+
+    // ================================================================== bookkeeping
+
+    private static boolean isBookkeeping(String actionId) {
+        return "mark".equals(actionId) || "set".equals(actionId);
+    }
+
+    private static Move dispatch(SoloSave save, LayerState layer, String actionId, String argument, Rng rng) {
+        if ("bypass".equals(actionId)) {
+            return Move.cleared("layer bypassed - the kit does not ask what was behind it");
+        }
+        return switch (layer.puzzleClass) {
+            case "LOGIC" -> LogicRules.act(layer, actionId, argument, rng);
+            case "TRAVERSAL" ->
+                    TraversalRules.act(layer, actionId, argument, Targets.owns(save, "topology-mapper"));
+            default -> EnumerationRules.act(layer, actionId, argument, rng);
+        };
+    }
+
+    private static int noiseFor(BreachActionKind kind) {
+        return switch (kind) {
+            case QUIET_READ -> Balance.NOISE_QUIET_READ;
+            case PROBE -> Balance.NOISE_PROBE;
+            case LOUD_TOOL -> Balance.NOISE_LOUD_TOOL;
+            case BYPASS -> Balance.NOISE_BYPASS;
+            case SIDE_CHANNEL -> Balance.NOISE_SIDE_CHANNEL;
+        };
+    }
+
+    private static void ledger(
+            BreachState breach, LayerState layer, BreachAction action, int cost, String result, boolean alarm) {
+        AttentionEntryState entry = new AttentionEntryState();
+        entry.sequence = ++breach.sequence;
+        entry.layerIndex = layer.index;
+        entry.actionId = action.actionId();
+        entry.kind = action.kind().name();
+        entry.label = action.label();
+        entry.cost = cost;
+        entry.spentAfter = layer.spent;
+        entry.result = result;
+        entry.alarm = alarm;
+        breach.ledger.add(entry);
+    }
+
+    /**
+     * Records a strike: its own ledger row, its own attention penalty, its own log line.
+     *
+     * <p>The second row is not duplication. Without it the alarm's three attention would appear as a
+     * discrepancy between the previous row's running total and the next one's — an unexplained gap
+     * in exactly the artefact that exists to make a loss explicable.
+     */
+    private static void strike(SoloSave save, BreachState breach, LayerState layer, Move move, Instant now) {
+        layer.strikes++;
+        layer.spent = Math.min(layer.budget, layer.spent + Balance.ATTENTION_ALARM_PENALTY);
+        breach.alarms++;
+
+        AttentionEntryState entry = new AttentionEntryState();
+        entry.sequence = ++breach.sequence;
+        entry.layerIndex = layer.index;
+        entry.actionId = "strike";
+        entry.kind = BreachActionKind.PROBE.name();
+        entry.label = "STRIKE";
+        entry.cost = Balance.ATTENTION_ALARM_PENALTY;
+        entry.spentAfter = layer.spent;
+        entry.result = "alarm raised - " + layer.strikes + " of " + layer.strikeLimit;
+        entry.alarm = true;
+        breach.ledger.add(entry);
+
+        if (!move.consequence().isEmpty()) {
+            breach.consequences.add(move.consequence());
+        }
+        EventLog.warning(save, "breach",
+                "alarm on " + breach.targetLabel + ": " + layer.strikes + " of " + layer.strikeLimit
+                        + " strikes on layer " + layer.index + ".",
+                now);
+    }
+
+    /** Promotes the next pending layer, or resolves the attempt when there is none. */
+    private static void advance(SoloSave save, BreachState breach, Instant now) {
+        for (LayerState layer : breach.layers) {
+            if ("PENDING".equals(layer.state)) {
+                layer.state = "ACTIVE";
+                breach.activeLayer = layer.index;
+                EventLog.notice(save, "breach",
+                        "layer " + layer.index + " open on " + breach.targetLabel + ": "
+                                + layer.puzzleClass.toLowerCase(Locale.ROOT) + ", " + layer.budget + " attention.",
+                        now);
+                return;
+            }
+        }
+        resolve(save, breach, BreachOutcome.BREACHED, now);
+    }
+
+    static LayerState activeLayer(BreachState breach) {
+        for (LayerState layer : breach.layers) {
+            if ("ACTIVE".equals(layer.state)) {
+                return layer;
+            }
+        }
+        return null;
+    }
+
+    // ================================================================== resolution
+
+    private static void resolve(SoloSave save, BreachState breach, BreachOutcome outcome, Instant now) {
+        // The held cycles start recovering on the Thermal Budget curve, exactly like a finished
+        // scan. Dated from now rather than from when the attempt opened, because unlike a scan the
+        // attempt has no published duration to date it from — it ended when the player ended it.
+        ComputeRules.beginRecovery(save.rig, breach.allocationId, now);
+
+        int noise = Balance.NOISE_BASE + breach.noise + breach.alarms * Balance.NOISE_PER_ALARM;
+        breach.resolvedNoise = noise;
+
+        // Invariant I9: a miner crack generates zero heat on EVERY outcome, including failure.
+        // Defending your own rig never contributes to being wanted, and that is exactly what makes
+        // the crack safe to lose repeatedly and therefore usable as the tutorial (04 §5.1).
+        int gain = breach.minerCrack ? 0 : noise / Balance.NOISE_PER_HEAT_POINT;
+        int heatBefore = save.personalHeat;
+        save.personalHeat = Math.min(Balance.PERSONAL_HEAT_MAX, save.personalHeat + gain);
+        breach.resolvedHeat = save.personalHeat - heatBefore;
+
+        if (breach.minerCrack) {
+            resolveCrack(save, breach, outcome, now);
+        } else {
+            resolveOffensive(save, breach, outcome, now);
+        }
+
+        ResolutionState record = record(breach, outcome, now);
+        save.resolutions.add(record);
+        breach.resolvedSchematicMaterial = SalvageRules.award(save, record);
+        if (breach.resolvedSchematicMaterial > 0) {
+            breach.consequences.add("recovered " + breach.resolvedSchematicMaterial
+                    + " unit of schematic material (" + SalvageRules.remainingForUnlock(save) + " more for an unlock)");
+        }
+
+        if (outcome == BreachOutcome.ABORTED) {
+            breach.consequences.add("you walked away; the noise you made stays made");
+        }
+        if (outcome == BreachOutcome.FAILED && breach.consequences.isEmpty()) {
+            // ⚠ A failure with no stated consequence reads as "the game decided" — the one reading
+            // docs/design/05 §1 constraint 4 forbids. This can only fire on a very quiet loss
+            // against an undefended target, and it must still say something true.
+            breach.consequences.add("the attempt failed; the attention you spent is gone");
+        }
+
+        breach.outcome = outcome.name();
+        breach.activeLayer = -1;
+
+        String summary = breach.targetLabel + ": " + outcome.name().toLowerCase(Locale.ROOT)
+                + ", noise " + noise + (breach.resolvedHeat > 0 ? ", heat +" + breach.resolvedHeat : ", no heat");
+        if (outcome == BreachOutcome.BREACHED) {
+            EventLog.notice(save, "breach", summary, now);
+        } else {
+            EventLog.warning(save, "breach", summary, now);
+        }
+    }
+
+    /**
+     * A crack against a foreign miner on the player's own rig — {@code docs/design/04-mining.md}
+     * §5.1.
+     *
+     * <p>Success seizes the buffer and reclaims the compute. It is a <b>transfer, not a faucet</b>:
+     * "the buffer physically resides on the host's machine ... so the EC is already there to take —
+     * no new currency enters the economy" ({@code docs/design/03-economy.md} §5 rule 3).
+     *
+     * <p>⚠ Failure is the dead-man switch, and it must not be softened. §5.1: "a botched crack
+     * flushes the buffer to the deployer immediately and the miner self-destructs. Host reclaims
+     * compute but gains nothing, and the deployer is alerted with the host's handle attached ...
+     * <b>Without this, cracking would strictly dominate killing.</b>" The four-response menu in §5 is
+     * core game content; making a failed crack merely disappointing would collapse it to one option.
+     */
+    private static void resolveCrack(SoloSave save, BreachState breach, BreachOutcome outcome, Instant now) {
+        MinerState miner = foreignMiner(save, breach.targetId);
+        if (miner == null) {
+            breach.consequences.add("the miner was already gone by the time this resolved");
+            return;
+        }
+        if (outcome == BreachOutcome.ABORTED) {
+            breach.consequences.add("you backed out; it is still running, and still earning for somebody");
+            return;
+        }
+        long buffer = miner.bufferedMinorUnits;
+        long reclaimed = miner.hostCycles;
+        miner.bufferedMinorUnits = 0L;
+        save.rig.foreignMiners.remove(miner);
+        ComputeRules.release(save.rig, miner.allocationId);
+
+        if (outcome == BreachOutcome.BREACHED) {
+            if (buffer > 0) {
+                LedgerRules.apply(save, buffer, "CRACK", "Cracked " + breach.targetLabel, now);
+            }
+            breach.resolvedLootMinorUnits = buffer;
+            breach.resolvedLootLabel = money(buffer) + " seized from the buffer";
+            breach.consequences.add("the miner is gone and " + reclaimed + " cycles came back");
+            breach.consequences.add("the deployer learns nothing");
+            return;
+        }
+        breach.consequences.add("dead-man switch: " + money(buffer) + " flushed to the deployer");
+        breach.consequences.add("the miner self-destructed; " + reclaimed + " cycles came back and nothing else did");
+        breach.consequences.add("your handle was exposed to "
+                + (miner.deployerHandle.isBlank() ? "the deployer" : miner.deployerHandle));
+    }
+
+    /**
+     * An offensive breach of a node out in the world.
+     *
+     * <p>⚠ Loot is an <b>item, never ethecoin</b>. Minting currency on a successful breach would be a
+     * faucet ({@code docs/design/03-economy.md} §5 rule 3), and ethecoin must never buy a ceiling
+     * (Invariants I1 and I2) — an income source attached to the game's main progression loop is the
+     * shortest path to both.
+     */
+    private static void resolveOffensive(SoloSave save, BreachState breach, BreachOutcome outcome, Instant now) {
+        if (outcome == BreachOutcome.BREACHED) {
+            ItemState item = new ItemState();
+            item.itemType = "data-cache";
+            item.displayName = "data cache from " + breach.targetLabel;
+            item.tier = StorageTier.STANDARD_STORAGE.name();
+            item.acquiredAt = now;
+            item.origin = "breached";
+            save.items.add(item);
+            breach.resolvedLootLabel = item.displayName;
+            breach.consequences.add("took " + item.displayName + " into standard storage");
+            return;
+        }
+        if (outcome == BreachOutcome.FAILED) {
+            breach.consequences.add("the attempt failed and the attention you spent is gone");
+            if (breach.targetCanaries) {
+                breach.consequences.add("a canary token on the target tagged your handle");
+            }
+            if (breach.resolvedHeat > 0) {
+                breach.consequences.add("personal heat rose by " + breach.resolvedHeat
+                        + "; laying low or self-mining is the way down");
+            }
+        }
+    }
+
+    /**
+     * Builds the persisted resolution record.
+     *
+     * <p>{@code puzzleClass} names the layer where the attempt <em>ended</em>: the deepest one on a
+     * success, the one that stopped the player otherwise. One class, because that is the shape
+     * {@code docs/design/05-hacking-minigame.md} §2 fixed and the shape the server persists. Every
+     * class actually solved is listed in {@code classesCleared} instead of being given a row of its
+     * own — extra rows would be a countable artefact, and counting these is the exploit
+     * ({@code ResolutionRecord}'s javadoc, Invariant I7).
+     *
+     * <p>A <b>bypassed</b> layer is not a cleared one. {@code docs/design/02-unlock-gates.md} §2.4
+     * requires the class to have been <em>solved</em>, and the Overflow Kit exists to skip solving
+     * it — crediting a bypass would let the proof-of-skill item unlock the next proof-of-skill item.
+     */
+    private static ResolutionState record(BreachState breach, BreachOutcome outcome, Instant now) {
+        ResolutionState record = new ResolutionState();
+        // The one line the network rules need out of this engine. NetRules.reconcileFootholds reads
+        // it to grant a foothold and the host's one-time payout for every BREACHED row; without it
+        // there is no way to tell which machine an attempt was against, and the breach engine would
+        // have to learn that a topology exists. See ResolutionState#targetId.
+        record.targetId = breach.targetId;
+        record.difficultyTier = breach.difficultyTier;
+        record.liveOrDormant = breach.liveOrDormant;
+        record.outcome = outcome.name();
+        record.at = now;
+
+        String deepest = breach.layers.isEmpty() ? "ENUMERATION" : breach.layers.getFirst().puzzleClass;
+        for (LayerState layer : breach.layers) {
+            record.probesUsed += layer.probesUsed;
+            if (!"PENDING".equals(layer.state)) {
+                deepest = layer.puzzleClass;
+            }
+            if ("CLEARED".equals(layer.state)) {
+                record.classesCleared.add(layer.puzzleClass);
+            }
+        }
+        record.puzzleClass = deepest;
+        return record;
+    }
+
+    private static MinerState foreignMiner(SoloSave save, String targetId) {
+        String minerId = targetId.startsWith("miner:") ? targetId.substring("miner:".length()) : targetId;
+        for (MinerState miner : save.rig.foreignMiners) {
+            if (miner.minerId.equals(minerId)) {
+                return miner;
+            }
+        }
+        return null;
+    }
+
+    /** Matches {@code SoloGame}'s own formatting, so the two never print the same figure differently. */
+    private static String money(long minorUnits) {
+        return String.format(Locale.ROOT, "%d.%02d EC", minorUnits / 100, Math.abs(minorUnits % 100));
+    }
+}

@@ -98,4 +98,71 @@ public final class SoloSave {
 
     /** Roughly a long session's worth. Old entries are dropped from the front. */
     public static final int LOG_CAPACITY = 500;
+
+    // ------------------------------------------------------------------ the breach (design/05)
+
+    /**
+     * Seeded, persisted PRNG state — see {@link io.github.stoicswe.eyeandsickle.solo.breach.Rng} and
+     * {@code docs/design/16-breach-implementation.md} §2.
+     *
+     * <p>Persisted because a draw that is not persisted is a draw the player can reroll by
+     * reloading, and both things this engine draws — a breach board and a scan's false positive —
+     * would become advisory if they were rerollable. The default is splitmix64's own golden-ratio
+     * constant so that a save written before this field existed still has a usable, non-degenerate
+     * seed rather than zero.
+     *
+     * <p>{@code SoloGame.newCharacter} overwrites it with {@code Rng.derive(characterId, now)}.
+     */
+    public long rngSeed = 0x9E3779B97F4A7C15L;
+
+    /**
+     * The breach in progress, or null.
+     *
+     * <p>Turn-based, so it needs no settlement — {@code docs/design/05-hacking-minigame.md} §4
+     * removed the wall clock from the breach entirely. Nothing here has a deadline, so nothing here
+     * can complete while the game is closed, so {@code resume()} and {@code tick()} have no work to
+     * do on it. Contrast {@link #tasks}, two fields up, which exists for exactly the opposite case.
+     */
+    public BreachState activeBreach;
+
+    /**
+     * One row per breach attempt, oldest first — the persisted {@code resolutionRecord} from
+     * {@code docs/design/05-hacking-minigame.md} §2.
+     *
+     * <p>⚠ <b>Never counted.</b> Both readers ask for the highest tier solved against a live target
+     * — proof-of-skill ({@code 02} §2.4, Invariant I7) and the salvage guard ({@code 10} §1a,
+     * Invariant I13). A count over this list rewards farming the softest target available, which is
+     * the exact failure the gate rule exists to prevent; {@code ResolutionRecord}'s javadoc calls
+     * reaching for one "the exploit arriving".
+     */
+    public List<ResolutionState> resolutions = new ArrayList<>();
+
+    // ------------------------------------------------------------------ the network (design/17)
+
+    /**
+     * The generated world: virtual servers, their machines, and the links between them.
+     *
+     * <p>Written once by {@code TopologyGenerator.generate} at {@code newCharacter} and never
+     * regenerated — {@code NetRules} treats a non-null value as final. Null on a save written before
+     * this existed, which those rules read as "no network", so an old character keeps working with an
+     * empty map rather than being handed a freshly rolled world on load.
+     *
+     * <p>⚠ {@link #CURRENT_FORMAT} is deliberately <b>not</b> bumped for this. {@code SaveStore}
+     * refuses only saves whose format is <em>greater</em> than the build's, and Jackson leaves a
+     * missing field at its initialiser — so a bump would refuse nothing and protect nothing, while
+     * costing every existing save a compatibility scare.
+     *
+     * <p>⚠ It is by far the largest thing in this file — up to 350 hosts, rewritten on every
+     * autosave. See {@link TopologyState}'s note on why nothing derived is cached inside it.
+     */
+    public TopologyState topology;
+
+    /**
+     * Generic schematic contribution material — {@code docs/design/02-unlock-gates.md} §2.2 and
+     * {@code docs/design/10-botnets.md} §1a.
+     *
+     * <p>Partial progress toward schematic unlocks, gated on engagement tier (Invariant I13) so it
+     * sets pace and never reach. See {@link io.github.stoicswe.eyeandsickle.solo.rules.SalvageRules}.
+     */
+    public int schematicMaterial = 0;
 }
