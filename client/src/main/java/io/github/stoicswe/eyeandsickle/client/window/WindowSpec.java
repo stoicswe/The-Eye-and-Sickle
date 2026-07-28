@@ -33,7 +33,29 @@ public enum WindowSpec {
     RIG_MONITOR("rig-monitor", "Rig monitor", "top", "Where every cycle is, one cell per cycle. Also what the rig is working on, with time remaining.", 420, 560, 320, 420, KeyCode.DIGIT0, false, false, true),
 
     TERMINAL("terminal", "Terminal", "a shell session", "A real shell over the game: pipelines, globs, exit statuses. Everything the windows do, and some things they do not.", 880, 620, 560, 360, KeyCode.DIGIT1, false, true, false),
-    MAP("map", "Network map", "traceroute", "Nodes you know about and the routes between them. Where a deployment would go.", 1000, 720, 640, 480, KeyCode.DIGIT2, false, true, false),
+    /**
+     * The network, as a graph you read and a list you sort. <b>The only network tool.</b>
+     *
+     * <h2>⚠ There were two of these, and that was the bug</h2>
+     *
+     * A second window — {@code map}, "Network map", on this same {@code Shortcut+2} — used to sit
+     * here holding a read-only table of known nodes. The comment that justified it said the two
+     * "answer different questions: the list is a table you sort, the graph is a shape you read".
+     * That was true and it did not survive contact: this window has <b>had</b> a LIST view the whole
+     * time, on a chip beside GRAPH and FOLDERS, so the split bought a second window and no second
+     * capability.
+     *
+     * <p>What it cost was worse than duplication. The stub had <b>no sweep control</b>, so it was
+     * permanently empty for anyone who had not swept elsewhere, and it carried a note reading
+     * <em>"Breach targeting is not built"</em> — stale since the breach window shipped. A player
+     * pressing {@code Shortcut+2} landed on an empty table that told them the feature did not exist,
+     * while the working tool sat behind a letter key. Reported as networking and breaching having
+     * regressed; nothing had regressed, and both tools were fine.
+     *
+     * <p>⚠ It inherits {@code Shortcut+2} deliberately. The habit that caused the confusion now
+     * lands on the tool that works, and the digit row stays contiguous.
+     */
+    NETMAP("netmap", "Network", "nmap / a topology view", "The network as a graph: your vantage, what a sweep has found, and the bridges out. Reach is a hard ceiling; a better sweep only finds quieter machines.", 1100, 780, 720, 480, KeyCode.DIGIT2, false, true, false),
     RECON("recon", "Recon", "less", "What you have learned about a target, and what it would cost to learn more.", 760, 640, 480, 400, KeyCode.DIGIT3, false, true, false),
     AUDIT("audit", "Audit", "ps / netstat / df", "Processes, connections and storage on your own rig. When these three disagree, something is hiding.", 900, 600, 640, 400, KeyCode.DIGIT4, false, true, false),
     MINING("mining", "Mining", "a miner dashboard", "Self-mining allocation and deployed-miner collection. The income floor, and the only offline income.", 820, 600, 560, 400, KeyCode.DIGIT5, false, true, false),
@@ -43,10 +65,6 @@ public enum WindowSpec {
     DEFENSE("defense", "Defense", "a firewall / IDS console", "What is armed and what it costs to keep armed. Defending your own rig never generates heat.", 780, 560, 520, 380, KeyCode.DIGIT9, false, true, false),
     // The core loop (docs/design/05). Given a letter rather than a digit because the digit row is
     // full, and B is the one accelerator a player will reach for without being told.
-    // The network graph. Distinct from MAP, which is the known-node LIST — the user asked for both
-    // views and they answer different questions: the list is a table you sort, the graph is a shape
-    // you read. `N` because the digit row is full and it is the letter anyone would reach for.
-    NETMAP("netmap", "Network", "nmap / a topology view", "The network as a graph: your vantage, what a sweep has found, and the bridges out. Reach is a hard ceiling; a better sweep only finds quieter machines.", 1100, 780, 720, 480, KeyCode.N, false, true, false),
     BREACH("breach", "Breach", "an exploit console", "The puzzle itself. Spend attention to clear a node's layers before the budget runs out; nothing here is on a clock.", 1080, 760, 720, 480, KeyCode.B, false, true, false),
 
     MARKET("market", "Market", "a package manager", "What is for sale, what it costs, and which gate stands in front of it.", 900, 640, 600, 440, KeyCode.M, true, true, false),

@@ -21,21 +21,42 @@ import org.junit.jupiter.api.Test;
 class WindowCatalogueTest {
 
     @Test
-    @DisplayName("the catalogue is 05 §2.1's fifteen, plus `man`, `log`, `breach` and `netmap`")
+    @DisplayName("the catalogue is 05 §2.1's fifteen, less `map`, plus `man`, `log`, `breach`, `netmap`")
     void catalogueMatchesTheDocuments() {
         // ⚠ The two documents disagree about the size of a table both call closed: docs/client/05
         // §2.1 lists fifteen and never absorbed the `man` window that docs/client/04 §4.6 adds and
         // flags as T-1. Building it and reporting the discrepancy beats silently dropping the way a
         // player reaches the teaching layer — which is client pillar C6.
-        // Nineteen: §2.1's fifteen, plus `man` (T-1), `log`, `breach` — the core loop
+        //
+        // Eighteen: §2.1's fifteen MINUS `map`, plus `man` (T-1), `log`, `breach` — the core loop
         // (docs/design/05), which §2.1 could not list because the minigame had no rules when that
-        // table was written — and `netmap`, the graph view of the network the sweep discovers.
-        assertThat(WindowSpec.values()).hasSize(19);
+        // table was written — and `netmap`, the network tool.
+        //
+        // ⚠ `map` was REMOVED on 2026-07-27 and this is the assertion that says so. It was a
+        // second network window holding a read-only node table, on the same Shortcut+2 `netmap`
+        // now owns. It had no sweep control, so it was permanently empty for anyone who had not
+        // swept elsewhere, and it carried a stale note reading "Breach targeting is not built".
+        // `netmap` has had a LIST view on a chip the whole time, so nothing was lost with it.
+        assertThat(WindowSpec.values()).hasSize(18);
         assertThat(java.util.Arrays.stream(WindowSpec.values()).map(WindowSpec::id).toList())
                 .containsExactlyInAnyOrder(
-                        "rig-monitor", "terminal", "map", "recon", "audit", "mining", "storage",
+                        "rig-monitor", "terminal", "recon", "audit", "mining", "storage",
                         "ledger", "botnet", "defense", "market", "identity", "comms", "settings",
                         "switcher", "man", "log", "breach", "netmap");
+    }
+
+    @Test
+    @DisplayName("⚠ there is exactly ONE network window, and it is the one with the sweep control")
+    void onlyOneNetworkTool() {
+        // The regression report that produced this: two windows both about the network, the
+        // reachable one inert. A second network tool is not a feature, it is a coin flip the player
+        // loses half the time.
+        assertThat(WindowSpec.byId("map")).isEmpty();
+        assertThat(WindowSpec.byId("netmap")).isPresent();
+        assertThat(java.util.Arrays.stream(WindowSpec.values())
+                        .filter(w -> w.title().toLowerCase(java.util.Locale.ROOT).contains("network"))
+                        .toList())
+                .containsExactly(WindowSpec.NETMAP);
     }
 
     @Test

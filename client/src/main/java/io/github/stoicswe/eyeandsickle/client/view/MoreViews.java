@@ -140,47 +140,6 @@ public final class MoreViews {
 
     // ------------------------------------------------------------------ map
 
-    /** The network graph — what is decided about targeting, and what is not. */
-    public static Region map(GameSession session) {
-        VBox root = panel("NETWORK MAP — traceroute");
-
-        TableView<GameSession.KnownNode> table = new TableView<>();
-        TableColumn<GameSession.KnownNode, String> address = new TableColumn<>("Address");
-        address.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(c.getValue().address()));
-        address.setPrefWidth(180);
-        TableColumn<GameSession.KnownNode, String> tier = new TableColumn<>("Tier");
-        tier.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty("T" + c.getValue().tier()));
-        tier.setPrefWidth(70);
-        TableColumn<GameSession.KnownNode, String> recon = new TableColumn<>("Recon");
-        recon.setCellValueFactory(
-                c -> new javafx.beans.property.SimpleStringProperty(String.valueOf(c.getValue().reconLevel())));
-        recon.setPrefWidth(80);
-        TableColumn<GameSession.KnownNode, String> note = new TableColumn<>("Note");
-        note.setCellValueFactory(c -> new javafx.beans.property.SimpleStringProperty(
-                c.getValue().hostsForeignMiner() ? "foreign miner present" : ""));
-        note.setPrefWidth(240);
-        table.getColumns().addAll(List.of(address, tier, recon, note));
-        table.setPlaceholder(new Label("Nothing discovered yet. Recon costs compute and ethecoin, "
-                + "which is why this list starts empty rather than full."));
-        VBox.setVgrow(table, Priority.ALWAYS);
-
-        Runnable refresh = () -> table.getItems().setAll(session.knownNodes());
-        refresh.run();
-        session.onChange(s -> refresh.run());
-
-        root.getChildren()
-                .addAll(
-                        wrapped("Only machines you have discovered appear here, and the same rule governs "
-                                + "`ls /net/` and tab completion. A map that showed unscanned nodes "
-                                + "would be giving away what recon is priced to sell."),
-                        table,
-                        openQuestion("Breach targeting is not built: the hacking minigame is the "
-                                + "largest [PROPOSAL] in the design (docs/design/05), and its puzzle "
-                                + "classes, trace model and difficulty tiers are all still open. "
-                                + "Committing an interface to it now would decide it by accident."));
-        return scrollable(root);
-    }
-
     // ------------------------------------------------------------------ recon
 
     /** What recon costs and what it buys — the decided part of a proposed system. */

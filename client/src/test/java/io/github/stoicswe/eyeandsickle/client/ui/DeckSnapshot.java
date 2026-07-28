@@ -126,7 +126,7 @@ public final class DeckSnapshot {
                 case SETTINGS -> (Region) Views.settings(profile, themes, () -> {});
                 case DEFENSE -> (Region) Views.defense(session);
                 case LEDGER -> (Region) Views.ledger(session);
-                default -> (Region) MoreViews.map(session);
+                default -> (Region) MoreViews.recon(session);
             });
         }
 

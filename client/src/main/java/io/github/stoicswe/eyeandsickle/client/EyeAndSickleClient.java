@@ -638,7 +638,6 @@ public class EyeAndSickleClient extends Application {
             case MAN -> ManView.create(terms);
             case LOG -> LogView.create(session);
             case MARKET -> MoreViews.market(session);
-            case MAP -> MoreViews.map(session);
             case RECON -> MoreViews.recon(session);
             case BOTNET -> MoreViews.botnet(session);
             case COMMS -> MoreViews.comms(session);

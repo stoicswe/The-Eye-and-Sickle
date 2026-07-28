@@ -705,6 +705,18 @@ Record resolutions here when they land (date — question — outcome — where 
 
   ⚠ **`Gothic plate` is genre, not iconography** — rivets, plate and chevrons, deliberately none of the protected emblems the obvious reference is known for. ⚠ Control-box glyphs are **drawn as shapes, never as text**, so no character the bundled fonts might not carry can reach the casing (`GlyphCoverageTest`).
 
+- 2026-07-27 — **There were two network windows; `map` is removed** — recorded in `../client/05-tool-windows-and-layout.md` §2.5. Reported as *"the networking tool was functional a few commits back, it seems to have been reverted"*, and the same for breaching. **Nothing had been reverted and neither tool was broken.**
+
+  The evidence, in order. Neither commit in the window touched a single net or breach file (`git show --stat`). All nineteen tool windows built and laid out. On a fresh character a sweep discovered 5 of 5 machines and a breach opened with a snapshot and two actions. On the reporter's own save — copied, never mutated — the BASE sweep chip's exact call path returned status 0 and took `knownNodes` from **0 → 5** and `breachTargets` from **0 → 5**.
+
+  ⚠ **The actual fault was two windows about the network, and the reachable one was inert.** `map` ("Network map", `Shortcut+2`) held a read-only table with **no sweep control**, so it was permanently empty for anyone who had not swept elsewhere — and it carried a note reading *"Breach targeting is not built"*, stale since the breach window shipped. `netmap` ("Network", `N`) was the real tool. A player pressing the digit landed on an empty table that told them the feature did not exist.
+
+  ⚠ **Breach looked broken for the same reason, one step removed**: breach targets are swept hosts, so an unswept map means an empty target list. Two tools appearing to fail together had one cause.
+
+  `map` is deleted and `netmap` **inherits its `Shortcut+2`**, so the habit that caused the confusion now lands on the tool that works and the digit row stays contiguous. Nothing was lost with it — `netmap` has had a LIST view on a chip beside GRAPH and FOLDERS the whole time, which is the "table you sort" the split was justified by. `WindowCatalogueTest.onlyOneNetworkTool` fails the build if a second network window ever appears.
+
+  ⚠ **Worth keeping as a rule: `scan` is not `sweep`.** `scan` audits your own rig for parasites; `sweep` probes a network you do not own. `SoloGame` §724 says so in a comment and the log lines differ, but a player who runs `scan` and watches the map stay empty has been told nothing useful. An empty-state hint on both windows is the obvious follow-up and is **not** built.
+
 ## 4. How to use this doc
 
 - Before starting design work on any system, check here for its open questions.

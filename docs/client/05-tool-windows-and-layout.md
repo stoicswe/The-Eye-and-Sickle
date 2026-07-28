@@ -108,7 +108,7 @@ The thirteen ids below marked **(00 §6.1)** come from `00-client-overview.md` �
 |---|---|---|---|---|---|---|---|---|
 | — | `rig-monitor` | Rig monitor | `top` | 420×560 *(panel)* · 560×96 *(strip)* | 320×420 · 420×88 | `Shortcut+0` | no — collapses to strip | **yes** |
 | 1 | `terminal` | Terminal | a shell session | 880×620 | 560×360 | `Shortcut+1` | yes | no |
-| 2 | `map` | Network map | `traceroute` | 1000×720 | 640×480 | `Shortcut+2` | yes | no |
+| 2 | `netmap` | Network | `nmap` / a topology view | 1100×780 | 720×480 | `Shortcut+2` | yes | no |
 | 3 | `recon` | Recon | `less` | 760×640 | 480×400 | `Shortcut+3` | yes | no |
 | 4 | `audit` | Audit | `ps` / `netstat` / `df` | 900×600 | 640×400 | `Shortcut+4` | yes | no |
 | 5 | `mining` | Mining | a miner dashboard | 820×600 | 560×400 | `Shortcut+5` | yes | no |
@@ -124,7 +124,7 @@ The thirteen ids below marked **(00 §6.1)** come from `00-client-overview.md` �
 
 `dock` is reserved as the id of the docked shell's single `Stage` (§5.2). It is not a tool and never appears in the switcher.
 
-**Minimum sizes obey one rule:** no window's minimum may exceed **720×480**, so that any two tools fit side by side on a 1366×768 laptop with room for the rig strip. `map` is the only tool that pushes it (640×480), because a graph below that is a list pretending to be a graph.
+**Minimum sizes obey one rule:** no window's minimum may exceed **720×480**, so that any two tools fit side by side on a 1366×768 laptop with room for the rig strip. `netmap` and `breach` sit exactly on it (720×480); a graph below that is a list pretending to be a graph.
 
 ### 2.2 Two windows this document adds — and one it does not
 
@@ -200,7 +200,9 @@ Tracked as **WL-1**. If the catalogue owner would rather have thirteen, `comms` 
 
 ---
 
-### 2.5 `map` — Network map
+### 2.5 `netmap` — Network
+
+> **⚠ This section described `map` until 2026-07-27, and the code had shipped TWO windows against it.** `netmap` is the tool this section specifies — the graph, the recon overlays, the node states. A second window also called "Network map" held a read-only table of known nodes on the same `Shortcut+2`; it had **no sweep control**, so it was permanently empty for anyone who had not swept elsewhere, and it carried a stale note reading *"Breach targeting is not built"*. It was **removed**, and `netmap` — which has had a LIST view on a chip beside GRAPH and FOLDERS the whole time — inherited the id's slot and its accelerator. `WindowCatalogueTest.onlyOneNetworkTool` fails the build if a second network window ever appears.
 
 **Purpose:** the target graph. The Traversal puzzle class lives here (`../design/05-hacking-minigame.md` §3.1) and so does every recon overlay.
 
@@ -237,7 +239,7 @@ Deterministic traversal order is what lets a screen-reader user walk the graph a
 
 Built from `es-log-line` with `es-state-recovered` (`01-visual-language.md` §8.7) — visually distinguished from system output because provenance of *narrative* matters. This is also the window where the **[PROPOSAL]** diegetic Eye skin applies (`00-client-overview.md` §3.3, **CL-3**): recovered Eye documents render their *content pane* in The Eye's institutional chrome. Scope limit unchanged — content panes only, never the player's own controls, same contrast floor.
 
-**Key interactions:** `Shortcut+F` searches the open document; `Shortcut+Shift+F` searches **all** recovered material and raises this window; selecting an identifier offers *find in `audit` / `map` / `ledger`* (§3.3 cross-window links). Pin and tag are local, client-owned annotations.
+**Key interactions:** `Shortcut+F` searches the open document; `Shortcut+Shift+F` searches **all** recovered material and raises this window; selecting an identifier offers *find in `audit` / `netmap` / `ledger`* (§3.3 cross-window links). Pin and tag are local, client-owned annotations.
 
 **Why cross-reference is a feature and not a convenience:** `../design/05-hacking-minigame.md` §3.2 hangs Invariant I10 on it — the Traversal class hides the objective among decoys *distinguishable only by cross-referencing recovered logs*. If moving from a log line to the node it names is slow, the anti-bot property of the puzzle is a chore rather than a skill.
 
@@ -449,7 +451,7 @@ Faction abandonment (reputation reset, heat spike, forfeiture of faction-specifi
 |---|---|
 | `rig-monitor` | `72 / 100 cycles` |
 | `terminal` | `layer 2 of 4 · tier 3` or `idle` |
-| `map` | `14 nodes known · 3 unmapped adjacent` |
+| `netmap` | `14 nodes known · 3 unmapped adjacent` |
 | `recon` | `3 unread` |
 | `audit` | `last audit 6m ago` |
 | `mining` | `40 EC/hr · 3 buffers ≥ 75%` |
@@ -498,7 +500,7 @@ Four routes, all equivalent, all user-initiated:
 3. The command palette — `open map`, or `win map`; the palette's grammar belongs to `04`.
 4. A cross-window link (§3.3).
 
-A window opens at its saved geometry for the current display signature, else its default, run through the placement validator (§3.8). `openNew()` on the scaffold's `ToolWindow` — a *second* window for the same tool — is deliberately out of scope for v1: two `map` windows would need two pane instances and therefore two divergent view states, and every cross-window link would become ambiguous about which one to raise. Tracked as **WL-8**.
+A window opens at its saved geometry for the current display signature, else its default, run through the placement validator (§3.8). `openNew()` on the scaffold's `ToolWindow` — a *second* window for the same tool — is deliberately out of scope for v1: two `netmap` windows would need two pane instances and therefore two divergent view states, and every cross-window link would become ambiguous about which one to raise. Tracked as **WL-8**.
 
 **No window is ever opened by a server event.** A new `Stage.show()` takes focus on every platform. §6.3 makes this a hard rule.
 
@@ -532,12 +534,12 @@ A background *event* never raises anything. It marks the switcher entry and the 
 | `defense` canary trip → captured evidence | | `recon` |
 | `audit` connection → owning process | | `audit`, same window, other table |
 | `audit` discovered miner → host | | `mining` |
-| `recon` log line → node address | | `map`, focused on that node |
+| `recon` log line → node address | | `netmap`, focused on that node |
 | `recon` log line → handle | | `comms` |
-| `map` node → its recovered material | | `recon`, filtered |
+| `netmap` node → its recovered material | | `recon`, filtered |
 | `market` offering → the gate blocking it | | `identity` (reputation/heat) or `storage` (schematic) |
 | `botnet` instance → its socketed tools | | `storage`, filtered to `es-state-socketed` |
-| `mining` miner → its host node | | `map` |
+| `mining` miner → its host node | | `netmap` |
 
 Under pillar C5 a player should never have to *find* the window that explains what they are looking at. In docked mode these links activate a tab instead of raising a `Stage`; the link table is identical (§5.4).
 
@@ -560,7 +562,7 @@ All bindings use JavaFX's `KeyCombination.SHORTCUT_DOWN`, which resolves to ⌘ 
 |---|---|---|
 | `Shortcut+0` | Raise `rig-monitor` — **never remappable** | `00-client-overview.md` §6.3 |
 | `Shortcut+1` | `terminal` | this doc |
-| `Shortcut+2` | `map` | " |
+| `Shortcut+2` | `netmap` | " |
 | `Shortcut+3` | `recon` | " |
 | `Shortcut+4` | `audit` | " |
 | `Shortcut+5` | `mining` | " |
@@ -599,7 +601,7 @@ All bindings use JavaFX's `KeyCombination.SHORTCUT_DOWN`, which resolves to ⌘ 
 | `Space` | Toggle selection |
 | `Shortcut+A` | Select all in the focused table or buffer |
 | `Shortcut+C` | Copy selection — every log line, ledger row and identifier is real selectable text |
-| `Home` / `End` | Extremes; on `map`, `Home` fits to content |
+| `Home` / `End` | Extremes; on `netmap`, `Home` fits to content |
 
 **Three design rules behind the table:**
 
@@ -735,7 +737,7 @@ Serves the simultaneity requirement in `../design/05-hacking-minigame.md` §5: t
 | Window | Fraction | Note |
 |---|---|---|
 | `terminal` | `[0.00, 0.00, 0.46, 1.00]` | the active layer; widest, leftmost, where the eye starts |
-| `map` | `[0.46, 0.00, 0.34, 0.62]` | Traversal, and the engaged node |
+| `netmap` | `[0.46, 0.00, 0.34, 0.62]` | Traversal, and the engaged node |
 | `recon` | `[0.46, 0.62, 0.34, 0.38]` | the cross-reference material |
 | `rig-monitor` | `[0.80, 0.00, 0.20, 0.62]` | **panel** form, always-on-top; the trace gauge needs the height |
 | `switcher` | `[0.80, 0.62, 0.20, 0.38]` | the triage list, beside the trace |
@@ -759,7 +761,7 @@ Following EC flows and building a case (`../design/12-identity-and-social.md` §
 | `ledger` | `[0.00, 0.12, 0.40, 0.56]` |
 | `comms` | `[0.00, 0.68, 0.40, 0.32]` |
 | `recon` | `[0.40, 0.12, 0.36, 0.88]` |
-| `map` | `[0.76, 0.12, 0.24, 0.50]` |
+| `netmap` | `[0.76, 0.12, 0.24, 0.50]` |
 | `identity` | `[0.76, 0.62, 0.24, 0.38]` |
 
 Docked variants: `breach` — rail collapsed, split 62/38, panes `[terminal] [map, recon]`, tray expanded. `mining` — rail 220, split 70/30, panes `[mining, audit] [ledger]`. `investigation` — rail 220, split 45/55, panes `[ledger, comms] [recon, map, identity]`.
@@ -875,9 +877,9 @@ A promise in prose erodes. Four checkable rules instead:
 |---|---|---|
 | **Compute** | Rig strip, left third — segmented gauge, per-consumer legend, available readout, recovery clock | The strip is chrome. It cannot be covered, tabbed away, or scrolled off. |
 | **Trace** | Rig strip, centre — `es-gauge-trace` with labelled contribution segments | Always present, showing `no active engagement` when idle, so its arrival never reflows the strip (§2.3). |
-| **Target** | Content, right column — `map` focused on the engaged node (`es-state-engaged`) | The `breach` docked workspace puts it there; §5.6 covers what happens when the column will not fit. |
+| **Target** | Content, right column — `netmap` focused on the engaged node (`es-state-engaged`) | The `breach` docked workspace puts it there; §5.6 covers what happens when the column will not fit. |
 | **The active layer** | Content, left column — `terminal` | The widest pane, because it is where input goes. |
-| **Cross-reference material** | Content, right column — `recon` as a second tab beside `map`, `Shortcut+3` | Simultaneity with the map is the one thing genuinely traded away here. |
+| **Cross-reference material** | Content, right column — `recon` as a second tab beside `netmap`, `Shortcut+3` | Simultaneity with the map is the one thing genuinely traded away here. |
 
 **Concrete geometry, 1280×800 dock:** rig strip 1280×96 · rail collapsed to 56 · content 1224×648 split 62/38 → terminal 759, map/recon 465 · alert tray 28. Every pane clears its minimum.
 
@@ -887,10 +889,10 @@ A promise in prose erodes. Four checkable rules instead:
 
 ### 5.6 Small screens
 
-Below **1024** logical px of content width the two-column breach layout stops clearing minimums (`terminal` 560 + `map` 640 = 1200 plus a divider). The degradation is specified rather than emergent:
+Below **1024** logical px of content width the two-column breach layout stops clearing minimums (`terminal` 560 + `netmap` 720 = 1280 plus a divider). The degradation is specified rather than emergent:
 
-- The `map` column collapses. In its place, a **target strip** appears as a single 32px row inside the terminal pane, directly under its header: node-kind glyph · address · defense-ring summary · `layer 2 of 4 · Credential · tier 3` · hop distance from entry.
-- `map` remains a tab in the same column as `terminal`, one keystroke away at `Shortcut+2`.
+- The `netmap` column collapses. In its place, a **target strip** appears as a single 32px row inside the terminal pane, directly under its header: node-kind glyph · address · defense-ring summary · `layer 2 of 4 · Credential · tier 3` · hop distance from entry.
+- `netmap` remains a tab in the same column as `terminal`, one keystroke away at `Shortcut+2`.
 
 **No information is lost** — every value on the target strip is on the map, and the map itself is one key away. What is lost is *simultaneity*, and the target strip restores the decision-relevant part of it: which node, how defended, which layer, how far. That is the honest boundary of what one window can do, stated rather than glossed.
 
@@ -1005,7 +1007,7 @@ Deliberately undecided here. Log in `../design/15-open-questions.md` §2 if this
 - **WL-5: Should workspaces be exportable and shareable?** A community "operator's desk" layout is genuinely appealing and would be well received. It is also a file the client parses, and `00-client-overview.md` §7 rules out player-supplied CSS for a related reason. A geometry-only schema is a much smaller surface than a stylesheet — but "much smaller" is not "none."
 - **WL-6: Should a workspace capture view state, or only geometry?** §4.1 captures only geometry, so restoring an arrangement never rewinds what the player was reading. The counter-argument is strong for `investigation` specifically, where the ledger filter *is* the workspace. Possible split: presets carry view state, player-saved workspaces do not — or the player chooses per workspace.
 - **WL-7: Should the alert-ladder ceiling be a player setting?** §2.16 lists it under Accessibility on the assumption that it should. Players with attention-related disabilities may want everything at rung 1; players who miss deadlines may want everything at rung 4. The risk is a player capping the ladder at rung 1 and then losing a botnet to a backlog timer they never saw — which is a legitimate choice, but only if the setting says so plainly.
-- **WL-8: Two windows for the same tool.** §3.1 defers `openNew()` because a second `map` needs a second pane instance and makes every cross-window link ambiguous. Two `recon` windows side by side is exactly what cross-referencing wants, though, and it is the most plausible thing a player will ask for. Revisit once the pane instance model is real.
+- **WL-8: Two windows for the same tool.** §3.1 defers `openNew()` because a second `netmap` needs a second pane instance and makes every cross-window link ambiguous. Two `recon` windows side by side is exactly what cross-referencing wants, though, and it is the most plausible thing a player will ask for. Revisit once the pane instance model is real.
 - **WL-9: What raises a window when the client has no OS focus at all?** §3.6: JavaFX has no global hotkey API and no urgency hint, so a client in the background can neither be summoned nor signal. `02-platform-native-themes.md` **PN-4** (an AWT `Taskbar` badge) may be the only honest answer, and it costs AWT in a JavaFX process. Decide alongside **CL-7** (audio), which is the other non-focus-stealing channel.
 - **WL-10: Is a "peek" gesture worth it?** Holding a key to raise the rig monitor above everything temporarily would solve occlusion without a permanent always-on-top — but the only ergonomic key for a hold gesture is `Alt`, which `00-client-overview.md` §6.3 already spent on attribution overlays. Probably not worth a second hold gesture; noted so it is not rediscovered.
 - **WL-11: Minimum sizes versus localisation.** Every minimum in §2.1 was chosen against English strings. German compounds and Japanese vertical metrics will both break some of them, and `01-visual-language.md` **V-10** already defers localisation wholesale. The minimums must be re-derived from the longest string per locale, not scaled by a factor.
