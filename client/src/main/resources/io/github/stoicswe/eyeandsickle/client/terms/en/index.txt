@@ -11,6 +11,8 @@
 7/thermal-budget.md
 7/ethecoin.md
 7/self-mining.md
+7/proof-of-work.md
+7/mining-pool.md
 7/heat.md
 7/noise.md
 7/storage-tiers.md
@@ -24,6 +26,7 @@
 1/ps.md
 1/ledger.md
 1/mine.md
+1/pools.md
 1/grep.md
 1/ls.md
 1/df.md

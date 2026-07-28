@@ -155,8 +155,13 @@ public final class BreachCommands {
                         "probe -n <action>          print that move's published cost and take nothing",
                         "",
                         "Every price here is the engine's, computed for this layer and this loadout, and",
-                        "it is printed before it is spent. Quiet reads cost 1, an ordinary probe 2, a",
-                        "loud tool 6, the Side-Channel Reader 0, and a bypass most of the bar."),
+                        "it is printed before it is spent. Composition costs 0, an ordinary move 2, a",
+                        "loud tool 6, and a bypass most of the bar.",
+                        "",
+                        "On a protocol grid:  probe pick 2:4     take the code at row 2, column 4",
+                        "On an offset cipher: probe type 0:-9    write -9 under byte 0 (free, reversible)",
+                        "                     probe commit      submit the row",
+                        "                     probe carry 3     solve byte 3, loudly"),
                 inv -> {
                     Optional<BreachSnapshot> found = inv.session().breach();
                     if (found.isEmpty()) {

@@ -1338,7 +1338,7 @@
  * Textures are pinned to IBM Plex Mono because they are built from box-drawing and block glyphs,
  * and Martian Mono contains none of that range. */
 
-.es-viewport, .es-lattice, .es-port-comb, .es-tumbler, .es-attn, .es-ledger, .es-slate,
+.es-viewport, .es-matrix, .es-cipher, .es-attn, .es-ledger, .es-slate,
 .es-cost-strip {
     -fx-background-color: -es-void;
     -fx-border-color: -es-rule;
@@ -1358,58 +1358,100 @@
 .es-viewport > .es-viewport-alarm { -fx-text-fill: -es-alarm; }
 .es-viewport .es-viewport-caption { -fx-padding: 5 0 0 0; }
 
-/* ── Enumeration: the port comb ─────────────────────────────────────────────────────────────── */
-.es-port-comb .es-port {
+/* ── Breach Protocol: the code grid ─────────────────────────────────────────────────────────
+ * Three weights, and the ramp encodes REACHABILITY rather than value: a cell you may take now is
+ * brightest, one you might take later is ordinary, one that is gone is dimmest. The alternating
+ * row-then-column rule is the whole puzzle, so a player who has to remember whose turn it is has
+ * been given a memory test instead of a routing one. */
+.es-matrix .es-matrix-cell,
+.es-matrix .es-matrix-buffer,
+.es-matrix .es-matrix-goal {
     -fx-font-family: "IBM Plex Mono", monospace;
     -fx-font-size: 11px;
 }
-.es-port-comb .es-port-unknown  { -fx-text-fill: -es-dim-3; }
-.es-port-comb .es-port-closed   { -fx-text-fill: -es-dim-2; }
-.es-port-comb .es-port-filtered { -fx-text-fill: -es-dim-1; }
-.es-port-comb .es-port-open     { -fx-text-fill: -es-text-hi; }
-.es-port-comb .es-port-declared { -fx-text-fill: -es-text; }
-/* The service banner — D-8's human-read step. Dim, because reading it is the player's job. */
-.es-port-comb .es-port-banner   { -fx-text-fill: -es-dim-1; }
-.es-port-comb .es-port-reading  { -fx-text-fill: -es-text; }
+.es-matrix .es-matrix-idle   { -fx-text-fill: -es-dim-2; }
+.es-matrix .es-matrix-live   { -fx-text-fill: -es-text; }
+.es-matrix .es-matrix-spent  { -fx-text-fill: -es-dim-3; }
+/* Where the arrow keys will act. After `-live` so it wins at equal specificity — a cursor that
+   painted in body grey would be a keyboard route with no visible anchor, which docs/client/07 §4
+   does not allow for a control whose only other route is the mouse. */
+.es-matrix .es-matrix-cursor { -fx-text-fill: -es-text-hi; }
+.es-matrix .es-matrix-turn   { -fx-text-fill: -es-dim-1; }
+.es-matrix .es-matrix-buffer { -fx-text-fill: -es-text; }
+.es-matrix .es-matrix-goal-open { -fx-text-fill: -es-dim-1; }
+/* Uploaded. Not amber: amber is reserved for a cracked miner, which genuinely is income — a
+   completed sequence is progress through the puzzle, which is what -es-text-hi is for. */
+.es-matrix .es-matrix-goal-done { -fx-text-fill: -es-text-hi; }
 
-/* ── Logic: the tumbler rack ────────────────────────────────────────────────────────────────── */
-.es-tumbler .es-tumbler-cell,
-.es-tumbler .es-tumbler-col,
-.es-tumbler .es-tumbler-caret {
+/* ── The offset cipher: two published rows and one the player fills ─────────────────────────
+ * The columns have to line up exactly, because reading DOWN a column and subtracting is the entire
+ * puzzle. Every cell carries its own fixed width in Java (OffsetRack.pad); nothing here may add
+ * padding that would shear the column. */
+.es-cipher .es-cipher-row,
+.es-cipher .es-cipher-cell {
     -fx-font-family: "IBM Plex Mono", monospace;
     -fx-font-size: 11px;
 }
-.es-tumbler .es-tumbler-cell         { -fx-text-fill: -es-text; }
-.es-tumbler .es-tumbler-col          { -fx-text-fill: -es-dim-2; }
-.es-tumbler .es-tumbler-caret        { -fx-text-fill: -es-text-hi; }
-.es-tumbler .es-tumbler-draft        { -fx-text-fill: -es-dim-1; }
-.es-tumbler .es-tumbler-locked       { -fx-text-fill: -es-text-hi; }
-.es-tumbler .es-tumbler-fact         { -fx-text-fill: -es-dim-1; }
-.es-tumbler .es-tumbler-keyspace     { -fx-text-fill: -es-dim-2; }
-.es-tumbler .es-tumbler-salted       { -fx-text-fill: -es-dim-2; }
-.es-tumbler .es-tumbler-unsalted     { -fx-text-fill: -es-text; }
-.es-tumbler .es-tumbler-salt         { -fx-text-fill: -es-dim-2; }
-.es-tumbler-head   { -fx-padding: 0 0 5 0; }
-.es-tumbler-row    { -fx-padding: 1 0 1 0; }
-.es-tumbler-volley { -fx-padding: 1 0 1 0; }
-/* A contradiction with what the player already knows. Alarm, because it is a real mistake. */
-.es-tumbler-inconsistent { -fx-border-color: -es-alarm; -fx-border-width: 0 0 0 2; -fx-padding: 1 0 1 5; }
+/* Observed brighter than target: the observed byte is what the player subtracts FROM, so it is the
+   one they read first. Both are public from the first frame — the puzzle is the arithmetic, not
+   finding out what to subtract. */
+.es-cipher .es-cipher-observed { -fx-text-fill: -es-text; }
+.es-cipher .es-cipher-target   { -fx-text-fill: -es-dim-1; }
+.es-cipher .es-cipher-cell     { -fx-text-fill: -es-dim-2; }
+.es-cipher .es-cipher-filled   { -fx-text-fill: -es-text; }
+/* Rejected by the last commit. Alarm, because it cost a strike — and the board says WHICH cells
+   were wrong and never what they should have been. */
+.es-cipher .es-cipher-wrong    { -fx-text-fill: -es-alarm; }
+.es-cipher .es-cipher-cursor   { -fx-text-fill: -es-text-hi; }
+.es-cipher .es-cipher-hint     { -fx-text-fill: -es-dim-2; }
 
-/* ── Traversal: the lattice ─────────────────────────────────────────────────────────────────── */
-.es-lattice .es-lattice-cell,
-.es-lattice .es-lattice-edge {
+/* ── The rig monitor's history strip ────────────────────────────────────────────────────────
+ * Above the process table, below the tabs. Framed like the other instrumentation panels so it
+ * reads as a readout rather than as decoration hanging off the table. */
+.es-rig-history {
+    -fx-background-color: -es-void;
+    -fx-border-color: -es-rule;
+    -fx-border-width: 1;
+    -fx-padding: 7;
+}
+
+/* ── The block explorer strip ───────────────────────────────────────────────────────────────
+ * Cards in a row, the way every chain explorer shows recent blocks. A block YOU mined is the one
+ * thing a player scans this strip for, so it is the one thing that gets the income accent — amber
+ * is reserved across the whole deck for money you actually have, and a block you won is exactly
+ * that. Everything else stays on the neutral ramp. */
+.es-block-strip {
+    -fx-background-color: -es-void;
+    -fx-border-color: -es-rule;
+    -fx-border-width: 1;
+    -fx-padding: 7;
+}
+.es-block {
+    -fx-background-color: -es-panel;
+    -fx-border-color: -es-rule;
+    -fx-border-width: 1;
+    -fx-padding: 7;
+}
+.es-block:hover      { -fx-border-color: -es-rule-hi; }
+/* A projection is not a block. Dashed, because it has not happened — a card that looked mined
+   would be a promise the chain cannot make. */
+.es-block-projected {
+    -fx-border-style: dashed;
+    -fx-background-color: transparent;
+}
+/* Two classes, because theme.css has a late `.label { -fx-text-fill: -es-text; }` that a
+   one-class selector cannot beat at equal specificity — the documented trap in CLAUDE.md. */
+.es-block > .es-block-fill {
     -fx-font-family: "IBM Plex Mono", monospace;
     -fx-font-size: 11px;
+    -fx-text-fill: -es-rule-hi;
 }
-.es-lattice .es-lattice-dark      { -fx-text-fill: -es-dim-3; }
-.es-lattice .es-lattice-seen      { -fx-text-fill: -es-dim-2; }
-.es-lattice .es-lattice-visited   { -fx-text-fill: -es-dim-1; }
-.es-lattice .es-lattice-here      { -fx-text-fill: -es-text-hi; }
-.es-lattice .es-lattice-objective { -fx-text-fill: -es-text-hi; }
-.es-lattice .es-lattice-trap      { -fx-text-fill: -es-alarm; }
-.es-lattice .es-lattice-edge      { -fx-text-fill: -es-rule-hi; }
-.es-lattice .es-lattice-rank      { -fx-text-fill: -es-dim-2; }
-.es-lattice .es-lattice-manifest  { -fx-text-fill: -es-dim-1; }
+.es-block-yours {
+    -fx-border-color: -es-amber-mid;
+}
+.es-block-yours > .es-value {
+    -fx-text-fill: -es-amber-mid;
+}
 
 /* ── The attention meter ────────────────────────────────────────────────────────────────────
  * Cells, never a continuous bar — §4 of the design language forbids one, for the same reason the

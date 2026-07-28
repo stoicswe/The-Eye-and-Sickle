@@ -7,16 +7,17 @@ package io.github.stoicswe.eyeandsickle.solo.breach;
  *
  * Attention, strikes, noise, the ledger and the layer's lifecycle are the same in all three classes,
  * and {@code docs/design/05-hacking-minigame.md} §4 makes them the same on purpose — the per-action
- * cost table is one table, not three. So {@link EnumerationRules}, {@link LogicRules} and
- * {@link TraversalRules} decide only what <em>happened</em>, and {@link BreachRules} decides what
- * that costs. A class rule that charged its own attention would be a fourth place for the cost table
- * to drift, and drift in that table is the "comprehensible failure" constraint failing quietly.
+ * cost table is one table, not two. So {@link MatrixRules} and {@link OffsetRules} decide only what
+ * <em>happened</em>, and {@link BreachRules} decides what that costs. A class rule that charged its
+ * own attention would be a third place for the cost table to drift, and drift in that table is the
+ * "comprehensible failure" constraint failing quietly.
  *
  * @param result what came back, in words, for the ledger row — never a code
  * @param strike whether this tripped an alarm
  * @param extraNoise noise beyond what the action's kind already costs; canaries add here
  * @param refunded whether the whole charge is handed back; see {@link #refunded(String)}
  * @param cleared whether the layer is now solved
+ * @param locked whether the layer is now unplayable — see {@link #locked(String)}
  * @param bookkeeping whether this was composition rather than a move — never charged, never ledgered
  * @param consequence a line for the resolution's consequence list, or {@code ""}
  */
@@ -26,22 +27,41 @@ public record Move(
         int extraNoise,
         boolean refunded,
         boolean cleared,
+        boolean locked,
         boolean bookkeeping,
         String consequence) {
 
     /** An ordinary move that did something. */
     public static Move of(String result) {
-        return new Move(result, false, 0, false, false, false, "");
+        return new Move(result, false, 0, false, false, false, false, "");
     }
 
     /** A move that solved the layer. */
     public static Move cleared(String result) {
-        return new Move(result, false, 0, false, true, false, "");
+        return new Move(result, false, 0, false, true, false, false, "");
     }
 
     /** A move that tripped an alarm. It still costs its attention: you paid to be wrong. */
     public static Move strike(String result) {
-        return new Move(result, true, 0, false, false, false, "");
+        return new Move(result, true, 0, false, false, false, false, "");
+    }
+
+    /**
+     * A move that left the layer unplayable, without the player having struck out.
+     *
+     * <h2>⚠ Why this is not just a strike</h2>
+     *
+     * A protocol grid can reach a state where the buffer is full and nothing was uploaded. There is
+     * no legal move left — every pick is refused for want of a slot — so charging a strike and
+     * carrying on would leave the player sitting in front of a board they cannot touch, with a
+     * strike counter that will never reach its limit. The attempt has failed; it has to say so.
+     *
+     * <p>Distinct from {@link #strike} because it is not an alarm: nothing was tripped and nobody
+     * heard anything extra. The player ran out of board, which is a different sentence and a
+     * different ledger row.
+     */
+    public static Move locked(String result) {
+        return new Move(result, false, 0, false, false, true, false, "");
     }
 
     /**
@@ -53,7 +73,7 @@ public record Move(
      * canary is not a louder strike; it is a strike that leaves a name behind.
      */
     public static Move canary(String result, String consequence, int extraNoise) {
-        return new Move(result, true, extraNoise, false, false, false, consequence);
+        return new Move(result, true, extraNoise, false, false, false, false, consequence);
     }
 
     /**
@@ -66,7 +86,7 @@ public record Move(
      * alert-fatigue(7)} describes.
      */
     public static Move bookkeeping(String result) {
-        return new Move(result, false, 0, false, false, true, "");
+        return new Move(result, false, 0, false, false, false, true, "");
     }
 
     /**
@@ -83,6 +103,6 @@ public record Move(
      * that taxed an action which never happened would be charging for a move the target refused.
      */
     public static Move refunded(String result) {
-        return new Move(result, false, 0, true, false, false, "");
+        return new Move(result, false, 0, true, false, false, false, "");
     }
 }

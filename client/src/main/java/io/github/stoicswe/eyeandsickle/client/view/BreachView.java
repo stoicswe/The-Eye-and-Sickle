@@ -8,10 +8,9 @@ import io.github.stoicswe.eyeandsickle.client.ui.Ui;
 import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
 import io.github.stoicswe.eyeandsickle.client.ui.breach.BreachViewport;
 import io.github.stoicswe.eyeandsickle.client.ui.breach.CostStrip;
-import io.github.stoicswe.eyeandsickle.client.ui.breach.LatticeMap;
+import io.github.stoicswe.eyeandsickle.client.ui.breach.MatrixGrid;
 import io.github.stoicswe.eyeandsickle.client.ui.breach.OutcomeSlate;
-import io.github.stoicswe.eyeandsickle.client.ui.breach.PortComb;
-import io.github.stoicswe.eyeandsickle.client.ui.breach.TumblerRack;
+import io.github.stoicswe.eyeandsickle.client.ui.breach.OffsetRack;
 import io.github.stoicswe.eyeandsickle.client.ui.cursors.Cursors;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.AttentionLedger;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.AttentionMeter;
@@ -74,7 +73,7 @@ import javafx.scene.layout.VBox;
  *       most damaging thing this client could do", and it names the breach specifically. Nothing in
  *       {@code refresh} calls {@code requestFocus()}, and the abort control confirms in place rather
  *       than through a modal dialog — a dialog would take focus and the keyboard mid-puzzle.
- *   <li><b>No scene-graph rebuild per refresh.</b> The three class boards are built once and toggled;
+ *   <li><b>No scene-graph rebuild per refresh.</b> Both class boards are built once and toggled;
  *       rebuilding them would drop the player's focus and their pointer target between two frames of
  *       a turn they are halfway through taking.
  *   <li><b>No decorative motion.</b> No {@code Motion.reveal}, no {@code Greeble}, no
@@ -87,6 +86,15 @@ import javafx.scene.layout.VBox;
  * </ul>
  */
 public final class BreachView {
+
+    /**
+     * How long the abort stays armed between its two presses.
+     *
+     * <p>Long enough to be a deliberate second press and short enough that a control armed and
+     * forgotten cannot fire an abort three moves later. Measured on the session clock, which is the
+     * clock every other deadline in this panel is measured against.
+     */
+    private static final int ABORT_ARM_SECONDS = 4;
 
     private BreachView() {}
 
@@ -149,20 +157,38 @@ public final class BreachView {
         // rather than only on the target row, because it is what makes losing safe to do repeatedly.
         Label crackNote = Ui.small("Your own rig. No heat, whatever happens — win or lose.");
 
-        // ---------------------------------------------------------------- notices
-        //
-        // Placed above everything and driven by its own content rather than by breach state: a
-        // refusal from `beginBreach` arrives when there is no breach open at all, and hiding the one
-        // surface that says why would leave the player pressing a control that silently does nothing.
-        VBox notices = new VBox(UiTokens.SPACE_2);
-
         // ---------------------------------------------------------------- widgets
         BreachViewport viewport = new BreachViewport();
+        AttentionLedger ledger = new AttentionLedger();
         AttentionMeter meter = new AttentionMeter();
         CostStrip strip = new CostStrip();
         HBox.setHgrow(strip, Priority.ALWAYS);
-        HBox gauges = Ui.row(UiTokens.SPACE_6, meter, strip);
+        // The attention column: the blocks the player is spending, and directly under them the
+        // record of what each spend bought. One question — "how much have I got and where did it
+        // go" — so one column, read top to bottom. The ledger used to sit two panels lower, which
+        // meant checking a cost against its outcome was a scroll rather than a glance.
+        VBox attentionColumn = new VBox(UiTokens.SPACE_5, meter, ledger);
+        attentionColumn.setAlignment(Pos.TOP_LEFT);
+        VBox.setVgrow(ledger, Priority.SOMETIMES);
+
+        HBox gauges = Ui.row(UiTokens.SPACE_6, attentionColumn, strip);
         gauges.setAlignment(Pos.TOP_LEFT);
+
+        // ---------------------------------------------------------------- the console row
+        //
+        // The viewport and the gauges side by side rather than stacked. The viewport is a
+        // fixed-width character texture — it cannot reflow, so given a whole row to itself it left a
+        // band of empty panel beside it and pushed everything a player actually reads further down.
+        // Putting the instruments in that space costs nothing and makes the top of the window one
+        // glance instead of two: what the machine is doing, and what it would cost to act.
+        //
+        // ⚠ The viewport keeps its natural width and the gauges take the slack. A gauge column that
+        // fought the texture for space would either squeeze the strip into one chip per line or
+        // shear the viewport, and §7.2's whole point is that a character grid does not negotiate.
+        HBox console = Ui.row(UiTokens.SPACE_6, viewport, gauges);
+        console.setAlignment(Pos.TOP_LEFT);
+        HBox.setHgrow(gauges, Priority.ALWAYS);
+        viewport.setMinWidth(Region.USE_PREF_SIZE);
 
         KeyValue selection = KeyValue.of("Selected", "NONE");
         Label selectionHint = Ui.micro(
@@ -171,21 +197,30 @@ public final class BreachView {
         selectionHint.getStyleClass().add("es-legend-sub");
         HBox selectionRow = Ui.row(UiTokens.SPACE_5, selection, selectionHint);
 
-        PortComb comb = new PortComb();
-        TumblerRack rack = new TumblerRack();
-        LatticeMap map = new LatticeMap();
-        StackPane boards = new StackPane(comb, rack, map);
-        StackPane.setAlignment(comb, Pos.TOP_LEFT);
-        StackPane.setAlignment(rack, Pos.TOP_LEFT);
-        StackPane.setAlignment(map, Pos.TOP_LEFT);
-
-        AttentionLedger ledger = new AttentionLedger();
-        VBox.setVgrow(ledger, Priority.SOMETIMES);
+        MatrixGrid grid = new MatrixGrid();
+        OffsetRack cipher = new OffsetRack();
+        StackPane boards = new StackPane(grid, cipher);
+        StackPane.setAlignment(grid, Pos.TOP_LEFT);
+        StackPane.setAlignment(cipher, Pos.TOP_LEFT);
 
         OutcomeSlate slate = new OutcomeSlate();
         Chip dismiss = new Chip("Dismiss", "es-breach-chip-probe");
         dismiss.setAccessibleText("Clear this outcome and return to the target list.");
-        VBox outcome = new VBox(UiTokens.SPACE_5, slate, Ui.row(UiTokens.SPACE_3, dismiss));
+
+        // ⚠ Try again is a SINGLE press, and that is a deliberate exception to the aim/fire split.
+        //
+        // BreachArming separates choosing a target from committing to one because a mis-click on a
+        // reflowing list or a moving graph must not spend compute. This is neither: it is a control
+        // on an outcome slate the player is reading, about the attempt they were just in, and it
+        // states its price on its face. Making them dismiss, find the row again and press start
+        // would be paying for a hazard that is not present here.
+        //
+        // Shown only when the target is still attemptable — a successful breach leaves a foothold
+        // and a successful crack leaves no miner, so in both cases there is nothing left to retry
+        // and the rules' own availability answer says so without this view having to know why.
+        Chip retry = new Chip("Try again", "es-breach-chip-loud");
+        VBox outcome = new VBox(UiTokens.SPACE_5, slate, Ui.row(UiTokens.SPACE_3, retry, dismiss));
+        outcome.getStyleClass().add("es-breach-picker");
 
         BreachTargetList targets = new BreachTargetList(session);
 
@@ -210,25 +245,15 @@ public final class BreachView {
         // (they are declared under it, because the cost-strip block only styles chips inside a
         // breach and these two live outside one).
         launch.getStyleClass().addAll("es-breach-launch", "es-breach-picker");
+        // Starts hidden. A freshly-constructed VBox is visible by default, and the first refresh
+        // used to read that default as "it was already showing" — see the `live` gate below, which
+        // that misreading disabled outright.
+        visible(launch, false);
 
         root.getChildren().addAll(
-                head, crackNote, notices, viewport, gauges, selectionRow, boards, outcome, ledger,
-                launch, targets);
+                head, crackNote, console, selectionRow, boards, outcome, launch, targets);
 
-        presenter.bind(viewport, meter, ledger, strip, comb, rack, map, slate);
-        presenter.setNoticeSink(text -> {
-            if (text == null || text.isBlank()) {
-                notices.getChildren().clear();
-            } else {
-                // A blank lead on purpose. Note's lead clause renders in amber, and D-7 rations the
-                // whole breach feature to exactly one amber element — the extracted-yield line on a
-                // successful crack. A refusal is not live and not earning, so it does not get the
-                // accent; the distinction it has to carry (refused / gated / unreachable) is carried
-                // by the first word of the sentence instead, which docs/client/07 §5.2 wants anyway.
-                notices.getChildren().setAll(Note.consequence("", text));
-            }
-            visible(notices, !notices.getChildren().isEmpty());
-        });
+        presenter.bind(viewport, meter, ledger, strip, grid, cipher, slate);
         presenter.setSelectionSink(text -> {
             selection.set(text == null || text.isBlank() ? "NONE" : text);
             selection.valueNode().setAccessibleText("Selected: " + selection.get());
@@ -239,20 +264,22 @@ public final class BreachView {
         targets.setOnSelect(t ->
                 arming.arm(t.targetId().equals(arming.armed()) ? "" : t.targetId()));
         disarm.onInvoke(() -> arming.arm(""));
-        // ⚠ The launch control is DEAD FOR ONE PULSE after it appears, and this is not defensive
-        // programming — it is a bug that was reproduced.
+        // ⚠ The launch control is DEAD FOR ONE PULSE after a target is armed.
         //
-        // Pressing BREACH on the network map raises this window from inside the click handler. The
-        // launch panel is then created under a pointer that is still down, and the release lands on
-        // START BREACH: one click on a map cell reserved twelve cycles and opened a breach the
-        // player never asked for. That is precisely the mis-click BreachArming splits aiming from
-        // firing to prevent, arriving through the window manager instead of through the list.
+        // Pressing BREACH on the network map raises this window from inside the click handler, so
+        // the launch panel can be created under a pointer that is still down. A pulse is
+        // imperceptible to a person and unbridgeable by a single event, so a human click always
+        // works and a same-event one never does.
         //
-        // A pulse is imperceptible to a person and unbridgeable by a single event, so a human click
-        // always works and a same-event one never does. It is not a two-press confirm: the user
-        // asked for one button and one click, and making the primary action a double-press to fix a
-        // race would be paying for the fix in the wrong currency.
+        // ⚠ IT IS GATED ON BEING ARMED, NOT ON BECOMING VISIBLE, AND THE DIFFERENCE WAS A DEAD
+        // BUTTON. The first version flipped `live` on a hidden→visible transition of the panel — but
+        // a freshly-constructed VBox is visible by default, so the very first refresh saw
+        // "was showing: true", the transition never fired, and START BREACH was permanently inert.
+        // A guard that can silently disable the control it protects is worse than the mis-click it
+        // was defending against, so it now arms itself from the state it actually cares about and
+        // always becomes live one pulse later.
         boolean[] live = {false};
+        boolean[] pending = {false};
         start.onInvoke(() -> {
             if (!live[0] || !arming.isArmed()) {
                 return;
@@ -269,40 +296,80 @@ public final class BreachView {
         // Two presses, in place, rather than a confirmation dialog. `aborted` is a persisted outcome
         // with real consequences (docs/design/05 §4), so a mis-key must not be able to spend one —
         // but a modal Alert would take the keyboard away mid-breach, which pillar C5 names as the
-        // worst thing this client can do. Arming disarms itself on the next refresh, so a forgotten
-        // armed control cannot fire an abort three turns later.
-        boolean[] armed = {false};
+        // worst thing this client can do.
+        //
+        // ⚠ ARMED FOR A FIXED WINDOW OF TIME, NOT "UNTIL THE NEXT REFRESH", AND THE DIFFERENCE WAS
+        // AN ABORT THAT COULD NOT BE PERFORMED AT ALL.
+        //
+        // The first version disarmed inside `refresh`, which runs on every session change — and the
+        // session changes about once a second, because self-mining credits on every tick. So the
+        // arming survived for under a second: press once and it arms, a tick clears it, press again
+        // and it arms again. A player trying to leave a breach could press Abort all day and never
+        // abort, which is exactly what "the breach window gets stuck" looks like from the outside.
+        //
+        // The window is measured on the session's clock, so it is the same clock everything else in
+        // this panel is timed against, and it is long enough to be a deliberate second press and
+        // short enough that a forgotten armed control cannot fire three turns later.
+        java.time.Instant[] armedUntil = {java.time.Instant.EPOCH};
         abort.onInvoke(() -> {
-            if (!armed[0]) {
-                armed[0] = true;
+            java.time.Instant at = session.now();
+            if (at.isAfter(armedUntil[0])) {
+                armedUntil[0] = at.plusSeconds(ABORT_ARM_SECONDS);
                 abort.setText(Ui.upper("Abort · press again"));
                 return;
             }
-            armed[0] = false;
+            armedUntil[0] = java.time.Instant.EPOCH;
             abort.setText(Ui.upper("Abort"));
             presenter.abort();
         });
         dismiss.onInvoke(presenter::dismiss);
+        retry.onInvoke(() -> {
+            String again = session.breach()
+                    .map(io.github.stoicswe.eyeandsickle.protocol.game.BreachSnapshot::targetId)
+                    .orElse("");
+            if (again.isBlank()) {
+                return;
+            }
+            // Dismiss first, or `begin` refuses: the slate is still on the save and a resolved breach
+            // blocks a new one. Both go through the port, so the rules still get the final say on
+            // whether the second attempt can be afforded — which after an abort is a real question,
+            // because the first attempt's cycles are on the recovery curve and not back yet.
+            session.dismissBreach();
+            presenter.begin(again);
+        });
 
         Runnable refresh = () -> {
             Optional<BreachSnapshot> found = session.breach();
             boolean open = found.isPresent();
             boolean resolved = open && found.get().resolved();
 
-            if (armed[0]) {
-                armed[0] = false;
+            // Only once the window has actually elapsed — see the arming above. Resetting the label
+            // on every refresh is what made the second press unreachable.
+            if (session.now().isAfter(armedUntil[0])
+                    && !abort.getText().equals(Ui.upper("Abort"))) {
                 abort.setText(Ui.upper("Abort"));
             }
 
             visible(head, open);
+            // The row is shown whenever a breach is open. Inside it the meter and the action strip
+            // disappear once the attempt has resolved — there is nothing left to spend — but the
+            // LEDGER stays: hiding the itemisation on the outcome screen would hide it at the one
+            // moment it is being read.
+            visible(console, open);
             visible(viewport, open);
-            visible(gauges, open && !resolved);
+            visible(gauges, open);
+            visible(attentionColumn, open);
+            visible(meter, open && !resolved);
+            visible(strip, open && !resolved);
+            visible(ledger, open);
             visible(selectionRow, open && !resolved);
             visible(boards, open && !resolved);
             visible(outcome, resolved);
-            // The ledger outlives the attempt. See the class comment: hiding the itemisation on the
-            // outcome screen would hide it at the one moment it is being read.
-            visible(ledger, open);
+            visible(retry, resolved && found
+                    .map(io.github.stoicswe.eyeandsickle.protocol.game.BreachSnapshot::targetId)
+                    .map(id -> session.breachTargets().stream()
+                            .anyMatch(t -> t.targetId().equals(id) && t.available()))
+                    .orElse(false));
             visible(targets, !open);
             visible(crackNote, open && found.get().minerCrack());
 
@@ -321,11 +388,18 @@ public final class BreachView {
             if (!open && arming.isArmed() && armedTarget.isEmpty()) {
                 arming.arm("");
             }
-            boolean wasShowing = launch.isVisible();
             visible(launch, armedTarget.isPresent());
-            if (armedTarget.isPresent() && !wasShowing) {
+            if (armedTarget.isEmpty()) {
                 live[0] = false;
-                javafx.application.Platform.runLater(() -> live[0] = true);
+            } else if (!live[0] && !pending[0]) {
+                // Scheduled once per arming rather than once per refresh — refresh runs on every
+                // session change, and queueing a runLater on each of them would be a slow leak on a
+                // panel that is open for a whole session.
+                pending[0] = true;
+                javafx.application.Platform.runLater(() -> {
+                    live[0] = true;
+                    pending[0] = false;
+                });
             }
             targets.setSelected(open ? "" : arming.armed());
             armedTarget.ifPresent(t -> {
@@ -361,14 +435,100 @@ public final class BreachView {
         };
 
         refresh.run();
-        session.onChange(s -> refresh.run());
+
+        // ⚠ TWO subscriptions, and the second one was missing.
+        //
+        // Arming is not game state, so it does not travel through the session — which meant picking
+        // a different row in the list below changed the armed id and repainted nothing: the launch
+        // panel kept naming the previous target and the row highlight never moved. The list looked
+        // broken because the only thing listening for a change was the thing that does not hear
+        // about arming.
+        AutoCloseable onSession = session.onChange(s -> refresh.run());
+        AutoCloseable onArming = arming.onChange(refresh);
 
         ScrollPane scroll = new ScrollPane(root);
+
+        // ⚠ KEYS ARE ROUTED FROM THE OUTERMOST NODE, NOT FROM THE BOARD.
+        //
+        // A filter only fires for events targeted at the node it is on or at one of its descendants.
+        // The breach window's focus is almost never on the board — it is on an action chip, or on
+        // this ScrollPane, which treats arrows as scroll commands — so a filter on the board sat
+        // waiting for events that were being delivered somewhere else. Selecting a cell and pressing
+        // an arrow did nothing, and the control looked broken rather than unfocused.
+        //
+        // Installed here because this is the outermost node of the panel: every key press delivered
+        // anywhere inside the breach window passes through it on the way down, including one aimed
+        // at the ScrollPane itself.
+        //
+        // ⚠ Gated on visibility, so exactly one board can be holding the keys and the other keeps
+        // the arrows it would need for ordinary focus traversal. Both boards ARE keyboard controls —
+        // the grid walks a path with arrows, the cipher types digits into a cell — so this route is
+        // the primary one for each rather than a convenience.
+        scroll.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, event -> {
+            if (grid.isVisible()) {
+                grid.handleKey(event);
+            } else if (cipher.isVisible()) {
+                cipher.handleKey(event);
+            }
+        });
+
         scroll.setFitToWidth(true);
         // Vertical only: this panel reflows to its width, so a horizontal bar would mean it refused
         // to, which is a layout bug rather than something to scroll past.
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        closeOnDetach(root, session, presenter, onSession, onArming);
         return scroll;
+    }
+
+    /**
+     * Releases both subscriptions when the panel leaves the scene.
+     *
+     * <p>⚠ The arming one matters more than the session one, and that is not obvious. {@code
+     * BreachArming} lives for the whole client rather than for the window, so a listener left on it
+     * by a closed panel keeps calling {@code refresh} against a detached scene graph <em>forever</em>
+     * — and every re-open adds another. The session's listener leaks the same way and is at least
+     * bounded by the session.
+     *
+     * <p>Only on a transition <b>away</b> from a scene, and only after having been in one: a node's
+     * scene is null before it is added as well as after it is removed, so acting on "scene is null"
+     * alone would tear the panel down during its own construction. Same shape as {@code NetMapView}.
+     */
+    private static void closeOnDetach(
+            Region root, GameSession session, BreachPresenter presenter, AutoCloseable... handles) {
+        boolean[] attached = {false};
+        root.sceneProperty().addListener((observable, was, now) -> {
+            if (now != null) {
+                attached[0] = true;
+                return;
+            }
+            if (!attached[0]) {
+                return;
+            }
+            attached[0] = false;
+
+            // ⚠ Closing the console abandons the attempt, exactly as quitting does.
+            //
+            // A breach is a player at a terminal, not work the rig is doing — there is nobody at the
+            // console once the window is gone. Leaving it open would strand its cycles held
+            // indefinitely and leave a half-played puzzle to be resumed with no memory of it, which
+            // is the state the load-time abandon already exists to prevent. It is recorded as an
+            // ABORTED resolution rather than deleted, so closing a window is not a free escape from a
+            // losing attempt.
+            //
+            // ⚠ Minimising does NOT do this: DeskManager.setMinimized only flips visibility and
+            // leaves the frame in the desk, so the scene stays. Only a real close detaches.
+            session.abandonBreach();
+            presenter.dispose();
+            for (AutoCloseable handle : handles) {
+                try {
+                    handle.close();
+                } catch (Exception ignored) {
+                    // A registry that refuses to forget a listener is not something this panel can
+                    // do anything about, and throwing out of a scene-graph listener would take the
+                    // whole close with it.
+                }
+            }
+        });
     }
 
     /**

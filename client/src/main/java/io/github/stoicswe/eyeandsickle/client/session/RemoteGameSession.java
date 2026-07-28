@@ -119,6 +119,16 @@ public final class RemoteGameSession implements GameSession {
     }
 
     @Override
+    public io.github.stoicswe.eyeandsickle.protocol.game.MiningSnapshot miningChain() {
+        // A disconnected chain has no height and no difficulty. Zeros rather than an invented
+        // genesis: the readout says "not connected", which is the truth, instead of drawing a chain
+        // that does not exist.
+        return new io.github.stoicswe.eyeandsickle.protocol.game.MiningSnapshot(
+                io.github.stoicswe.eyeandsickle.protocol.game.MiningMode.POOLED,
+                0L, 0L, 0L, 0.0d, 0.0d, 0L, 0L, 0.0d, -1L, 0L, 0L, 0L, 0L, 0, null, null, 0L, 0L, 0L);
+    }
+
+    @Override
     public java.util.List<RunningTask> tasks() {
         // The server is authoritative for what a rig is doing (I14). Empty is the honest answer for
         // a transport that does not exist yet, and the readout says "nothing running" rather than
@@ -181,6 +191,59 @@ public final class RemoteGameSession implements GameSession {
     }
 
     @Override
+    public Outcome setMiningMode(io.github.stoicswe.eyeandsickle.protocol.game.MiningMode mode) {
+        return unavailable();
+    }
+
+    @Override
+    public long miningRateFor(long cycles) {
+        return 0L;
+    }
+
+    @Override
+    public String chainAddress() {
+        return "";
+    }
+
+    @Override
+    public Outcome send(String toAddress, long minorUnits,
+            io.github.stoicswe.eyeandsickle.protocol.game.FeeTier tier) {
+        return unavailable();
+    }
+
+    @Override
+    public io.github.stoicswe.eyeandsickle.protocol.game.ChainMempool mempool() {
+        return new io.github.stoicswe.eyeandsickle.protocol.game.ChainMempool(
+                java.util.List.of(), 0, java.util.List.of(), 0, 0, 0, 0);
+    }
+
+    @Override
+    public io.github.stoicswe.eyeandsickle.protocol.game.ChainBlock chainBlock(long height) {
+        return null;
+    }
+
+    @Override
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.ChainBlock> chainBlocks() {
+        return java.util.List.of();
+    }
+
+    @Override
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.ChainTransaction> chainTransactions(
+            int limit) {
+        return java.util.List.of();
+    }
+
+    @Override
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.MiningPool> pools() {
+        return java.util.List.of();
+    }
+
+    @Override
+    public Outcome setMiningPool(String poolId) {
+        return unavailable();
+    }
+
+    @Override
     public Outcome scan(String tier) {
         return unavailable();
     }
@@ -202,6 +265,23 @@ public final class RemoteGameSession implements GameSession {
 
     @Override
     public Outcome purchase(String offeringId) {
+        return unavailable();
+    }
+
+    /**
+     * Returns the refusal and records nothing.
+     *
+     * <p>The log belongs to the server, and there is not one. Handing the sentence back unlogged is
+     * the honest half of the contract — the caller still gets its answer, and nothing here pretends
+     * to have written to a journal it cannot reach.
+     */
+    @Override
+    public Outcome refuse(String facility, String why) {
+        return Outcome.refused(why);
+    }
+
+    @Override
+    public Outcome abandonBreach() {
         return unavailable();
     }
 

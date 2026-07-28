@@ -42,8 +42,13 @@ public record RigStatus(
         double noise,
         boolean connected) {
 
-    /** Published rate: 0.4 EC per cycle-hour ({@code docs/design/03-economy.md} §1). */
-    public static final long MINOR_UNITS_PER_CYCLE_HOUR = 40L;
+    // ⚠ There is no rate constant here any more, and there must not be one again.
+    //
+    // This class used to carry `MINOR_UNITS_PER_CYCLE_HOUR = 40` and multiply. That was a second
+    // implementation of a balance number in a view class — the same mistake the `noise` note below
+    // records — and it went wrong the moment self-mining became a Poisson process on 2026-07-27: a
+    // solo miner earns the pool's fee back, so 40 stopped being the answer for half the players
+    // while the readout kept printing it. The engine publishes the expectation; this draws it.
 
     public static RigStatus of(GameSession session) {
         ComputeBudget budget = session.computeBudget();
@@ -57,7 +62,7 @@ public record RigStatus(
         return new RigStatus(
                 budget,
                 mining.selfMiningCycles(),
-                mining.selfMiningCycles() * MINOR_UNITS_PER_CYCLE_HOUR,
+                session.miningChain().expectedMinorUnitsPerHour(),
                 defenses.size(),
                 defenseCycles,
                 DefensePosture.of(defenses.size(), defenseCycles),

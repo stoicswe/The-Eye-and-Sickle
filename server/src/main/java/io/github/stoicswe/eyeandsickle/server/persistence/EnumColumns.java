@@ -200,7 +200,14 @@ public final class EnumColumns {
 
     // ------------------------------------------------------------------ breach vocabulary
 
-    /** Database vocabulary for {@code breach_resolutions.puzzle_class}. [PROPOSAL] — P-1. */
+    /**
+     * Database vocabulary for {@code breach_resolutions.puzzle_class}.
+     *
+     * <p>Two values since V4, where {@code docs/design/15-open-questions.md} P-1 was resolved against
+     * five. ⚠ The retired spellings are not accepted here even though rows carrying them may exist in
+     * a backup: V4 rewrites them on the way in, and a reader that quietly understood a value no
+     * writer produces would let a half-migrated database look healthy.
+     */
     public static final Set<String> PUZZLE_CLASS_VALUES = valuesOf(PuzzleClass.values(), EnumColumns::puzzleClass);
 
     /**
@@ -210,11 +217,8 @@ public final class EnumColumns {
     public static String puzzleClass(PuzzleClass puzzleClass) {
         Objects.requireNonNull(puzzleClass, "puzzleClass");
         return switch (puzzleClass) {
-            case ENUMERATION -> "enumeration";
-            case CREDENTIAL -> "credential";
-            case LOGIC -> "logic";
-            case TIMING -> "timing";
-            case TRAVERSAL -> "traversal";
+            case BREACH_PROTOCOL -> "breach_protocol";
+            case OFFSET_CIPHER -> "offset_cipher";
         };
     }
 
@@ -225,11 +229,8 @@ public final class EnumColumns {
      */
     public static PuzzleClass puzzleClass(String value) {
         return switch (require(value, "puzzle_class")) {
-            case "enumeration" -> PuzzleClass.ENUMERATION;
-            case "credential" -> PuzzleClass.CREDENTIAL;
-            case "logic" -> PuzzleClass.LOGIC;
-            case "timing" -> PuzzleClass.TIMING;
-            case "traversal" -> PuzzleClass.TRAVERSAL;
+            case "breach_protocol" -> PuzzleClass.BREACH_PROTOCOL;
+            case "offset_cipher" -> PuzzleClass.OFFSET_CIPHER;
             default -> throw unknown("puzzle_class", value, PUZZLE_CLASS_VALUES);
         };
     }

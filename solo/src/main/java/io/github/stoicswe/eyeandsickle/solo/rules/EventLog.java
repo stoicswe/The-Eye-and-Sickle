@@ -46,6 +46,41 @@ public final class EventLog {
     }
 
     /**
+     * Something the player asked for and did not get.
+     *
+     * <h2>⚠ Refusals are logged so the notification that carries them is still "the log, filtered"</h2>
+     *
+     * {@code client/ui/Notifications} is emphatic that every notice it shows is a line the rig
+     * already emitted — a toast with its own copy of an event is one that can disagree with the log,
+     * and {@code docs/design/04-mining.md} §3.1 makes noticing that two readouts disagree the way a
+     * player catches a hidden miner. Panels used to print their refusals inline instead, which meant
+     * the one class of message a player most needs to see was the only class that never reached the
+     * notification system <em>or</em> the journal. Writing them here fixes both at once and keeps the
+     * "not a second source of truth" rule intact.
+     *
+     * <p><b>ERROR rather than WARNING</b> and that is deliberate: 3 passes every threshold a player
+     * is likely to set (the default is 5), and a refusal is a direct answer to something they just
+     * did. A filter that swallowed it would leave a button that silently does nothing, which is the
+     * failure the inline notice existed to prevent.
+     *
+     * <p>⚠ <b>A repeat of the last line is dropped.</b> A player mashing a control they cannot afford
+     * would otherwise write one entry per press and push everything else off both the toast stack and
+     * the 500-line journal. Real syslog does the same thing for the same reason, so the behaviour is
+     * one more thing that transfers.
+     */
+    public static void error(SoloSave save, String facility, String message, Instant now) {
+        if (!save.log.isEmpty()) {
+            RigEvent last = save.log.getLast();
+            if (last.severity == RigEvent.ERROR
+                    && last.facility.equals(facility)
+                    && last.message.equals(message)) {
+                return;
+            }
+        }
+        add(save, RigEvent.ERROR, facility, message, now);
+    }
+
+    /**
      * Something a player must not miss.
      *
      * <p>Reserved. {@code alert-fatigue(7)} is a page in this game's own manual, and a log that cries

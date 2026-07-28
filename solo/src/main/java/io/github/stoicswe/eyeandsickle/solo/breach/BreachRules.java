@@ -72,9 +72,14 @@ public final class BreachRules {
      * gets printed instead of a bare refusal — "a gate blocks this, and the requirement is printed",
      * which is what makes a gate legible rather than merely obstructive. Every id here is blocked by
      * not owning a tool from {@code docs/design/06-intrusion-tools.md} or {@code 07}.
+     *
+     * <p>⚠ One entry, and that is not an oversight. The four class-specific tools that used to sit
+     * here — {@code sidechannel}, {@code volley}, {@code rainbow}, {@code harvest} — each countered
+     * a mechanic of a puzzle class that no longer exists, and a gate on an action nothing publishes
+     * is dead weight that reads as a feature. The Overflow Kit survives because it applies to any
+     * layer of any class: it does not ask what was behind the door.
      */
-    private static final Set<String> TOOL_GATED =
-            Set.of("sidechannel", "volley", "rainbow", "harvest", "bypass");
+    private static final Set<String> TOOL_GATED = Set.of("bypass");
 
     // ================================================================== opening
 
@@ -86,7 +91,16 @@ public final class BreachRules {
      */
     public static BreachResult begin(SoloSave save, BreachTarget target, Instant now) {
         if (save.activeBreach != null) {
-            return BreachResult.refused("a breach is already open; abort it first");
+            // ⚠ TWO STATES, TWO SENTENCES, AND CONFLATING THEM WAS A DEAD END.
+            //
+            // A resolved-but-undismissed breach is not open — the player already aborted it, and
+            // being told to "abort it first" is an instruction they have carried out and cannot
+            // carry out again. It reads as the game refusing to let them try the same target twice.
+            // The outcome slate is deliberately not self-clearing (docs/design/05 §1 constraint 4:
+            // a loss has to stay readable), so the correct answer names the control that clears it.
+            return BreachResult.refused(save.activeBreach.outcome.isEmpty()
+                    ? "a breach is already open; abort it first"
+                    : "the last attempt is still on screen; dismiss it to start another");
         }
         if (target == null) {
             return BreachResult.refused("no such target");
@@ -168,14 +182,14 @@ public final class BreachRules {
         }
 
         Rng rng = Rng.of(save);
+        // ⚠ The published cost is the whole cost, on both boards.
+        //
+        // The retired Traversal class charged a per-destination surcharge on top of its chip's price,
+        // which meant the number on the control was not the number the player paid. Neither of the
+        // two puzzles that replaced it does that: a pick costs a pick and a commit costs a commit,
+        // whichever cell or row it lands on. Keep it that way — docs/design/05 §1 constraint 4 wants
+        // a failure to read as "I was too loud", and it cannot if the prices were never the prices.
         int cost = action.attentionCost();
-        if ("step".equals(actionId)) {
-            // The destination's own surcharge, per docs/design/05 §3.8's "2 + node.stepCost". It
-            // cannot go on the chip, because a chip does not know which node is selected — so the
-            // per-node cost is published on the lattice itself, where the player reads it before
-            // choosing, and it lands here.
-            cost += TraversalRules.stepCostOf(layer, argument);
-        }
         int spentBefore = layer.spent;
         if (!isBookkeeping(actionId)) {
             layer.spent = Math.min(layer.budget, layer.spent + cost);
@@ -213,8 +227,9 @@ public final class BreachRules {
             // Kit exists precisely to skip solving it (docs/design/06 §2).
             layer.state = "bypass".equals(actionId) ? "BYPASSED" : "CLEARED";
             advance(save, breach, now);
-        } else if (layer.strikes >= layer.strikeLimit) {
-            // A lockout ends the layer, and a layer that cannot be cleared ends the attempt.
+        } else if (move.locked() || layer.strikes >= layer.strikeLimit) {
+            // A lockout ends the layer, and a layer that cannot be cleared ends the attempt. Two
+            // ways in: striking out, and a class rule saying the board has no legal move left.
             layer.state = "LOCKED";
             resolve(save, breach, BreachOutcome.FAILED, now);
         } else if (layer.spent >= layer.budget) {
@@ -277,9 +292,8 @@ public final class BreachRules {
         }
         List<BreachAction> out = new ArrayList<>();
         switch (layer.puzzleClass) {
-            case "LOGIC" -> logicActions(save, breach, layer, out);
-            case "TRAVERSAL" -> traversalActions(save, breach, layer, out);
-            default -> enumerationActions(save, breach, layer, out);
+            case "OFFSET_CIPHER" -> cipherActions(breach, layer, out);
+            default -> matrixActions(breach, layer, out);
         }
         out.add(bypassAction(save, breach, layer));
         return List.copyOf(out);
@@ -295,94 +309,56 @@ public final class BreachRules {
         return -1;
     }
 
-    private static void enumerationActions(
-            SoloSave save, BreachState breach, LayerState layer, List<BreachAction> out) {
-        int bands = EnumerationRules.bandCount(layer);
-        out.add(action("sweep", BreachActionKind.QUIET_READ, "SWEEP BAND",
-                "counts the open ports in a band, never which",
-                surcharged(breach, Balance.ATTENTION_QUIET_READ), "band 0-" + (bands - 1), true, ""));
-        out.add(action("probe", BreachActionKind.PROBE, "PROBE SLOT", "resolves one slot exactly",
-                surcharged(breach, Balance.ATTENTION_PROBE), "slot 0-" + (layer.slots - 1), true, ""));
-        out.add(action("banner", BreachActionKind.LOUD_TOOL, "GRAB BANNER",
-                "reveals a slot and both neighbours, loudly",
-                surcharged(breach, Balance.ATTENTION_LOUD_TOOL), "slot 0-" + (layer.slots - 1), true, ""));
-
-        boolean owned = Targets.owns(save, "side-channel-reader");
-        boolean spent = layer.knownOpenTotal >= 0;
-        out.add(action("sidechannel", BreachActionKind.SIDE_CHANNEL, "SIDE-CHANNEL",
-                "reads the total without entering",
-                // ⚠ The Tarpit surcharge deliberately does not apply. docs/design/06 §2 calls zero
-                // attention the Side-Channel Reader's "whole identity" and docs/design/05 §4 makes
-                // it the only zero-attention action in the game; a defence that made it cost one
-                // would quietly delete the single thing that distinguishes it.
-                Balance.ATTENTION_SIDE_CHANNEL, "", owned && !spent,
-                !owned
-                        ? "requires the Side-Channel Reader, which is behind a late schematic gate"
-                        : "the side channel is spent on this layer"));
-
-        out.add(action("mark", BreachActionKind.PROBE, "MARK SLOT", "adds or removes a slot from your map",
-                0, "slot 0-" + (layer.slots - 1), true, ""));
-        out.add(action("declare", BreachActionKind.PROBE, "DECLARE MAP",
-                "submits your map; wrong is a strike, and it only tells you how many",
-                surcharged(breach, Balance.ATTENTION_PROBE), "", true, ""));
+    /**
+     * The moves a protocol grid offers: one.
+     *
+     * <h2>⚠ There is deliberately no probe, no tool and no assist here</h2>
+     *
+     * Every code, every goal and the whole buffer are published from the first frame, so there is
+     * nothing to ask and nothing to buy — a "reveal" action on an open-information board would have
+     * to invent something to reveal. The single move is the whole interface, which is what makes this
+     * puzzle read as spatial rather than transactional, and is exactly the contrast with the cipher
+     * that {@code PuzzleClass} exists to preserve.
+     *
+     * <p>The Overflow Kit still applies, because it applies to every layer of every class — it does
+     * not ask what was behind the door.
+     */
+    private static void matrixActions(BreachState breach, LayerState layer, List<BreachAction> out) {
+        boolean room = layer.matrixBuffer.size() < layer.matrixBufferSize;
+        out.add(action(MatrixRules.PICK, BreachActionKind.PROBE, "TAKE CODE",
+                layer.matrixRowTurn
+                        ? "the path is in row " + layer.matrixCursorRow + " this pick"
+                        : "the path is in column " + layer.matrixCursorColumn + " this pick",
+                surcharged(breach, Balance.ATTENTION_PROBE), "row:column", room,
+                "the buffer is full - nothing more can be taken"));
     }
 
-    private static void logicActions(
-            SoloSave save, BreachState breach, LayerState layer, List<BreachAction> out) {
-        out.add(action("set", BreachActionKind.PROBE, "SET POSITION", "composes the next guess",
-                0, "position:symbol, e.g. 2:%", true, ""));
-        out.add(action("listen", BreachActionKind.QUIET_READ, "LISTEN",
-                "one true statement about the code",
-                surcharged(breach, Balance.ATTENTION_QUIET_READ), "", !layer.factDeck.isEmpty(),
-                "there is nothing left to overhear on this layer"));
+    /**
+     * The moves a cipher offers: compose, commit, and one way out.
+     *
+     * <h2>⚠ No probe either, and for the opposite reason</h2>
+     *
+     * The grid has nothing to ask because everything is visible; the cipher has nothing to ask
+     * because the answer is arithmetic. A "check one cell" action would be a probe in all but name
+     * and would turn a test of care into a test of budget — the player would simply buy the answer
+     * one cell at a time. {@code CARRY} exists as the single escape hatch and is priced so that using
+     * it on every cell costs more than the layer is worth.
+     */
+    private static void cipherActions(BreachState breach, LayerState layer, List<BreachAction> out) {
+        int last = Math.max(0, layer.cipherObserved.size() - 1);
+        out.add(action(OffsetRules.TYPE, BreachActionKind.PROBE, "TYPE OFFSET",
+                "writes an offset under a byte; free, and reversible until you commit",
+                0, "index:value, e.g. 0:-9", true, ""));
 
-        boolean complete = !layer.draft.isEmpty() && !layer.draft.contains("");
-        out.add(action("probe", BreachActionKind.PROBE, "PROBE", "submits the draft; exact and partial come back",
-                surcharged(breach, Balance.ATTENTION_PROBE), "", complete,
-                "the draft is incomplete - set every position first"));
+        boolean full = layer.cipherEntered.stream().noneMatch(java.util.Objects::isNull);
+        out.add(action(OffsetRules.COMMIT, BreachActionKind.PROBE, "COMMIT",
+                "submits every offset; a wrong one is a strike, and it only tells you which",
+                surcharged(breach, Balance.ATTENTION_PROBE), "", full,
+                "every cell needs an offset before you can commit"));
 
-        boolean fuzzer = Targets.owns(save, "fuzzer");
-        out.add(action("volley", BreachActionKind.LOUD_TOOL, "FUZZER VOLLEY",
-                Balance.BREACH_LOGIC_VOLLEY_SIZE + " guesses at once, exact counts only",
-                surcharged(breach, Balance.ATTENTION_LOUD_TOOL), "", fuzzer,
-                "requires the Fuzzer (25 EC)"));
-
-        boolean rainbow = Targets.owns(save, "rainbow-table");
-        out.add(action("rainbow", BreachActionKind.PROBE, "RAINBOW TABLE",
-                layer.salted ? "this lock is salted; the table will find nothing" : "reveals two positions",
-                surcharged(breach, Balance.ATTENTION_PROBE), "", rainbow,
-                "requires the Rainbow Table (60 EC plus its schematic)"));
-
-        boolean harvester = Targets.owns(save, "credential-harvester");
-        out.add(action("harvest", BreachActionKind.PROBE, "HARVEST",
-                "names every symbol in use, skipping a deduction step",
-                surcharged(breach, Balance.ATTENTION_CREDENTIAL_HARVESTER), "", harvester,
-                "requires the Credential Harvester, which is Sickle-reputation gated"));
-    }
-
-    private static void traversalActions(
-            SoloSave save, BreachState breach, LayerState layer, List<BreachAction> out) {
-        out.add(action("listen", BreachActionKind.QUIET_READ, "LISTEN",
-                "recovers an adjacent node's log fragment",
-                surcharged(breach, Balance.ATTENTION_QUIET_READ), "node id or hostname", true, ""));
-        out.add(action("step", BreachActionKind.PROBE, "STEP",
-                Targets.owns(save, "topology-mapper")
-                        ? "moves one hop and reveals two, on the Topology Mapper"
-                        : "moves one hop and reveals what it can see",
-                surcharged(breach, Balance.ATTENTION_PROBE), "node id or hostname", true, ""));
-        out.add(action("traceroute", BreachActionKind.LOUD_TOOL, "TRACEROUTE",
-                "maps two ranks ahead and flags traps, loudly",
-                surcharged(breach, Balance.ATTENTION_LOUD_TOOL), "", true, ""));
-        out.add(action("extract", BreachActionKind.PROBE, "EXTRACT",
-                "takes the objective, if you have picked the right one",
-                surcharged(breach, Balance.ATTENTION_PROBE), "node id or hostname", true, ""));
-
-        boolean canGoBack = TraversalRules.node(layer, layer.currentNodeId) != null
-                && TraversalRules.node(layer, layer.currentNodeId).rank > 0;
-        out.add(action("back", BreachActionKind.PROBE, "BACK",
-                "one rank back, at full price - a wrong branch is paid for twice",
-                surcharged(breach, Balance.ATTENTION_PROBE), "", canGoBack,
-                "you are already at the entry"));
+        out.add(action(OffsetRules.CARRY, BreachActionKind.LOUD_TOOL, "CARRY",
+                "solves one byte for you, loudly",
+                surcharged(breach, Balance.ATTENTION_LOUD_TOOL), "index 0-" + last, true, ""));
     }
 
     /**
@@ -449,20 +425,27 @@ public final class BreachRules {
 
     // ================================================================== bookkeeping
 
+    /**
+     * Composition rather than a move — never charged, never ledgered.
+     *
+     * <p>{@code docs/design/05} §3.7: writing an offset into a cell is not a move any more than
+     * hovering over one is. Only {@code commit} is, which is why a player can rewrite the whole row
+     * as many times as they like and still only pay when they submit it.
+     */
     private static boolean isBookkeeping(String actionId) {
-        return "mark".equals(actionId) || "set".equals(actionId);
+        return OffsetRules.isBookkeeping(actionId);
     }
 
     private static Move dispatch(SoloSave save, LayerState layer, String actionId, String argument, Rng rng) {
         if ("bypass".equals(actionId)) {
             return Move.cleared("layer bypassed - the kit does not ask what was behind it");
         }
-        return switch (layer.puzzleClass) {
-            case "LOGIC" -> LogicRules.act(layer, actionId, argument, rng);
-            case "TRAVERSAL" ->
-                    TraversalRules.act(layer, actionId, argument, Targets.owns(save, "topology-mapper"));
-            default -> EnumerationRules.act(layer, actionId, argument, rng);
-        };
+        // ⚠ Neither rule takes the Rng, and that is structural rather than incidental. Every draw an
+        // attempt makes happens once, in BoardFactory, at commission — so a reload cannot re-roll a
+        // board, and a class rule that could draw would be the one place that guarantee could break.
+        return "OFFSET_CIPHER".equals(layer.puzzleClass)
+                ? OffsetRules.act(layer, actionId, argument)
+                : MatrixRules.act(layer, actionId, argument);
     }
 
     private static int noiseFor(BreachActionKind kind) {
@@ -548,6 +531,82 @@ public final class BreachRules {
         return null;
     }
 
+    /**
+     * Rolls whether the machine answered in the other direction.
+     *
+     * <h2>Noise is the variable, which is what makes quiet play worth the trouble</h2>
+     *
+     * A breach that never went past a quiet read resolves at {@code Balance.NOISE_BASE} and is very
+     * nearly safe; one that leant on the Overflow Kit and tripped two canaries is several times that
+     * and is genuinely dangerous. {@code docs/design/05} §4 already prices loudness <em>inside</em> the
+     * puzzle as trace; this is the price <em>outside</em> it, and having both is what stops "bypass
+     * everything" being free the moment the trace bar is survivable.
+     *
+     * <h2>⚠ Rolled at resolution, not at commission — and that is the opposite of a sweep</h2>
+     *
+     * {@code NetRules.beginSweep} freezes its counter-hack at the start, because a sweep's whole
+     * outcome is decided before it runs and a reload must replay nothing. A breach's noise <em>does
+     * not exist yet</em> at commission — it is the sum of choices the player has not made — so rolling
+     * early would either ignore those choices or predict them. It is rolled once, here, when the
+     * figure it depends on is final, and the breach resolves in the same call so there is nothing to
+     * reload into.
+     *
+     * <h2>⚠ Never for a crack, and never at home</h2>
+     *
+     * A crack runs on the player's own rig; nothing leaves the machine, so there is nobody to answer
+     * (Invariant <b>I9</b>, and the reason the crack is the tutorial). And depth zero never bites
+     * back, the same rule {@code Balance.NET_COUNTER_HACK_HOME} fixes for sweeps: the home server is
+     * where the game teaches, and a teaching space that occasionally plants a parasite on the student
+     * is one they learn to avoid.
+     *
+     * <p>Fires on <b>every</b> outcome, including a failure and an abort. What provoked the machine is
+     * the noise, and walking away does not un-make it — {@code 05} §4.1's "the noise you made stays
+     * made", now with something behind it.
+     */
+    private static void answerBack(SoloSave save, BreachState breach, Instant now) {
+        int depth = depthOf(save, breach.targetId);
+        double chance = Balance.breachCounterHackChance(breach.resolvedNoise, depth);
+
+        // ⚠ Drawn UNCONDITIONALLY, before the chance is tested. Rng's contract is that a generator
+        // whose consumption depends on what it produced makes a replay from a stored seed stop being
+        // a replay — so the draw happens even when the chance is zero and the value is discarded.
+        Rng rng = Rng.of(save);
+        double roll = rng.nextDouble();
+        rng.commit(save);
+
+        if (chance <= 0.0d || roll >= chance) {
+            return;
+        }
+        io.github.stoicswe.eyeandsickle.solo.rules.IntrusionRules.plantCounterHack(save, depth, now);
+        breach.consequences.add(
+                "the machine answered: something of theirs is running on your rig now. "
+                        + "You were loud enough to be worth it.");
+    }
+
+    /**
+     * How deep the breached machine's server sits from home, or {@code 0}.
+     *
+     * <p>Zero for anything this build cannot place — a target id from an older save, a node that has
+     * gone. Zero is the reading that cannot invent a counter-hack nobody earned.
+     */
+    private static int depthOf(SoloSave save, String targetId) {
+        if (save.topology == null || targetId == null || !targetId.startsWith("node:")) {
+            return 0;
+        }
+        String address = targetId.substring("node:".length());
+        for (var host : save.topology.hosts) {
+            if (!host.address.equals(address)) {
+                continue;
+            }
+            for (var server : save.topology.servers) {
+                if (server.serverId.equals(host.serverId)) {
+                    return server.depthFromHome;
+                }
+            }
+        }
+        return 0;
+    }
+
     // ================================================================== resolution
 
     private static void resolve(SoloSave save, BreachState breach, BreachOutcome outcome, Instant now) {
@@ -556,7 +615,11 @@ public final class BreachRules {
         // attempt has no published duration to date it from — it ended when the player ended it.
         ComputeRules.beginRecovery(save.rig, breach.allocationId, now);
 
-        int noise = Balance.NOISE_BASE + breach.noise + breach.alarms * Balance.NOISE_PER_ALARM;
+        // ⚠ The class multiplier lands here, on the total, and nowhere else. See
+        // Balance.breachNoisePoints for why scaling per action would have made the cipher QUIETER.
+        int noise = Balance.NOISE_BASE
+                + Balance.breachNoisePoints(breach.puzzleClass, breach.noise)
+                + breach.alarms * Balance.NOISE_PER_ALARM;
         breach.resolvedNoise = noise;
 
         // Invariant I9: a miner crack generates zero heat on EVERY outcome, including failure.
@@ -571,6 +634,7 @@ public final class BreachRules {
             resolveCrack(save, breach, outcome, now);
         } else {
             resolveOffensive(save, breach, outcome, now);
+            answerBack(save, breach, now);
         }
 
         ResolutionState record = record(breach, outcome, now);

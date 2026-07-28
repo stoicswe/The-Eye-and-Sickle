@@ -2,31 +2,22 @@ package io.github.stoicswe.eyeandsickle.solo.breach;
 
 import io.github.stoicswe.eyeandsickle.protocol.game.AttentionBudget;
 import io.github.stoicswe.eyeandsickle.protocol.game.AttentionEntry;
-import io.github.stoicswe.eyeandsickle.protocol.game.BandReading;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachActionKind;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachBoard;
+import io.github.stoicswe.eyeandsickle.protocol.game.MatrixBoard;
+import io.github.stoicswe.eyeandsickle.protocol.game.OffsetBoard;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachLayer;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachOutcome;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachResolution;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachSnapshot;
 import io.github.stoicswe.eyeandsickle.protocol.game.DifficultyTier;
-import io.github.stoicswe.eyeandsickle.protocol.game.EnumerationBoard;
-import io.github.stoicswe.eyeandsickle.protocol.game.LatticeNode;
 import io.github.stoicswe.eyeandsickle.protocol.game.LayerOutcome;
-import io.github.stoicswe.eyeandsickle.protocol.game.LogicBoard;
-import io.github.stoicswe.eyeandsickle.protocol.game.LogicProbe;
-import io.github.stoicswe.eyeandsickle.protocol.game.PortSlot;
-import io.github.stoicswe.eyeandsickle.protocol.game.PortState;
 import io.github.stoicswe.eyeandsickle.protocol.game.PuzzleClass;
 import io.github.stoicswe.eyeandsickle.protocol.game.ResolutionRecord;
 import io.github.stoicswe.eyeandsickle.protocol.game.TargetState;
-import io.github.stoicswe.eyeandsickle.protocol.game.TraversalBoard;
 import io.github.stoicswe.eyeandsickle.solo.state.AttentionEntryState;
 import io.github.stoicswe.eyeandsickle.solo.state.BreachState;
-import io.github.stoicswe.eyeandsickle.solo.state.LatticeNodeState;
 import io.github.stoicswe.eyeandsickle.solo.state.LayerState;
-import io.github.stoicswe.eyeandsickle.solo.state.PortSlotState;
-import io.github.stoicswe.eyeandsickle.solo.state.ProbeState;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,18 +27,16 @@ import java.util.List;
  *
  * <h2>⚠ This class is the one place a puzzle answer could leak, and it is built so it cannot</h2>
  *
- * The rule (D-2) is that <b>a snapshot carries only revealed information</b>. The Logic code, the
- * true port states, the true objective node and the trap flags never appear in one. Unknown is
- * encoded as {@link PortState#UNKNOWN}, as {@code ""}, or by absence from a list — never as
- * {@code null}, because every list on the wire is defensively copied with {@code List.copyOf}, which
- * rejects nulls.
+ * The rule (D-2) is that <b>a snapshot carries only revealed information</b>, and the two puzzles
+ * that replaced the original three make it easier to keep rather than harder — because neither of
+ * them has a secret. Breach Protocol publishes its whole grid and every goal because it is a routing
+ * game, and the cipher publishes both hex rows because the arithmetic <em>is</em> the game.
  *
- * <p>It is written so that a hidden field is <b>not in scope</b> rather than filtered out:
- * {@link PortSlotState#revealed} is read before {@link PortSlotState#truth}, {@code hintRead} before
- * {@code hint}, {@code trapKnown} before {@code trapped}, and {@code LayerState.secret},
- * {@code factDeck} and {@code objectiveNodeId} are not read at all. A builder that reads a secret and
- * then decides not to publish it is one careless edit from publishing it; a builder that never reads
- * it is not.
+ * <p>⚠ What must still never appear is a <b>solution</b>. For the grid that means no reachable-goal
+ * count, no "best next cell" and no marker on the cell a solver would take; for the cipher it means
+ * the computed offsets are never published, only the two rows they are derived from. Both are
+ * enforced the same way the old boards were: the field is <em>not read here</em> rather than read and
+ * filtered. {@code OffsetRules.expected} exists and this class does not call it.
  *
  * <p>The obvious objection — this is a save file the player can already open in a text editor — is
  * answered by what these records are <em>for</em>. They are protocol types (D-1) because a real home
@@ -119,111 +108,101 @@ public final class BreachSnapshots {
      * not published. Sending it would hand over three layers' worth of answers the moment the attempt
      * opened, which is the same leak as sending the secret, arriving one indirection later.
      */
+    /**
+     * The board for a layer, or {@code null} when the layer has not been reached.
+     *
+     * <p>A pending layer publishes no board at all. The later layers of a target are not information
+     * the player has bought, and handing over a tier-5 cipher's sixteen bytes while they are still on
+     * layer 0 would be free planning time the design never sold them.
+     */
     private static BreachBoard board(LayerState layer, PuzzleClass puzzleClass) {
-        if ("PENDING".equals(layer.state)) {
+        if (!"ACTIVE".equals(layer.state) && !"CLEARED".equals(layer.state) && !"FAILED".equals(layer.state)) {
             return null;
         }
-        return switch (puzzleClass) {
-            case LOGIC -> logic(layer);
-            case TRAVERSAL -> traversal(layer);
-            default -> enumeration(layer);
-        };
+        return puzzleClass == PuzzleClass.OFFSET_CIPHER ? cipher(layer) : matrix(layer);
     }
 
-    private static EnumerationBoard enumeration(LayerState layer) {
-        List<PortSlot> ports = new ArrayList<>();
-        for (PortSlotState slot : layer.ports) {
-            // ⚠ revealed FIRST. An unrevealed slot's truth is not read, so it cannot be published by
-            // a later edit that forgets which branch it is in.
-            if (slot.revealed) {
-                ports.add(new PortSlot(slot.index, PortState.valueOf(slot.truth), slot.service));
-            } else {
-                ports.add(new PortSlot(slot.index, PortState.UNKNOWN, ""));
+    /**
+     * The protocol grid, whole.
+     *
+     * <p>⚠ Nothing is computed here beyond re-shaping the flat lists the save stores into the nested
+     * ones the renderer indexes. In particular there is no "which goals are still reachable from
+     * here" — that is the question the player is being asked, and answering it in the read model
+     * would be the same leak as publishing a Logic code.
+     */
+    private static MatrixBoard matrix(LayerState layer) {
+        int size = Math.max(1, layer.matrixSize);
+        List<List<String>> grid = new ArrayList<>();
+        List<List<Boolean>> used = new ArrayList<>();
+        for (int row = 0; row < size; row++) {
+            List<String> codes = new ArrayList<>();
+            List<Boolean> taken = new ArrayList<>();
+            for (int column = 0; column < size; column++) {
+                int cell = row * size + column;
+                codes.add(cell < layer.matrixGrid.size() ? layer.matrixGrid.get(cell) : "00");
+                taken.add(cell < layer.matrixUsed.size() && layer.matrixUsed.get(cell));
             }
+            grid.add(codes);
+            used.add(taken);
         }
-        List<BandReading> readings = new ArrayList<>();
-        for (int[] reading : layer.readingRanges) {
-            readings.add(new BandReading(reading[0], reading[1], reading[2]));
+
+        List<MatrixBoard.Goal> goals = new ArrayList<>();
+        for (int goal = 0; goal < layer.matrixGoalLabels.size(); goal++) {
+            goals.add(new MatrixBoard.Goal(
+                    layer.matrixGoalLabels.get(goal),
+                    MatrixRules.goalCodes(layer, goal),
+                    layer.matrixGoalMatched.get(goal),
+                    layer.matrixGoalSolved.get(goal),
+                    layer.matrixGoalRewards.get(goal)));
         }
-        return new EnumerationBoard(
-                layer.banner,
-                layer.bannerNote,
-                layer.slots,
-                layer.bandSize,
-                ports,
-                readings,
-                layer.knownOpenTotal,
-                List.copyOf(layer.declared));
+
+        return new MatrixBoard(
+                grid,
+                used,
+                List.copyOf(layer.matrixBuffer),
+                layer.matrixBufferSize,
+                layer.matrixRowTurn,
+                layer.matrixCursorRow,
+                layer.matrixCursorColumn,
+                goals);
     }
 
-    private static LogicBoard logic(LayerState layer) {
-        // ⚠ layer.secret and layer.factDeck are not touched anywhere in this method. Everything
-        // below is either the player's own working or a response they already paid for.
-        List<LogicProbe> history = new ArrayList<>();
-        for (ProbeState probe : layer.probes) {
-            history.add(new LogicProbe(
-                    probe.sequence,
-                    List.copyOf(probe.guess),
-                    probe.exact,
-                    probe.partial,
-                    probe.volley,
-                    probe.inconsistent));
-        }
-        List<String> facts = new ArrayList<>();
-        for (String card : layer.facts) {
-            // The prose only. The machine form behind it is scaffolding for the candidate filter and
-            // has no business on a wire — see Facts.
-            facts.add(Facts.prose(card));
-        }
-        return new LogicBoard(
-                layer.secret.size(),
-                List.copyOf(layer.alphabet),
-                layer.salted,
-                history,
-                facts,
-                List.copyOf(layer.known),
-                List.copyOf(layer.draft),
-                layer.keyspace,
-                layer.candidatesRemaining);
+    /**
+     * The cipher, both rows and whatever the player has typed.
+     *
+     * <p>⚠ {@code OffsetRules.expected} is deliberately not called from here. The answer is derivable
+     * from the two rows this publishes — that is the point of the puzzle — but derivable by the
+     * player is not the same as shipped in the read model, and a field carrying it would be one
+     * refactor away from a renderer printing it.
+     */
+    private static OffsetBoard cipher(LayerState layer) {
+        return new OffsetBoard(
+                List.copyOf(layer.cipherObserved),
+                List.copyOf(layer.cipherTarget),
+                layer.cipherEntered,
+                List.copyOf(layer.cipherWrong),
+                layer.cipherCursor,
+                "",
+                layer.cipherCommits);
     }
 
-    private static TraversalBoard traversal(LayerState layer) {
-        // ⚠ layer.objectiveNodeId is not read here. The client renders K identical candidates and
-        // has no way to tell them apart, which is exactly the state the human read exists to resolve.
-        List<LatticeNode> nodes = new ArrayList<>();
-        for (LatticeNodeState node : layer.nodes) {
-            if (!node.visible) {
-                // Invisible nodes are published as a shape with nothing in them: the player can see
-                // that the lattice continues, and nothing about what is there.
-                nodes.add(new LatticeNode(
-                        node.id, node.rank, node.index, "", List.of(), false, false, false, "", false, 0));
-                continue;
-            }
-            nodes.add(new LatticeNode(
-                    node.id,
-                    node.rank,
-                    node.index,
-                    node.label,
-                    List.copyOf(node.exits),
-                    node.visited,
-                    true,
-                    node.objectiveCandidate,
-                    node.hintRead ? node.hint : "",
-                    node.trapKnown,
-                    node.stepCost));
-        }
-        return new TraversalBoard(
-                layer.ranks, layer.objectiveRank, layer.currentNodeId, nodes, List.copyOf(layer.manifest));
-    }
-
-    /** Null while the attempt is live; the slate once it has resolved and not yet been dismissed. */
+    /**
+     * The finished attempt, or {@code null} while it is still running.
+     *
+     * <p>The class recorded is the <b>deepest layer reached</b>, which under one-puzzle-per-attempt
+     * is simply the attempt's class — kept as a walk anyway so that a future multi-class attempt
+     * records what the player actually got to rather than what they started on. Proof-of-skill reads
+     * this ({@code docs/design/02} §2.4, Invariant I7).
+     */
     private static BreachResolution resolution(BreachState breach) {
         if (breach.outcome.isEmpty()) {
             return null;
         }
         int spent = 0;
         int budget = 0;
-        String deepest = breach.layers.isEmpty() ? "ENUMERATION" : breach.layers.getFirst().puzzleClass;
+        String deepest = breach.layers.isEmpty()
+                ? PuzzleClass.BREACH_PROTOCOL.name()
+                : breach.layers.getFirst().puzzleClass;
         for (LayerState layer : breach.layers) {
             spent += Math.min(layer.spent, layer.budget);
             budget += layer.budget;
@@ -234,7 +213,7 @@ public final class BreachSnapshots {
         double traceProgress = budget <= 0 ? 0.0d : spent / (double) budget;
         return new BreachResolution(
                 new ResolutionRecord(
-                        PuzzleClass.valueOf(deepest),
+                        puzzle(deepest),
                         DifficultyTier.of(breach.difficultyTier),
                         TargetState.valueOf(breach.liveOrDormant),
                         BreachOutcome.valueOf(breach.outcome)),
@@ -248,12 +227,22 @@ public final class BreachSnapshots {
     }
 
     /**
-     * Reads a persisted kind name, defaulting rather than throwing.
+     * A puzzle class name from a save, tolerantly.
      *
-     * <p>A save is a document that outlives the code that wrote it, and a ledger row is history. An
-     * unknown kind on one row must not make the whole attempt unreadable — the row's cost, result and
-     * alarm flag are all still true, and they are the parts that explain a loss.
+     * <p>⚠ A character saved mid-breach under the old three-class engine carries {@code "LOGIC"} or
+     * {@code "TRAVERSAL"} here, and {@code valueOf} would throw on load — turning a retired minigame
+     * into a save that will not open. It reads as Breach Protocol instead, which is honest enough for
+     * a record of an attempt that no longer has a board to be played on, and {@code SoloGame.open}
+     * abandons any live breach anyway.
      */
+    private static PuzzleClass puzzle(String name) {
+        try {
+            return PuzzleClass.valueOf(name);
+        } catch (IllegalArgumentException retired) {
+            return PuzzleClass.BREACH_PROTOCOL;
+        }
+    }
+
     private static BreachActionKind kind(String name) {
         try {
             return BreachActionKind.valueOf(name);

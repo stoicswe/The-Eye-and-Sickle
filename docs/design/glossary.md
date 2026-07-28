@@ -25,7 +25,24 @@ Canonical terms and their code-name conventions. When implementing, use these na
 
 ## Mining (`04`)
 
-- **Self-mining** — on own rig; safe, silent, zero-heat, unseizable, online-only. 0.4 EC/cycle-hr.
+- **Self-mining** — on own rig; safe, silent, zero-heat, unseizable, online-only. 0.4 EC/cycle-hr *in expectation* — a real proof-of-work simulation since 2026-07-27 (`04-mining.md` §1.3), not a trickle.
+- **Pooled mining** — self-mining against a pool's share target. Pay-per-share: a small payout every ~30s, less a 2% fee. Near-constant income. **The default**, and the floor `03-economy.md` §1 prices.
+- **Solo mining** — self-mining against the full network difficulty. One whole block subsidy (160 EC) or nothing, ~every 4 hours on a full rig. No fee, so ~2% more in expectation and roughly twenty times the variance.
+- **Share** — a proof of *partial* work, worth something only to the pool that set its target. Never a block; never appears on the chain.
+- **PPS** (pay-per-share) — the pool pays a fixed amount per accepted share whether or not it found a block, and charges a higher fee for carrying that risk. Steadiness comes from the share target, so pool size does not affect it.
+- **PPLNS** (pay-per-last-N-shares) — the pool pays only out of blocks it actually finds, in proportion to your work. Lower fee; **pool size is the variance knob**.
+- **Vardiff** — a pool tuning each miner's share target to that miner's own hashrate, so shares land at a steady pace whatever the rig. Why pooling smooths a small rig as well as a large one.
+- **Settlement** — the pool handing over what it owes, every 60s. Shares accrue to an unpaid balance between settlements; a solo block never waits. Paces the *ledger*, never the income.
+- **Unpaid balance** — earned, credited by the pool, not yet handed over. Shown on the mining panel with a countdown.
+- **Block** — minted every ~14 minutes and **won** by one miner, drawn with probability equal to their share of the chain's hashrate. Not raced.
+- **Chain address** — `0x` + 40 hex, derived from the character id. Ethereum's shape; this chain's mechanics.
+- **Coinbase** — a block reward. Rendered as a transfer from the zero address, because the coins did not exist before the block, and costing no gas because there was no transaction to execute.
+- **Mempool** — transactions waiting for a miner. A block holds 200; the queue is usually deeper, which is what makes a fee a bid.
+- **Fee tier** — Economy / Standard / Priority. Buys position in the queue, never a guarantee. Deliberately too small to be an economy sink.
+- **Gas price** — a fee expressed as a *rate* (minor units per million gas). The only unit priority may be quoted in; a fee total says nothing about position.
+- **Projected block** — what the next block *would* hold if mined now. A queue snapshot, never a schedule.
+- **Block subsidy** — what one block pays: 160 EC. A miner also takes every fee in the block.
+- **Total work** — accumulated difficulty. What decides between two chains; block height never does. The one knob that changes solo mining's feel without disturbing the economy table.
 - **Deployed miner** — parasite on another machine; consumes **host** compute; only offline-earning source; buffer-capped.
 - **Control channel** — the 3-cycle/miner reservation the deployer pays per live deployed miner.
 - **Yield buffer** — on-host accumulation while deployer is offline; 4-hr cap per miner; the prize in a crack.

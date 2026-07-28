@@ -1,6 +1,9 @@
 package io.github.stoicswe.eyeandsickle.client.view;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
+
+import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
 
 import io.github.stoicswe.eyeandsickle.client.session.LocalGameSession;
 import io.github.stoicswe.eyeandsickle.solo.SoloGame;
@@ -48,6 +51,58 @@ class RigStatusTest {
         }
 
         @Test
+        @DisplayName("⚠ the strip's +EC/HR tracks the mode, not a flat rate")
+        void rateTracksTheMode(@TempDir Path dir) {
+            LocalGameSession s = session(dir);
+            s.allocateSelfMining(100);
+            String pooledRate = RigStatus.of(s).incomePerHour();
+
+            s.setMiningMode(MiningMode.SOLO);
+            String soloRate = RigStatus.of(s).incomePerHour();
+
+            // This is the readout in the deck's top strip, right under the balance. It used to be
+            // `cycles × 40` computed here, which was right for a pooled miner and wrong for a solo
+            // one by exactly the pool fee they are no longer paying. It reads the engine now.
+            assertThat(soloRate).isNotEqualTo(pooledRate);
+            assertThat(Double.parseDouble(soloRate)).isGreaterThan(Double.parseDouble(pooledRate));
+            assertThat(Double.parseDouble(soloRate)).isCloseTo(40.0d / 0.98d, within(0.05d));
+        }
+
+        @Test
+        @DisplayName("⚠ the strip's +EC/HR tracks the pool's fee too")
+        void rateTracksThePool(@TempDir Path dir) {
+            LocalGameSession s = session(dir);
+            s.allocateSelfMining(100);
+
+            s.setMiningPool("meridian");
+            double dear = Double.parseDouble(RigStatus.of(s).incomePerHour());
+            s.setMiningPool("small-hours");
+            double cheap = Double.parseDouble(RigStatus.of(s).incomePerHour());
+
+            // A 3.50% pool and a 0.50% pool are three percent apart, and the strip has to say so —
+            // it is the only place a player sees their rate without opening a panel.
+            assertThat(cheap).isGreaterThan(dear);
+            assertThat(cheap - dear).isCloseTo(40.0d * 0.03d / 0.98d, within(0.1d));
+        }
+
+        @Test
+        @DisplayName("the projected rate is what a hypothetical allocation would earn, asked of the engine")
+        void previewsAnUncommittedAllocation(@TempDir Path dir) {
+            LocalGameSession s = session(dir);
+            s.allocateSelfMining(100);
+
+            // What the MINING panel prices its slider with while the player is still dragging. The
+            // panel must not scale the committed figure itself — that is how the third copy of this
+            // rate got into the client and stayed wrong.
+            assertThat(s.miningRateFor(100)).isEqualTo(4_000L);
+            assertThat(s.miningRateFor(50)).isEqualTo(2_000L);
+            assertThat(s.miningRateFor(0)).isZero();
+            // And the preview must not disturb what the rig is actually doing.
+            assertThat(s.mining().selfMiningCycles()).isEqualTo(100L);
+            assertThat(s.miningChain().expectedMinorUnitsPerHour()).isEqualTo(4_000L);
+        }
+
+        @Test
         @DisplayName("the rate is proportional to the allocation, and zero at zero")
         void rateScales(@TempDir Path dir) {
             LocalGameSession s = session(dir);
@@ -66,10 +121,13 @@ class RigStatusTest {
             s.allocateSelfMining(100);
 
             long projectedPerHour = RigStatus.of(s).incomeMinorUnitsPerHour();
-            long enginePerHour = io.github.stoicswe.eyeandsickle.solo.rules.MiningRules.selfMiningYield(
-                    100, java.time.Duration.ofHours(1));
+            long enginePerHour = s.miningChain().expectedMinorUnitsPerHour();
 
+            // ⚠ Read off the port, not recomputed. Since self-mining became a Poisson process the
+            // rate depends on the MODE — a solo miner keeps the pool's fee — so a readout with its
+            // own constant would be right for pooled players and wrong for everyone else.
             assertThat(projectedPerHour).isEqualTo(enginePerHour);
+            assertThat(projectedPerHour).isEqualTo(4_000L);
         }
     }
 

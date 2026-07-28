@@ -31,6 +31,19 @@ public final class LedgerRules {
      */
     public static Ethecoin apply(
             SoloSave save, long deltaMinorUnits, String type, String description, Instant now) {
+        applyEntry(save, deltaMinorUnits, type, description, now);
+        return Ethecoin.ofMinorUnits(save.ethecoinMinorUnits);
+    }
+
+    /**
+     * The same, returning the row it wrote so a caller can stamp chain metadata on it.
+     *
+     * <p>⚠ The row is returned <b>after</b> it is already in the ledger, deliberately. A caller that
+     * had to add it themselves could forget, and a movement of ethecoin that never reached the ledger
+     * is the one thing {@code ledger(1)} promises cannot happen.
+     */
+    public static LedgerEntryState applyEntry(
+            SoloSave save, long deltaMinorUnits, String type, String description, Instant now) {
         long next = save.ethecoinMinorUnits + deltaMinorUnits;
         if (next < 0) {
             throw new IllegalArgumentException(
@@ -45,7 +58,6 @@ public final class LedgerRules {
         entry.type = type;
         entry.description = description;
         save.ledger.add(entry);
-
-        return Ethecoin.ofMinorUnits(next);
+        return entry;
     }
 }

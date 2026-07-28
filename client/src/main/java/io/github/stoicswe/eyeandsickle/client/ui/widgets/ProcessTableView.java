@@ -88,6 +88,7 @@ public final class ProcessTableView extends VBox {
     private Consumer<RigProcess> onKill = process -> {};
     private Consumer<RigProcess> onRestart = process -> {};
     private Consumer<RigProcess> onSelect = process -> {};
+    private Consumer<List<RigProcess>> onSample = rows -> {};
 
     /**
      * The menu currently on screen, or null.
@@ -130,7 +131,9 @@ public final class ProcessTableView extends VBox {
     private static final double TICK_MS = 5_000;
 
     private void pull() {
-        setProcesses(source.get());
+        List<RigProcess> rows = source.get();
+        setProcesses(rows);
+        onSample.accept(rows);
     }
 
     /** Stops the clock. Called when the panel leaves the scene. */
@@ -178,6 +181,18 @@ public final class ProcessTableView extends VBox {
 
     public void setOnRestart(Consumer<RigProcess> handler) {
         this.onRestart = handler == null ? p -> {} : handler;
+    }
+
+    /**
+     * Called with the whole table every time it refreshes.
+     *
+     * <p>⚠ For anything that has to sample on the <b>same beat</b> the figures move on. The history
+     * graphs above the table use this rather than a clock of their own: two five-second timers
+     * started a moment apart would put the same spike at two different places on the chart, and the
+     * chart is instrumentation — the whole value of it is that it can be trusted against the table.
+     */
+    public void setOnSample(Consumer<List<RigProcess>> handler) {
+        this.onSample = handler == null ? rows -> {} : handler;
     }
 
     public void setOnSelect(Consumer<RigProcess> handler) {
@@ -329,6 +344,11 @@ public final class ProcessTableView extends VBox {
             label.getStyleClass().add("es-netlist-selected");
         }
         label.setFocusTraversable(true);
+        // The same hole BreachTargetList had: a Labeled is picked where it paints, and these rows
+        // paint no background. A right-click landing in the gap after a short process name would
+        // otherwise miss the row it is plainly over — and on this panel that click is a kill.
+        label.setPickOnBounds(true);
+        label.setMaxWidth(Double.MAX_VALUE);
         Cursors.shared().clickable(label);
         label.setAccessibleText(describe(process));
 

@@ -731,9 +731,11 @@ CREATE INDEX ix_deployed_miners_host ON deployed_miners (host_rig_id) WHERE host
 -- ever reaches for count(*), that is the exploit arriving; the index below is
 -- shaped for MAX(difficulty_tier), not for counting.
 --
--- [PROPOSAL] vocabularies: `puzzle_class` values are docs/design/05 §3.1 (open
--- question P-1: five classes may be too many) and the 1..5 tier range is §3.3
--- (P-10). Both are expected to change.
+-- [PROPOSAL] vocabularies: `puzzle_class` values are docs/design/05 §3.1 and
+-- the 1..5 tier range is §3.3 (open question P-10, expected to change).
+-- ⚠ The five classes written here were cut to two by V4 — open question P-1,
+-- resolved. This file keeps the original spellings because a migration that has
+-- been applied anywhere may not be rewritten; V4 is where the vocabulary is.
 -- ---------------------------------------------------------------------------
 CREATE TABLE breach_resolutions (
     resolution_id   uuid        PRIMARY KEY,

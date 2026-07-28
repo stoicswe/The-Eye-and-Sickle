@@ -68,51 +68,51 @@ class GateStateRepositoryIT extends PostgresIntegrationTestBase {
     @DisplayName("proof-of-skill reads the highest LIVE, BREACHED tier — never a count (Invariant I7)")
     void highestLiveBreachTierIsTierGated() {
         // Three tier-1 wins: farming the weakest target must not add up to a higher-tier unlock.
-        insertResolution(CHARACTER, "logic", 1, "live", "breached");
-        insertResolution(CHARACTER, "logic", 1, "live", "breached");
-        insertResolution(CHARACTER, "logic", 1, "live", "breached");
+        insertResolution(CHARACTER, "offset_cipher", 1, "live", "breached");
+        insertResolution(CHARACTER, "offset_cipher", 1, "live", "breached");
+        insertResolution(CHARACTER, "offset_cipher", 1, "live", "breached");
         // A tier-4 win, but against a DORMANT target — worth loot, never worth an unlock.
-        insertResolution(CHARACTER, "logic", 4, "dormant", "breached");
+        insertResolution(CHARACTER, "offset_cipher", 4, "dormant", "breached");
         // A tier-5 attempt against a live target, but FAILED — competence not demonstrated.
-        insertResolution(CHARACTER, "logic", 5, "live", "failed");
+        insertResolution(CHARACTER, "offset_cipher", 5, "live", "failed");
         // The genuine article: tier 3, live, breached.
-        insertResolution(CHARACTER, "logic", 3, "live", "breached");
+        insertResolution(CHARACTER, "offset_cipher", 3, "live", "breached");
 
-        assertThat(repository.highestLiveBreachTier(CHARACTER, PuzzleClass.LOGIC))
+        assertThat(repository.highestLiveBreachTier(CHARACTER, PuzzleClass.OFFSET_CIPHER))
                 .contains(DifficultyTier.of(3));
     }
 
     @Test
     @DisplayName("a class the character has never breached live is empty, and another character is isolated")
     void neverBreachedIsEmpty() {
-        insertResolution(CHARACTER, "logic", 3, "live", "breached");
+        insertResolution(CHARACTER, "offset_cipher", 3, "live", "breached");
 
         // Different class, and a different character, are both isolated.
-        assertThat(repository.highestLiveBreachTier(CHARACTER, PuzzleClass.TIMING))
+        assertThat(repository.highestLiveBreachTier(CHARACTER, PuzzleClass.BREACH_PROTOCOL))
                 .isEmpty();
-        assertThat(repository.highestLiveBreachTier(OTHER, PuzzleClass.LOGIC)).isEmpty();
+        assertThat(repository.highestLiveBreachTier(OTHER, PuzzleClass.OFFSET_CIPHER)).isEmpty();
     }
 
     @Test
     @DisplayName("proof-of-skill is per character — one character's breaches do not unlock another's gate")
     void proofOfSkillIsPerCharacter() {
         // Two characters of one account: only slot 1 has breached the class, live.
-        insertResolution(CHARACTER, "logic", 4, "live", "breached");
+        insertResolution(CHARACTER, "offset_cipher", 4, "live", "breached");
 
-        assertThat(repository.highestLiveBreachTier(CHARACTER, PuzzleClass.LOGIC))
+        assertThat(repository.highestLiveBreachTier(CHARACTER, PuzzleClass.OFFSET_CIPHER))
                 .contains(DifficultyTier.of(4));
-        assertThat(repository.highestLiveBreachTier(CHARACTER_SLOT_2, PuzzleClass.LOGIC))
+        assertThat(repository.highestLiveBreachTier(CHARACTER_SLOT_2, PuzzleClass.OFFSET_CIPHER))
                 .isEmpty();
     }
 
     @Test
     @DisplayName("a dormant-only or failed-only history yields no proof of skill")
     void onlyDisqualifyingRowsIsEmpty() {
-        insertResolution(CHARACTER, "traversal", 5, "dormant", "breached");
-        insertResolution(CHARACTER, "traversal", 5, "live", "failed");
-        insertResolution(CHARACTER, "traversal", 4, "live", "aborted");
+        insertResolution(CHARACTER, "breach_protocol", 5, "dormant", "breached");
+        insertResolution(CHARACTER, "breach_protocol", 5, "live", "failed");
+        insertResolution(CHARACTER, "breach_protocol", 4, "live", "aborted");
 
-        assertThat(repository.highestLiveBreachTier(CHARACTER, PuzzleClass.TRAVERSAL))
+        assertThat(repository.highestLiveBreachTier(CHARACTER, PuzzleClass.BREACH_PROTOCOL))
                 .isEmpty();
     }
 

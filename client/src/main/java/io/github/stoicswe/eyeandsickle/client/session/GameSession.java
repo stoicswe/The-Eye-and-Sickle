@@ -1,5 +1,12 @@
 package io.github.stoicswe.eyeandsickle.client.session;
 
+import io.github.stoicswe.eyeandsickle.protocol.game.ChainBlock;
+import io.github.stoicswe.eyeandsickle.protocol.game.ChainMempool;
+import io.github.stoicswe.eyeandsickle.protocol.game.FeeTier;
+import io.github.stoicswe.eyeandsickle.protocol.game.ChainTransaction;
+import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
+import io.github.stoicswe.eyeandsickle.protocol.game.MiningPool;
+import io.github.stoicswe.eyeandsickle.protocol.game.MiningSnapshot;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeBudget;
 import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
@@ -83,6 +90,14 @@ public interface GameSession extends AutoCloseable {
     MiningSummary mining();
 
     /**
+     * The chain, the rig's part in it, and what mining has actually paid.
+     *
+     * <p>⚠ Carries no progress figure and must never grow one — mining is memoryless, so there is
+     * nothing to be partway through. See {@code MiningSnapshot}.
+     */
+    MiningSnapshot miningChain();
+
+    /**
      * The rig's structural caps — the axes {@code docs/design/11-rig-infrastructure.md} §2 defines
      * that are not compute.
      *
@@ -137,6 +152,66 @@ public interface GameSession extends AutoCloseable {
     /** Commits cycles to self-mining. Safe, silent, zero-heat (I4), online-only (I5). */
     Outcome allocateSelfMining(long cycles);
 
+    /**
+     * Points self-mining at the pool or at the whole chain.
+     *
+     * <p>Both are self-mining and both keep Invariant I4 — silent, unseizable, zero heat. The only
+     * difference is the shape of the income: a steady drip against a pool's share target, or the
+     * whole block subsidy at long and random intervals. Switching costs nothing and forfeits
+     * nothing, because there is no progress to lose.
+     */
+    Outcome setMiningMode(MiningMode mode);
+
+    /**
+     * What {@code cycles} would earn per hour, in minor units, in the current mode and pool.
+     *
+     * <p>Asked of the engine rather than scaled locally. The rate depends on the mode and the pool's
+     * fee, and a view doing its own arithmetic has already been wrong about it once.
+     */
+    long miningRateFor(long cycles);
+
+    /** This character's chain address, or {@code ""} when not connected. */
+    String chainAddress();
+
+    /** The last two dozen blocks, newest first. Empty when not connected. */
+    List<ChainBlock> chainBlocks();
+
+    /**
+     * The player's own movements, rendered as chain transactions, newest first.
+     *
+     * <p>⚠ The same list {@link #ledger(int)} returns, in chain clothes — not a second source. A
+     * player who adds these up and compares against the balance must get the same answer, because
+     * {@code docs/design/04-mining.md} §3.1 makes exactly that comparison the way an intruder is
+     * caught.
+     */
+    List<ChainTransaction> chainTransactions(int limit);
+
+    /**
+     * Sends ethecoin to an address, at the chosen fee.
+     *
+     * <p>The balance moves now and the transaction enters the mempool; the fee buys how soon a miner
+     * packs it into a block. The fee is charged on top, so a sender who cannot afford
+     * {@code amount + fee} is refused rather than shorting the recipient.
+     */
+    Outcome send(String toAddress, long minorUnits, FeeTier tier);
+
+    /** The mempool: what is waiting, and what the next blocks would hold. */
+    ChainMempool mempool();
+
+    /** One block with every transaction in it. Null for a height the chain has not reached. */
+    ChainBlock chainBlock(long height);
+
+    /** Every pool on the chain, for a picker. Empty when not connected. */
+    List<MiningPool> pools();
+
+    /**
+     * Joins a pool. Pooled mining only.
+     *
+     * <p>Costs nothing and forfeits nothing — see {@link #setMiningMode}. Only the pool's <b>fee</b>
+     * changes what a rig earns; its scheme and its size change only how lumpily.
+     */
+    Outcome setMiningPool(String poolId);
+
     /** Runs a rig scan. The tiers cost 5 / 15 / 35 cycles and buy signal strength, not certainty. */
     Outcome scan(String tier);
 
@@ -186,6 +261,22 @@ public interface GameSession extends AutoCloseable {
 
     /** Clears a finished breach's outcome slate once the player has read it. */
     Outcome dismissBreach();
+
+    /**
+     * Abandons a live breach — what closing the breach window does.
+     *
+     * <p>⚠ Not the same as {@link #abortBreach}, though it costs the same. Abort is a <em>move</em>:
+     * the player looked at the board and walked away, and the window stays open on the outcome slate
+     * so they can read why. This is the console being shut on an attempt that is still running, so
+     * the slate is cleared too — a slate for an attempt the player never saw end is not
+     * comprehension, it is an unexplained screen the next time they open the window.
+     *
+     * <p>⚠ Recorded as an {@code aborted} resolution rather than deleted, which is the same reasoning
+     * that governs a breach that did not survive a quit: silently dropping it would let a player
+     * escape a losing attempt by closing a window, and every roll in this engine is frozen precisely
+     * so that reloading cannot undo it. The compute is released onto the thermal curve either way.
+     */
+    Outcome abandonBreach();
 
     // ── The network (docs/design/07, and the sweep model) ─────────────────────────────────────
     //
@@ -301,6 +392,30 @@ public interface GameSession extends AutoCloseable {
 
     /** Buys from the market. Refused — not thrown — when the player cannot afford it or a gate blocks. */
     Outcome purchase(String offeringId);
+
+    /**
+     * Records a refusal the <em>client</em> made before it asked the rules anything.
+     *
+     * <h2>Why this exists rather than the view printing it somewhere</h2>
+     *
+     * A few refusals are genuinely the interface's: "pick a target for this action first", "no layer
+     * is active". The rules never see those requests, so they never produce an {@link Outcome}, so
+     * they never reach the log — and once the panels stopped printing refusals inline they would have
+     * become <b>silent</b>, which is the one outcome a refusal must never be.
+     *
+     * <p>This gives them the same route every other refusal takes: into the rig's journal, and from
+     * there into the notification system, which is "the log, filtered" by design. The player sees the
+     * same kind of message in the same place whether the rules declined or the interface did, and can
+     * go back and read it either way.
+     *
+     * <p>⚠ It writes a log line and <b>nothing else</b>. It is not a back door for the client to
+     * author game state (Invariant <b>I14</b>) — there is no argument here that could change a
+     * balance, a gate or an outcome, and the returned status is always {@code REFUSED}.
+     *
+     * @param facility which part of the rig this concerns, in the log's own vocabulary
+     * @param why the sentence the player reads
+     */
+    Outcome refuse(String facility, String why);
 
     // ------------------------------------------------------------------ change notification
 

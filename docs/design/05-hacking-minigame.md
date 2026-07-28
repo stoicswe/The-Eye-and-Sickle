@@ -50,32 +50,37 @@ Everything the economy needs is in that record. Build it early even if the puzzl
 
 ### 3.1 Puzzle classes
 
-The puzzle is a small family, so that "solve class X to automate class X" is meaningful and different tools counter different classes. **Three classes** (decided 2026-07-26, down from a proposed five):
+The puzzle is a small family, so that "solve class X to automate class X" is meaningful and different tools counter different classes. **Two classes** (decided 2026-07-27, down from three, which was down from a proposed five):
 
-| Class | Fiction | Skill tested | Primary counter-tools |
+| Class | Fiction | Skill tested | Pressure |
 |---|---|---|---|
-| **Enumeration** | Map a node's open ports/services before you can act | Reading structure | Port Sweep, Passive Sniffer, **Side-Channel Reader** |
-| **Logic** | Reconstruct a lock's rule from probe responses | Deductive reasoning (Mastermind-family) | Fuzzer, **Rainbow Table**, **Credential Harvester** |
-| **Traversal** | Route through an internal graph to the data node | Pathfinding under an attention budget | Topology Mapper |
+| **Breach Protocol** | Route a code sequence out of a memory matrix into a short upload buffer | Spatial planning under a hard budget | The buffer. A handful of picks and it is over either way |
+| **Offset Cipher** | Two readings of the same key differ; write the signed offset under every byte | Arithmetic precision, unhurried | None from a clock. It is priced in **noise** instead |
 
-**Why five became three.** §3.1 always carried its own merge rule — *"if two classes reduce to the same optimal input pattern, merge them"* — and applying it honestly closed two:
+**How they are played.**
 
-- **Timing is gone.** Its skill was "sequencing, rhythm, patience," which is an *action* skill with nothing to express in a probe budget (§4). It did not survive the timing decision; it was not cut on taste.
-- **Credential folded into Logic.** The proposed table gave Credential's skill as "pattern deduction" and Logic's as "reconstruct a rule from probe responses." Those are the same verb. Keeping both would have shipped exactly the reskin §3.1 warns against.
+- **Breach Protocol** — a square grid of two-character codes, and one to three target sequences. Picks alternate: the first is taken from a row, which confines the next to that pick's *column*, which confines the next to *its* row, and so on. Every pick appends to a buffer that cannot be emptied and cannot be un-taken, and a sequence counts when it appears as a contiguous run anywhere in the buffer. Landing two sequences in a buffer that barely fits one and a half means finding runs that **overlap**. Everything is visible from the first frame: there is nothing to probe for and nothing to buy, and the whole difficulty is in seeing the path.
+- **Offset Cipher** — a row of 6–16 observed bytes and, under it, the target row those bytes must become. The player writes a signed offset under each byte such that `observed + offset = target`, then commits the row. A commit says **how many** cells were wrong and **which ones**; it never says what the right value was. Nothing wraps, so every byte has exactly one answer and a player who did the arithmetic correctly can never be told they were wrong. `CARRY` solves one byte for attention, loudly — the one escape hatch, priced so that carrying the whole row costs more than the layer is worth.
 
-A given target composes **1–N layers**, each an instance of some class (difficulty tier sets N). Breaching means clearing every layer or bypassing one with the Overflow Kit, which spends nearly the whole attention budget (§4).
+**Why three became two.** §3.1 has always carried its own merge rule — *"if two classes reduce to the same optimal input pattern, merge them"* — and the three that survived the last cut still failed it. Enumeration ("read the structure") and Traversal ("route through the structure") were one skill wearing two costumes, and Logic's Mastermind deduction was in practice a search the player performed by guessing rather than by reasoning. What replaced them is a genuine axis: **pressure of place** against **pressure of precision**. One is bounded and spatial, the other unbounded and arithmetical, and being good at one predicts nothing about the other — which is what a proof-of-skill gate (**I7**) has to be able to claim.
 
-> Three is now a floor as well as a target: each class must stay a genuinely different *kind of thinking*. A fourth needs to earn its place against that test, not fill a table.
+**Why the cipher has no clock but is louder.** A timer would put the arithmetic back under reflex pressure, which pillar 1 rules out (see §4). But something has to answer *"why not take all day"*, and the honest answer is that all day is spent **on somebody else's wire**: the cipher's noise is multiplied (`Balance.BREACH_CIPHER_NOISE_FACTOR`, currently ×1.8) against a grid that did the same things. Patience costs exposure rather than time.
+
+⚠ **The class is drawn once per attempt and frozen at commission**, and every layer of that attempt plays it. A target that opened with a grid and followed with a cipher would be two short games rather than one, and would make the deeper layers of a hard target a lottery between the thing the player is good at and the thing they are not. One roll per attempt means a player who draws the puzzle they are worse at knows it before they spend anything, and can walk away.
+
+A given target composes **1–N layers**, each an instance of the drawn class (difficulty tier sets N). Breaching means clearing every layer or bypassing one with the Overflow Kit, which spends nearly the whole attention budget (§4).
+
+> Two is now a floor as well as a target: each class must stay a genuinely different *kind of thinking*. A third needs to earn its place against that test, not fill a table.
 
 ### 3.2 Why bots can't just win it (satisfying Invariant I10)
 
-Each class has a **verification step that rewards a human read**: the Logic class exposes probe responses a player interprets holistically; the Traversal class hides the true objective node among decoys distinguishable only by cross-referencing recovered logs. A bot can *attempt* layers (slower, and it trips more alarms → more noise), but it plays to a fixed heuristic and stalls on the human-read step, which is exactly where manual play pulls ahead. Bots are throughput with a skill ceiling; players are the skill.
+Each class has a step where a fixed heuristic loses ground to a person looking at the whole board. **Breach Protocol** rewards seeing that two sequences share a run and can be landed with one path instead of two — a greedy solver takes the nearest match and burns the buffer. **Offset Cipher** rewards a player who reads a whole row before committing, because a commit that is wrong in one cell costs the same as one wrong in twelve, and the only information it returns is *which*. A bot can *attempt* layers (slower, and it trips more alarms → more noise), but it plays to a fixed heuristic and stalls on that read, which is exactly where manual play pulls ahead. Bots are throughput with a skill ceiling; players are the skill.
 
 Concretely, the bot solver: (a) runs each layer at a time penalty, (b) uses a fixed strategy that a defended/high-tier node can be built to defeat, (c) generates more noise per layer, (d) cannot use the "intuition" shortcuts a human gets from reading flavor data. See `10-botnets.md` §"Bots assist, never substitute."
 
 ### 3.3 Difficulty tiers
 
-`difficultyTier` scales: **layer count**, **class mix** (higher tiers stack harder classes), **time pressure** (trace timer speed, §4), and **error tolerance** (how many wrong probes before an alarm/lockout). Tiers are the same knob used by proof-of-skill gates and salvage guards, so they must be a small, legible integer scale (proposed **1–5**, matching the five heat bands loosely for designer intuition).
+`difficultyTier` scales: **layer count**, **board size** (a 5×5 grid at tier 1 against a 7×7 with three sequences at tier 5; six cipher bytes against sixteen), and **error tolerance** (how many wrong moves before an alarm/lockout). Tiers are the same knob used by proof-of-skill gates and salvage guards, so they must be a small, legible integer scale (proposed **1–5**, matching the five heat bands loosely for designer intuition).
 
 ---
 
@@ -89,9 +94,9 @@ Per-action cost is the whole mechanic, and it is what makes the loud-vs-patient 
 |---|---|---|
 | Quiet read / passive observation | 1 | The patient baseline |
 | Ordinary probe | 2 | The default move |
-| Loud tool (Fuzzer volley, brute attempt) | 6 | Power bought with exposure |
+| Loud tool (`CARRY`, brute attempt) | 6 | Power bought with exposure |
 | Overflow Kit bypass | most of the bar | Clears a layer outright (`06`); the cost is the point |
-| Side-Channel Reader | 0 | Reads without entering — its entire identity |
+| Composition (typing an offset) | 0 | Arranging your own notes is not a move; it is free and reversible until you commit |
 
 **Why turn-based rather than the real-time trace bar this document originally proposed:**
 
@@ -103,7 +108,7 @@ Per-action cost is the whole mechanic, and it is what makes the loud-vs-patient 
 
 ### 4.1 Failure
 
-- **Budget exhausted** → **failure**, with consequence scaled by target:
+- **Budget exhausted**, **struck out**, or **out of board** (a Breach Protocol buffer that filled with nothing uploaded — there is no legal move left, so the layer locks rather than costing a strike nobody could ever spend) → **failure**, with consequence scaled by target:
   - On a *miner crack* (`04-mining.md`): dead-man switch — buffer flushed to deployer, miner self-destructs, your handle exposed to them. (No heat, per **I9** — it is your own rig.)
   - On an *offensive breach* of an NPC/player node: possible tool loss, heat gain, canary/counter-attack triggers (`09`), and Eye progress toward named-hacker attention.
 - **Abort** → no loot, attention already spent is gone, no proof-of-skill credit. The escape hatch when a read goes bad.

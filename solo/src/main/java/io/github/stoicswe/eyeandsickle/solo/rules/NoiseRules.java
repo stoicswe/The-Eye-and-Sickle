@@ -1,7 +1,9 @@
 package io.github.stoicswe.eyeandsickle.solo.rules;
 
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeConsumer;
+import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.state.AllocationState;
+import io.github.stoicswe.eyeandsickle.solo.state.BreachState;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
 import io.github.stoicswe.eyeandsickle.solo.state.TaskState;
 import java.time.Instant;
@@ -24,8 +26,17 @@ import java.time.Instant;
  *       what makes the discrepancy hunt a thing a player can afford to do often.
  * </ul>
  *
- * So a rig at 100% load on self-mining, defences and local scans reads <b>zero</b> here. That is the
- * headline result and it is correct rather than a bug.
+ * So a rig at 100% load on <b>solo</b> self-mining, defences and local scans reads <b>zero</b> here.
+ * That is the headline result and it is correct rather than a bug.
+ *
+ * <p>⚠ <b>Pooled self-mining is the one exception, and it is a small one.</b> A pooled miner holds an
+ * open connection to a pool and pushes a share up it every thirty seconds — that is outbound traffic
+ * to a third party, which is exactly what this class counts, so it reads a couple of cycles rather
+ * than nothing. Solo mining is genuinely silent: the work is local and nothing leaves the rig until a
+ * block is found. <b>I4 is intact</b> — it grants immunity to detection and seizure and zero heat, and
+ * a pooled rig still has all three; noise is a rate and nothing turns this trickle into heat. See
+ * {@code Balance.POOL_SHARE_NOISE_CYCLES}, and note that it does not scale with allocation, because a
+ * share is a small fixed packet however much hashing produced it.
  *
  * <h2>⚠ This lived in the client until 2026-07-27, and that was the wrong house</h2>
  *
@@ -49,6 +60,8 @@ import java.time.Instant;
  *       its own noise rather than having it derived from its cycles — see
  *       {@code Balance.NET_SWEEP_BASE_NOISE} for why the two were split, and {@code TaskState} for
  *       why the declaration lives on the task instead of in a switch here.
+ *   <li><b>An open breach.</b> Being inside somebody else's machine is an act, and it grows louder as
+ *       the player does louder things in it — see {@link #breachNoise}.
  * </ol>
  *
  * <h2>Loud while it runs, silent the moment it stops</h2>
@@ -103,7 +116,53 @@ public final class NoiseRules {
             }
         }
         sum += taskNoise(save, now);
+        sum += breachNoise(save);
+        sum += MiningRules.poolNoiseCycles(save.rig);
         return sum;
+    }
+
+    /**
+     * How loud the open breach is, or zero.
+     *
+     * <h2>Quieter than a sweep, and never silent</h2>
+     *
+     * A sweep touches every machine within reach and announces itself to all of them; a breach is one
+     * connection to one machine. So the ceiling here sits below the <em>cheapest</em> sweep's floor —
+     * {@code Balance.BREACH_NOISE_CEILING} against {@code NET_SWEEP_BASE_NOISE} — and that ordering
+     * is a balance statement rather than an accident of tuning. A breach that could out-shout a sweep
+     * would make the sweep ladder's price read as a mistake.
+     *
+     * <p>But it starts at a floor rather than at zero, because being inside a machine that is not
+     * yours is an act and {@code docs/design/08-stealth-and-noise.md} §1 charges acts. Without the
+     * floor the safest possible play would be to sit in a breach indefinitely.
+     *
+     * <p>It <b>climbs with what the player does in there</b>. A run of quiet reads barely moves it; a
+     * bypass adds twelve at a stroke and a tripped canary adds four. That is the same choice
+     * {@code docs/design/05} §4 already prices in trace, showing up on the outside of the puzzle — and
+     * having both is what stops "bypass everything" being free the moment the trace bar is survivable.
+     *
+     * <p>And it climbs faster on an <b>offset cipher</b>, by {@code Balance.BREACH_CIPHER_NOISE_FACTOR}.
+     * That puzzle has no clock — the player may sit and subtract for as long as they like — so the
+     * thing that answers "why not take all day" is that all day is spent on somebody else's wire.
+     *
+     * <h2>⚠ A crack is silent, on every outcome</h2>
+     *
+     * Invariant <b>I9</b>. A crack is a breach against a process on the player's own rig; nothing
+     * leaves the machine, so there is nothing for anyone to hear. That is what makes it safe to lose
+     * repeatedly and therefore usable as the tutorial ({@code docs/design/04-mining.md} §5.1), and a
+     * crack that ticked the noise meter would quietly undo it.
+     *
+     * <p>A <em>resolved</em> breach is silent too: the attempt is over, the connection is closed, and
+     * what a loud one leaves behind is heat rather than noise. Noise is a rate.
+     */
+    private static long breachNoise(SoloSave save) {
+        BreachState breach = save.activeBreach;
+        if (breach == null || !breach.outcome.isEmpty() || breach.minerCrack) {
+            return 0L;
+        }
+        int points = Balance.breachNoisePoints(breach.puzzleClass, breach.noise);
+        long made = Math.round(points * Balance.BREACH_NOISE_PER_POINT);
+        return Math.min(Balance.BREACH_NOISE_CEILING, Balance.BREACH_NOISE_FLOOR + made);
     }
 
     /**
@@ -150,6 +209,11 @@ public final class NoiseRules {
         }
         return switch (kind) {
             case CONTROL_CHANNEL, RELAY_HOP, BOT_FRAME -> true;
+            // ⚠ SELF_MINING stays false. The held CYCLES are local grinding in both modes; what is
+            // outward about a pooled rig is its share submissions, which are counted separately in
+            // MiningRules.poolNoiseCycles because they are a fixed trickle rather than a share of the
+            // allocation. Flipping this flag instead would have made noise scale with hashrate, which
+            // is wrong in fact and would have punished the income floor for being used.
             case SELF_MINING, DEFENSIVE_ARRAY, ACTIVE_TOOL, DEPLOYED_MINER -> false;
         };
     }

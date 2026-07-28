@@ -246,13 +246,13 @@ class GateEvaluatorTest {
     class ProofOfSkill {
 
         private final GatedOffering offering = GatedOffering.single(
-                "overflow-kit", new ProofOfSkillRequirement(PuzzleClass.LOGIC, DifficultyTier.of(3)));
+                "overflow-kit", new ProofOfSkillRequirement(PuzzleClass.OFFSET_CIPHER, DifficultyTier.of(3)));
 
         @Test
         @DisplayName("a highest live breach at the threshold tier satisfies the gate (boundary)")
         void atThreshold() {
             accounts.with(account(DID, 0, "0"));
-            gateState.setHighestLiveBreach(DID, PuzzleClass.LOGIC, 3);
+            gateState.setHighestLiveBreach(DID, PuzzleClass.OFFSET_CIPHER, 3);
             assertThat(evaluator.evaluate(DID, offering).satisfied()).isTrue();
         }
 
@@ -260,7 +260,7 @@ class GateEvaluatorTest {
         @DisplayName("a highest live breach above the threshold satisfies the gate")
         void aboveThreshold() {
             accounts.with(account(DID, 0, "0"));
-            gateState.setHighestLiveBreach(DID, PuzzleClass.LOGIC, 5);
+            gateState.setHighestLiveBreach(DID, PuzzleClass.OFFSET_CIPHER, 5);
             assertThat(evaluator.evaluate(DID, offering).satisfied()).isTrue();
         }
 
@@ -271,7 +271,7 @@ class GateEvaluatorTest {
             accounts.with(account(DID, 0, "0"));
             // The port already collapses "solved tier 1 a hundred times" to a single highest tier of 1.
             // Against a tier-3 gate that is a miss: count is structurally irrelevant, only the tier counts.
-            gateState.setHighestLiveBreach(DID, PuzzleClass.LOGIC, 1);
+            gateState.setHighestLiveBreach(DID, PuzzleClass.OFFSET_CIPHER, 1);
             assertThat(evaluator.evaluate(DID, offering).satisfied()).isFalse();
         }
 
@@ -286,7 +286,7 @@ class GateEvaluatorTest {
         @DisplayName("competence in another puzzle class does not satisfy this class's gate")
         void wrongClass() {
             accounts.with(account(DID, 0, "0"));
-            gateState.setHighestLiveBreach(DID, PuzzleClass.TIMING, 5);
+            gateState.setHighestLiveBreach(DID, PuzzleClass.BREACH_PROTOCOL, 5);
             assertThat(evaluator.evaluate(DID, offering).satisfied()).isFalse();
         }
     }

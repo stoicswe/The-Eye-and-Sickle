@@ -39,7 +39,7 @@ class GateConditionTest {
             assertThat(new EthecoinCost(Ethecoin.ZERO).gate()).isEqualTo(UnlockGate.ETHECOIN);
             assertThat(new SchematicRequirement("topology-mapper").gate()).isEqualTo(UnlockGate.SCHEMATIC);
             assertThat(new ReputationRequirement(Faction.SICKLE, 120).gate()).isEqualTo(UnlockGate.REPUTATION);
-            assertThat(new ProofOfSkillRequirement(PuzzleClass.LOGIC, DifficultyTier.of(3)).gate())
+            assertThat(new ProofOfSkillRequirement(PuzzleClass.OFFSET_CIPHER, DifficultyTier.of(3)).gate())
                     .isEqualTo(UnlockGate.PROOF_OF_SKILL);
             assertThat(new HeatStateRequirement(HeatDirection.HOT_GATED, BigDecimal.TEN).gate())
                     .isEqualTo(UnlockGate.HEAT_STATE);
@@ -118,7 +118,7 @@ class GateConditionTest {
         void nullsRejected() {
             assertThatThrownBy(() -> new ProofOfSkillRequirement(null, DifficultyTier.of(1)))
                     .isInstanceOf(NullPointerException.class);
-            assertThatThrownBy(() -> new ProofOfSkillRequirement(PuzzleClass.LOGIC, null))
+            assertThatThrownBy(() -> new ProofOfSkillRequirement(PuzzleClass.OFFSET_CIPHER, null))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -127,7 +127,7 @@ class GateConditionTest {
         void storesATierNotACount() {
             // Invariant I7: because the parameter is a single tier, there is nowhere to put "solve it N
             // times". The type itself is what forbids count-gating.
-            ProofOfSkillRequirement requirement = new ProofOfSkillRequirement(PuzzleClass.LOGIC, DifficultyTier.of(3));
+            ProofOfSkillRequirement requirement = new ProofOfSkillRequirement(PuzzleClass.OFFSET_CIPHER, DifficultyTier.of(3));
             assertThat(requirement.minimumTier()).isEqualTo(DifficultyTier.of(3));
         }
     }

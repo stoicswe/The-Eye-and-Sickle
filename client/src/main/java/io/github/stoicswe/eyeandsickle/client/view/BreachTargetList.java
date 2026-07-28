@@ -309,6 +309,15 @@ public final class BreachTargetList extends VBox {
         // steps and not one.
         box.getStyleClass().add("es-focusable");
         box.setFocusTraversable(true);
+        // ⚠ WITHOUT THIS, MOST OF THE ROW IS NOT CLICKABLE.
+        //
+        // A JavaFX Region is picked where its background paints, and `.es-row` paints one only on
+        // :hover — so at rest the 8px padding and the gaps between the title, the facts and the
+        // teaching line are holes. A click that landed on a word bubbled up and selected the row; a
+        // click two pixels below it went to the panel behind and did nothing, which reads as a list
+        // that responds at random. Picking on bounds makes the whole rectangle the control, which is
+        // what a list row is.
+        box.setPickOnBounds(true);
         io.github.stoicswe.eyeandsickle.client.ui.cursors.Cursors.shared().clickable(box);
         if (target.targetId().equals(selected)) {
             box.getStyleClass().add("es-row-armed");

@@ -428,16 +428,12 @@ public final class BreachViewport extends StackPane {
      * internal structure besides.
      */
     private static String textureFor(PuzzleClass puzzleClass) {
-        if (puzzleClass == PuzzleClass.LOGIC) {
-            // A tumbler bus: the doubled rail is the "two readings of one lock" the class is about.
-            return AsciiCanvas.TEXTURE_LOGIC + "" + AsciiCanvas.BOX_H + " ";
+        if (puzzleClass == PuzzleClass.OFFSET_CIPHER) {
+            // A doubled rail: the two readings — observed and target — that the cipher subtracts.
+            return AsciiCanvas.TEXTURE_CIPHER + "" + AsciiCanvas.BOX_H + " ";
         }
-        if (puzzleClass == PuzzleClass.TRAVERSAL) {
-            // Opposed diagonals plus a gap — a weave, which is what a routed graph should feel like.
-            return AsciiCanvas.TEXTURE_TRAVERSAL + " ";
-        }
-        // Port stubs hanging off a bus: the shape Enumeration is literally reading.
-        return AsciiCanvas.TEXTURE_ENUMERATION + "" + AsciiCanvas.BOX_H + " ";
+        // A crossing, which is the grid's alternating row-then-column walk in one character.
+        return AsciiCanvas.TEXTURE_MATRIX + "" + AsciiCanvas.BOX_H + " ";
     }
 
     private static String className(PuzzleClass puzzleClass) {

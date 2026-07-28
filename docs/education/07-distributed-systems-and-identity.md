@@ -59,7 +59,7 @@ Two reasons, and the second is the stronger.
 
 ### 2.1 How to read it
 
-Forty-six concepts, every one of which this domain would ship — the last six being the identity cluster assigned here when **ED-3** was resolved (§1.4, and **DS-1**), and now written. A **●** marks the twenty-four written out in full in §3. This table is the **coverage guarantee**: it is what makes it possible to see the whole domain at once and say what is missing, which a tree of forty files cannot. The eighteen marked **●** have a fully-written entry in §3; the rest are specified here and written later to the same template, and none of them may be written without one, because the fields in this table are the fields that decide whether an entry exists at all (`00` §3.1).
+Fifty concepts, every one of which this domain would ship — the last six being the identity cluster assigned here when **ED-3** was resolved (§1.4, and **DS-1**), and now written. A **●** marks the twenty-six written out in full in §3. This table is the **coverage guarantee**: it is what makes it possible to see the whole domain at once and say what is missing, which a tree of forty files cannot. The eighteen marked **●** have a fully-written entry in §3; the rest are specified here and written later to the same template, and none of them may be written without one, because the fields in this table are the fields that decide whether an entry exists at all (`00` §3.1).
 
 `prerequisites` in **bold** belong to another domain. Every stage obeys R1 (a concept is never introduced before its prerequisites) and R8 is satisfied trivially for the domains below: every prerequisite here points downward into 01-06. ⚠ Since `08-detection-and-defence.md` was written this is no longer the highest-numbered domain — but `08` names entries from this one in `prerequisites` and this one names none of `08`'s, so the ladder is intact in the direction that matters.
 
@@ -102,6 +102,15 @@ Forty-six concepts, every one of which this domain would ship — the last six b
 | ● | `cap-theorem` | CAP theorem | When the network splits, you must give up answers or accuracy. | real | adversarial | `network-partition(7)`, `linearizability(7)`, `eventual-consistency(7)` | exit `69` — the client refuses rather than guesses |
 | ● | `last-writer-wins` | last-writer-wins | Resolving a clash by keeping whichever version claims to be newer. | real | adversarial | `replication(7)`, `wall-clock(7)`, `clock-skew(7)` | the refusal in `../architecture/08` §0 |
 | | `fork` | fork | Two histories that both claim to continue the same one. | real | adversarial | `replication(7)`, **hash(7)** | a conflicting provenance chain, `../architecture/08` §1 |
+
+**Agreeing on a history nobody owns**
+
+| | id | name | gloss | status | stage | prerequisites | game surface |
+|---|---|---|---|---|---|---|---|
+| ● | `proof-of-work` | proof of work | Buying the right to add to a shared history by burning computation. | real | investigating | **hash(7)**, `fork(7)` | `mine(1)`; the chain readout's height and difficulty |
+| ● | `mining-pool` | mining pool | Sharing the luck of mining, so income is steady instead of lumpy. | real | investigating | `proof-of-work(7)` | `mine --pool` against `mine --solo`, `../design/04-mining.md` §1.3 |
+| | `difficulty-retarget` | difficulty retarget | Periodically re-tuning how hard a block is, to hold a steady pace. | real | adversarial | `proof-of-work(7)` | "retarget in N blocks" in the `mine` readout |
+| | `sybil-resistance` | Sybil resistance | Making identities expensive, so one actor cannot pretend to be many. | real | adversarial | `proof-of-work(7)`, `quorum(7)` | validator sampling, `../architecture/05` §4 |
 
 **When some of the machines are lying**
 
@@ -160,7 +169,7 @@ Forty-six concepts, every one of which this domain would ship — the last six b
 
 ## 3. The full entries
 
-### 3.0 Which twenty-four, and why
+### 3.0 Which twenty-six, and why
 
 Chosen on the three grounds `00` §3.1 gives an entry a reason to exist: the game leans on it, it kills a misconception people actually hold, or it unlocks several other concepts.
 
@@ -173,6 +182,8 @@ Chosen on the three grounds `00` §3.1 gives an entry a reason to exist: the gam
 | `wall-clock(7)` | Kills the most confidently-held false belief here: that time goes forward |
 | `monotonic-clock(7)` | The correct answer to the previous entry, and a one-command transfer test |
 | `clock-skew(7)` | Carries the NTP numbers; explains why the game's descriptors carry no timestamp |
+| `proof-of-work(7)` | `mine(1)` is now a real simulation of it, and it kills the gambler's fallacy in the one place players reliably hold it |
+| `mining-pool(7)` | The game makes it a live choice, and almost everyone believes pooling pays *more* |
 | `sequence-number(7)` | The game's actual ordering mechanism (`../architecture/08` §2) |
 | `logical-clock(7)` | Generalises it, and is the concept the provenance chain is an instance of |
 | `last-writer-wins(7)` | **The best teaching opportunity in the game.** A real design decision, refused in writing, for a reason a player can check |
@@ -2478,6 +2489,272 @@ story is consistent, not that it is true.
 
 The simplification: this page describes the single-issuer walk. A
 contested duel record is checked differently — see `quorum(7)`.
+```
+
+---
+
+
+### 3.25 `proof-of-work(7)`
+
+```
+id:             proof-of-work
+section:        7
+name:           proof of work
+canonical:      proof of work
+gloss:          Buying the right to add to a shared history by burning computation.
+status:         real
+aliases:        PoW, mining, hashing, block
+seeAlso:        mining-pool(7), difficulty-retarget(7), fork(7), hash(7),
+                hash-chain(7), quorum(7), self-mining(7), mine(1)
+reading:        Satoshi Nakamoto, "Bitcoin: A Peer-to-Peer Electronic Cash
+                System" (2008), §4 "Proof-of-Work"; Adam Back, "Hashcash — A
+                Denial of Service Counter-Measure" (2002)
+revision:       1
+
+--- curriculum only, stripped before shipping ---
+
+domain:         07
+stage:          investigating
+prerequisites:  hash(7), fork(7)
+hook:           `mine` with no argument prints the chain's height, its
+                difficulty, this rig's hashrate as a percentage of the whole
+                chain, and the expected time to a block. Those four numbers are
+                related by one equation, and the readout is the equation
+                (`../design/04-mining.md` §1.3).
+misconception:  commonly believed that a miner who has gone a long time without
+                a block is "due" one, and that mining accumulates progress
+                toward the next block the way filling a bucket does; actually
+                every hash is an independent trial against the same target, so
+                the process is memoryless — the expected wait from right now is
+                the same whether you started a second ago or have been going
+                for a day, and stopping loses nothing because there was nothing
+                banked. The belief is the gambler's fallacy meeting an
+                interface that usually does show progress bars, which is why
+                the game deliberately refuses to draw one.
+transfer:       Open any Bitcoin block explorer and read off the current
+                difficulty. Multiply it by 2^32 — that is roughly how many
+                hashes the whole world expects to compute per block. Divide by
+                the network hashrate the same page reports, and the answer is
+                about 600 seconds. Then look at the timestamps of the last
+                twenty blocks: they average ten minutes and individually range
+                from under one to over forty, which is what "memoryless" looks
+                like from outside. Platform: any browser; see ED-8.
+verified:       Difficulty-1 target 0x00000000FFFF0000...0000 and the
+                resulting expected-hashes relation difficulty x 2^48 / 0xffff,
+                i.e. difficulty x 2^32; expected time to a block =
+                difficulty x 2^32 / hashrate; the 10-minute target interval;
+                the 2016-block retarget window; the factor-of-4 clamp on one
+                adjustment — Bitcoin wiki, "Difficulty". Block arrivals as a
+                Poisson process with exponentially distributed, memoryless
+                inter-block times — corroborated across the mining-statistics
+                literature (e.g. Bowden et al., "Block arrivals in the Bitcoin
+                blockchain", arXiv:1801.07447). Median of an exponential is
+                ln 2 (about 69%) of its mean, and the relative standard
+                deviation of a Poisson count is 1/sqrt(n) — standard results,
+                derivable rather than sourced. Checked 2026-07-27.
+
+## DESCRIPTION
+
+Ethecoin has no bank deciding whose balance is whose. What it has instead is a
+shared history that anyone can extend, and a rule that makes extending it
+expensive: to add a block you must find a number that, hashed together with the
+block, comes out below a target. There is no clever way to find one. You try,
+and try, and try.
+
+That is what your cycles are doing when you `mine`. Each attempt is a hash. The
+target is set so that the whole network, all of it together, expects to succeed
+about once every ten minutes.
+
+Three numbers on the `mine` readout are the whole system. **Difficulty** says
+how low the target is: expect to compute difficulty x 2^32 hashes per block.
+**Hashrate** says how many you compute per second. Divide the first by the
+second and you get the third — the expected time between your blocks. A rig
+with 4% of the chain's hashrate expects 4% of the blocks.
+
+Here is the part that surprises people. Because every hash is an independent
+try against an unchanged target, **nothing accumulates**. A rig four hours into
+a dry spell is exactly as close to the next block as one that started a second
+ago. Nothing is banked, nothing is forfeited by stopping, and a long gap does
+not make you due. This is why the game shows you an expected time and never a
+progress bar: the bar would be a lie, and a specific one — it would tell you to
+keep mining to protect progress that does not exist.
+
+The same property means the average badly misdescribes the typical. Waits like
+this have a median around 69% of their mean, so more than half come in early
+and a long tail runs to several times the average. Solo mining feels unluckier
+than it is. See mining-pool(7).
+
+Difficulty is not fixed forever. Every 2016 blocks the network compares how
+long that batch actually took against how long it should have taken and
+re-tunes the target to bring the pace back to ten minutes. See
+difficulty-retarget(7).
+
+## REAL-WORLD COUNTERPART
+
+real, simplified — the equations here are Bitcoin's, unchanged. What is
+simplified is the size of everything and the stability of the network.
+
+Bitcoin uses exactly the relation above, including the 2^32 and the ten
+minutes and the 2016-block retarget window. The idea predates Bitcoin: Adam
+Back's Hashcash proposed the same trick in 2002 as anti-spam postage — make
+the sender burn a little computation so that sending one message is cheap and
+sending a million is not.
+
+Two honest differences. First, scale: a real solo miner with consumer hardware
+is a vanishingly small fraction of the network and would wait a geological
+length of time for a block, which is not a game. This chain is small enough
+that a full rig is a few percent of it. Second, this chain's other miners never
+arrive or leave, so its difficulty has no long-term trend; a real chain's
+climbs, because the hashrate behind it does. It still jitters a percent or two
+per retarget, because 2016 random block times do not fill a window exactly —
+and that part is real.
+
+The energy argument is real and is not settled here. Proof of work buys its
+security by making history expensive to rewrite, and the expense is electricity
+— which is the point and the objection at the same time.
+```
+
+---
+
+### 3.26 `mining-pool(7)`
+
+```
+id:             mining-pool
+section:        7
+name:           mining pool
+canonical:      mining pool
+gloss:          Sharing the luck of mining, so income is steady instead of lumpy.
+status:         real
+aliases:        pool, pooled mining, PPS, pay-per-share, share
+seeAlso:        proof-of-work(7), difficulty-retarget(7), self-mining(7),
+                mine(1), ethecoin(7)
+reading:        Meni Rosenfeld, "Analysis of Bitcoin Pooled Mining Reward
+                Systems" (arXiv:1112.4980); published payout-scheme
+                documentation from operating pools (f2pool, Braiins)
+revision:       1
+
+--- curriculum only, stripped before shipping ---
+
+domain:         07
+stage:          investigating
+prerequisites:  proof-of-work(7)
+hook:           `pools` lists five operations with fees from 0.50% to 3.50%
+                and payout intervals from fifteen seconds to three hours, and
+                the cheapest one on the list is the one that pays least often
+                (`../design/04-mining.md` §1.3a).
+misconception:  commonly believed that joining a pool earns you more, because
+                the pool "finds more blocks", and that a bigger pool is
+                therefore always steadier; actually a pool earns you very
+                slightly LESS — it charges a fee — and what you buy is not
+                income but predictability. Expected earnings are the same
+                either way, because your share of the pool's blocks is your
+                share of its hashrate, which is what you would have got alone.
+                And size only smooths under PPLNS, where you are paid out of
+                blocks the pool finds; under PPS the smoothing comes from the
+                share target, so a one-rack PPS pool smooths exactly as well as
+                the largest on the network. People arrive holding both beliefs
+                because a pool genuinely does find far more blocks than they
+                would, and it is easy to miss that the blocks are divided in
+                the same proportion.
+transfer:       Find any large pool's public statistics page and read two
+                figures: its share of total network hashrate, and its fee.
+                Multiply the first by 144 — the number of blocks a day — and
+                you have how many blocks a day it should find; compare against
+                what it reports actually finding that week. Then notice the fee
+                is a percentage of your reward and not a percentage of the
+                pool's luck. Platform: any browser; see ED-8.
+verified:       Pay-per-share pays a fixed amount per accepted share regardless
+                of whether the pool found a block, placing the variance risk on
+                the operator, and PPS fees run roughly 2-4% against roughly
+                0-2% for PPLNS, which pays only out of blocks actually found;
+                variable difficulty ("vardiff") assigns each miner a share
+                target scaled to that miner's hashrate to hold a roughly
+                constant share rate, configured with a target time per share —
+                published pool payout-scheme documentation (f2pool, minerstat)
+                and Stratum pool implementations (miningcore). Relative
+                standard deviation of a Poisson count is 1/sqrt(n) — standard
+                result. Checked 2026-07-27.
+
+## DESCRIPTION
+
+Solo mining pays everything or nothing. On a full rig you expect a block about
+every four hours, which means most hours pay you nothing at all and occasionally
+one pays a great deal. The expected income is fine. The experience is not, and
+if you need to eat this week the expectation is cold comfort.
+
+A pool fixes the shape without changing the size. You point your cycles at the
+pool instead of the chain, and the pool hands you an easier target than the real
+one — easy enough that you hit it every thirty seconds or so. Each hit is a
+**share**: a proof that you really did the work, worth nothing to anyone else,
+but enough for the pool to know what you contributed.
+
+The pool pays you a fixed amount per share, whether or not the pool found a
+block that day. That is called pay-per-share, and it is the pool taking the
+variance off your hands and onto its own books. It charges a fee for that.
+
+Not every pool does this the same way, and the difference is the whole choice:
+
+  - **PPS** pays per share, so your income is smooth however small the pool
+    is. The operator is fronting your pay through their own unlucky weeks, and
+    charges more for it — around 2-4%.
+  - **PPLNS** pays only out of blocks the pool actually finds, in proportion
+    to your shares. It charges less, around 0-2%, because it promises less.
+    Here **the pool's size becomes your variance**: a pool with 5% of the
+    network finds a block roughly every three hours, so that is how often you
+    are paid.
+
+So the cheapest pool available is very often the one that behaves most like
+the solo mining you were trying to escape. That is not a trick; it is what the
+fee was buying.
+
+So the trade is exactly this, and it is worth being precise because it is
+usually described backwards:
+
+  - Pooled and solo have the **same** expected income, less the fee.
+  - Pooled pays **slightly less** on average, because of the fee.
+  - Pooled is **enormously** steadier. A hundred and twenty small payouts an
+    hour instead of a quarter of a large one. The hour-to-hour swing is around
+    twenty times smaller.
+
+You are not buying income. You are buying predictability, and the fee is the
+price.
+
+The easier target is retuned to your rig, not fixed — a small rig gets an easier
+one, a large rig a harder one, so both submit shares at about the same pace.
+That is why pooling smooths a ten-cycle rig as well as a hundred-cycle one.
+
+A share is not a block. Your shares never appear on the chain and never move its
+height; only the pool's actual blocks do. See proof-of-work(7).
+
+## REAL-WORLD COUNTERPART
+
+real — the mechanism, the vocabulary and the trade are all as described.
+
+Real pools use exactly this: a per-miner share target, retuned to the miner's
+hashrate (the operators call it "vardiff", and configure it with a target time
+per share, the same way this game does). Pay-per-share is one of several payout
+schemes; the main alternative, PPLNS, pays only out of blocks the pool actually
+found, so it passes some of the luck back to the miners and charges a lower fee
+for doing less. Published PPS fees run around 2-4%; PPLNS around 0-2%. The gap
+between them is roughly the price of the variance.
+
+Real pools also settle on a schedule rather than per share: shares are credited
+to an internal balance continuously and paid out periodically, often with a
+minimum threshold as well. The game does the same on a one-minute window, for
+the same reason and one of its own — a ledger with one row per share is a
+ledger nobody can read.
+
+One further real detail the game keeps: being pooled means holding a connection
+open to somebody else's server and sending it something on a timer. That is
+observable traffic. Solo mining is not — it is local computation, and nothing
+leaves the machine until a block is found. It is the one respect in which
+pooling is less private than mining alone.
+
+The reason pools dominate real mining is the reason they exist here. As a
+network grows, one participant's share of it shrinks, and the wait between solo
+blocks grows with it — past days, past months, past any horizon a person can
+plan against. Pooling does not make anyone richer. It makes the income
+describable.
 ```
 
 ---

@@ -1,5 +1,7 @@
 package io.github.stoicswe.eyeandsickle.solo;
 
+import io.github.stoicswe.eyeandsickle.protocol.game.FeeTier;
+
 /**
  * Every tunable number the solo runtime uses, in one place, each cited to the design document that
  * owns it.
@@ -63,6 +65,282 @@ public final class Balance {
      * io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin} on why money is never a double.
      */
     public static final long SELF_MINING_MINOR_UNITS_PER_CYCLE_HOUR = 40L;
+
+    // ---------------------------------------------------------------- the chain
+    //
+    // Self-mining is a real proof-of-work simulation from 2026-07-27 (docs/design/04 §1.3). Every
+    // constant below is either a REAL Bitcoin parameter reused verbatim, so the transfer in
+    // docs/education/07 §3 is exact, or a game value DERIVED from the anchor above so that the
+    // economy table in docs/design/03 §1 keeps its meaning without being re-tuned.
+    //
+    // ⚠ The anchor is the fixed point and the chain bends to it, never the other way round. If
+    // SELF_MINING_MINOR_UNITS_PER_CYCLE_HOUR ever moves, chainNetworkHashrate() follows it
+    // automatically and every figure here stays consistent. Hardcoding the network hashrate would
+    // silently decouple the two and the first symptom would be an income table that is wrong.
+
+    /**
+     * Expected hashes per block at difficulty 1, as {@code 2^32}.
+     *
+     * <p>⚠ <b>Real, and reused exactly.</b> Bitcoin's difficulty-1 target is
+     * {@code 0x00000000FFFF0000...}, which makes the expected number of hashes per block
+     * {@code difficulty × 2^48 / 0xffff}, i.e. {@code difficulty × 2^32} to within one part in
+     * 65 536. Keeping the real constant is what lets {@code docs/education/07} tell a player to
+     * check the arithmetic against a live block explorer and have it come out.
+     *
+     * <p>Verified against the Bitcoin wiki's Difficulty page, 2026-07-27.
+     */
+    public static final double HASHES_PER_DIFFICULTY = 4294967296.0d; // 2^32
+
+    /**
+     * A cycle is worth 2^20 hashes per second.
+     *
+     * <p>The one purely conventional number here: it fixes what "hashrate" means in this fiction and
+     * nothing downstream depends on its value, because difficulty is derived from it and cancels out
+     * of every income figure. Chosen so that network difficulty lands in the hundreds — a number a
+     * player can read and compare, rather than the fourteen-digit figure a real chain carries.
+     */
+    public static final long HASHES_PER_CYCLE_SECOND = 1L << 20;
+
+    /**
+     * The chain targets one block every <b>fourteen</b> minutes.
+     *
+     * <h2>⚠ Deliberately not Bitcoin's ten, and that is the point</h2>
+     *
+     * The <em>relation</em> {@code difficulty × 2^32} is real and reused exactly; the interval is
+     * this chain's own. Ten minutes would have made ethecoin read as a Bitcoin reskin, and a chain
+     * that is recognisably one real chain teaches players a specific product rather than the
+     * mechanism. Fourteen minutes is unmistakably not Bitcoin's and behaves identically in every way
+     * that matters.
+     *
+     * <p>⚠ <b>The economy does not move when this does.</b> {@link #chainNetworkHashrate()} is solved
+     * from this and the {@code docs/design/03-economy.md} §1 anchor, and the product
+     * {@code interval × networkHashrate} is fixed by that anchor — so lengthening the interval shrinks
+     * the network in exact proportion and every income figure is unchanged. Verified: the 2352-cycle
+     * network at ten minutes became a 1680-cycle network at fourteen, and a solo block still takes
+     * 4.17 hours at 94 cycles.
+     */
+    public static final long CHAIN_TARGET_BLOCK_SECONDS = 840L;
+
+    /**
+     * Difficulty is recalculated every 1440 blocks.
+     *
+     * <p>Bitcoin uses 2016 <em>because</em> 2016 × ten minutes is two weeks. This chain keeps the
+     * design property and drops the number: 1440 × fourteen minutes is also two weeks, to the hour.
+     * A fortnight is long enough for luck to average out and short enough to answer a real change in
+     * hashrate, which is the whole reason a retarget window has a length.
+     *
+     * <p>⚠ A shorter window is a noisier one: the relative spread of {@code n} random block times is
+     * {@code 1/√n}, so 1440 jitters about 2.6% per retarget against 2016's 2.2%. That jitter is real
+     * and is not a defect — see {@code ChainRules.retarget}.
+     */
+    public static final long CHAIN_RETARGET_BLOCKS = 1440L;
+
+    /**
+     * A retarget may never move difficulty by more than a factor of four in either direction.
+     *
+     * <p>⚠ <b>Real, and reused exactly.</b> Bitcoin clamps the adjustment to [1/4, 4] so that a
+     * sudden hashrate collapse cannot strand the chain and a sudden influx cannot make blocks
+     * instantaneous. Verified against the Bitcoin wiki's Difficulty page, 2026-07-27.
+     */
+    public static final double CHAIN_RETARGET_CLAMP = 4.0d;
+
+    /**
+     * A block pays 160 EC.
+     *
+     * <p><strong>[PROPOSAL]</strong>, and the one knob that sets how much of a lottery solo mining
+     * is. It is a <em>lump</em>, not a rate: raising it makes solo blocks rarer and larger without
+     * changing anyone's expected income by one minor unit, because
+     * {@link #chainNetworkHashrate()} absorbs the change. That is the knob to reach for if solo
+     * mining feels too steady or too hopeless — and it is the <b>only</b> one that does not disturb
+     * {@code docs/design/03}.
+     *
+     * <p>At 160 EC a full 100-cycle rig expects a solo block roughly every <b>3 hours 55 minutes</b>
+     * — about a 22% chance in any given hour, and about 6% at a quarter rig. That is the reading of
+     * "a percent chance of a large payout, and you need a lot of cycles to make it likely".
+     */
+    public static final long BLOCK_SUBSIDY_MINOR_UNITS = 16_000L;
+
+    /**
+     * The pool takes 2%.
+     *
+     * <p>Real in shape and in size: pay-per-share pools charge roughly 2–4% precisely because the
+     * operator is buying the miner's variance and must pay for accepted shares through an unlucky
+     * streak in which the pool finds fewer blocks than it owes. Two percent is the bottom of the
+     * observed range, which keeps the choice close rather than obvious. Verified against published
+     * pool payout-scheme documentation (f2pool, minerstat), 2026-07-27.
+     *
+     * <p>⚠ <b>This is why solo pays more in expectation</b>, and that is not a bug to balance away.
+     * A pool that paid the same as solo would be free insurance and nobody sane would mine solo; the
+     * fee is what makes the choice a trade rather than a preference.
+     */
+    public static final double POOL_FEE = 0.02d;
+
+    /** The pool's cut, as basis points, for the wire and the readout. */
+    public static final int POOL_FEE_BASIS_POINTS = (int) Math.round(POOL_FEE * 10_000);
+
+    /**
+     * The pool retunes each miner's share difficulty to land a share every 30 seconds.
+     *
+     * <p>Real, and it is called <b>vardiff</b>. A pool sets each miner's share target from that
+     * miner's own hashrate so that shares arrive at a steady rate whatever the rig — a small miner
+     * gets an easy target and a large one a hard target, and both submit at about the same pace. It
+     * is the reason a pool smooths income for a 10-cycle rig as effectively as for a 100-cycle rig,
+     * which a fixed share difficulty would not do.
+     *
+     * <p>Thirty seconds is a game value. It sets the variance ratio between the two modes directly:
+     * pooled income has {@code soloInterval / 30} times less variance, which at a full rig is a
+     * factor of about <b>470</b>.
+     */
+    public static final double POOL_SHARE_SECONDS = 30.0d;
+
+    /**
+     * How loud a pooled rig is, in cycle-equivalents, at the reference 30-second share interval.
+     *
+     * <h2>⚠ Pooled mining is audible and solo mining is not, and that is the right way round</h2>
+     *
+     * A pooled miner holds an open connection to a pool server and pushes a share up it every thirty
+     * seconds, forever. That is outbound traffic to a third party, which is precisely what
+     * {@code NoiseRules} counts. A <b>solo</b> miner talks to nobody: the work is local grinding, and
+     * the only thing that ever leaves the rig is a block announcement once every few hours. So solo
+     * is genuinely silent and pooled genuinely is not.
+     *
+     * <p><b>Invariant I4 is not violated.</b> I4 makes self-mining immune to detection and seizure and
+     * gives it <em>zero heat</em> — and it still has all three. Noise is a rate, heat is what an act
+     * leaves behind, and nothing converts this trickle into heat: heat is charged at breach
+     * resolution and by counter-hacks, never off the ambient meter. What I4 protects is that going
+     * hot cannot take the floor away, and a rig reading 2% on the noise meter has lost nothing.
+     *
+     * <p>⚠ <b>Deliberately tiny, and deliberately flat.</b> Two cycles on a hundred-cycle rig is 2%
+     * of the meter against a sweep's 35 — a sweep is more than seventeen times louder. And it does
+     * <em>not</em> scale with allocation, because a share is a small fixed packet however much
+     * hashing produced it: doubling your cycles doubles your income and changes your traffic not at
+     * all. That is real, and it means the noise-conscious play is to pick a pool, not to mine less.
+     *
+     * <p>It <em>does</em> scale with how often the pool wants shares, which is the one place a pool's
+     * share interval earns its keep as more than flavour — {@code MERIDIAN CLEARING} asks for a share
+     * every fifteen seconds and is twice as loud as the reference for it.
+     */
+    public static final long POOL_SHARE_NOISE_CYCLES = 2L;
+
+    /**
+     * The pool settles up every sixty seconds.
+     *
+     * <h2>⚠ This exists because the ledger is the artefact, not because the maths needed it</h2>
+     *
+     * Crediting each share the instant it lands is arithmetically identical and puts <b>120 rows an
+     * hour</b> into {@code ledger(1)} — a readout whose shipped page calls itself "the only record of
+     * where your money went". Buried under a wall of identical 0.31 EC rows it records nothing, which
+     * is {@code alert-fatigue(7)} again in the one place a player audits.
+     *
+     * <p>Real pools do exactly this: shares are credited to an internal balance continuously and paid
+     * out on a schedule. Sixty seconds is a game value — short enough that the balance visibly moves,
+     * long enough that an hour of mining is sixty readable rows instead of a screenful of noise.
+     *
+     * <p>⚠ <b>The credit and the ledger row happen together, always.</b> Crediting continuously and
+     * ledgering periodically would leave the balance ahead of the last row — and
+     * {@code docs/design/04-mining.md} §3.1 makes "two readouts disagree" the way a player detects an
+     * intruder. Training them to ignore that would cost more than the tidy ledger bought.
+     *
+     * <p>A <b>solo</b> block never waits: a block is a real coinbase and earns its own row.
+     */
+    public static final long POOL_SETTLE_SECONDS = 60L;
+
+    // ---------------------------------------------------------------- the fee market
+
+    /**
+     * The block height a new character joins the chain at.
+     *
+     * <p>124 blocks of history exist before the player does — about a day at fourteen minutes — and
+     * every one of them is inspectable in the explorer. A chain that began at the player's first
+     * session would say it had been waiting for them, which is the opposite of what a shared ledger
+     * is. <strong>[PROPOSAL]</strong>.
+     */
+    public static final long CHAIN_START_HEIGHT = 124L;
+
+    /**
+     * Transactions a block can hold — the gas limit divided by the cost of one transfer.
+     *
+     * <p>This is the number that makes a fee market exist at all. A block that could hold every
+     * pending transaction would make fees pointless, and one that held two would make them
+     * everything. Two hundred against a mempool that runs a few hundred deep means an ordinary
+     * transaction waits a block or two and a priority one does not.
+     */
+    public static final int BLOCK_TRANSACTION_LIMIT = 200;
+
+    /**
+     * The fee floor, in minor units: what {@link FeeTier#ECONOMY} pays.
+     *
+     * <h2>⚠ Deliberately small enough not to be an economy change</h2>
+     *
+     * {@code docs/design/03-economy.md} §4 lists the sinks the economy is balanced against, and this
+     * is not one of them. Two minor units — 0.02 EC — against a 40 EC/hr income is a rounding error
+     * by design: the fee exists to <b>order a queue</b>, not to drain a balance. If it ever grows
+     * enough to matter it becomes a sink and §4 has to know about it.
+     */
+    public static final long FEE_ECONOMY_MINOR_UNITS = 2L;
+
+    /** What {@link FeeTier#STANDARD} pays. Still negligible against income; still enough to sort on. */
+    public static final long FEE_STANDARD_MINOR_UNITS = 6L;
+
+    /** What {@link FeeTier#PRIORITY} pays. Fifteen times the floor and still under a cycle-minute. */
+    public static final long FEE_PRIORITY_MINOR_UNITS = 30L;
+
+    /** What a tier costs, in minor units. */
+    public static long feeFor(FeeTier tier) {
+        return switch (tier == null ? FeeTier.STANDARD : tier) {
+            case ECONOMY -> FEE_ECONOMY_MINOR_UNITS;
+            case STANDARD -> FEE_STANDARD_MINOR_UNITS;
+            case PRIORITY -> FEE_PRIORITY_MINOR_UNITS;
+        };
+    }
+
+    /**
+     * How deep the NPC mempool runs, on average.
+     *
+     * <p>Enough that a block cannot clear it in one go — otherwise there is no queue to be at the
+     * front of, and the fee tiers would all confirm identically. Three hundred against a 200-slot
+     * block means a standard transaction waits roughly a block and an economy one several.
+     */
+    public static final int MEMPOOL_BASELINE_DEPTH = 300;
+
+    /**
+     * The rest of the chain's hashrate, in hashes per second — <b>derived, never chosen</b>.
+     *
+     * <h2>Why this is a derivation</h2>
+     *
+     * A miner's income is {@code subsidy × ownHashrate / networkHashrate} per block interval. Three
+     * of those four are already fixed: the subsidy above, the rig's hashrate, and the 0.4 EC per
+     * cycle-hour that {@code docs/design/03-economy.md} §1 prices the whole economy against. So the
+     * network's hashrate is not a free parameter — it is whatever value makes the other three agree,
+     * and writing it down as a constant would be writing down an answer that can silently stop being
+     * the answer.
+     *
+     * <p>Solving for it at the <em>pooled</em> rate rather than the solo rate is deliberate:
+     * {@code 03} §1's 40 EC/hr is described as a <b>floor</b>, and a floor has to be the guaranteed
+     * figure. So pooled pays exactly the documented rate and solo pays it back divided by
+     * {@code (1 - fee)} — marginally more, in exchange for all of the variance.
+     *
+     * <p>It works out at about 2352 cycles: the player's full rig is roughly 4% of the chain. That
+     * is a small network, which is correct for a resistance's chain and is what keeps a solo block
+     * reachable at all.
+     */
+    public static double chainNetworkHashrate() {
+        double perCycleHour = SELF_MINING_MINOR_UNITS_PER_CYCLE_HOUR;
+        double cycles = BLOCK_SUBSIDY_MINOR_UNITS * (1.0d - POOL_FEE) * 3600.0d
+                / (CHAIN_TARGET_BLOCK_SECONDS * perCycleHour);
+        return cycles * HASHES_PER_CYCLE_SECOND;
+    }
+
+    /**
+     * The difficulty that holds {@link #CHAIN_TARGET_BLOCK_SECONDS} at a given network hashrate.
+     *
+     * <p>The real relation, rearranged: expected seconds to a block is
+     * {@code difficulty × 2^32 / hashrate}, so holding the interval means
+     * {@code difficulty = interval × hashrate / 2^32}.
+     */
+    public static double chainDifficultyFor(double networkHashrate) {
+        return CHAIN_TARGET_BLOCK_SECONDS * networkHashrate / HASHES_PER_DIFFICULTY;
+    }
 
     /**
      * A deployed miner's on-host yield buffer caps at 4 hours — {@code docs/design/04-mining.md} §2.3
@@ -551,9 +829,10 @@ public final class Balance {
      * which makes {@code difficultyTier} scale "layer count, class mix, time pressure and error
      * tolerance", and §3.1, where "a given target composes 1-N layers".
      *
-     * <p>1, 1, 2, 3, 3. Growth stops at three because §3.1 fixed the class set at three and a fourth
-     * layer would have to repeat a class within one attempt; tier 5 does repeat Traversal, which is
-     * a deliberate exception (see {@link #breachClasses}) rather than the rule.
+     * <p>1, 1, 2, 3, 3. Growth stops at three because attention per layer is already falling across
+     * the tiers — a fourth layer would be attrition rather than difficulty. Every layer of an attempt
+     * plays the same class ({@code BoardFactory}), so stacking more of them is stacking more of one
+     * puzzle, which is a length knob and not a skill one.
      *
      * <p>A method rather than an array constant: {@code public static final int[]} is writable by
      * anyone who holds it, and a balance table that any caller can silently edit is worse than no
@@ -602,32 +881,6 @@ public final class Balance {
             case 1 -> 4;
             case 2, 3 -> 3;
             default -> 2;
-        };
-    }
-
-    /**
-     * The class mix, by tier — §3.3's "class mix (higher tiers stack harder classes)".
-     *
-     * <p>The progression teaches in the order the classes teach in. Enumeration first, because
-     * reading structure is the prerequisite for everything and Port Sweep is in the starting kit
-     * ({@code 06} §2). Logic second, because it is the one class with a closed-form answer and
-     * therefore the one where a player can feel deduction working. Traversal last, because its
-     * human-read step needs a player who already trusts that reading the flavour data pays.
-     *
-     * <p>Tier 5 repeats Traversal deliberately: two lattices in one attempt is the only place the
-     * design asks a player to hold two graphs in mind at once, and §3.1's merge rule is about two
-     * <em>classes</em> reducing to the same optimal input, not about a class appearing twice.
-     *
-     * <p><strong>[PROPOSAL]</strong>. Returns names rather than the enum so this class stays free of
-     * any dependency on which constants {@code PuzzleClass} currently has.
-     */
-    public static java.util.List<String> breachClasses(int tier) {
-        return switch (clampTier(tier)) {
-            case 1 -> java.util.List.of("ENUMERATION");
-            case 2 -> java.util.List.of("LOGIC");
-            case 3 -> java.util.List.of("ENUMERATION", "LOGIC");
-            case 4 -> java.util.List.of("ENUMERATION", "LOGIC", "TRAVERSAL");
-            default -> java.util.List.of("LOGIC", "TRAVERSAL", "TRAVERSAL");
         };
     }
 
@@ -949,6 +1202,185 @@ public final class Balance {
      * the student is a teaching space they learn to avoid.
      */
     public static final double NET_COUNTER_HACK_HOME = 0.0d;
+
+    /**
+     * What a live breach adds to the noise meter before the player has done anything loud in it.
+     *
+     * <p>⚠ <b>Deliberately well below a sweep.</b> The base sweep sits at
+     * {@link #NET_SWEEP_BASE_NOISE} and it is the loudest thing in the game for its cost, because a
+     * sweep touches every machine within reach and announces itself to all of them. A breach is one
+     * connection to one machine — quieter by nature, and quiet is a strategy inside it: a player who
+     * only reads is barely making a sound.
+     *
+     * <p>But it is not zero, and that is the point of the floor. Being <em>inside</em> somebody
+     * else's machine is an act, and {@code docs/design/08-stealth-and-noise.md} §1 charges acts. A
+     * breach that registered nothing on the meter would make the safest possible play "stay in a
+     * breach forever", which is the opposite of the tension {@code docs/design/05} §4 is built on.
+     */
+    public static final long BREACH_NOISE_FLOOR = 6L;
+
+    /**
+     * The loudest a breach can read on the meter, however badly it goes.
+     *
+     * <p>Below {@link #NET_SWEEP_BASE_NOISE}, so <b>the cheapest sweep is still louder than the
+     * worst breach</b>. That ordering is the balance statement and it must survive re-tuning: a
+     * breach that could out-shout a sweep would make the sweep ladder's whole price — 2 cycles for
+     * the loudest act available — read as a mistake.
+     */
+    public static final long BREACH_NOISE_CEILING = 26L;
+
+    /**
+     * How much of a breach's accumulated in-puzzle noise reaches the meter.
+     *
+     * <p>{@code BreachState.noise} is a puzzle-scale figure — a bypass is 12, an alarm is 4 — and the
+     * meter is on the rig's 0-to-capacity scale. One-for-one is the honest mapping: a bypass on a
+     * hundred-cycle rig moves the needle twelve percent, which is roughly what "you just kicked the
+     * door" should look like from outside.
+     */
+    public static final double BREACH_NOISE_PER_POINT = 1.0d;
+
+    // ------------------------------------------------------------------ the two minigames
+
+    /**
+     * How often an attempt draws Breach Protocol rather than the offset cipher.
+     *
+     * <p>An even split. Neither is the "real" puzzle and neither is the punishment — they test
+     * different things ({@code PuzzleClass}) and a player who is worse at one should meet it as often
+     * as the other, or the weaker skill never improves. <strong>[PROPOSAL]</strong>.
+     */
+    public static final double BREACH_PROTOCOL_SHARE = 0.5d;
+
+    /**
+     * How much louder the offset cipher is than Breach Protocol, as a multiplier on the layer's noise.
+     *
+     * <p>⚠ <b>This is the cipher's price for having no clock.</b> Breach Protocol is bounded by its
+     * buffer — a handful of picks and it is over either way — while the cipher lets the player sit
+     * there working through sixteen bytes for as long as they like. Something has to answer "why not
+     * take all day", and the honest answer is that all day is spent <em>on somebody else's wire</em>.
+     * Patience costs exposure rather than time, which keeps {@code docs/design/05} §4's decision to
+     * remove the wall clock intact while still charging for the thing the clock used to charge for.
+     *
+     * <p><strong>[PROPOSAL]</strong>. Kept as a multiplier rather than a flat addition so the
+     * relationship survives a re-tune of the underlying noise numbers: the cipher is <em>louder than
+     * the grid</em>, whatever the grid turns out to cost.
+     */
+    public static final double BREACH_CIPHER_NOISE_FACTOR = 1.8d;
+
+    /**
+     * A breach's noise points after its puzzle class has had its say — the one place the factor lands.
+     *
+     * <p>⚠ Applied to the <b>total</b> rather than per action, and that is the difference between
+     * "the cipher is louder" and "the cipher punishes you for pressing things". A per-action
+     * multiplier would make the cipher quieter overall, because it has far fewer paid moves than a
+     * grid does: three commits against eight picks. Scaling the total is what actually delivers the
+     * rule, and it flows through {@code NoiseRules} to the meter and through {@code BreachRules} to
+     * heat and the counter-hack roll — one number, three consequences, no chance of them disagreeing.
+     */
+    public static int breachNoisePoints(String puzzleClass, int rawNoise) {
+        return "OFFSET_CIPHER".equals(puzzleClass)
+                ? (int) Math.round(rawNoise * BREACH_CIPHER_NOISE_FACTOR)
+                : rawNoise;
+    }
+
+    /** The side of a protocol grid: 5 at tier 1, 7 at the top. */
+    public static int breachMatrixSize(int tier) {
+        return switch (Math.max(1, Math.min(5, tier))) {
+            case 1, 2 -> 5;
+            case 3 -> 6;
+            default -> 7;
+        };
+    }
+
+    /**
+     * How many picks a protocol attempt gets.
+     *
+     * <p>⚠ Grows with tier even though the puzzle gets harder, and that is not a mistake: a bigger
+     * grid with more goals needs a longer buffer to be solvable at all. The difficulty comes from
+     * needing to land <em>more sequences</em> inside it, not from having fewer slots.
+     */
+    public static int breachBufferSize(int tier) {
+        return switch (Math.max(1, Math.min(5, tier))) {
+            case 1 -> 4;
+            case 2 -> 5;
+            case 3 -> 6;
+            case 4 -> 7;
+            default -> 8;
+        };
+    }
+
+    /** How many sequences a protocol attempt offers. Clearing any one of them clears the layer. */
+    public static int breachGoalCount(int tier) {
+        return switch (Math.max(1, Math.min(5, tier))) {
+            case 1, 2 -> 1;
+            case 3, 4 -> 2;
+            default -> 3;
+        };
+    }
+
+    /** How long the {@code goal}-th sequence is. Later goals are longer and worth more. */
+    public static int breachGoalLength(int tier, int goal) {
+        return Math.min(breachBufferSize(tier), 2 + Math.max(1, Math.min(3, tier)) / 2 + goal);
+    }
+
+    /**
+     * How many bytes a cipher asks the player to subtract: 6 at tier 1, 16 at the top.
+     *
+     * <p>The full published range. Sixteen bytes of hex subtraction with borrows is a real piece of
+     * work and is meant to be — it is the top of a five-tier scale, not the ordinary case.
+     */
+    public static int breachCipherLength(int tier) {
+        return switch (Math.max(1, Math.min(5, tier))) {
+            case 1 -> 6;
+            case 2 -> 8;
+            case 3 -> 10;
+            case 4 -> 13;
+            default -> 16;
+        };
+    }
+
+    /**
+     * The chance a resolved breach gets you hacked back, given how loud it was and how deep.
+     *
+     * <h2>Noise is the whole variable, which is what makes quiet play a real strategy</h2>
+     *
+     * A breach that never went past {@code QUIET_READ} resolves at {@link #NOISE_BASE} and is very
+     * nearly safe. One that leant on the Overflow Kit and tripped two canaries is several times that
+     * and is genuinely dangerous. {@code docs/design/05} §4 makes trace the in-puzzle cost of being
+     * loud; this is the out-of-puzzle one, and having both is what stops "just bypass everything"
+     * being free once the trace bar is survivable.
+     *
+     * <p>⚠ <b>Depth zero is always zero</b>, the same rule {@link #NET_COUNTER_HACK_HOME} fixes for
+     * sweeps and for the same reason: the home server is where the game teaches, and a teaching space
+     * that occasionally plants a parasite on the student is one they learn to avoid.
+     *
+     * <p>⚠ <b>A crack is never rolled for at all</b> and the caller must not call this for one. It is
+     * a breach against a process on the player's own rig — nothing leaves the machine, so there is
+     * nobody to answer. That is Invariant <b>I9</b> and it is what makes the crack safe to lose
+     * repeatedly and therefore usable as the tutorial ({@code docs/design/04-mining.md} §5.1).
+     *
+     * @param noise the breach's resolved noise — {@code BreachState.resolvedNoise}
+     * @param depth the target server's depth from home
+     */
+    public static double breachCounterHackChance(int noise, int depth) {
+        if (netDepth(depth) <= 0) {
+            return NET_COUNTER_HACK_HOME;
+        }
+        // Scaled off the same depth table a sweep uses, so the two paths cannot drift apart, and
+        // multiplied by how loud this attempt was against a quiet one. A silent breach reads about
+        // a third of a sweep's chance; a very loud one reads about double it.
+        double loudness = Math.max(0.35d, Math.min(2.0d, noise / (double) BREACH_NOISE_REFERENCE));
+        return netCounterHackChance(depth) * loudness;
+    }
+
+    /**
+     * The noise a merely-competent breach makes — the divisor {@link #breachCounterHackChance} is
+     * measured against.
+     *
+     * <p>Roughly {@link #NOISE_BASE} plus a couple of probes and one loud tool. A breach at exactly
+     * this figure carries the same risk a sweep of the same depth does; quieter is safer, louder is
+     * not.
+     */
+    public static final int BREACH_NOISE_REFERENCE = 10;
 
     // ------------------------------------------------------------------ network: depth tables
     //

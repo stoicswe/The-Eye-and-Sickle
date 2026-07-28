@@ -4,7 +4,9 @@
 **Depends on:** `05-hacking-minigame.md` (§2, §3, §4), `02-unlock-gates.md` §2.2/§2.4, `04-mining.md` §3.2/§3.2a/§5.1, `06-intrusion-tools.md`, `07-recon-tools.md`, `09-defense-and-hardening.md`, `10-botnets.md` §1a
 **Implemented in:** `solo/src/main/java/.../solo/breach/`, `solo/.../rules/ScanRules.java`, `solo/.../rules/SalvageRules.java`, `solo/Balance.java`
 
-> **What this document is for.** `05` decided the breach's *shape* — three classes, turn-based attention, a stable resolution record — and deliberately left the content open. This is the content, written down so the next person tuning it can see what every number is anchored to. It also holds the two things that must **never** be published to a player: the Enumeration banner rules (§3) and the Traversal decoy construction (§5).
+> **What this document is for.** `05` decided the breach's *shape* — turn-based attention, a stable resolution record — and deliberately left the content open. This is the content, written down so the next person tuning it can see what every number is anchored to.
+>
+> ⚠ **Rewritten 2026-07-27.** The three classes this document was first written against (Enumeration, Logic, Traversal) were replaced wholesale by two: **Breach Protocol** and **Offset Cipher**. Everything below describes what is actually built. The retired classes are recoverable from git history and are not summarised here — a design document that carries a shadow of what it used to say is a document nobody can trust to be current.
 
 ---
 
@@ -15,12 +17,11 @@ An attempt is a persisted document, not a session. It has no clock, no deadline 
 | Piece | Where |
 |---|---|
 | Engine — begin, act, abort, resolve, dismiss | `solo/breach/BreachRules.java` |
-| Board generation, all three classes | `solo/breach/BoardFactory.java` |
-| Per-class move resolution | `solo/breach/{Enumeration,Logic,Traversal}Rules.java` |
+| Board generation, both classes | `solo/breach/BoardFactory.java` |
+| Per-class move resolution | `solo/breach/{Matrix,Offset}Rules.java` |
 | The view the client renders | `solo/breach/BreachSnapshots.java` |
 | Target list, loadout, tutorial plant | `solo/breach/Targets.java` |
 | Seeded, persisted PRNG | `solo/breach/Rng.java` |
-| Logic facts, prose + machine form | `solo/breach/Facts.java` |
 | Scan false positives, Detection Array precision | `solo/rules/ScanRules.java` |
 | Schematic material | `solo/rules/SalvageRules.java` |
 
@@ -38,69 +39,59 @@ A breach needs generation and a scan needs a roll, so `SoloSave.rngSeed` is a si
 
 ---
 
-## 3. ⚠ ENUMERATION — the banner rules (DO NOT PUBLISH)
+## 3. BREACH PROTOCOL — the grid, and why every goal is reachable
 
-`05` §3.2 requires every class to have "a verification step that rewards a human read", and spells out only Logic's and Traversal's. **Enumeration's is the service banner.** The target's role constrains which bands can hold open ports, so a player who reads the banner eliminates whole bands without probing them, and a fixed heuristic never can — which is §3.2(d), "cannot use the 'intuition' shortcuts a human gets from reading flavor data", made mechanical rather than asserted.
+A square grid of two-character codes drawn from six values (`1C 55 7A BD E9 FF`), one to three target sequences, and a buffer of 4–8 slots. Picks alternate: the first is taken from row 0, and each pick then confines the next to the row or column of the cell just taken. A sequence counts when it appears as a **contiguous run anywhere in the buffer**.
 
-| Banner | Rule |
+**Six codes, deliberately.** Fewer makes accidental runs so common that a sequence completes itself; more makes a run vanishingly unlikely along any legal path, and the puzzle stops being solvable by planning. No two share a first character, so they are distinguishable at a glance.
+
+> ⚠ **Goals are cut out of a walk the generator actually took, never generated at random.** A random sequence is very often unreachable — the path alternates row and column, so a run that appears along no legal walk is a goal the player can see, read, and never land, *with nothing on screen to distinguish that from being bad at the game*. `BoardFactory.legalWalk` walks the grid first and slices the goal out of the walk, which guarantees at least one solution exists. `BreachBoardsTest.everyBoardIsSolvable` searches for that path on every board the generator will make, at every tier, across 120 seeds. **This is the property an open-information puzzle lives on** — it has nothing hidden, so if it is unfair there is no way for the player to find out.
+
+**Scoring rescans the whole buffer; it never advances a pointer.** A run can restart mid-buffer: with a goal of `1C 1C 55`, a buffer of `1C 1C 1C 55` contains it, and a pointer that advanced on the first two and reset on the third would miss it. Rescanning is a handful of comparisons on a buffer of at most eight and cannot get that wrong.
+
+**Published progress is about the buffer's *tail*, not its best match anywhere.** What the player needs to know is whether the next pick continues a run; a figure counting a partial match they have already walked away from would point them at a sequence that can no longer be completed from here.
+
+**An illegal pick is refunded, not a strike.** The client cannot produce one — every cell it offers is selectable — so an illegal pick is a mis-typed terminal command, and charging attention for a typo would make the terminal worse to play than the window. A *wasted* pick is not a strike either: it already costs a buffer slot and moves the cursor somewhere the player did not choose, and charging on top would punish one mistake twice and make an exploratory pick (sometimes the only legal move) read as an error.
+
+> ⚠ **A full buffer with nothing uploaded LOCKS the layer, it does not strike.** Every pick from there is refused for want of a slot, so a strike would leave the player in front of a board they cannot touch with a counter that will never reach its limit. `Move.locked` exists for exactly this and for nothing else.
+
+**What this class must never publish:** a reachable-goal count, a "best next cell", or a marker on the cell a solver would take. Working out where the path goes is the entire game. Note the contrast with the retired classes — this one has no secret to keep at all, so the discipline is about what the *interface* adds rather than about what the snapshot withholds.
+
+---
+
+## 4. OFFSET CIPHER — arithmetic, and the one answer rule
+
+A row of 6–16 observed bytes, a target row under it, and a signed offset to write under each: `observed + offset = target`. Both rows are public from the first frame. `COMMIT` reports how many cells were wrong and **which ones**, never what they should have been.
+
+> ⚠ **Nothing wraps, and that is a rule rather than an implementation detail.** With wrapping there would be two answers per byte — the short way and the long way round — and a player who did the arithmetic correctly could still be told they were wrong, which is the one thing an arithmetic puzzle may never do. `expected(i) = target[i] - observed[i]`, in `-255..+255`, and `OffsetRulesTest`/`BreachBoardsTest.answerIsUnique` assert it on every generated board.
+
+**The target is the observed byte plus a non-zero step, not a second free draw.** Two independent draws collide about once every 256 cells, and a column whose answer is zero is a column the player skips on sight — a board of them looks sixteen bytes long and is four. The step is `1..255` and wraps into the byte, so every column is real work.
+
+**Typing is composition: free, reversible, unledgered, and it lives in the engine.** `05` §3.7 makes arranging your own notes not-a-move. The draft is held in the save rather than in the client so a reload cannot lose a half-written row — a local buffer in the widget would be a second copy of the answer that a reload could disagree with. An all-blank commit is refunded rather than striked: it is a mis-click, not a wrong answer.
+
+**There is no probe, and the reason is the opposite of the grid's.** The grid has nothing to ask because everything is visible; the cipher has nothing to ask because the answer is arithmetic. A "check one cell" action would be a probe in all but name and would turn a test of care into a test of budget — the player would simply buy the answer one cell at a time. `CARRY` is the single escape hatch and is priced so that carrying the whole row costs more than the layer is worth.
+
+**No clock, higher noise.** `05` §4 removed the wall clock and this class is where that would otherwise be free: the player may sit and subtract for as long as they like. `Balance.breachNoisePoints` multiplies the attempt's noise by `BREACH_CIPHER_NOISE_FACTOR` (×1.8) so that patience costs exposure instead of time.
+
+> ⚠ **The multiplier is applied to the attempt's TOTAL, not per action.** Per action it would make the cipher *quieter* overall, because it has far fewer paid moves than a grid does — three commits against eight picks. One number, applied once, feeding the meter, the heat gain and the counter-hack roll, so none of the three can disagree.
+
+---
+
+## 5. Why five became three became two
+
+`05` §3.1 has always carried its own merge rule: *if two classes reduce to the same optimal input pattern, merge them.* Applying it honestly twice got here.
+
+| Retired | Closed because |
 |---|---|
-| `EDGE RELAY` | at least one open port in the **last** band; never any in band 0 |
-| `STORAGE ARRAY` | no open port in band 0; **exactly one** adjacent pair somewhere |
-| `AUTH BROKER` | exactly one open port in band 1; no two open ports adjacent anywhere |
-| `MEDIA CACHE` | every open port sits on an **even** slot |
+| Timing | Its skill was sequencing and rhythm — an *action* skill with nothing to express in a probe budget once `05` §4 removed the clock |
+| Credential | Its skill was "pattern deduction"; Logic's was "reconstruct a rule from probe responses". The same verb, and exactly the reskin §3.1 warns against |
+| Enumeration | "Read the structure" and Traversal's "route through the structure" were one skill in two costumes |
+| Traversal | As above. Its decoy read survives in spirit as the grid's overlapping-sequence read |
+| Logic | Mastermind deduction was, in practice, a search the player performed by guessing. What replaced it asks for the same care with a closed-form answer and no guessing branch |
 
-> ⚠ **These belong in this document and nowhere else.** Do not put them in a `man` page, a term entry, a tooltip or a tutorial. The moment the rule is published the read becomes a lookup, and the class loses the only thing that distinguishes it from clicking every slot in order. `bannerNote` gives one line of atmosphere that gestures at the rule without stating it; that is the maximum disclosure.
+What is left is a genuine axis — **pressure of place** against **pressure of precision** — and being good at one predicts nothing about the other, which is what a proof-of-skill gate (**I7**) has to be able to claim.
 
-Generation is **constructive**, not rejection-sampled, for the RNG-stream reason in §2. Board size is `12 + 2(tier-1)` slots in bands of 4; open ports `2 + (tier+1)/2`; filtered ports `tier`.
-
-**Slot indices are not port numbers.** The game never claims slot 22 is ssh. Service names are real; the mapping to a slot is not asserted, because a wrong mapping teaches something false, which `CLAUDE.md` treats as worse than teaching nothing. If the curriculum ever wants well-known ports, `../education/05-networking.md` owns that with a source and a date, and this table follows it.
-
----
-
-## 4. LOGIC — Mastermind, exactly
-
-```
-exact   = |{ i : guess[i] == secret[i] }|
-matched = sum over symbols s of min( count(guess, s), count(secret, s) )
-partial = matched - exact
-```
-
-The classic bug is counting a repeated symbol more than once. It looks harmless and is not: the feedback stops being consistent with itself, a player deducing correctly reaches a contradiction, and the class silently converts from reasoning into guessing. Covered by a test with repeats in both operands, and by a 500-trial symmetry check — symmetry is what makes the consistency filter sound.
-
-**Error tolerance is the class.** A guess that is *provably impossible* given every earlier response is marked `inconsistent` and costs a **strike** on top of its attention. Without that single rule, the optimal play at every tier is to fire 2-attention probes until the budget runs out and hope, and the "deductive reasoning" in `05` §3.1 is optional flavour. Note what it does *not* punish: a consistent guess that turns out to be wrong is a legitimate deduction that lost.
-
-**`KEYSPACE 4096 -> 37` is a real number**, recomputed by walking the keyspace (at most 100 000 candidates at tier 5, once per probe, in a turn-based system). It is the class's diegetic centrepiece and the only place a player can *see* that deduction is doing something guessing would not.
-
-**Facts are constraints, not decoration.** A quiet read costs 1 attention and `05` §4 calls it "the patient baseline". If listening did not move the keyspace readout, players would correctly conclude it does nothing and stop listening — killing the patient half of the loud-versus-patient trade. So each card carries a machine form alongside its prose (`solo/breach/Facts.java`) and the candidate filter applies it. Every card is checked true against the secret at generation: the baseline never lies, because a baseline that sometimes lies is a second gamble rather than a baseline.
-
-The alphabet is ten ASCII symbols `@ $ % & * + = ~ ? !`. **`#` is deliberately excluded** — `UiContractTest.noHexInJava` fails the build on `#` followed by 3–8 hex characters anywhere under the client's `ui`/`view` packages, and an alphabet containing `#` is one rendering away from producing exactly that in a source literal.
-
----
-
-## 5. ⚠ TRAVERSAL — the decoy construction, and the P-3 measurement
-
-`05` §3.2, verbatim: "the true objective node hidden among decoys distinguishable only by cross-referencing recovered logs." Built as:
-
-- the **manifest** names one service and one time, and is public from the start;
-- each objective candidate carries a **log fragment** naming a service and a time, recoverable with `listen` at 1 attention;
-- **exactly one candidate matches both fields.** The others match one field or neither.
-
-A single-field match is the trap: it is exactly what a reader who skims one column would accept.
-
-> ⚠ **Every node on the penultimate rank exits to *all* objective candidates.** This is load-bearing and was added after a measurement. Without it, a player who navigates correctly can arrive at a junction the true objective is not reachable from — the cross-reference returns "none of these" and the layer becomes a backtracking exercise instead of the read §3.2 specifies. It also keeps P-3 honest: the reader-versus-heuristic comparison only holds if both are choosing from the same K.
-
-### P-3, measured
-
-`05` §6 leaves **P-3** open — "how much does manual play beat bot play? It is *the* number behind Invariant I10" — and notes that §4 made it answerable by denominating the gap in probe count rather than seconds. Measured over 600 generated tier-4 and tier-5 boards, playing each one twice: once cross-referencing the logs, once extracting blind in a rotated order (a fixed heuristic that cannot read).
-
-| | attention spent | layer lost outright |
-|---|---|---|
-| **Reader** | 6.00 | **0.0%** |
-| **Fixed heuristic** | 7.33 | **51.7%** |
-
-> **The finding is the loss rate, not the probe count.** The attention gap alone is ~1.2x, which would have looked negligible and might have been "fixed" by making the miss more expensive. The real answer is that at K=4 candidates and a 2-strike limit, a blind extractor strikes out about half the time — `P(first two both wrong) = 3/4 x 2/3 = 1/2`, and the measurement agrees. That is Invariant I10 with a number on it.
-
-⚠ **Do not tune this away.** If the gap ever needs widening the lever is a larger K or a subtler decoy — never a cheaper `extract`, which is what would make the heuristic competitive and the reading pointless. Asserted by `BreachBoardsTest.theHumanReadIsWorthSomething`.
+⚠ **The class is drawn once per attempt and every layer plays it.** Frozen at commission, so a reload cannot reroll into the easier one. A mixed attempt would be two short games and would make a hard target's deeper layers a lottery between the puzzle the player is good at and the one they are not.
 
 ---
 
@@ -114,10 +105,11 @@ Every figure lives in `solo/Balance.java` with its citation. Summary of what is 
 
 | Value | Anchor |
 |---|---|
-| Layers per tier — 1, 1, 2, 3, 3 | `05` §3.3's "layer count"; stops at 3 because §3.1 fixed the class set at 3 |
+| Layers per tier — 1, 1, 2, 3, 3 | `05` §3.3's "layer count". Stops at 3 because attention per layer is already falling; a fourth would be attrition rather than difficulty |
 | Attention per layer — 26, 24, 22, 22, 20 | `05` §3.3's "time pressure", in the only currency §4 leaves. It **falls** as boards grow; read with the size tables or neither makes sense |
 | Strikes per layer — 4, 3, 3, 2, 2 | `05` §3.3's "error tolerance" |
-| Class mix per tier | Enumeration → Logic → Traversal, the order they teach in. Tier 5 repeats Traversal deliberately |
+| Class share — 50/50 | `05` §3.1: the two test different things and a player who is worse at one should meet it as often as the other, or the weaker skill never improves |
+| Cipher noise ×1.8 | The price of having no clock (§4). A multiplier rather than a flat addition, so "the cipher is louder than the grid" survives a re-tune of the underlying noise numbers |
 | Bypass = 80% of the bar | `05` §4's "most of the bar". At 100% it is a suicide button; at 50% it is the default opening |
 | Alarm penalty = 3 attention | A probe and a half: a guess costs meaningfully more than a deduction |
 | Firewall = −2 attention per tier, floor 8 | `09` §1's "flat difficulty increase". The floor is a design rule, not defensive coding: an unwinnable board is the game deciding |
@@ -125,12 +117,10 @@ Every figure lives in `solo/Balance.java` with its citation. Summary of what is 
 | Noise 0 / 1 / 5 / 12, base 2, +4 per alarm | `06` §1's None/Low/Moderate/Very high ladder as a scalar (`01` §3.2) |
 | Noise ÷ 8 = 1 heat | `01` §3.2's "noise is tactical, heat is strategic". Most breach noise never becomes heat |
 | Breach session = 10 cycles | Bracketed by Quick Scan 5 and Full Scan 15 (`04` §3.2), and the Overflow Kit's own 10 (`06` §1) |
-| Credential Harvester = 4 attention | The one cost not on `05` §4's table — see §7 |
-| Enumeration 12 + 2/tier slots, bands of 4 | 12 is three full bands, the smallest board on which a 1-attention sweep beats probing everything |
-| Logic length 3 + tier/2, alphabet 5 + tier | Keyspaces 216 → 100 000. The tier-5 jump is where the readout stops being optional |
-| Salted at tier ≥ 3, else 30% | `06` §2's "conditional power spike ... it rewards recon" |
-| Rainbow reveals 2 positions | A full reveal is the Overflow Kit's job, and the Kit is proof-of-skill-gated for that reason |
-| Traversal 3 + tier/2 ranks, K = 2 + tier/2 | K is P-3's denominator — see §5 |
+| Grid 5, 5, 6, 7, 7 per side | Big enough that a path is not obvious at tier 1; 7×7 is the largest that stays readable as one character-cell block |
+| Buffer 4, 5, 6, 7, 8 | The buffer **is** the difficulty. On a multi-goal board it never exceeds the goals' total length, so taking everything means finding runs that overlap rather than queueing them |
+| Goals 1, 1, 2, 2, 3; length 2 + tier/2 + index | Later goals are longer and worth more. The longest always fits the buffer, or it would be decoration |
+| Cipher 6, 8, 10, 13, 16 bytes | `05` §3.1's published range. Sixteen bytes of hex subtraction with borrows is a real piece of work and is meant to be |
 | Scan false positives 0.35 / 0.15 / 0.04 | `04` §3.2a's "chasing ghosts / working default / it earns it" |
 | Detection Array ×0.60 / ×0.35 / ×0.15 | `09` §2. **Multipliers**, so precision can never reach certainty |
 | Full Scan sees 50% of rootkits | `04` §3.2's "some rootkit-wrapped" |
@@ -141,9 +131,9 @@ Every figure lives in `solo/Balance.java` with its citation. Summary of what is 
 
 ## 7. Open questions raised by building it
 
-- **BR-1 — a multi-class attempt earns credit for one class.** `ResolutionRecord` carries one `puzzleClass` (`05` §2's fixed shape), so a tier-4 attempt that solved Enumeration, Logic *and* Traversal records only the deepest. Every class actually cleared is listed in `ResolutionState.classesCleared` (local telemetry, alongside `probesUsed`) rather than in extra rows — extra rows would be a **countable** artefact, which is the thing I7 forbids. A proof-of-skill implementation should read that field. Needs a ruling on whether the wire record should grow.
+- **BR-1 — a multi-layer attempt earns credit once.** `ResolutionRecord` carries one `puzzleClass` (`05` §2's fixed shape). Since the class is now drawn once per attempt this is no longer a conflict in practice — every layer is the same class — but the field and the local `classesCleared` list both remain, because a future mixed-class attempt would reopen it exactly as it was. Every class actually cleared is listed in `ResolutionState.classesCleared` (local telemetry, alongside `probesUsed`) rather than in extra rows — extra rows would be a **countable** artefact, which is the thing I7 forbids. A proof-of-skill implementation should read that field. Needs a ruling on whether the wire record should grow.
 - **BR-2 — a crack is reported `DORMANT`, so it never earns proof-of-skill.** A miner on your own rig is neither live nor defended: it does not fight back, and it is available on demand as soon as one is planted. Reporting it `LIVE` would make the safest action in the game (I9: zero heat on every outcome) also the proof-of-skill source, which is precisely the farming failure `02` §2.4 was written to prevent. Decided that way; flagged because it is a real design call and not an implementation detail.
-- **BR-3 — the Credential Harvester's 4 attention is the only cost not on `05` §4's table.** It skips a deduction step, which is more than a probe buys, but it is reputation-gated and only Moderate noise, so pricing it loud would make it a worse Fuzzer at the same price. Four is the only value keeping both relationships true. If §4's table is meant to be closed, this needs a row or a re-price.
+- **BR-3 — `CARRY`'s price is a relationship, not a number.** It must cost more than carrying is worth on a short cipher and less than losing the layer on a long one, and it is currently the loud-tool rate (6). That holds at 6 and 16 bytes; it has not been checked against a re-tune of the attention budget, and it is the first thing to re-derive if that table moves.
 - **BR-4 — one bypass per attempt, not one per layer.** `05` §3.1 says "clearing every layer **or bypassing one**". Read as once-per-layer, a tier-4 attempt is three presses from `BREACHED` with nothing solved, which is `CLAUDE.md`'s "never let anything skip the puzzle wholesale" and would make the Kit a default rather than `06` §2's "panic button with a siren attached". Implemented as once per attempt. Caught by running a tier-3 attempt to a win without solving a layer.
 - **BR-5 — offensive-breach tool loss is not implemented.** `05` §4.1 lists "possible tool loss" among failure consequences; only heat and canary handle-tagging are built. Needs a rule for *which* tool, and it touches the same seam as W-4 (faction-tool forfeiture).
 - **BR-6 — a foreign miner on the player's own rig is a new state shape.** `RigState.foreignMiners`, each holding a real `DEPLOYED_MINER` allocation (Invariant I6, and `04` §3.1's "the discrepancy is always present in the data"). Rootkit-wrapped miners should eventually be charged but **not disclosed**, which is what `ComputeBudget.unaccountedFor()` exists to expose; today they are disclosed like any other.
@@ -153,7 +143,8 @@ Every figure lives in `solo/Balance.java` with its citation. Summary of what is 
 - **`05` §3.3** still says time pressure is "(trace timer speed, §4)". §4 removed the wall clock; there is no timer. It is the per-layer attention budget.
 - **`05` §2** says `noiseGenerated` is a function of "time spent". It is attention spent.
 - **`04` §3.3** still says the Detection Array "reserves compute permanently to raise per-tick discovery chance". `04` §3.2a and `09` §2 replaced that with precision on 2026-07-26; §3.3 is the last copy of the old reading.
-- **`06` §4**'s puzzle-class mapping table still lists `Credential` and `Timing`, both closed by `05` §3.1 on 2026-07-26.
+- **`06` §4**'s puzzle-class mapping table lists the retired five. Every entry needs remapping onto Breach Protocol / Offset Cipher, and four of the tools it names (Fuzzer, Rainbow Table, Credential Harvester, Side-Channel Reader) countered mechanics that no longer exist — they are currently unimplemented rather than removed. Logged as **P-1** in `15` §3.
+- **`07`'s Topology Mapper** is described as the Traversal counter. The class is gone; the tool's network-map role is unaffected, but its breach role needs restating or dropping.
 
 ## 9. Cross-references
 

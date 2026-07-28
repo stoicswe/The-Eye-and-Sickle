@@ -51,10 +51,11 @@ class NoiseRulesTest {
     class Quiet {
 
         @Test
-        @DisplayName("a rig at full load on self-mining, defences and local tools reads zero")
+        @DisplayName("a rig at full load on SOLO self-mining, defences and local tools reads zero")
         void theQuietStrategyIsQuiet() {
             SoloSave save = rig();
             save.rig.selfMiningCycles = 60L;
+            save.rig.miningMode = "SOLO";
             allocate(save, ComputeConsumer.DEFENSIVE_ARRAY, 25L, false);
             allocate(save, ComputeConsumer.ACTIVE_TOOL, 15L, false);
 
@@ -62,7 +63,67 @@ class NoiseRulesTest {
             // you loud would not be one), I9 makes defence silent (being wanted must come from
             // aggression), and scanning your own rig is free and silent. All three at once is a rig
             // running flat out and radiating nothing.
+            //
+            // ⚠ SOLO specifically, since 2026-07-27. Solo mining is local grinding and talks to
+            // nobody until it finds a block; a POOLED rig holds a connection to a pool and pushes a
+            // share up it every thirty seconds, which is outward traffic and is counted. See below.
             assertThat(NoiseRules.level(save, T0)).isZero();
+        }
+
+        @Test
+        @DisplayName("a POOLED rig is faintly audible — it is talking to a pool")
+        void poolingIsFaintlyAudible() {
+            SoloSave save = rig();
+            save.rig.selfMiningCycles = 60L;
+            save.rig.miningMode = "POOLED";
+
+            long cycles = NoiseRules.outwardCycles(save, T0);
+            // Real, and small: a share submission is a packet to a third party. Two cycles against a
+            // sweep's 35 — a sweep is more than seventeen times louder.
+            assertThat(cycles).isPositive().isLessThan(Balance.NET_SWEEP_BASE_NOISE / 10);
+            assertThat(NoiseRules.level(save, T0)).isLessThan(0.05d);
+        }
+
+        @Test
+        @DisplayName("⚠ pooled noise does not scale with allocation — a share is a fixed packet")
+        void poolNoiseIsFlat() {
+            SoloSave lean = rig();
+            lean.rig.selfMiningCycles = 5L;
+            SoloSave full = rig();
+            full.rig.selfMiningCycles = 100L;
+
+            // Doubling your cycles doubles your income and changes your traffic not at all. If this
+            // scaled, the noise-conscious play would be to mine LESS — which would punish the income
+            // floor for being used, and I4 exists to stop exactly that.
+            assertThat(NoiseRules.outwardCycles(lean, T0)).isEqualTo(NoiseRules.outwardCycles(full, T0));
+        }
+
+        @Test
+        @DisplayName("a pool that wants shares twice as often is twice as loud")
+        void shareIntervalSetsTheVolume() {
+            SoloSave often = rig();
+            often.rig.selfMiningCycles = 60L;
+            often.rig.miningPoolId = "meridian";
+            SoloSave rarely = rig();
+            rarely.rig.selfMiningCycles = 60L;
+            rarely.rig.miningPoolId = "small-hours";
+
+            // The one place a pool's share interval is more than flavour: MERIDIAN asks every 15s,
+            // SMALL HOURS every 60s. Picking a quieter pool is a real play.
+            assertThat(NoiseRules.outwardCycles(often, T0))
+                    .isGreaterThan(NoiseRules.outwardCycles(rarely, T0));
+        }
+
+        @Test
+        @DisplayName("a rig that is not mining is silent whatever mode it remembers")
+        void idleIsSilent() {
+            for (String mode : new String[] {"POOLED", "SOLO"}) {
+                SoloSave save = rig();
+                save.rig.selfMiningCycles = 0L;
+                save.rig.miningMode = mode;
+                // No cycles means no connection means no traffic. A mode is a preference, not an act.
+                assertThat(NoiseRules.outwardCycles(save, T0)).as("%s", mode).isZero();
+            }
         }
 
         @Test

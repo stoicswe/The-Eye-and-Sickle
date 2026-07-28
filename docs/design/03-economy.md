@@ -18,11 +18,13 @@ All figures assume a **~1 hour session** and a **100-cycle starting rig**. These
 
 ### 1.1 Why these ratios are what they are
 
-- **Self-mining at ~57% of active income.** It is a floor, not a strategy — worth doing when heat is too high to operate, never worth doing *instead of* playing. The 57% figure is the tuning target: high enough that a hot player isn't punished twice, low enough that a cold player never idles by choice. (Its safety is structural — Invariant I4.)
+- **Self-mining at ~57% of active income.** ⚠ Since 2026-07-27 the 40 EC/hr is the **pooled** figure and is exact; solo mining is the same number divided by (1 − the pool's 2% fee), so ~40.8 EC/hr in expectation with roughly twenty times the variance (`04-mining.md` §1.3). Nothing in this table was re-tuned: the chain's network hashrate is *derived* from this anchor precisely so it cannot drift from it. It is a floor, not a strategy — worth doing when heat is too high to operate, never worth doing *instead of* playing. The 57% figure is the tuning target: high enough that a hot player isn't punished twice, low enough that a cold player never idles by choice. (Its safety is structural — Invariant I4.)
 - **Deployed mining reads as the best option on the sheet (95 gross) and lands below active income once losses are priced in (~55–65).** A variance play that feels smart and isn't dominant. Players who audit diligently (Provenance Tracer) and site miners well can push effective yield **above** active income — that's a deliberate skill reward, and it's self-limiting because auditing consumes the session time they'd otherwise spend earning.
 - **Active hacking is the ceiling on EC/hr** and it's the activity that *is the game* (Pillar 1). Nothing passive may beat it in expectation. Any new income source must be slotted under 70 effective or given costs that pull it under.
 
 ### 1.2 Variance warning (established, restated)
+
+⚠ **Self-mining now has variance too, and it is opt-in.** `04-mining.md` §1.3 makes solo mining a Poisson process paying whole blocks at ~4-hour intervals. Pooled — the default — has none of it and is what this table's 40 EC/hr means. A player who has chosen solo is not on the floor this document prices, and playtest instrumentation (§6) should bucket the two apart or the mining figures will read as noise.
 
 The deployed-network effective figure hides **correlated loss**: sweeps roll against the deployer's single global heat value, so networks die in wipes, not smooth decay (`04-mining.md` §4). Budget play experience around occasional catastrophic loss, not a steady bleed. OQ-3 tracks whether wipes feel dramatic or unfair.
 

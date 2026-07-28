@@ -258,8 +258,6 @@ public final class NetMapView {
         Label activity = new Label();
         activity.getStyleClass().add("es-netmap-layer");
 
-        VBox notices = new VBox(UiTokens.SPACE_2);
-
         VBox reader = new VBox(UiTokens.SPACE_2);
         Label readerTitle = Ui.label("");
         Label readerBody = Ui.small("");
@@ -277,7 +275,7 @@ public final class NetMapView {
         VBox.setVgrow(area, Priority.ALWAYS);
 
         root.getChildren().addAll(
-                strip, controls, selectionRow, folderRow, detail, activity, notices, area, legend, reader);
+                strip, controls, selectionRow, folderRow, detail, activity, area, legend, reader);
 
         // ---------------------------------------------------------------- wiring
         Runnable applyDisplay = () -> {
@@ -311,17 +309,17 @@ public final class NetMapView {
             applyDisplay.run();
         });
 
-        java.util.function.Consumer<GameSession.Outcome> report = outcome -> {
-            if (outcome == null || outcome.message().isBlank()) {
-                notices.getChildren().clear();
-            } else {
-                // A blank lead clause on purpose: Note paints its lead in amber, and §4.9 allows no
-                // amber anywhere on this panel — a network node is not earning. The distinction a
-                // refusal has to carry is carried by the rules' own first word instead.
-                notices.getChildren().setAll(Note.consequence("", outcome.message()));
-            }
-            visible(notices, !notices.getChildren().isEmpty());
-        };
+        // ⚠ Refusals are NOT printed on this panel any more, and the strip that used to hold them
+        // is gone. Every intent below goes through the session, which writes a refusal to the rig's
+        // log on the way back — and the notification system is "the log, filtered", so it surfaces
+        // there as an error toast and stays permanently readable in the log window.
+        //
+        // The strip had three problems and the third is the one that mattered: it duplicated a
+        // surface the client already has; it put the message at the top of a panel whose controls
+        // may be at the bottom; and a refusal was the one class of message that never reached the
+        // journal at all. A player could be told "not enough cycles", look away, and have no way to
+        // find out what they had been told.
+        java.util.function.Consumer<GameSession.Outcome> report = outcome -> {};
 
         sweepBase.onInvoke(() -> report.accept(session.sweep("")));
         sweepWide.onInvoke(() -> report.accept(session.sweep("--wide")));

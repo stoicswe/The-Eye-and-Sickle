@@ -58,6 +58,15 @@ public final class SoloSave {
     public long playedSeconds = 0L;
 
     public RigState rig = new RigState();
+
+    /**
+     * The chain the rig mines against.
+     *
+     * <p>Nullable so a save written before 2026-07-27 loads; {@code SoloGame.backfill} builds one on
+     * the way in. A character who predates the chain joins it at its current height rather than at
+     * block zero, which is the same thing that happens to anyone who installs a wallet today.
+     */
+    public ChainState chain;
     public long ethecoinMinorUnits = 0L;
 
     /** Long-horizon Eye attention. Distinct from noise, which decays and is not persisted. */

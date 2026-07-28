@@ -499,56 +499,15 @@ public final class NetRules {
     }
 
     /**
-     * Plants a foreign miner on the player's own rig and charges the heat the sweep earned.
+     * Plants a parasite the sweep provoked.
      *
-     * <p>⚠ <b>The heat lands on the player, and Invariant I9 is not violated.</b> The player's sweep
-     * reached another machine, which is an intrusive outbound action and heat-bearing under
-     * {@code docs/design/01-core-resources.md} §3. What I9 protects is the <em>next</em> step: the
-     * crack of the planted miner runs on the player's own rig and generates no heat on any outcome
-     * ({@code docs/design/04-mining.md} §5.1). So being counter-hacked is not only a punishment — it
-     * hands the player the safest teaching target in the game, on the existing, already-built crack
-     * path.
-     *
-     * <p>The miner holds a real {@code DEPLOYED_MINER} allocation, which is what makes it findable by
-     * the audit in {@code docs/design/04-mining.md} §3.1: the cycle totals genuinely stop adding up.
-     * A rig too full to reserve gets the miner without the allocation rather than no miner at all —
-     * the same fallback {@code Targets.plantTutorialMiner} takes, because a parasite that declined to
-     * install because the machine was busy would be the wrong lesson entirely.
+     * <p>The planting itself moved to {@code IntrusionRules}: a loud breach can now provoke one too,
+     * and two packages that must not depend on each other both needed it. What stays here is the
+     * decision — a sweep's counter-hack is rolled at commission and frozen into the task, so a reload
+     * mid-sweep replays nothing.
      */
     private static void counterHack(SoloSave save, int depth, Instant now) {
-        MinerState miner = new MinerState();
-        miner.tier = Math.max(1, Math.min(3, depth));
-        miner.hostCycles = Balance.TUTORIAL_MINER_HOST_CYCLES + depth;
-        miner.label = "unregistered process";
-        miner.deployerHandle = "unknown";
-        miner.rootkitWrapped = depth >= 3;
-        // ⚠ Both default to Instant.now(). Overwritten with the session clock, or a test clock sees a
-        // miner that has been accruing since the real world's present.
-        miner.deployedAt = now;
-        miner.lastAccruedAt = now;
-
-        AllocationState allocation = ComputeRules.reserve(
-                save.rig, ComputeConsumer.DEPLOYED_MINER, miner.label, miner.hostCycles);
-        if (allocation != null) {
-            allocation.startedAt = now;
-            miner.allocationId = allocation.allocationId;
-        }
-        save.rig.foreignMiners.add(miner);
-
-        // Dressed on the way in, from the same generator the sweep already committed. A parasite
-        // planted by a counter-hack hides exactly as well as the tutorial one — the log announces the
-        // EVENT, and finding the PROCESS is still the player's job.
-        Rng disguiseRng = Rng.of(save);
-        io.github.stoicswe.eyeandsickle.solo.proc.Disguise.dress(save, miner, disguiseRng);
-        disguiseRng.commit(save);
-
-        int heat = Balance.netCounterHackHeat(depth);
-        save.personalHeat = Math.min(Balance.PERSONAL_HEAT_MAX, save.personalHeat + heat);
-        EventLog.warning(save, "net",
-                "something swept back: an unregistered process is running on your rig"
-                        + (heat > 0 ? ", and personal heat rose by " + heat : "")
-                        + ". `scan` finds it; cracking it costs no heat.",
-                now);
+        io.github.stoicswe.eyeandsickle.solo.rules.IntrusionRules.plantCounterHack(save, depth, now);
     }
 
     /** {@code 1.00} at one hop, {@code 0.60} at two — see {@code Balance.NET_HOP_FACTOR_2}. */

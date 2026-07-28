@@ -3,12 +3,21 @@ package io.github.stoicswe.eyeandsickle.solo;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeBudget;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeConsumer;
 import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
+import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
+import io.github.stoicswe.eyeandsickle.protocol.game.MiningPool;
+import io.github.stoicswe.eyeandsickle.protocol.game.MiningSnapshot;
 import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
 import io.github.stoicswe.eyeandsickle.solo.rules.ComputeRules;
 import io.github.stoicswe.eyeandsickle.solo.rules.EventLog;
 import io.github.stoicswe.eyeandsickle.solo.rules.LedgerRules;
+import io.github.stoicswe.eyeandsickle.protocol.game.FeeTier;
+import io.github.stoicswe.eyeandsickle.solo.rules.ChainExplorer;
+import io.github.stoicswe.eyeandsickle.solo.rules.MempoolRules;
+import io.github.stoicswe.eyeandsickle.solo.rules.ChainRules;
 import io.github.stoicswe.eyeandsickle.solo.rules.MiningRules;
 import io.github.stoicswe.eyeandsickle.solo.rules.ScanRules;
+import io.github.stoicswe.eyeandsickle.solo.state.ChainState;
+import io.github.stoicswe.eyeandsickle.solo.state.LedgerEntryState;
 import io.github.stoicswe.eyeandsickle.solo.state.MinerState;
 import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import io.github.stoicswe.eyeandsickle.solo.state.AllocationState;
@@ -131,6 +140,17 @@ public final class SoloGame {
         if (save.netFolders == null) {
             save.netFolders = new java.util.ArrayList<>();
         }
+        if (save.chain == null) {
+            // A character who predates the chain joins it at its current height, exactly as anyone
+            // installing a wallet today does. Starting them at block zero would say the chain had
+            // been waiting for them, which is the opposite of what a decentralised ledger is.
+            Rng rng = Rng.of(save);
+            save.chain = ChainRules.genesis(now, rng);
+            rng.commit(save);
+            EventLog.notice(save, "mining",
+                    "chain synced at height " + save.chain.height
+                            + "; self-mining is pooled by default. `mine --solo` to go it alone.", now);
+        }
         abandonBreachInProgress(save, now);
     }
 
@@ -159,6 +179,24 @@ public final class SoloGame {
      * becomes comprehensible ({@code 05} §1 constraint 4), and a player who quit rather than read it
      * should still get to.
      */
+    /**
+     * Abandons a live breach on demand — what closing the breach window does.
+     *
+     * <p>Exactly the same act as the one {@link #open} performs for a breach that did not survive a
+     * quit, and deliberately the same code: closing the console and closing the client are the same
+     * gesture as far as the attempt is concerned, and two implementations of "abandon" would be two
+     * chances for one of them to forget to release the cycles.
+     *
+     * @return true if there was something to abandon
+     */
+    public boolean abandonBreach() {
+        if (save.activeBreach == null || !save.activeBreach.outcome.isEmpty()) {
+            return false;
+        }
+        abandonBreachInProgress(save, clock.instant());
+        return true;
+    }
+
     private static void abandonBreachInProgress(SoloSave save, Instant now) {
         if (save.activeBreach == null || !save.activeBreach.outcome.isEmpty()) {
             return;
@@ -172,8 +210,8 @@ public final class SoloGame {
         // resume()'s whole logging block exists for.
         BreachRules.dismiss(save);
         EventLog.notice(save, "breach",
-                "the attempt on " + label + " did not survive the session; it is recorded as aborted "
-                        + "and its cycles are recovering.",
+                "the attempt on " + label + " was abandoned; it is recorded as aborted and its "
+                        + "cycles are recovering.",
                 now);
     }
 
@@ -207,6 +245,11 @@ public final class SoloGame {
         // world — the topology, the detection rolls, the loot and the documents would all be the
         // same for everyone, and the bug is invisible until two players compare notes.
         s.rngSeed = Rng.derive(s.characterId, now);
+
+        // The chain, before anything can mine against it.
+        Rng chainRng = Rng.of(s);
+        s.chain = ChainRules.genesis(now, chainRng);
+        chainRng.commit(s);
 
         // The world: up to 7 virtual servers and their machines, generated once and persisted.
         // Generated BEFORE the tutorial miner so the miner's own draws cannot shift the topology's
@@ -303,11 +346,47 @@ public final class SoloGame {
         }
         changed |= recovered > 0;
 
-        long selfYield = MiningRules.selfMiningYield(save.rig.selfMiningCycles, elapsed);
+        // The chain runs whether or not the player is mining — a block explorer that only advanced
+        // while you happened to be pointed at it would be a chain with an audience of one.
+        Rng miningRng = Rng.of(save);
+        long heightBefore = save.chain == null ? 0L : save.chain.height;
+        // The chain decides who won each block; MiningRules credits whatever was the player's.
+        ChainRules.Minted minted = ChainRules.advanceNetwork(save, elapsed, now, miningRng);
+        long payoutsBefore = save.rig.miningPayouts;
+        // ⚠ Read the pending-payout count BEFORE running, and add whatever this tick found, because
+        // settlement zeroes it. A label built from the field afterwards reads "0 shares" every time.
+        int pendingBefore = save.rig.miningPendingPayouts;
+        long selfYield = MiningRules.runSelfMining(save, elapsed, now, miningRng, minted);
+        miningRng.commit(save);
+
         if (selfYield > 0) {
-            LedgerRules.apply(save, selfYield, "SELF_MINING", "Self-mining", now);
+            int settled = pendingBefore + (int) (save.rig.miningPayouts - payoutsBefore)
+                    - save.rig.miningPendingPayouts;
+            LedgerEntryState row = LedgerRules.applyEntry(
+                    save, selfYield, "SELF_MINING", miningLabel(Math.max(1, settled)), now);
+            // ⚠ A SOLO win names the block that carried it; a pool payout does not. The pool paid
+            // out of its own balance, and stamping a block number on it would put a transaction on
+            // the chain that no miner ever mined.
+            if (MiningRules.modeOf(save.rig) == MiningMode.SOLO && minted.yours() > 0) {
+                row.blockNumber = save.chain.height;
+            } else if (MiningRules.modeOf(save.rig) != MiningMode.SOLO) {
+                row.counterparty = ChainExplorer.addressOf(MiningRules.poolOf(save.rig));
+            }
             changed = true;
         }
+        // ⚠ A solo block is logged; a pool share is not. A line every thirty seconds would bury the
+        // one line that mattered, which is `alert-fatigue(7)` — a page in this game's own manual.
+        // Finding a block after four hours of nothing is the entire point of the mode and is exactly
+        // the event the log exists for.
+        if (MiningRules.modeOf(save.rig) == MiningMode.SOLO && save.rig.miningPayouts > payoutsBefore) {
+            EventLog.notice(save, "mining",
+                    "block " + save.chain.height + " is yours — "
+                            + money(Balance.BLOCK_SUBSIDY_MINOR_UNITS
+                                    * (save.rig.miningPayouts - payoutsBefore))
+                            + ", whole and unshared.",
+                    now);
+        }
+        changed |= save.chain != null && save.chain.height != heightBefore;
 
         changed |= MiningRules.accrueDeployedMiners(save, now) > 0;
 
@@ -365,6 +444,167 @@ public final class SoloGame {
                         : "Self-mining set to " + cycles + " cycles (" + money(cycles * 40L) + "/hr while open).",
                 clock.instant());
         return true;
+    }
+
+    /**
+     * Points the rig's mining at the pool or at the whole chain.
+     *
+     * <h2>⚠ Switching costs nothing, forfeits nothing, and that is the mechanic</h2>
+     *
+     * Mining is memoryless: the work already done buys no claim on the next payout in either mode, so
+     * there is nothing to lose by switching and nothing to bank by waiting. The outstanding draw is
+     * kept rather than re-rolled — re-rolling would hand the player a free reroll of a wait they
+     * cannot see anyway, and keeping it is also simply correct, because the remaining wait on an
+     * exponential is distributed exactly like a fresh one.
+     *
+     * @return true if the mode changed
+     */
+    public boolean setMiningMode(MiningMode mode) {
+        if (mode == null || MiningRules.modeOf(save.rig) == mode) {
+            return false;
+        }
+        save.rig.miningMode = mode.name();
+        Instant now = clock.instant();
+        MiningSnapshot after = mining();
+        EventLog.info(save, "mining",
+                mode == MiningMode.SOLO
+                        ? "Mining solo against difficulty " + String.format(java.util.Locale.ROOT, "%.1f", after.difficulty())
+                                + ". No fee, no floor: " + money(after.payoutMinorUnits()) + " a block, "
+                                + humanAway(java.time.Duration.ofSeconds((long) after.expectedPayoutSeconds()))
+                                + " between them on average."
+                        : "Mining pooled. " + money(after.payoutMinorUnits()) + " a share, about one every "
+                                + Math.round(Balance.POOL_SHARE_SECONDS) + "s, less a "
+                                + String.format(java.util.Locale.ROOT, "%.0f%%", Balance.POOL_FEE * 100) + " fee.",
+                now);
+        return true;
+    }
+
+    /**
+     * Joins a pool. Pooled mining only; solo has nobody to join.
+     *
+     * <p>⚠ Switching pools costs nothing and forfeits nothing, for the same reason switching modes
+     * does — the outstanding draw survives, because the remaining wait on an exponential is
+     * distributed exactly like a fresh one. Real pools have no exit fee either; the thing that makes
+     * people hesitate is a minimum payout threshold holding their balance, which this game does not
+     * model.
+     *
+     * @return true if the pool changed
+     */
+    public boolean setPool(String poolId) {
+        if (poolId == null || !Pools.exists(poolId)) {
+            return false;
+        }
+        MiningPool pool = Pools.byId(poolId);
+        if (pool.id().equals(MiningRules.poolOf(save.rig).id())) {
+            return false;
+        }
+        save.rig.miningPoolId = pool.id();
+        Instant now = clock.instant();
+        MiningSnapshot after = mining();
+        EventLog.info(save, "mining",
+                "joined " + pool.name() + " (" + pool.scheme() + ", " + pool.feeText() + ") — "
+                        + money(after.payoutMinorUnits()) + " every "
+                        + humanAway(java.time.Duration.ofSeconds(
+                                Math.max(1L, (long) after.expectedPayoutSeconds())))
+                        + ", " + money(after.expectedMinorUnitsPerHour()) + "/hr expected.",
+                now);
+        return true;
+    }
+
+    /**
+     * What {@code cycles} would earn per hour in the current mode and pool, in minor units.
+     *
+     * <p>For pricing a slider before it is committed. The rule stays here: a view that scaled the
+     * committed figure itself would be the fourth copy of a balance rate, and the third one was
+     * already wrong (see {@code RigStatus}).
+     */
+    public long miningRateFor(long cycles) {
+        return MiningRules.rateFor(save.rig, save.chain, cycles);
+    }
+
+    /** This character's chain address. */
+    public String chainAddress() {
+        return ChainExplorer.addressOf(save);
+    }
+
+    /** The explorer's rolling window of blocks, newest first. */
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.ChainBlock> chainBlocks() {
+        return ChainExplorer.recentBlocks(save);
+    }
+
+    /** The player's ledger rendered as chain transactions, newest first. */
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.ChainTransaction> chainTransactions(
+            int limit) {
+        return ChainExplorer.transactions(save, limit);
+    }
+
+    /** Every pool on the chain, for a picker. */
+    public java.util.List<MiningPool> pools() {
+        return Pools.all();
+    }
+
+    /**
+     * The mining dashboard, as the client draws it.
+     *
+     * <p>⚠ Carries no progress figure, deliberately — see {@code MiningSnapshot}. Everything here is
+     * either chain state or a published expectation; nothing lets the client work out how close the
+     * next payout is, because nothing can.
+     */
+    public MiningSnapshot mining() {
+        ChainState chain = save.chain;
+        if (chain == null) {
+            chain = ChainRules.genesis(clock.instant(), new Rng(save.rngSeed));
+        }
+        MiningMode mode = MiningRules.modeOf(save.rig);
+        long hashrate = ChainRules.hashrate(save.rig.selfMiningCycles);
+        double working = MiningRules.workingDifficulty(save.rig, chain);
+        Instant last = save.rig.miningLastPayoutAt;
+        return new MiningSnapshot(
+                mode,
+                save.rig.selfMiningCycles,
+                hashrate,
+                Math.round(chain.networkHashrate),
+                chain.difficulty,
+                working,
+                chain.height,
+                ChainRules.blocksUntilRetarget(chain),
+                ChainRules.expectedSeconds(working, hashrate),
+                last == null ? -1L : java.time.Duration.between(last, clock.instant()).toSeconds(),
+                MiningRules.expectedMinorUnitsPerHour(save.rig, chain),
+                Math.round(MiningRules.payoutMinorUnits(save.rig, chain)),
+                save.rig.miningPayouts,
+                save.rig.miningMinorUnits,
+                mode == MiningMode.SOLO ? 0 : MiningRules.poolOf(save.rig).feeBasisPoints(),
+                last,
+                mode == MiningMode.SOLO ? null : MiningRules.poolOf(save.rig),
+                save.rig.miningPendingMinorUnits,
+                settleIn(),
+                MiningRules.poolNoiseCycles(save.rig));
+    }
+
+    /** Seconds until the pool settles, or 0 when solo or there is nothing waiting. */
+    private long settleIn() {
+        if (MiningRules.modeOf(save.rig) == MiningMode.SOLO
+                || save.rig.miningPendingMinorUnits <= 0
+                || save.rig.miningSettledAt == null) {
+            return 0L;
+        }
+        long elapsed = java.time.Duration.between(save.rig.miningSettledAt, clock.instant()).toSeconds();
+        return Math.max(0L, Balance.POOL_SETTLE_SECONDS - elapsed);
+    }
+
+    /**
+     * The ledger line for a settlement — a block names itself, a run of shares is counted.
+     *
+     * <p>⚠ Read BEFORE the settlement clears the counter. `runSelfMining` zeroes
+     * {@code miningPendingPayouts} on the way out, so a label built afterwards would read "0 pool
+     * shares" on every row.
+     */
+    private String miningLabel(int settledPayouts) {
+        if (MiningRules.modeOf(save.rig) == MiningMode.SOLO) {
+            return settledPayouts == 1 ? "Block " + save.chain.height : settledPayouts + " blocks";
+        }
+        return settledPayouts == 1 ? "Pool payout, 1 share" : "Pool payout, " + settledPayouts + " shares";
     }
 
     /**
@@ -786,13 +1026,68 @@ public final class SoloGame {
         return false;
     }
 
-    /** Spends ethecoin. Returns false rather than throwing when the player cannot afford it. */
+    /** Spends ethecoin at the standard fee. Returns false when the player cannot afford it. */
     public boolean debit(long minorUnits, String type, String description) {
-        if (!LedgerRules.canDebit(save, minorUnits)) {
+        return debit(minorUnits, type, description, FeeTier.STANDARD, "");
+    }
+
+    /**
+     * Spends ethecoin and broadcasts the transaction, at the chosen fee.
+     *
+     * <h2>⚠ The balance moves now; the chain record confirms later</h2>
+     *
+     * The debit is immediate and whatever was bought is the player's immediately — the same instant a
+     * real wallet shows a send and deducts it from your spendable balance. What waits is the
+     * <em>confirmation</em>: a miner has to pack the transaction into a block, and the fee is a bid
+     * for one of a block's fixed number of slots.
+     *
+     * <p>That split is the one place this simulation declines to be faithful, deliberately. A purchase
+     * that withheld the goods for fourteen minutes would be accurate and would also make buying a
+     * consumable mid-breach impossible — a worse game, for a lesson the fee market already teaches by
+     * being visible in the mempool.
+     *
+     * <p>⚠ <b>The fee is charged on top and is also a debit</b>, so a player who cannot afford
+     * {@code amount + fee} cannot send. Charging the fee silently out of the amount would make the
+     * recipient short and the arithmetic in the ledger wrong.
+     *
+     * @param tier how much of a hurry it is in
+     * @param counterparty the other end, as an address; empty derives one from the type
+     */
+    public boolean debit(long minorUnits, String type, String description, FeeTier tier, String counterparty) {
+        long fee = Balance.feeFor(tier);
+        if (!LedgerRules.canDebit(save, minorUnits + fee)) {
             return false;
         }
-        LedgerRules.apply(save, -minorUnits, type, description, clock.instant());
+        Instant now = clock.instant();
+        LedgerEntryState entry = LedgerRules.applyEntry(save, -minorUnits, type, description, now);
+        if (save.chain != null) {
+            MempoolRules.submit(save, entry, tier, counterparty, true, now);
+            if (fee > 0) {
+                // Its own row, named. A fee folded into the amount would be a charge the ledger could
+                // not explain, and ledger(1) exists to explain every movement.
+                LedgerRules.apply(save, -fee, "TX_FEE",
+                        "Transaction fee (" + tier.label().toLowerCase(java.util.Locale.ROOT) + ")", now);
+            }
+        }
         return true;
+    }
+
+    /** What a spend at this tier would cost in fees, for a dry run. */
+    public long feeFor(FeeTier tier) {
+        return Balance.feeFor(tier);
+    }
+
+    /** The mempool: what is waiting, and what the next blocks would hold. */
+    public io.github.stoicswe.eyeandsickle.protocol.game.ChainMempool mempool() {
+        return ChainExplorer.mempool(save, clock.instant());
+    }
+
+    /** One block with every transaction in it, for the detail view. Any height renders. */
+    public io.github.stoicswe.eyeandsickle.protocol.game.ChainBlock chainBlock(long height) {
+        if (save.chain == null || height < 0 || height > save.chain.height) {
+            return null;
+        }
+        return ChainExplorer.blockWithBody(save, height);
     }
 
     public void credit(long minorUnits, String type, String description) {

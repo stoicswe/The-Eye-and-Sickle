@@ -85,6 +85,14 @@ public final class AttentionMeter extends VBox {
         caption.getStyleClass().add("es-attn-caption");
         previewLabel.getStyleClass().add("es-attn-caption");
 
+        // ⚠ Fixed width, always — see UiTokens.ATTENTION_PREVIEW_WIDTH. A caption that appeared and
+        // disappeared with the pointer resized this whole widget, which reflowed the cost strip
+        // beside it and made the chips oscillate under the cursor.
+        previewLabel.setMinWidth(UiTokens.ATTENTION_PREVIEW_WIDTH);
+        previewLabel.setPrefWidth(UiTokens.ATTENTION_PREVIEW_WIDTH);
+        previewLabel.setMaxWidth(UiTokens.ATTENTION_PREVIEW_WIDTH);
+        previewLabel.setAlignment(javafx.geometry.Pos.BASELINE_RIGHT);
+
         HBox head = Ui.row(UiTokens.SPACE_4, title, Ui.spacer(), previewLabel);
         head.setAlignment(Pos.BASELINE_LEFT);
         getChildren().addAll(head, rows, caption);

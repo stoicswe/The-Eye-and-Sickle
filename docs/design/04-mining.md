@@ -10,7 +10,7 @@ Mining is two very different systems sharing a name: **self-mining** (the safe i
 
 ## 1. Self-Mining
 
-Runs on the player's own rig. Consumes allocated compute at **0.4 EC per cycle-hour** (full 100-cycle rig = 40 EC/hr).
+Runs on the player's own rig. Consumes allocated compute at **0.4 EC per cycle-hour** (full 100-cycle rig = 40 EC/hr) — an *expectation* since 2026-07-27, not a trickle; see §1.3.
 
 ### 1.1 The four structural properties (all load-bearing)
 
@@ -25,23 +25,196 @@ Runs on the player's own rig. Consumes allocated compute at **0.4 EC per cycle-h
 
 Self-mining runs **only while the player is in session** (matching the botnet rule, Invariant I5). This keeps the compute tradeoff real — cycles on mining are cycles not on bots, tools, and defense, and that tension only exists during a session. Offline accrual would make those cycles free and mining would stop being an active bet.
 
-### 1.3 Block-reward model
+### 1.3 The chain — pooled and solo (rebuilt 2026-07-27)
 
-Yield arrives in **lumps at intervals**, not a continuous trickle. Interval shortens with allocation:
+Self-mining is a **real proof-of-work simulation**, not a rate. It uses the real proof-of-work equations:
 
-| Allocation | Block interval | Effective rate |
-|---|---|---|
-| Full rig (100 cycles) | 4 min | 40 EC/hr |
-| Half rig (50 cycles) | 8 min | 20 EC/hr |
-| Quarter rig (25 cycles) | 16 min | 10 EC/hr |
+```
+expected hashes per block   = difficulty × 2³²
+expected seconds to a block = difficulty × 2³² / hashrate
+difficulty holding interval = interval × networkHashrate / 2³²
+```
 
-Same EC/hr as a linear model — the block structure is pure *feel*: partial allocation reads as sluggish and unreliable in a way a smooth trickle would not, and every mid-block reallocation is a decision point (pull cycles now and forfeit block progress, or ride it out?).
+The chain targets **one block every fourteen minutes** and retargets every **1440 blocks**, clamped to a factor of four per adjustment.
 
-> **[PROPOSAL]** Mid-block reallocation rule, first pass: pulling cycles off mining mid-block forfeits that block's progress entirely (no partial credit). Restoring allocation starts a fresh block. Partial credit would dissolve the decision point the block model exists to create. UI must show block progress so the forfeit is an informed choice.
+> **⚠ The *relation* is real; the *numbers* are this chain's own.** `difficulty × 2³²` and the factor-of-four clamp are reused exactly, so the arithmetic in `../education/07-distributed-systems-and-identity.md` §3.25 still checks out against a live explorer. But ten minutes and 2016 blocks would have made ethecoin read as a Bitcoin reskin, and a chain that is recognisably one real product teaches that product rather than the mechanism. Fourteen minutes is unmistakably not Bitcoin's, and 1440 × 14 min is still a fortnight — the design property 2016 exists for, without the number.
 
-> **[PROPOSAL]** Implied generalization: interval = `4 min × (100 / allocated_cycles)`, yield per block = interval × rate, i.e. every block pays ~2.67 EC at any allocation on a starting rig; bigger rigs shorten intervals rather than fattening blocks. Keeps blocks frequent enough to feel alive at all rig sizes. Needs a designer pass once rig growth curves exist.
+**A block is *won*, not raced.** Every ~14 minutes the chain mints one block, and a single draw picks the winner with probability equal to their share of the hashrate. A rig with 5.6% of the chain wins 5.6% of the blocks. That is the standard formulation and it is exactly equivalent in expectation to every miner racing their own exponential — but it is **legible**: every block now has a winner, which is a field the explorer shows, and *"your chance at this block is your share of the chain"* is a sentence a player can check against the readout.
+
+> **⚠ Memorylessness survives intact.** The player's wait is now a *geometric* number of blocks rather than an exponential time, and the geometric is the discrete memoryless distribution — losing forty blocks running tells you nothing about the forty-first. Nothing accumulates, nothing is owed, and there is still no progress to draw.
+
+**Pay-per-share pools are settled off-chain**, on their own share clock, because a PPS miner is paid per accepted share whether or not anybody found a block — that is the entire product they are buying. Solo and PPLNS are paid out of blocks.
+
+**The player chooses the shape of their income, not its size.**
+
+| | Pays | Interval (full rig) | Fee | Hour-to-hour swing |
+|---|---|---|---|---|
+| **Pooled** (default) | one share | ~30 s | 2% | ~9% |
+| **Solo** | one whole block, 160 EC | ~4 h 10 m | none | ~196% |
+
+Both are self-mining and both keep **I4** — silent, unseizable, zero heat. Expected income is identical but for the fee, which solo keeps: **pooled is exactly the 0.4 EC per cycle-hour `03-economy.md` §1 prices the economy against, and solo is that divided by (1 − fee)**, about 2% more.
+
+**Why pooled is the default.** §1.1 calls this the floor and explains that a hot player must drop from ~60 EC/hr to 40, *not to zero*. Solo mining pays nothing in about 77% of hours. A player silently opted into it would find the safety net had become a second punishment, which is the fun-ejector §1.1 warns against. Solo is a thing you choose.
+
+**The pool is modelled as a real pool.** It hands each rig an easier target retuned to that rig's hashrate — real pools call this *vardiff* — so a share lands every ~30 s whatever the allocation, which is why pooling smooths a 10-cycle rig as well as a 100-cycle one. Payment is **pay-per-share**: a fixed amount per accepted share whether or not the pool found a block, with the fee as the price of the operator carrying that variance. A share is never a block and never touches the chain's height.
+
+> **⚠ The block subsidy is the only knob that changes the lottery's feel without disturbing `03`.** Raising it makes solo blocks rarer and larger and changes nobody's expected income by one minor unit, because the network hashrate is *derived* from the subsidy and the economy anchor (`solo/Balance.chainNetworkHashrate`). Reach for that one; do not reach for the rate.
+
+### 1.3a The pools — [PROPOSAL]
+
+Pooled mining is a choice of **pool**, not just of mode. Five operate on this chain (`solo/Pools.java`):
+
+| Pool | Scheme | Fee | Chain | Pays | EC/hr @ 94 cy |
+|---|---|---|---|---|---|
+| **THE COMMONS** *(default)* | PPS | 2.00% | 22% | every 30s | 37.60 |
+| **MERIDIAN CLEARING** | PPS | 3.50% | 32% | every 15s | 37.02 |
+| **PALE LANTERN** | PPS | 2.50% | 7% | every 45s | 37.41 |
+| **GLASS TEETH** | PPLNS | 1.00% | 18% | every 1.3h | 37.98 |
+| **SMALL HOURS** | PPLNS | 0.50% | 12% | every 1.9h | 38.18 |
+
+> **⚠ Nothing on this list dominates anything else, and the ordering above is the proof.** As the fee falls, income rises *and the interval lengthens*. The cheapest pool on the chain pays least often — SMALL HOURS is nearly as lumpy as mining alone. A player who reads only the fee column picks the pool that behaves most like the thing they were trying to avoid, which is a true lesson about real pools.
+
+**The two axes are fee and steadiness, and they come from different places.**
+
+- **Fee is the only thing that changes expected income.** Payout × rate cancels the payout fraction out entirely (`MiningRules.payoutFraction`), so scheme and pool size change *nothing* about what you earn.
+- **Steadiness comes from the scheme.** Under **PPS** it comes from the pool's share target (vardiff) and is therefore *independent of pool size* — a one-rack PPS pool smooths as well as the biggest on the chain. Under **PPLNS** you are paid only when the **pool** finds a block, so **pool size is the variance knob**: 5% of the chain is one payout every three hours.
+
+**The shares total 91%.** The rest is solo miners and operations too small to list — roughly what a real chain looks like, and what keeps unpooled mining a real place to be rather than an empty one.
+
+> **⚠ Every PPLNS pool must out-hash a maxed player rig.** A PPLNS payout is `playerHashrate / poolHashrate` of a block, clamped at 1 — so a rig larger than its own pool clamps, and the pool then quietly behaves like solo mining with a fee attached. The chain is 1680 cycle-equivalents and a 100-cycle rig is 6% of it; the smallest PPLNS pool is 12%. This has already bitten once: moving to 14-minute blocks shrank the network from 2352 to 1680 cycles and a full rig became *larger* than the 5% pool it was mining with. `MiningChainTest.pplnsPoolsOutHashAMaxedRig` fails the build on it.
+
+> **⚠ THE COMMONS's fee must stay equal to `Balance.POOL_FEE`.** The network hashrate is derived from that constant and the `03-economy.md` §1 anchor, and a new character mines here. If the default's fee drifts, the documented 0.4 EC/cycle-hour stops being the rate anyone actually gets. `MiningChainTest.defaultPoolIsTheAnchor` fails on it.
+
+**MERIDIAN at 32% carries a caution in the fiction**, and it is real: a pool past half the chain can rewrite history alone, and nobody is obliged to announce when it gets close. There are deliberately **no mechanics behind it** — a consequence would have to touch detection or heat on self-mining, which **I4** forbids outright. It is flavour that happens to be true, and the shipped `mining-pool(7)` page carries the same point.
 
 ---
+
+### 1.3b The explorer — the Ledger tool as a block explorer
+
+The LEDGER window is a block explorer: the chain's last two dozen blocks as cards, this rig's address and balance, and its transactions.
+
+**Ethereum's shapes, this chain's mechanics.** Addresses are `0x` + 40 hex, hashes `0x` + 64, and the block header carries **pre-Merge Ethereum's** fields — `number`, `hash`, `parentHash`, `nonce`, `miner`, `difficulty`, `gasUsed`/`gasLimit`, `size`, `extraData`. Pre-Merge Ethereum *was* a proof-of-work chain with a miner taking a block reward, so none of those fields is borrowed dishonestly. Deliberately absent: contract addresses, logs, uncles, a fee market. Gas is real arithmetic rather than decoration — every transaction here is a plain value transfer at the 21 000 gas Ethereum charges for one, so a block's `gasUsed` is its transaction count times 21 000 and nothing else. The **gas limit is 200 transfers' worth, not Ethereum's 30 000 000**: a limit is a per-chain figure miners vote on, and borrowing Ethereum's would both claim to be Ethereum and make every fill bar read 2%.
+
+**A block reward comes from the zero address**, which is what explorers really show — the coins did not exist before the block — and a coinbase costs no gas because there was no transaction to execute. A **pool payout gets no block number at all**: the pool paid it out of its own balance, and stamping a height on it would put a transaction on the chain that no miner mined.
+
+> **⚠ The explorer and `ledger(1)` are two renderings of one list.** Same amounts, same moments, same running balance. §3.1 makes *"add these up and compare against the balance"* the way a player catches a hidden miner, so two surfaces that could disagree would turn the game's central investigation into a false-positive generator.
+
+**Nothing about a block is stored, including who mined it.** Every field — hash, parent hash, nonce, miner, size, transaction count, and the whole body of transactions — is *derived from the height* through one digest over `(blockSeed, height)`. A real block's hash is the thing the miner searched for and has to be recorded; here the winner is *drawn*, so a hash carries no information and only has to be **stable**. That is what lets a new character open at **height 124 with all 124 blocks fully inspectable**, and lets the chain keep growing while the save does not.
+
+The one thing that cannot be derived is what was *rolled*: whether the player won a given block. That is a bounded index (`ChainState.blocksWon`) over the authoritative record, which is the ledger — a won block writes a row naming its height. Even the historical miner is derived, from the same weighted pool table the live draw uses, so the past's distribution matches the present's; a pool "losing" a block the player won is correct, because somebody had to.
+
+The seed is per-character. Without it every save would render identical hashes at identical heights and the chain would read as a shared fixture rather than each character's own world.
+
+**Block timestamps before the player joined are back-dated at an even cadence.** Real block times jitter and these do not, which is the one place the derivation is visibly a derivation — but a history with plausible-looking random gaps would be inventing a past the chain never had, and an even cadence at least does not claim to be a measurement.
+
+---
+
+### 1.3c The mempool and the fee market — [PROPOSAL]
+
+A block holds **200 transactions** and the queue is usually deeper, so a slot has to be won on fee rate. That is the whole mechanic, and it needs three things at once — a queue longer than a block, a higher fee that genuinely gets in sooner, and a low fee that is never stranded forever. Break any one and the tiers become cosmetic.
+
+| Tier | Fee | Promise |
+|---|---|---|
+| **Economy** | 0.02 EC | in a few blocks, when the queue thins |
+| **Standard** *(default)* | 0.06 EC | usually the next block or the one after |
+| **Priority** | 0.30 EC | the next block, unless everyone else is paying this too |
+
+> **⚠ Fees are deliberately not a sink.** `03-economy.md` §4 lists the sinks the economy is balanced against and this is not one: 0.30 EC against 40 EC/hr is a rounding error **by design**, because the fee exists to *order a queue* rather than to drain a balance. If it ever grows enough to matter it has become a sink and §4 has to know. `MempoolTest.feesAreNotASink` fails the build past 1% of an hour's income.
+
+**A spend debits immediately and confirms later.** The balance moves now and whatever was bought is the player's now — the same instant a real wallet shows a send and deducts it from spendable balance. What waits is the *chain record*. That is the one place this simulation declines to be faithful, deliberately: a purchase that withheld the goods for fourteen minutes would be accurate and would also make buying a consumable mid-breach impossible, for a lesson the visible mempool already teaches. **The fee is charged on top**, so a sender who cannot afford `amount + fee` is refused rather than shorting the recipient — and it earns its own ledger row, because a fee folded into the amount is a charge `ledger(1)` cannot explain.
+
+**Everything is quoted as a gas price** — minor units per million gas. A fee total and a fee *rate* differ by a factor of 21 here, and shipping the mempool's cheapest slot in one unit and the top of its queue in the other made an under-4× spread read as 180×. Real explorers quote sat/vB or gwei for exactly this reason: a total says nothing about priority.
+
+**The NPC queue is derived, not stored** — a function of `(blockSeed, height)`, so the same chain state always shows the same queue and a save does not grow for a histogram. It drifts with *height* rather than the wall clock, deliberately: a mempool that moved while the game was paused would let a player wait for a cheap moment without the chain advancing, which is gaming the fee market by doing nothing. NPC fees are capped at the priority rate, or the top tier a player can pay would buy nothing.
+
+#### Projections are not a schedule
+
+The panel shows the next three blocks as they *would* be if mined right now from the current queue. `ChainMempool` carries that warning at the type level, and the strip draws projected blocks dashed and prefixed `~`, because it is the one thing a player could reasonably misread as a promise.
+
+> **⚠ There is no countdown to the next block, and there must never be one.** Blocks arrive on a Poisson schedule, so there is no moment to count down *to*. The panel prints the mean interval and the elapsed time side by side — one an average, one a fact — and a player comparing them is reading the distribution. A ticking countdown would be the same lie a mining progress bar would be, one step removed.
+
+---
+
+#### Noise — pooled is faintly audible, solo is silent (2026-07-27)
+
+| | Noise | Why |
+|---|---|---|
+| **Pooled** | 1–4 cycle-equivalents | Holds a connection to a pool server and pushes a share up it on a timer. Outbound traffic to a third party. |
+| **Solo** | **zero** | Local grinding. Nothing leaves the rig until a block is found. |
+
+**Invariant I4 is intact.** I4 grants immunity to detection and seizure and **zero heat**, and a pooled rig still has all three — noise is a *rate*, heat is what an act leaves behind, and nothing converts this trickle into heat (heat is charged at breach resolution and by counter-hacks, never off the ambient meter). What I4 protects is that going hot cannot take the floor away, and a rig reading 2% on the noise meter has lost nothing.
+
+Two properties are load-bearing:
+
+- **It does not scale with allocation.** A share is a small fixed packet however much hashing produced it, so doubling your cycles doubles your income and changes your traffic not at all. If it scaled, the noise-conscious play would be *to mine less* — punishing the income floor for being used, which is precisely what I4 exists to prevent.
+- **It scales with the pool's share interval**, which is the one place that number is more than flavour: MERIDIAN asks for a share every 15s and is twice as loud as the 30s reference; SMALL HOURS asks every 60s and is half. **Picking a quieter pool is a real play**, and it is a third axis on the roster that costs nothing to balance.
+
+For scale: a sweep is `NET_SWEEP_BASE_NOISE = 35`. Pooling is 1–4. A sweep is more than seventeen times louder than the loudest pool.
+
+#### Settlement — why the ledger is not 120 rows an hour
+
+A pool credits shares to an internal balance continuously and **settles every 60 seconds**; a solo block is a coinbase and is paid at once. Real pools do exactly this, and the game needs it for a different reason: at a share every 30s, crediting each one puts **120 rows an hour** into `ledger(1)`, a readout whose shipped page calls itself *"the only record of where your money went"*. Buried under a wall of identical 0.31 EC rows it records nothing — `alert-fatigue(7)` again, in the one place a player audits.
+
+> **⚠ The credit and the ledger row happen together, always.** Crediting continuously and ledgering periodically would leave the balance ahead of the last row, and §3.1 makes *"two readouts disagree"* the way a player detects an intruder. Training them to ignore that would cost far more than the tidy ledger bought.
+
+Two behaviours worth not rediscovering: the **first payout of a character's life never waits** (holding it back makes mining look broken for a minute), and a **null or backwards clock settles immediately** — a naive `elapsed >= window` check goes permanently false against a `settledAt` in the future, so a host clock correction would make the pool hold the player's money forever.
+
+#### What memorylessness buys, and what it deleted
+
+Every hash is an independent trial against an unchanged target, so the wait is exponentially distributed and therefore **memoryless**. Three consequences the design now relies on:
+
+- **Nothing accumulates**, so there is no partial progress. This is why the old *"pulling cycles off mining mid-block forfeits that block's progress"* proposal was **deleted rather than implemented** — it described a thing that does not exist. Switching mode or reallocating costs nothing and forfeits nothing.
+- **Nothing is "due".** A long dry spell does not raise the next block's chance. The UI therefore shows an expected time and **never a progress bar**: a bar would be a lie, and would teach players to hold cycles on mining to protect progress that isn't there. `mine --solo` prints the point in words.
+- **The mean misdescribes the typical.** The median of an exponential is ~69% of its mean, so solo mining *feels* unluckier than it is. That is a true fact about the distribution, not a tuning failure.
+
+#### What is simplified, stated plainly
+
+The rest of the chain's hashrate never changes, so difficulty has **no trend** — it sits at the equilibrium `Balance.chainDifficultyFor` sets. What it does *not* do is sit still: 2016 random block times have a spread of about `1/√2016 ≈ 2.2%`, so every retarget nudges difficulty a percent or two either way. Measured over 2000 simulated hours, difficulty wandered 344.5 → 351.1 across five retargets while income held within 0.3% of expectation. **That jitter is real Bitcoin behaviour** — a difficulty holding a constant value to the decimal would be the bug. The missing thing is the *trend* a growing network supplies.
+
+The chain is also small: a full rig is ~4% of it, where a real solo miner is a rounding error and would wait years. Both simplifications are stated in the shipped `proof-of-work(7)` page rather than hidden.
+
+#### Deployed miners and bots are unchanged
+
+Deliberately. They are pooled by construction — a buffer that fills at a rate, capped, collected on a visit — and variance on the one income stream the player cannot watch or react to would be punishment without a decision. It would also break §5.1's crack timing bet, which is priced on *"payout scales with buffer fullness"*: a buffer that filled in jumps would make *"found at minute five, it holds almost nothing"* false about half the time.
+
+---
+
+---
+
+## 1.4 Multiplayer — the chain a server runs — [PROPOSAL]
+
+Single player runs its chain in `solo`, entirely locally, and a solo character can never federate (`solo/pom.xml`, Invariant **I14**). A home server runs the same simulation for the characters it hosts, plus two things single player has no need of.
+
+### 1.4a Genesis, or joining
+
+On startup a server asks: do I have a chain? Do any of my peers?
+
+| Local | Peers | What happens |
+|---|---|---|
+| none | none | **mint genesis** |
+| none | some | **join theirs** — never mint |
+| some | heavier | **adopt and reorganise** |
+| some | equal or lighter | keep ours |
+
+> **⚠ Genesis is minted only when nobody has a chain at all.** A server that minted one while a peer already had a chain would fork the federation on startup, and both halves would be certain they were right. `ChainSelection.shouldMintGenesis`.
+
+### 1.4b "Longest" means most work, never most blocks
+
+`ChainSelection.better` compares **accumulated difficulty**. Height is the intuitive reading and it is wrong in the one case the rule exists for: a fork of many easy blocks can be *taller* than a fork of fewer hard ones, so a height comparison lets an attacker out-vote honest work by lowering difficulty instead of doing any. Bitcoin compares cumulative difficulty and so does this; `ChainHead.height` is display-only and the rule never reads it.
+
+Two further rules, each a security property rather than a nicety:
+
+- **A different genesis is never adopted, however heavy.** That is not a longer chain, it is a different currency, and adopting across the line would migrate every balance this server holds onto somebody else's ledger.
+- **Ties go to the incumbent.** Two chains of equal work are equally valid, and switching on a coin flip would make a server's history depend on the order peers happened to answer in — the same non-determinism as last-writer-wins, which `../architecture/08-peer-discovery.md` §0 already refused once.
+
+> **⚠ `ChainSelection` picks a head to *fetch*. It does not decide what is true.** A head is a claim: numbers a peer asserted. Adopting one means fetching the blocks and verifying them. A server that treated the winner of the comparison as authoritative would let any peer rewrite its ledger by sending a large number.
+
+### 1.4c What is deliberately not wired up
+
+**The network fetch.** `../architecture/07-transport-security.md` §6 T-1 marks this project's transport as *reviewed patterns, unreviewed code*, and `CLAUDE.md` is explicit: do not let it guard a live federation until a cryptographer has read it. So the selection rule and the genesis rule are implemented and tested against local and synthetic heads, and the peer exchange stays behind the same documented seam every other federation feature sits behind. Logged as **MN-2**.
+
+Cross-server transaction sync (real players sending each other funds, and NPC traffic shared between servers) rides that same seam and is blocked on it for the same reason. What exists today: the rule that decides which chain wins, tested against the attacks it is there to stop.
+
 
 ## 2. Deployed Miners
 

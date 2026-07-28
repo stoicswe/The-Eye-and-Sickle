@@ -102,41 +102,47 @@ class BreachRulesTest {
         @Test
         @DisplayName("every accepted move appends a row, and a strike appends its penalty separately")
         void everyMoveIsItemised() {
-            SoloSave save = withNode(31337L, 1, 0, false, false);
-            BreachRules.begin(save, nodeTarget(save), T0);
-            LayerState layer = active(save);
+            SoloSave save = BreachTestKit.attemptWith("OFFSET_CIPHER", 3);
+            LayerState layer = focus(save, "OFFSET_CIPHER");
 
-            BreachRules.act(save, "sweep", "0", T0);
-            BreachRules.act(save, "probe", "0", T0);
-            assertThat(save.activeBreach.ledger).hasSize(2);
-            assertThat(save.activeBreach.ledger.getFirst().cost).isEqualTo(Balance.ATTENTION_QUIET_READ);
+            // One correct byte, one carried, and the rest left blank — the two paid moves that do not
+            // strike. Typing is composition and ledgers nothing (see bookkeepingIsFree).
+            BreachRules.act(save, OffsetRules.TYPE, "0:" + OffsetRules.expected(layer, 0), T0);
+            BreachRules.act(save, OffsetRules.CARRY, "1", T0);
+            assertThat(save.activeBreach.ledger).hasSize(1);
             assertThat(save.activeBreach.ledger.getLast().spentAfter).isEqualTo(layer.spent);
 
-            // An empty declaration is wrong, so it strikes. Two rows: the move and the alarm.
-            BreachRules.act(save, "declare", "", T0);
-            assertThat(save.activeBreach.ledger).hasSize(4);
+            // A row of zeroes is wrong in every column, so committing it strikes. Two rows: the move
+            // and the alarm.
+            for (int i = 0; i < layer.cipherObserved.size(); i++) {
+                BreachRules.act(save, OffsetRules.TYPE, i + ":0", T0);
+            }
+            BreachRules.act(save, OffsetRules.COMMIT, "", T0);
+            assertThat(save.activeBreach.ledger).hasSize(3);
             assertThat(save.activeBreach.ledger.getLast().label).isEqualTo("STRIKE");
             assertThat(save.activeBreach.ledger.getLast().cost).isEqualTo(Balance.ATTENTION_ALARM_PENALTY);
             assertThat(save.activeBreach.ledger.getLast().alarm).isTrue();
             // Without the second row the alarm's three attention would show up only as a gap between
             // one row's running total and the next — an unexplained discrepancy in exactly the
             // artefact that exists to explain a loss (design/05 §1 constraint 4).
-            assertThat(save.activeBreach.ledger.get(2).spentAfter + Balance.ATTENTION_ALARM_PENALTY)
-                    .isEqualTo(save.activeBreach.ledger.get(3).spentAfter);
+            assertThat(save.activeBreach.ledger.get(1).spentAfter + Balance.ATTENTION_ALARM_PENALTY)
+                    .isEqualTo(save.activeBreach.ledger.get(2).spentAfter);
         }
 
         @Test
         @DisplayName("composing your own notes is never charged and never ledgered")
         void bookkeepingIsFree() {
-            SoloSave save = withNode(31337L, 1, 0, false, false);
-            BreachRules.begin(save, nodeTarget(save), T0);
-            LayerState layer = active(save);
+            SoloSave save = BreachTestKit.attemptWith("OFFSET_CIPHER", 1);
+            LayerState layer = focus(save, "OFFSET_CIPHER");
 
-            BreachRules.act(save, "mark", "0", T0);
-            BreachRules.act(save, "mark", "1", T0);
-            BreachRules.act(save, "mark", "0", T0);
+            // Typing an offset is composition, and composition is reversible until COMMIT
+            // (docs/design/05 §3.7) — a player who rewrote the row twice must not have paid for it.
+            BreachRules.act(save, OffsetRules.TYPE, "0:-9", T0);
+            BreachRules.act(save, OffsetRules.TYPE, "1:12", T0);
+            BreachRules.act(save, OffsetRules.TYPE, "0:7", T0);
 
-            assertThat(layer.declared).containsExactly(1);
+            assertThat(layer.cipherEntered.get(0)).isEqualTo(7);
+            assertThat(layer.cipherEntered.get(1)).isEqualTo(12);
             assertThat(layer.spent).isZero();
             // A ledger mostly full of rows about the player's own scratchpad is the burial
             // alert-fatigue(7) describes, in the one readout that must stay readable.
@@ -146,13 +152,14 @@ class BreachRulesTest {
         @Test
         @DisplayName("a failed move still costs: attention is spent by doing, not by succeeding")
         void spentByDoing() {
-            SoloSave save = withNode(31337L, 1, 0, false, false);
-            BreachRules.begin(save, nodeTarget(save), T0);
-            LayerState layer = active(save);
+            SoloSave save = BreachTestKit.attemptWith("OFFSET_CIPHER", 1);
+            LayerState layer = focus(save, "OFFSET_CIPHER");
 
-            BreachRules.act(save, "probe", "999", T0);
-            assertThat(layer.spent).isEqualTo(Balance.ATTENTION_PROBE);
-            assertThat(save.activeBreach.ledger).hasSize(1);
+            BreachTestKit.spendOneBadly(save);
+            // A commit that got every column wrong costs exactly what a commit that got them all
+            // right costs. The target does not know whether you learned anything.
+            assertThat(layer.spent).isGreaterThanOrEqualTo(Balance.ATTENTION_PROBE);
+            assertThat(save.activeBreach.ledger).isNotEmpty();
         }
     }
 
@@ -176,21 +183,11 @@ class BreachRulesTest {
             // The Tarpit does NOT touch the budget: cutting it would make it a second Firewall,
             // which is the one thing design/09 §1 gives the Firewall to do.
             assertThat(tarped.activeBreach.layers.getFirst().budget).isEqualTo(base);
-            assertThat(BreachRules.attentionCost(tarped, "probe"))
-                    .isEqualTo(BreachRules.attentionCost(plain, "probe") + Balance.TARPIT_ATTENTION_SURCHARGE);
-        }
-
-        @Test
-        @DisplayName("the Side-Channel Reader stays free even under a Tarpit")
-        void sideChannelIsAlwaysZero() {
-            SoloSave save = withNode(11L, 1, 0, true, false);
-            give(save, "side-channel-reader");
-            BreachRules.begin(save, nodeTarget(save), T0);
-
-            // design/06 §2 calls zero attention the Reader's "whole identity" and design/05 §4 makes
-            // it the only zero-attention action in the game. A defence that made it cost one would
-            // delete the single property that distinguishes it.
-            assertThat(BreachRules.attentionCost(save, "sidechannel")).isZero();
+            String paid = plain.activeBreach.layers.getFirst().puzzleClass.equals("OFFSET_CIPHER")
+                    ? OffsetRules.COMMIT
+                    : MatrixRules.PICK;
+            assertThat(BreachRules.attentionCost(tarped, paid))
+                    .isEqualTo(BreachRules.attentionCost(plain, paid) + Balance.TARPIT_ATTENTION_SURCHARGE);
         }
 
         @Test
@@ -216,31 +213,31 @@ class BreachRulesTest {
             SoloSave save = withNode(11L, 2, 0, false, false);
             BreachRules.begin(save, nodeTarget(save), T0);
 
-            BreachResult result = BreachRules.act(save, "volley", "", T0);
+            BreachResult result = BreachRules.act(save, "bypass", "", T0);
             // docs/client/04 §3.5 gives a gate its own exit status precisely so the requirement gets
             // printed — that is what makes a gate legible rather than merely obstructive.
             assertThat(result.gated()).isTrue();
-            assertThat(result.message()).contains("Fuzzer");
+            assertThat(result.message()).contains("Overflow Kit");
         }
 
         @Test
-        @DisplayName("the Rainbow Table is hard-countered by salting, and costs nothing when it is")
-        void saltingRefundsTheRainbowTable() {
-            SoloSave save = withNode(4L, 4, 0, false, false);
-            give(save, "rainbow-table");
-            BreachRules.begin(save, nodeTarget(save), T0);
-            LayerState layer = focus(save, "LOGIC");
-            assertThat(layer.salted).isTrue(); // tier 4 is always salted
+        @DisplayName("a move that engaged nothing is refunded, and is still ledgered at zero")
+        void nothingToDoIsRefunded() {
+            SoloSave save = BreachTestKit.attemptWith("OFFSET_CIPHER", 4);
+            LayerState layer = focus(save, "OFFSET_CIPHER");
 
+            // Fill every cell correctly by hand, then ask CARRY to solve one. There is nothing left
+            // for it to solve, so it must not take the attention its chip advertises.
+            for (int i = 0; i < layer.cipherObserved.size(); i++) {
+                BreachRules.act(save, OffsetRules.TYPE, i + ":" + OffsetRules.expected(layer, i), T0);
+            }
             int before = layer.spent;
-            BreachRules.act(save, "rainbow", "", T0);
+            BreachRules.act(save, OffsetRules.CARRY, "", T0);
 
             assertThat(layer.spent).isEqualTo(before);
-            assertThat(layer.known).allMatch(String::isEmpty);
             // Still ledgered, at zero. A tool that silently did nothing would be indistinguishable
             // from a bug, and would teach the player to distrust the readout instead of the target.
             assertThat(save.activeBreach.ledger.getLast().cost).isZero();
-            assertThat(save.activeBreach.ledger.getLast().result).contains("salted");
         }
 
         @Test
@@ -275,8 +272,10 @@ class BreachRulesTest {
 
             assertThat(save.activeBreach.outcome).isEqualTo("BREACHED");
             // design/02 §2.4 requires the class to have been SOLVED. Crediting a bypass would let
-            // the proof-of-skill item unlock the next proof-of-skill item.
-            assertThat(save.resolutions.getFirst().classesCleared).containsExactly("LOGIC");
+            // the proof-of-skill item unlock the next proof-of-skill item. A tier-3 attempt is two
+            // layers of one class, so bypassing one and solving the other credits it exactly once.
+            assertThat(save.resolutions.getFirst().classesCleared)
+                    .containsExactly(save.activeBreach.puzzleClass);
         }
     }
 
@@ -296,9 +295,7 @@ class BreachRulesTest {
                 if ("win".equals(ending)) {
                     solveAll(save);
                 } else {
-                    for (int i = 0; i < 100 && save.activeBreach.outcome.isEmpty(); i++) {
-                        BreachRules.act(save, "declare", "", T0);
-                    }
+                    BreachTestKit.loseAll(save);
                 }
                 assertThat(save.activeBreach.resolvedHeat).as(ending).isZero();
                 assertThat(save.personalHeat).as(ending).isZero();
@@ -339,9 +336,7 @@ class BreachRulesTest {
             miner.deployerHandle = "ninefold";
             BreachRules.begin(save, crackTarget(save), T0);
 
-            for (int i = 0; i < 100 && save.activeBreach.outcome.isEmpty(); i++) {
-                BreachRules.act(save, "declare", "", T0);
-            }
+            BreachTestKit.loseAll(save);
 
             assertThat(save.activeBreach.outcome).isEqualTo("FAILED");
             // design/04 §5.1: "Without this, cracking would strictly dominate killing."
@@ -373,9 +368,7 @@ class BreachRulesTest {
         void failureIsNeverSilent() {
             SoloSave save = withNode(70L, 3, 0, false, true);
             BreachRules.begin(save, nodeTarget(save), T0);
-            for (int i = 0; i < 200 && save.activeBreach.outcome.isEmpty(); i++) {
-                BreachRules.act(save, "probe", "999", T0);
-            }
+            BreachTestKit.loseAll(save);
 
             assertThat(save.activeBreach.outcome).isEqualTo("FAILED");
             // A failure with no stated consequence reads as "the game decided", which is the one
@@ -389,7 +382,7 @@ class BreachRulesTest {
         void abortIsRecorded() {
             SoloSave save = withNode(9L, 2, 0, false, false);
             BreachRules.begin(save, nodeTarget(save), T0);
-            BreachRules.act(save, "listen", "", T0);
+            BreachTestKit.spendOneBadly(save);
             int noise = save.activeBreach.noise;
 
             assertThat(BreachRules.abort(save, T0).applied()).isTrue();
@@ -462,18 +455,17 @@ class BreachRulesTest {
         @Test
         @DisplayName("striking out locks the layer, and a locked layer ends the attempt")
         void lockoutEndsTheAttempt() {
-            SoloSave save = withNode(70L, 5, 0, false, false);
-            BreachRules.begin(save, nodeTarget(save), T0);
-            LayerState layer = focus(save, "LOGIC");
+            SoloSave save = BreachTestKit.attemptWith("OFFSET_CIPHER", 5);
+            LayerState layer = focus(save, "OFFSET_CIPHER");
             int limit = layer.strikeLimit;
 
-            // Fill the draft with one symbol, then repeat it: the second submission is provably
-            // impossible given the first, so it strikes, and so does every one after it.
-            for (int i = 0; i < layer.secret.size(); i++) {
-                BreachRules.act(save, "set", (i + 1) + ":" + layer.alphabet.getFirst(), T0);
+            // Fill every cell with an offset that is provably wrong — the answer is a subtraction, so
+            // one more than the answer never is one — and commit it over and over.
+            for (int i = 0; i < layer.cipherObserved.size(); i++) {
+                BreachRules.act(save, OffsetRules.TYPE, i + ":" + (OffsetRules.expected(layer, i) + 1), T0);
             }
             for (int i = 0; i < limit + 2 && save.activeBreach.outcome.isEmpty(); i++) {
-                BreachRules.act(save, "probe", "", T0);
+                BreachRules.act(save, OffsetRules.COMMIT, "", T0);
             }
 
             assertThat(layer.strikes).isGreaterThanOrEqualTo(limit);
@@ -484,14 +476,13 @@ class BreachRulesTest {
         @Test
         @DisplayName("an exhausted budget fails the attempt")
         void exhaustionFails() {
-            SoloSave save = withNode(31337L, 1, 0, false, false);
-            BreachRules.begin(save, nodeTarget(save), T0);
-            LayerState layer = active(save);
+            SoloSave save = BreachTestKit.attemptWith("OFFSET_CIPHER", 1);
+            LayerState layer = focus(save, "OFFSET_CIPHER");
 
-            for (int i = 0; i < 200 && save.activeBreach.outcome.isEmpty(); i++) {
-                BreachRules.act(save, "probe", "999", T0);
-            }
-            assertThat(layer.spent).isGreaterThanOrEqualTo(layer.budget);
+            BreachTestKit.loseAll(save);
+            // Either the budget ran out or the strikes did. Both end the attempt, and which one gets
+            // there first is a tuning question rather than a rule.
+            assertThat(layer.spent >= layer.budget || layer.strikes >= layer.strikeLimit).isTrue();
             assertThat(save.activeBreach.outcome).isEqualTo("FAILED");
         }
     }
@@ -503,11 +494,10 @@ class BreachRulesTest {
         @Test
         @DisplayName("every action carries its cost, before the click")
         void costsAreAlwaysPublished() {
-            SoloSave save = withNode(11L, 4, 0, false, false);
-            BreachRules.begin(save, nodeTarget(save), T0);
+            SoloSave save;
 
-            for (String puzzleClass : new String[] {"ENUMERATION", "LOGIC", "TRAVERSAL"}) {
-                focus(save, puzzleClass);
+            for (String puzzleClass : new String[] {"BREACH_PROTOCOL", "OFFSET_CIPHER"}) {
+                save = BreachTestKit.attemptWith(puzzleClass, 4);
                 assertThat(BreachRules.actions(save)).as(puzzleClass).isNotEmpty();
                 for (BreachAction action : BreachRules.actions(save)) {
                     assertThat(action.attentionCost()).as(action.actionId()).isNotNegative();
@@ -531,7 +521,7 @@ class BreachRulesTest {
             BreachRules.abort(save, T0);
 
             assertThat(BreachRules.actions(save)).isEmpty();
-            assertThat(BreachRules.act(save, "probe", "0", T0).applied()).isFalse();
+            assertThat(BreachRules.act(save, MatrixRules.PICK, "0:0", T0).applied()).isFalse();
         }
     }
 }

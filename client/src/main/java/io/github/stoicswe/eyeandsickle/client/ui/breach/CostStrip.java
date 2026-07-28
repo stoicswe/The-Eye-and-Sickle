@@ -118,6 +118,10 @@ public final class CostStrip extends FlowPane {
         chip.setAccessibleText(tip.toString().replace('\n', ' '));
 
         chip.setFocusTraversable(true);
+        // The whole chip is the control, including its padding. `.es-breach-chip` paints a border
+        // but no background, and a Region is picked where it paints — so without this the interior
+        // of a chip was a hole and the hit area was the text alone.
+        chip.setPickOnBounds(true);
         Cursors.shared().clickable(chip);
 
         chip.setOnMouseEntered(e -> onPreview.accept(action));

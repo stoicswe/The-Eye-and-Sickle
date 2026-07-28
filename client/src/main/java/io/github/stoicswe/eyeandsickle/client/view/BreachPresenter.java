@@ -3,10 +3,9 @@ package io.github.stoicswe.eyeandsickle.client.view;
 import io.github.stoicswe.eyeandsickle.client.session.GameSession;
 import io.github.stoicswe.eyeandsickle.client.ui.breach.BreachViewport;
 import io.github.stoicswe.eyeandsickle.client.ui.breach.CostStrip;
-import io.github.stoicswe.eyeandsickle.client.ui.breach.LatticeMap;
+import io.github.stoicswe.eyeandsickle.client.ui.breach.MatrixGrid;
+import io.github.stoicswe.eyeandsickle.client.ui.breach.OffsetRack;
 import io.github.stoicswe.eyeandsickle.client.ui.breach.OutcomeSlate;
-import io.github.stoicswe.eyeandsickle.client.ui.breach.PortComb;
-import io.github.stoicswe.eyeandsickle.client.ui.breach.TumblerRack;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.AttentionLedger;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.AttentionMeter;
 import io.github.stoicswe.eyeandsickle.protocol.game.AttentionEntry;
@@ -14,11 +13,9 @@ import io.github.stoicswe.eyeandsickle.protocol.game.BreachAction;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachBoard;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachLayer;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachSnapshot;
-import io.github.stoicswe.eyeandsickle.protocol.game.EnumerationBoard;
-import io.github.stoicswe.eyeandsickle.protocol.game.LogicBoard;
-import io.github.stoicswe.eyeandsickle.protocol.game.TraversalBoard;
+import io.github.stoicswe.eyeandsickle.protocol.game.MatrixBoard;
+import io.github.stoicswe.eyeandsickle.protocol.game.OffsetBoard;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Consumer;
 import javafx.scene.Node;
@@ -39,36 +36,34 @@ import javafx.scene.Node;
  * <p>So this class holds every call to the port and the view holds every {@link Node}. The view can
  * be read to find out what is on screen; this can be read to find out what the game was asked.
  *
- * <h2>Selections are a UI concept and stop at this class</h2>
+ * <h2>Selections are a UI concept and live in the widgets</h2>
  *
- * "The slot I last clicked" is not game state — the engine has no idea a pointer exists, and the
- * snapshot carries no cursor. It lives here, it is cleared whenever the active layer changes (a slot
- * index from a cleared Enumeration layer must not silently become an argument on the next one), and
- * it is published as a sentence so a player can see what the next action will act on <em>before</em>
- * spending attention on finding out.
+ * "The cell my cursor is on" is not game state — the engine has no idea a pointer exists, and the
+ * snapshot carries no cursor. Each board widget owns its own, this class reads it when an action asks
+ * for an argument, and it is published as a sentence so a player can see what the next action will
+ * act on <em>before</em> spending attention on finding out.
  *
- * <h2>The one derivation this class performs, and why it is not a rule</h2>
+ * <h2>⚠ Two boards, two argument shapes, and no third path</h2>
  *
- * {@code sweep} takes a <em>band</em> index while the comb emits <em>slot</em> indices, so clicking
- * slot 7 on a board with 4-slot bands sweeps band 1. That arithmetic is over
- * {@link EnumerationBoard#bandSize()}, which the engine published in the snapshot, and it changes no
- * outcome — the engine still decides what a sweep of band 1 reveals. Without it a player could not
- * reach {@code sweep} from the board at all, which pillar C1 does not allow.
+ * A grid pick is {@code row:column} and a cipher action is a byte index. Both come from the widget
+ * that drew them rather than from a field here, so the argument a chip sends is the cell the player
+ * can see is highlighted — the two cannot drift apart, which is the bug the previous slot-index
+ * field kept producing when a layer changed underneath it.
  */
 public final class BreachPresenter {
 
     /**
-     * Action ids the client has to recognise by name.
+     * Action ids the widgets dispatch directly, because the board <em>is</em> the control.
      *
-     * <p>Only these two, and both because the <em>shape of the argument</em> differs from every other
-     * action in their class ({@code docs/design/05-hacking-minigame.md} §3.6 and §3.7 fix the
-     * tables). Every other action is dispatched generically off {@link BreachAction#argumentHint()},
-     * so adding one to the engine needs no change here — which is the property worth protecting,
-     * because the alternative is a client that has to be re-released to learn a new move.
+     * <p>Taking a cell and typing a digit are the two moves a player makes by touching the board
+     * rather than by pressing a chip, so the widget has to name them. Everything else is dispatched
+     * generically off {@link BreachAction#argumentHint()} and needs no change here when the engine
+     * grows a move — which is the property worth protecting, because the alternative is a client that
+     * has to be re-released to learn one.
      */
-    private static final String ACTION_SWEEP = "sweep";
+    private static final String ACTION_PICK = "pick";
 
-    private static final String ACTION_SET = "set";
+    private static final String ACTION_TYPE = "type";
 
     private final GameSession session;
 
@@ -76,16 +71,13 @@ public final class BreachPresenter {
     private AttentionMeter meter;
     private AttentionLedger ledger;
     private CostStrip strip;
-    private PortComb comb;
-    private TumblerRack rack;
-    private LatticeMap map;
+    private MatrixGrid grid;
+    private OffsetRack cipher;
     private OutcomeSlate slate;
 
     private Consumer<String> noticeSink = text -> {};
     private Consumer<String> selectionSink = text -> {};
 
-    private int selectedSlot = -1;
-    private String selectedNode = "";
     private int boundLayer = -1;
     private String lastMessage = "";
 
@@ -105,24 +97,26 @@ public final class BreachPresenter {
             AttentionMeter meter,
             AttentionLedger ledger,
             CostStrip strip,
-            PortComb comb,
-            TumblerRack rack,
-            LatticeMap map,
+            MatrixGrid grid,
+            OffsetRack cipher,
             OutcomeSlate slate) {
         this.viewport = viewport;
         this.meter = meter;
         this.ledger = ledger;
         this.strip = strip;
-        this.comb = comb;
-        this.rack = rack;
-        this.map = map;
+        this.grid = grid;
+        this.cipher = cipher;
         this.slate = slate;
 
         strip.setOnInvoke(this::invoke);
         strip.setOnPreview(this::preview);
-        comb.setOnSlot(this::selectSlot);
-        map.setOnNode(this::selectNode);
-        rack.setOnCycle(this::cycleTumbler);
+        grid.setOnPick((row, column) -> invoke(ACTION_PICK, row + ":" + column));
+        grid.setOnCursor(this::publishSelection);
+        // ⚠ Every keystroke is sent. Composition is free and reversible until COMMIT
+        // (docs/design/05 §3.7), and the draft lives in the engine so a reload cannot lose it — a
+        // local buffer here would be a second copy of the answer that a reload could disagree with.
+        cipher.setOnType((index, value) -> invoke(ACTION_TYPE, index + ":" + value));
+        cipher.setOnCursor(this::publishSelection);
     }
 
     /** Where refusals, gates and argument hints are shown. Called with {@code ""} to clear. */
@@ -218,19 +212,22 @@ public final class BreachPresenter {
             return;
         }
         if (!action.enabled()) {
-            noticeSink.accept("Refused — "
-                    + (action.refusal().isBlank() ? "that move is not available on this layer."
-                            : action.refusal()));
+            // Announced rather than printed inline: a client-side refusal reaches the log and the
+            // notification system by the same route a rules refusal does, so the player sees one
+            // kind of message in one place. See GameSession.refuse.
+            session.refuse("breach", action.refusal().isBlank()
+                    ? "that move is not available on this layer."
+                    : action.refusal());
             return;
         }
         BreachLayer layer = session.breach().flatMap(BreachSnapshot::active).orElse(null);
         if (layer == null) {
-            noticeSink.accept("Refused — no layer is active.");
+            session.refuse("breach", "no layer is active.");
             return;
         }
         String argument = argumentFor(action, layer);
         if (argument == null) {
-            noticeSink.accept("Pick a target for this action first — "
+            session.refuse("breach", "pick a target for this action first — "
                     + (action.argumentHint().isBlank() ? "it needs one." : action.argumentHint()) + ".");
             return;
         }
@@ -285,46 +282,21 @@ public final class BreachPresenter {
         meter.preview(action.attentionCost(), action.label());
     }
 
-    /** Records the slot an Enumeration action will act on. Costs nothing; spends nothing. */
-    public void selectSlot(int index) {
-        selectedSlot = index;
-        selectedNode = "";
-        selectionSink.accept(slotLabel(index));
-    }
-
-    /** Records the node a Traversal action will act on. */
-    public void selectNode(String nodeId) {
-        selectedNode = nodeId == null ? "" : nodeId;
-        selectedSlot = -1;
-        selectionSink.accept(selectedNode.isBlank() ? "" : "NODE " + selectedNode);
-    }
-
-    /**
-     * Steps one tumbler through the alphabet and submits the change as a {@code set}.
-     *
-     * <p>The draft lives in the engine, not here — §3.7 makes {@code set} a real (free) action so
-     * that a reload cannot lose a half-composed guess. The client only computes <em>which</em> symbol
-     * comes next, from the alphabet and the draft the snapshot already published.
-     */
-    public void cycleTumbler(int position, int delta) {
-        LogicBoard board = session.breach()
+    /** Says what the next chip would act on, in the board's own coordinates. */
+    private void publishSelection() {
+        BreachBoard board = session.breach()
                 .flatMap(BreachSnapshot::active)
                 .map(BreachLayer::board)
-                .filter(LogicBoard.class::isInstance)
-                .map(LogicBoard.class::cast)
                 .orElse(null);
-        if (board == null || board.alphabet().isEmpty() || position < 0 || position >= board.length()) {
-            return;
+        if (board instanceof MatrixBoard && !grid.selection().isBlank()) {
+            String[] cell = grid.selection().split(":");
+            selectionSink.accept("ROW " + cell[0] + " · COLUMN " + cell[1]);
+        } else if (board instanceof OffsetBoard offsets && !cipher.selection().isBlank()) {
+            int index = Integer.parseInt(cipher.selection());
+            selectionSink.accept("BYTE " + (index + 1) + " OF " + offsets.length());
+        } else {
+            selectionSink.accept("");
         }
-        List<String> alphabet = board.alphabet();
-        String current = position < board.draft().size() ? board.draft().get(position) : "";
-        int at = alphabet.indexOf(current);
-        int next = at < 0
-                // An unset position starts at whichever end the player stepped from, so one press
-                // always lands on a symbol rather than on the same blank it started at.
-                ? (delta >= 0 ? 0 : alphabet.size() - 1)
-                : Math.floorMod(at + delta, alphabet.size());
-        invoke(ACTION_SET, position + ":" + alphabet.get(next));
     }
 
     /** Releases the widgets' animation subscriptions. */
@@ -334,15 +306,6 @@ public final class BreachPresenter {
         }
         if (meter != null) {
             meter.dispose();
-        }
-        if (comb != null) {
-            comb.dispose();
-        }
-        if (rack != null) {
-            rack.dispose();
-        }
-        if (map != null) {
-            map.dispose();
         }
     }
 
@@ -361,22 +324,12 @@ public final class BreachPresenter {
             return "";
         }
         BreachBoard board = layer.board();
-        if (board instanceof EnumerationBoard enumeration) {
-            if (selectedSlot < 0) {
-                return null;
-            }
-            if (ACTION_SWEEP.equals(action.actionId())) {
-                int bandSize = Math.max(1, enumeration.bandSize());
-                return String.valueOf(selectedSlot / bandSize);
-            }
-            return String.valueOf(selectedSlot);
-        }
-        if (board instanceof TraversalBoard) {
-            return selectedNode.isBlank() ? null : selectedNode;
-        }
-        // Logic composes its guess on the rack, so a Logic action that asks for an argument has no
-        // selection to draw on. Saying so beats sending an empty one and having the engine refuse it.
-        return null;
+        String selection = switch (board) {
+            case MatrixBoard ignored -> grid.selection();
+            case OffsetBoard ignored -> cipher.selection();
+            case null -> "";
+        };
+        return selection.isBlank() ? null : selection;
     }
 
     /**
@@ -406,30 +359,28 @@ public final class BreachPresenter {
             return;
         }
         switch (board) {
-            case EnumerationBoard enumeration -> {
-                comb.show(enumeration);
-                only(comb);
+            case MatrixBoard matrix -> {
+                grid.show(matrix);
+                only(grid);
             }
-            case LogicBoard logic -> {
-                rack.show(logic);
-                only(rack);
-            }
-            case TraversalBoard traversal -> {
-                map.show(traversal);
-                only(map);
+            case OffsetBoard offsets -> {
+                cipher.show(offsets);
+                only(cipher);
             }
         }
+        publishSelection();
     }
 
     /**
-     * Shows one board and hides the other two.
+     * Shows one board and hides the other.
      *
-     * <p>All three are built once and toggled rather than swapped in and out of the scene graph.
+     * <p>Both are built once and toggled rather than swapped in and out of the scene graph.
      * Rebuilding would reset scroll position and drop keyboard focus every time the port fires a
-     * change, which during a breach means every turn.
+     * change, which during a breach means every turn. ⚠ It is also what the panel's key routing is
+     * gated on — {@code BreachView} asks which board is visible before handing it an arrow.
      */
     private void only(Node shown) {
-        for (Node node : new Node[] {comb, rack, map}) {
+        for (Node node : new Node[] {grid, cipher}) {
             boolean on = node == shown;
             node.setVisible(on);
             node.setManaged(on);
@@ -441,20 +392,7 @@ public final class BreachPresenter {
     }
 
     private void clearSelection() {
-        selectedSlot = -1;
-        selectedNode = "";
         selectionSink.accept("");
-    }
-
-    private String slotLabel(int index) {
-        String slot = String.format(Locale.ROOT, "SLOT %02d", index);
-        int bandSize = session.breach()
-                .flatMap(BreachSnapshot::active)
-                .map(BreachLayer::board)
-                .filter(EnumerationBoard.class::isInstance)
-                .map(board -> ((EnumerationBoard) board).bandSize())
-                .orElse(0);
-        return bandSize > 0 ? slot + " · BAND " + (index / bandSize) : slot;
     }
 
     /**
@@ -467,16 +405,16 @@ public final class BreachPresenter {
      * {@code docs/client/07} §5.2 forbids the distinction from resting on colour, so it rests on a
      * word.
      */
+    /**
+     * Remembers what the rules said.
+     *
+     * <p>⚠ It no longer pushes anywhere. Every intent this class calls goes through the session,
+     * which writes a failed one to the rig's log on the way back — so pushing it to a panel strip as
+     * well would show the same sentence twice, once in a place the player might not be looking and
+     * once in a place they will. {@code lastMessage} stays because the outcome slate quotes it.
+     */
     private void surface(GameSession.Outcome outcome) {
         lastMessage = outcome.message();
-        if (outcome.succeeded()) {
-            noticeSink.accept("");
-            return;
-        }
-        String body = outcome.message().isBlank()
-                ? "the rules declined it and did not say why."
-                : outcome.message();
-        noticeSink.accept(lead(outcome.status()) + body);
     }
 
     private static String lead(int status) {

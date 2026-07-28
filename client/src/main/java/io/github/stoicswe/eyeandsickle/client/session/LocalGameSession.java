@@ -146,6 +146,11 @@ public final class LocalGameSession implements GameSession {
         return new MiningSummary(game.state().rig.selfMiningCycles, buffered, cap, miners);
     }
 
+    @Override
+    public io.github.stoicswe.eyeandsickle.protocol.game.MiningSnapshot miningChain() {
+        return game.mining();
+    }
+
     /**
      * The rig's current work, newest last.
      *
@@ -217,6 +222,63 @@ public final class LocalGameSession implements GameSession {
     // ------------------------------------------------------------------ intents
 
     /**
+     * Abandons a live breach. Silent when there was nothing to abandon.
+     *
+     * <p>⚠ Deliberately NOT routed through {@code announce}. Closing a window is not a request that
+     * was refused — it is the player doing something perfectly ordinary — so toasting "nothing to
+     * abandon" every time they close an idle breach window would be the client complaining about its
+     * own bookkeeping. The rules log the abandonment itself when there is one.
+     */
+    @Override
+    public Outcome abandonBreach() {
+        return game.abandonBreach() ? changed(Outcome.ok()) : Outcome.ok();
+    }
+
+    @Override
+    public Outcome refuse(String facility, String why) {
+        return announce(facility, Outcome.refused(why));
+    }
+
+    /**
+     * Writes a refusal to the rig's log, so the notification system carries it.
+     *
+     * <h2>Why the panels stopped printing these inline</h2>
+     *
+     * Every tool window used to keep a strip at the top for the last refusal. Three problems with
+     * that, and the third is the one that matters. It duplicated a surface the client already has;
+     * it put the message somewhere the player might not be looking, because the strip is at the top
+     * of a panel and the control they pressed may be at the bottom; and <b>a refusal was the one
+     * class of message that never reached the journal</b>. A player could be told "not enough
+     * cycles", look away, and have no way to find out what they had been told.
+     *
+     * <p>Logging it fixes all three. {@code Notifications} is "the log, filtered" by design — it
+     * refuses to carry anything the rig did not emit, precisely so the toast and the journal cannot
+     * disagree — so a refusal that is in the log is a refusal that toasts, and one that toasts is one
+     * the player can go back and read. See {@code EventLog.error} for the severity choice and the
+     * repeat suppression.
+     *
+     * <h2>⚠ A usage error is deliberately NOT announced</h2>
+     *
+     * {@code EX_USAGE} means the command was malformed — a mistyped flag. That only reaches this
+     * class from the terminal, which already prints the answer on the line below the mistake, and
+     * toasting it as well would be the client telling a player twice that they typed something
+     * wrong. Every other non-zero status is a decision the rules made about a request that was
+     * well-formed, which is exactly what a player needs surfaced.
+     */
+    private Outcome announce(String facility, Outcome outcome) {
+        if (outcome.succeeded() || outcome.status() == Outcome.USAGE || outcome.message().isBlank()) {
+            return outcome;
+        }
+        io.github.stoicswe.eyeandsickle.solo.rules.EventLog.error(
+                game.state(), facility, outcome.message(), game.now());
+        // The log changed, so the toast poller and every log window have something to pick up. Not
+        // routed through `changed()` above it, because that one is about GAME state changing and a
+        // refusal is by definition the game not changing.
+        fire();
+        return outcome;
+    }
+
+    /**
      * The one refusal a rig gives when it has not got the capacity — and the one hint a player gets
      * that something is eating it.
      *
@@ -243,8 +305,7 @@ public final class LocalGameSession implements GameSession {
                 + budget.total().cycles());
     }
 
-    @Override
-    public Outcome allocateSelfMining(long cycles) {
+    private Outcome allocateSelfMiningIntent(long cycles) {
         if (cycles < 0) {
             return Outcome.usage("cycles must not be negative");
         }
@@ -254,8 +315,7 @@ public final class LocalGameSession implements GameSession {
         return changed(Outcome.ok("self-mining set to " + cycles + " cycles"));
     }
 
-    @Override
-    public Outcome scan(String tier) {
+    private Outcome scanIntent(String tier) {
         SoloGame.ScanTier t;
         try {
             t = SoloGame.ScanTier.valueOf(tier.toUpperCase(Locale.ROOT));
@@ -265,6 +325,219 @@ public final class LocalGameSession implements GameSession {
         return game.scan(t)
                 .map(a -> changed(Outcome.ok("scan --" + t.flag() + " started; " + t.cycles() + " cycles committed")))
                 .orElseGet(() -> notEnoughCycles(t.cycles()));
+    }
+
+
+    // ── every refusal is announced ────────────────────────────────────────────────────────────
+    //
+    // Each intent below is a wrapper around the private one that does the work, and the wrapper's
+    // only job is to hand a failure to `announce`. Twenty two-line wrappers is more code than a
+    // single interceptor would be and Java has no interceptor — but the alternative was logging at
+    // each of thirty-five return statements, which is thirty-five chances to forget one.
+
+    @Override
+    public Outcome allocateSelfMining(long cycles) {
+        return announce("mining", allocateSelfMiningIntent(cycles));
+    }
+
+    @Override
+    public Outcome setMiningMode(io.github.stoicswe.eyeandsickle.protocol.game.MiningMode mode) {
+        return announce("mining", setMiningModeIntent(mode));
+    }
+
+    @Override
+    public long miningRateFor(long cycles) {
+        return game.miningRateFor(cycles);
+    }
+
+    @Override
+    public String chainAddress() {
+        return game.chainAddress();
+    }
+
+    @Override
+    public Outcome send(String toAddress, long minorUnits,
+            io.github.stoicswe.eyeandsickle.protocol.game.FeeTier tier) {
+        return announce("chain", sendIntent(toAddress, minorUnits, tier));
+    }
+
+    private Outcome sendIntent(String toAddress, long minorUnits,
+            io.github.stoicswe.eyeandsickle.protocol.game.FeeTier tier) {
+        if (toAddress == null || !toAddress.matches("0x[0-9a-fA-F]{40}")) {
+            return Outcome.usage("send <0x…40 hex> <amount> — an address is 20 bytes of hex");
+        }
+        if (minorUnits <= 0) {
+            return Outcome.usage("send: the amount must be positive");
+        }
+        long fee = game.feeFor(tier);
+        if (!game.debit(minorUnits, "TRANSFER", "Sent to " + toAddress, tier, toAddress)) {
+            return Outcome.refused("not enough ethecoin — " + money(minorUnits + fee)
+                    + " needed including the " + money(fee) + " fee, "
+                    + money(game.balance().minorUnits()) + " held");
+        }
+        return Outcome.ok("broadcast " + money(minorUnits) + " to " + toAddress
+                + " with a " + money(fee) + " fee — waiting for a miner");
+    }
+
+    @Override
+    public io.github.stoicswe.eyeandsickle.protocol.game.ChainMempool mempool() {
+        return game.mempool();
+    }
+
+    @Override
+    public io.github.stoicswe.eyeandsickle.protocol.game.ChainBlock chainBlock(long height) {
+        return game.chainBlock(height);
+    }
+
+    @Override
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.ChainBlock> chainBlocks() {
+        return game.chainBlocks();
+    }
+
+    @Override
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.ChainTransaction> chainTransactions(
+            int limit) {
+        return game.chainTransactions(limit);
+    }
+
+    @Override
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.MiningPool> pools() {
+        return game.pools();
+    }
+
+    @Override
+    public Outcome setMiningPool(String poolId) {
+        return announce("mining", setMiningPoolIntent(poolId));
+    }
+
+    private Outcome setMiningPoolIntent(String poolId) {
+        if (poolId == null || poolId.isBlank()) {
+            return Outcome.usage("mine --pool=<id>; `pools` lists them");
+        }
+        if (!io.github.stoicswe.eyeandsickle.solo.Pools.exists(poolId)) {
+            return Outcome.refused("no pool called '" + poolId + "'. `pools` lists them.");
+        }
+        if (!game.setPool(poolId)) {
+            return Outcome.ok("already mining with " + game.mining().pool().name());
+        }
+        var after = game.mining();
+        // Both numbers, always. The fee is what changed the income and the interval is what changed
+        // the feel, and a player told only one of them will conclude the other did not move.
+        return Outcome.ok("joined " + after.pool().name() + " — "
+                + String.format(java.util.Locale.ROOT, "%.2f EC", after.expectedMinorUnitsPerHour() / 100.0d)
+                + "/hr expected, paid about every "
+                + Math.round(after.expectedPayoutSeconds()) + "s");
+    }
+
+    private Outcome setMiningModeIntent(io.github.stoicswe.eyeandsickle.protocol.game.MiningMode mode) {
+        if (mode == null) {
+            return Outcome.usage("mine: --pool or --solo");
+        }
+        if (!game.setMiningMode(mode)) {
+            return Outcome.ok("already mining " + mode.name().toLowerCase(java.util.Locale.ROOT));
+        }
+        var after = game.mining();
+        return Outcome.ok(mode == io.github.stoicswe.eyeandsickle.protocol.game.MiningMode.SOLO
+                ? "mining solo: the whole block subsidy or nothing, about one block every "
+                        + Math.round(after.expectedPayoutSeconds() / 60) + " minutes on average"
+                : "mining pooled: a steady share every "
+                        + Math.round(io.github.stoicswe.eyeandsickle.solo.Balance.POOL_SHARE_SECONDS)
+                        + "s, less the pool's fee");
+    }
+
+    @Override
+    public Outcome scan(String tier) {
+        return announce("scan", scanIntent(tier));
+    }
+
+    @Override
+    public Outcome beginBreach(String targetId) {
+        return announce("breach", beginBreachIntent(targetId));
+    }
+
+    @Override
+    public Outcome breachAction(String actionId, String argument) {
+        return announce("breach", breachActionIntent(actionId, argument));
+    }
+
+    @Override
+    public Outcome abortBreach() {
+        return announce("breach", abortBreachIntent());
+    }
+
+    @Override
+    public Outcome dismissBreach() {
+        return announce("breach", dismissBreachIntent());
+    }
+
+    @Override
+    public Outcome sweep(String flag) {
+        return announce("net", sweepIntent(flag));
+    }
+
+    @Override
+    public Outcome killProcess(String processId) {
+        return announce("rig", killProcessIntent(processId));
+    }
+
+    @Override
+    public Outcome restartProcess(String processId) {
+        return announce("rig", restartProcessIntent(processId));
+    }
+
+    @Override
+    public Outcome createFolder(String parentId, String name) {
+        return announce("net", createFolderIntent(parentId, name));
+    }
+
+    @Override
+    public Outcome renameFolder(String folderId, String name) {
+        return announce("net", renameFolderIntent(folderId, name));
+    }
+
+    @Override
+    public Outcome moveFolder(String folderId, String newParentId) {
+        return announce("net", moveFolderIntent(folderId, newParentId));
+    }
+
+    @Override
+    public Outcome removeFolder(String folderId) {
+        return announce("net", removeFolderIntent(folderId));
+    }
+
+    @Override
+    public Outcome fileNode(String address, String folderId) {
+        return announce("net", fileNodeIntent(address, folderId));
+    }
+
+    @Override
+    public Outcome connectTo(String address) {
+        return announce("net", connectToIntent(address));
+    }
+
+    @Override
+    public Outcome download(String address) {
+        return announce("net", downloadIntent(address));
+    }
+
+    @Override
+    public Outcome collect() {
+        return announce("mining", collectIntent());
+    }
+
+    @Override
+    public Outcome moveItem(String itemId, StorageTier to) {
+        return announce("rig", moveItemIntent(itemId, to));
+    }
+
+    @Override
+    public Outcome arm(String kind, int tier) {
+        return announce("defense", armIntent(kind, tier));
+    }
+
+    @Override
+    public Outcome purchase(String offeringId) {
+        return announce("rig", purchaseIntent(offeringId));
     }
 
     // ── The breach ────────────────────────────────────────────────────────────────────────────
@@ -284,23 +557,19 @@ public final class LocalGameSession implements GameSession {
         return game.breachSnapshot();
     }
 
-    @Override
-    public Outcome beginBreach(String targetId) {
+    private Outcome beginBreachIntent(String targetId) {
         return translate(game.beginBreach(targetId));
     }
 
-    @Override
-    public Outcome breachAction(String actionId, String argument) {
+    private Outcome breachActionIntent(String actionId, String argument) {
         return translate(game.breachAction(actionId, argument));
     }
 
-    @Override
-    public Outcome abortBreach() {
+    private Outcome abortBreachIntent() {
         return translate(game.abortBreach());
     }
 
-    @Override
-    public Outcome dismissBreach() {
+    private Outcome dismissBreachIntent() {
         return game.dismissBreach()
                 ? changed(Outcome.ok("outcome cleared"))
                 : Outcome.ok("nothing to clear");
@@ -332,8 +601,7 @@ public final class LocalGameSession implements GameSession {
         return game.net();
     }
 
-    @Override
-    public Outcome sweep(String flag) {
+    private Outcome sweepIntent(String flag) {
         var tier = io.github.stoicswe.eyeandsickle.solo.net.SweepTier.byFlag(flag == null ? "" : flag);
         if (tier.isEmpty()) {
             return Outcome.usage("unknown sweep tier '" + flag + "' — expected --wide or --deep, or no flag");
@@ -370,13 +638,11 @@ public final class LocalGameSession implements GameSession {
         return game.processes();
     }
 
-    @Override
-    public Outcome killProcess(String processId) {
+    private Outcome killProcessIntent(String processId) {
         return apply(game.killProcess(processId));
     }
 
-    @Override
-    public Outcome restartProcess(String processId) {
+    private Outcome restartProcessIntent(String processId) {
         return apply(game.restartProcess(processId));
     }
 
@@ -400,29 +666,24 @@ public final class LocalGameSession implements GameSession {
         return game.unfiledNodes();
     }
 
-    @Override
-    public Outcome createFolder(String parentId, String name) {
+    private Outcome createFolderIntent(String parentId, String name) {
         var result = game.createFolder(parentId, name);
         return result.refused() ? Outcome.refused(result.why()) : changed(Outcome.ok());
     }
 
-    @Override
-    public Outcome renameFolder(String folderId, String name) {
+    private Outcome renameFolderIntent(String folderId, String name) {
         return apply(game.renameFolder(folderId, name));
     }
 
-    @Override
-    public Outcome moveFolder(String folderId, String newParentId) {
+    private Outcome moveFolderIntent(String folderId, String newParentId) {
         return apply(game.moveFolder(folderId, newParentId));
     }
 
-    @Override
-    public Outcome removeFolder(String folderId) {
+    private Outcome removeFolderIntent(String folderId) {
         return apply(game.removeFolder(folderId));
     }
 
-    @Override
-    public Outcome fileNode(String address, String folderId) {
+    private Outcome fileNodeIntent(String address, String folderId) {
         return apply(game.fileNode(address, folderId));
     }
 
@@ -430,15 +691,13 @@ public final class LocalGameSession implements GameSession {
         return refusal.refused() ? Outcome.refused(refusal.why()) : changed(Outcome.ok());
     }
 
-    @Override
-    public Outcome connectTo(String address) {
+    private Outcome connectToIntent(String address) {
         return game.connectTo(address)
                 ? changed(Outcome.ok("vantage moved to " + address + "; sweeps now measure hops from there"))
                 : Outcome.refused("cannot connect to '" + address + "' — you must hold a host to use it as a vantage");
     }
 
-    @Override
-    public Outcome download(String address) {
+    private Outcome downloadIntent(String address) {
         return game.download(address)
                 .map(d -> changed(Outcome.ok("downloaded: " + d.title())))
                 .orElseGet(() -> Outcome.refused("nothing to download from '" + address + "'"));
@@ -449,8 +708,7 @@ public final class LocalGameSession implements GameSession {
         return game.documents();
     }
 
-    @Override
-    public Outcome collect() {
+    private Outcome collectIntent() {
         long collected = game.collect();
         if (collected == 0) {
             return Outcome.ok("nothing to collect");
@@ -458,16 +716,14 @@ public final class LocalGameSession implements GameSession {
         return changed(Outcome.ok("collected " + Ethecoin.ofMinorUnits(collected)));
     }
 
-    @Override
-    public Outcome moveItem(String itemId, StorageTier to) {
+    private Outcome moveItemIntent(String itemId, StorageTier to) {
         if (!game.moveItem(itemId, to)) {
             return Outcome.refused("no such item: " + itemId);
         }
         return changed(Outcome.ok("moved to " + to));
     }
 
-    @Override
-    public Outcome arm(String kind, int tier) {
+    private Outcome armIntent(String kind, int tier) {
         long cycles = defenseCycles(kind, tier);
         if (cycles <= 0) {
             return Outcome.usage("unknown defence '" + kind + "'");
@@ -482,8 +738,7 @@ public final class LocalGameSession implements GameSession {
                 .orElseGet(() -> notEnoughCycles(cycles));
     }
 
-    @Override
-    public Outcome purchase(String offeringId) {
+    private Outcome purchaseIntent(String offeringId) {
         var offering = io.github.stoicswe.eyeandsickle.solo.Catalogue.byId(offeringId);
         if (offering.isEmpty()) {
             return Outcome.refused("nothing is offered under that name");
@@ -568,9 +823,34 @@ public final class LocalGameSession implements GameSession {
         return outcome;
     }
 
+    /**
+     * Tells every listener something moved.
+     *
+     * <h2>⚠ One listener that throws must not take the others with it</h2>
+     *
+     * This used to be a bare loop. A panel that threw — an unexpected null in a readout, a widget
+     * mid-rebuild — aborted the iteration, so <b>every listener after it in the list stopped being
+     * notified for that change</b>, and which panels those were depended on the order they happened
+     * to have subscribed in. The visible symptom is a window that silently stops updating and looks
+     * frozen, with nothing in the log to say why, and the panel that actually had the bug is not the
+     * one the player notices.
+     *
+     * <p>The throw is printed rather than swallowed. A listener that fails is still a bug and hiding
+     * it entirely would trade a loud wrong behaviour for a quiet one; what changes is that it is now
+     * that listener's problem alone.
+     */
     private void fire() {
-        for (Consumer<GameSession> l : listeners) {
-            l.accept(this);
+        for (Consumer<GameSession> l : List.copyOf(listeners)) {
+            try {
+                l.accept(this);
+            } catch (RuntimeException failed) {
+                System.err.println("[session] a change listener threw; the rest still ran: " + failed);
+                failed.printStackTrace();
+            }
         }
     }
+    private static String money(long minorUnits) {
+        return String.format(java.util.Locale.ROOT, "%d.%02d EC", minorUnits / 100, Math.abs(minorUnits % 100));
+    }
+
 }

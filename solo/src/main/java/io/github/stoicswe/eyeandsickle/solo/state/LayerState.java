@@ -31,143 +31,99 @@ public final class LayerState {
 
     public int index = 0;
 
-    /** {@code PuzzleClass.name()} — one of {@code ENUMERATION}, {@code LOGIC}, {@code TRAVERSAL}. */
-    public String puzzleClass = "ENUMERATION";
+    /** Which minigame this layer is running: {@code BREACH_PROTOCOL} or {@code OFFSET_CIPHER}. */
+    public String puzzleClass = "BREACH_PROTOCOL";
 
-    /**
-     * Attention granted to this layer, after defensive modifiers.
-     *
-     * <p>{@code docs/design/05-hacking-minigame.md} §4: the budget <em>is</em> the pressure, since
-     * §4 removed the wall clock. §3.3's "time pressure" knob is now this number.
-     */
+    /** Attention this layer grants. Spending it is the whole clock this puzzle has. */
     public int budget = 20;
 
     public int spent = 0;
 
     public int strikes = 0;
 
-    /** §3.3's "error tolerance": how many wrong moves before the layer locks out. */
     public int strikeLimit = 3;
 
-    /**
-     * Probes and loud-tool volleys spent on this layer.
-     *
-     * <p>P-3's denominator, per layer, so the bot-versus-human gap can be measured on the step that
-     * is supposed to produce it rather than averaged across an attempt.
-     */
+    /** Moves made that asked the board a question. Bookkeeping never counts. */
     public int probesUsed = 0;
 
-    /** {@code LayerOutcome.name()} — {@code PENDING}, {@code ACTIVE}, {@code CLEARED}, {@code BYPASSED}, {@code LOCKED}. */
+    /** {@code PENDING}, {@code ACTIVE}, {@code CLEARED} or {@code FAILED}. */
     public String state = "PENDING";
 
-    // ------------------------------------------------------------------ Enumeration
+    /** What the layer is called on screen. */
+    public String title = "";
+
+    // ── BREACH_PROTOCOL ───────────────────────────────────────────────────────────────────────
+    //
+    // ⚠ The grid and the used mask are FLAT lists indexed `row * matrixSize + column`, not lists of
+    // lists. Jackson round-trips a List<String> without help and a List<List<String>> only with a
+    // type token it has no reason to have here; a save that deserialised as a list of LinkedHashMaps
+    // would fail at the first cast, at load, on somebody's real character. Flat costs one
+    // multiplication at every access and cannot do that.
+
+    /** Two-character hex codes, row-major. */
+    public List<String> matrixGrid = new ArrayList<>();
+
+    /** Which cells have been taken. Same length and same indexing as {@link #matrixGrid}. */
+    public List<Boolean> matrixUsed = new ArrayList<>();
+
+    /** The side of the square. */
+    public int matrixSize = 5;
+
+    /** Codes taken so far, in order. Cannot be emptied — that is the puzzle. */
+    public List<String> matrixBuffer = new ArrayList<>();
+
+    /** How many picks the attempt gets in total. */
+    public int matrixBufferSize = 6;
+
+    /** True when the next pick must be in {@link #matrixCursorRow}, false for the column. */
+    public boolean matrixRowTurn = true;
+
+    public int matrixCursorRow = 0;
+
+    public int matrixCursorColumn = 0;
+
+    /** One label per goal. The three goal lists are parallel and must stay the same length. */
+    public List<String> matrixGoalLabels = new ArrayList<>();
 
     /**
-     * The service banner: {@code EDGE RELAY}, {@code STORAGE ARRAY}, {@code AUTH BROKER} or
-     * {@code MEDIA CACHE}. Never blank on an Enumeration layer.
+     * Every goal's codes, concatenated.
      *
-     * <p>This is Enumeration's human-read step ({@code docs/design/05-hacking-minigame.md} §3.2
-     * requires each class to have one). The target's role <em>constrains which bands can hold open
-     * ports</em>, and the constraint is printed nowhere — a player who reads the banner eliminates
-     * whole bands without probing them, and a fixed heuristic cannot, which is §3.2(d) verbatim.
-     * The four rules are stated in {@code docs/design/16-breach-implementation.md} §3 for the
-     * designer and nowhere the player can read them.
+     * <p>⚠ Flat, with {@link #matrixGoalLengths} carrying the split, for the same reason the grid is:
+     * a nested list is a deserialisation hazard in a file that outlives the code that wrote it.
+     * {@code MatrixRules.goalCodes} is the only thing that should ever slice it.
      */
-    public String banner = "";
+    public List<String> matrixGoalCodes = new ArrayList<>();
 
-    /** One line of role flavour that gestures at the rule without stating it. */
-    public String bannerNote = "";
+    public List<Integer> matrixGoalLengths = new ArrayList<>();
 
-    public int slots = 0;
+    public List<Boolean> matrixGoalSolved = new ArrayList<>();
 
-    public int bandSize = 4;
+    public List<Integer> matrixGoalMatched = new ArrayList<>();
 
-    public List<PortSlotState> ports = new ArrayList<>();
+    public List<Integer> matrixGoalRewards = new ArrayList<>();
+
+    // ── OFFSET_CIPHER ─────────────────────────────────────────────────────────────────────────
+
+    /** The bytes read off the wire, {@code 0x00}–{@code 0xFF}. Shown to the player. */
+    public List<Integer> cipherObserved = new ArrayList<>();
+
+    /** The bytes the far end expects. ⚠ Also shown — the arithmetic is the game, not the secret. */
+    public List<Integer> cipherTarget = new ArrayList<>();
 
     /**
-     * Sweep results so far, oldest first, as {@code {fromSlot, toSlot, openCount}}.
+     * What the player has typed under each cell.
      *
-     * <p>An {@code int[]} triple rather than a class because it is genuinely three numbers and the
-     * array-of-arrays JSON it produces is stable and readable. A sweep returns the <em>count</em> of
-     * open ports in a band and never which — that gap is what makes the cheap action worth its
-     * price and the expensive one worth more.
+     * <p>⚠ Holds nulls, and must. {@code 0} is a legitimate offset — a cell where observed and target
+     * already agree — so a sentinel value cannot mean "untouched" without also meaning a real answer.
      */
-    public List<int[]> readingRanges = new ArrayList<>();
+    public List<Integer> cipherEntered = new ArrayList<>();
 
-    /** Total open ports, when the Side-Channel Reader has established it. {@code -1} when unknown. */
-    public int knownOpenTotal = -1;
+    /** Cells the last commit rejected. Cleared whenever the player edits. */
+    public List<Integer> cipherWrong = new ArrayList<>();
 
-    /** The set the player is currently composing. Bookkeeping: toggling it costs nothing. */
-    public List<Integer> declared = new ArrayList<>();
+    /** Which cell typing goes into. */
+    public int cipherCursor = 0;
 
-    // ------------------------------------------------------------------ Logic
-
-    /** ⚠ THE ANSWER. Never snapshotted, never logged, never put in a result string. */
-    public List<String> secret = new ArrayList<>();
-
-    public List<String> alphabet = new ArrayList<>();
-
-    /**
-     * Whether the code is salted.
-     *
-     * <p>{@code docs/design/06-intrusion-tools.md} §2 makes the Rainbow Table "hard-countered by
-     * salting, by design" — a conditional power spike that is devastating against lazy targets and
-     * useless against prepared ones. Public to the player, because the whole point is that recon
-     * tells you whether the tool is worth bringing.
-     */
-    public boolean salted = false;
-
-    public List<ProbeState> probes = new ArrayList<>();
-
-    /** Facts the player has drawn. Each is true of {@link #secret} by construction. */
-    public List<String> facts = new ArrayList<>();
-
-    /** ⚠ Undrawn facts. Never snapshotted — the deck is the resource, not the discard. */
-    public List<String> factDeck = new ArrayList<>();
-
-    /** One entry per position; {@code ""} means not yet revealed. Written by the Rainbow Table. */
-    public List<String> known = new ArrayList<>();
-
-    /** The guess being composed. The player's own working, so it is public. */
-    public List<String> draft = new ArrayList<>();
-
-    /** Total candidates at generation: {@code alphabet^length}. Printed, as the class's opening number. */
-    public int keyspace = 0;
-
-    /**
-     * Candidates still consistent with every response so far.
-     *
-     * <p>Recomputed when a probe lands and stored, rather than derived on every snapshot: a snapshot
-     * is built on every UI refresh and this walks the keyspace, which is up to 100 000 candidates at
-     * tier 5. Turn-based play makes the cached value exactly as fresh as the board.
-     *
-     * <p>{@code KEYSPACE 4096 -> 37} is the readout this feeds and it is the class's diegetic soul:
-     * it is what tells a player that deduction is doing something guessing would not.
-     */
-    public int candidatesRemaining = 0;
-
-    // ------------------------------------------------------------------ Traversal
-
-    public int ranks = 0;
-
-    public int objectiveRank = 0;
-
-    public String currentNodeId = "";
-
-    /** ⚠ THE ANSWER. Never snapshotted. The decoys are only decoys while this is unknown. */
-    public String objectiveNodeId = "";
-
-    public List<LatticeNodeState> nodes = new ArrayList<>();
-
-    /**
-     * The cross-reference the human read depends on ({@code docs/design/05-hacking-minigame.md}
-     * §3.2).
-     *
-     * <p>Public from the start, and that is the design: the manifest names a service and a time, the
-     * candidates' recovered logs each name a service and a time, and exactly one matches both. The
-     * information is all on the table; the work is the reading.
-     */
-    public List<String> manifest = new ArrayList<>();
-
-    public LayerState() {}
+    /** How many times the row has been submitted. Each failure cost a strike. */
+    public int cipherCommits = 0;
 }

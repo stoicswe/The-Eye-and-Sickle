@@ -127,9 +127,9 @@ class BreachResolutionTest {
         @DisplayName("carries exactly the four fields the contract names")
         void carriesTheContract() {
             ResolutionRecord record = new ResolutionRecord(
-                    PuzzleClass.LOGIC, DifficultyTier.of(4), TargetState.LIVE, BreachOutcome.BREACHED);
+                    PuzzleClass.OFFSET_CIPHER, DifficultyTier.of(4), TargetState.LIVE, BreachOutcome.BREACHED);
 
-            assertThat(record.puzzleClass()).isEqualTo(PuzzleClass.LOGIC);
+            assertThat(record.puzzleClass()).isEqualTo(PuzzleClass.OFFSET_CIPHER);
             assertThat(record.difficultyTier()).isEqualTo(DifficultyTier.of(4));
             assertThat(record.liveOrDormant()).isEqualTo(TargetState.LIVE);
             assertThat(record.outcome()).isEqualTo(BreachOutcome.BREACHED);
@@ -146,13 +146,13 @@ class BreachResolutionTest {
                             new ResolutionRecord(null, DifficultyTier.of(1), TargetState.LIVE, BreachOutcome.BREACHED))
                     .isInstanceOf(NullPointerException.class);
             assertThatThrownBy(() ->
-                            new ResolutionRecord(PuzzleClass.LOGIC, null, TargetState.LIVE, BreachOutcome.BREACHED))
+                            new ResolutionRecord(PuzzleClass.OFFSET_CIPHER, null, TargetState.LIVE, BreachOutcome.BREACHED))
                     .isInstanceOf(NullPointerException.class);
             assertThatThrownBy(() ->
-                            new ResolutionRecord(PuzzleClass.LOGIC, DifficultyTier.of(1), null, BreachOutcome.BREACHED))
+                            new ResolutionRecord(PuzzleClass.OFFSET_CIPHER, DifficultyTier.of(1), null, BreachOutcome.BREACHED))
                     .isInstanceOf(NullPointerException.class);
             assertThatThrownBy(
-                            () -> new ResolutionRecord(PuzzleClass.LOGIC, DifficultyTier.of(1), TargetState.LIVE, null))
+                            () -> new ResolutionRecord(PuzzleClass.OFFSET_CIPHER, DifficultyTier.of(1), TargetState.LIVE, null))
                     .isInstanceOf(NullPointerException.class);
         }
 
@@ -162,10 +162,10 @@ class BreachResolutionTest {
             // If only wins were representable, the history an auditor or an anti-cheat review reads
             // would be missing exactly the rows they care about.
             assertThat(new ResolutionRecord(
-                            PuzzleClass.TIMING, DifficultyTier.of(1), TargetState.DORMANT, BreachOutcome.FAILED))
+                            PuzzleClass.OFFSET_CIPHER, DifficultyTier.of(1), TargetState.DORMANT, BreachOutcome.FAILED))
                     .isNotNull();
             assertThat(new ResolutionRecord(
-                            PuzzleClass.TRAVERSAL, DifficultyTier.of(5), TargetState.LIVE, BreachOutcome.ABORTED))
+                            PuzzleClass.BREACH_PROTOCOL, DifficultyTier.of(5), TargetState.LIVE, BreachOutcome.ABORTED))
                     .isNotNull();
         }
 
@@ -177,9 +177,9 @@ class BreachResolutionTest {
             // fact the gate is allowed to read. Any code reaching for count(*) over these rows is the
             // farming exploit arriving.
             ResolutionRecord first = new ResolutionRecord(
-                    PuzzleClass.CREDENTIAL, DifficultyTier.of(3), TargetState.LIVE, BreachOutcome.BREACHED);
+                    PuzzleClass.BREACH_PROTOCOL, DifficultyTier.of(3), TargetState.LIVE, BreachOutcome.BREACHED);
             ResolutionRecord second = new ResolutionRecord(
-                    PuzzleClass.CREDENTIAL, DifficultyTier.of(3), TargetState.LIVE, BreachOutcome.BREACHED);
+                    PuzzleClass.BREACH_PROTOCOL, DifficultyTier.of(3), TargetState.LIVE, BreachOutcome.BREACHED);
 
             assertThat(first).isEqualTo(second).hasSameHashCodeAs(second);
         }
@@ -188,9 +188,9 @@ class BreachResolutionTest {
         @DisplayName("a live and a dormant solve are different records")
         void liveIsNotDormant() {
             ResolutionRecord live = new ResolutionRecord(
-                    PuzzleClass.ENUMERATION, DifficultyTier.of(3), TargetState.LIVE, BreachOutcome.BREACHED);
+                    PuzzleClass.BREACH_PROTOCOL, DifficultyTier.of(3), TargetState.LIVE, BreachOutcome.BREACHED);
             ResolutionRecord dormant = new ResolutionRecord(
-                    PuzzleClass.ENUMERATION, DifficultyTier.of(3), TargetState.DORMANT, BreachOutcome.BREACHED);
+                    PuzzleClass.BREACH_PROTOCOL, DifficultyTier.of(3), TargetState.DORMANT, BreachOutcome.BREACHED);
 
             assertThat(live).isNotEqualTo(dormant);
         }

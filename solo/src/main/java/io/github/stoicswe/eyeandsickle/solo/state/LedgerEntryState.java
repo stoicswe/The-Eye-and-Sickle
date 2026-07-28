@@ -25,4 +25,19 @@ public final class LedgerEntryState {
 
     public String type = "";
     public String description = "";
+
+    /**
+     * The block that carries this, or -1 for anything that never touched the chain.
+     *
+     * <p>⚠ A pool payout is <b>not</b> a block reward and does not get a block number: the pool paid
+     * it out of its own balance, and pretending otherwise would put transactions on the chain that no
+     * miner ever mined. Only a solo block win names a block.
+     */
+    public long blockNumber = -1L;
+
+    /** {@code 0x} + 64 hex, stable across reloads. Derived on first render if absent. */
+    public String txHash = "";
+
+    /** The other end of the transfer, as an address. Empty means "derive one from the type". */
+    public String counterparty = "";
 }

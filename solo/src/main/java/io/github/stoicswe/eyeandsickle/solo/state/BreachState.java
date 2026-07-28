@@ -90,6 +90,15 @@ public final class BreachState {
     public int activeLayer = 0;
 
     /** Noise generated so far, summed per action ({@code docs/design/01-core-resources.md} §3). */
+    /**
+     * Which minigame this whole attempt is playing, drawn once at commission.
+     *
+     * <p>One roll per attempt rather than per layer — see {@code BoardFactory}. A target that opened
+     * with a protocol grid and followed with a cipher would make the deeper layers of a hard target a
+     * coin flip between the thing the player is good at and the thing they are not.
+     */
+    public String puzzleClass = "BREACH_PROTOCOL";
+
     public int noise = 0;
 
     /** Strikes across every layer. Feeds the noise total — alarms are loud. */

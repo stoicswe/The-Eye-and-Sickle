@@ -121,11 +121,9 @@ public final class AsciiCanvas extends StackPane {
     public static final char FILL_LOCKED = '█';
 
     /** Puzzle-class textures. One character each, so the class reads from across the room. */
-    public static final char TEXTURE_ENUMERATION = '┬';
+    public static final char TEXTURE_MATRIX = '┼';
 
-    public static final char TEXTURE_LOGIC = '╪';
-
-    public static final String TEXTURE_TRAVERSAL = "╱╲";
+    public static final char TEXTURE_CIPHER = '╪';
 
     /** Diagonals, for the plinth under the tower and for lattice skips. */
     public static final char DIAG_DOWN = '╲';

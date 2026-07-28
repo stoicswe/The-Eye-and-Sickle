@@ -165,6 +165,26 @@ public final class UiTokens {
 
     public static final double ATTENTION_CELL_HEIGHT = 10;
 
+    /**
+     * Width reserved for the attention meter's preview caption, whether or not it says anything.
+     *
+     * <h2>⚠ This is a HOVER-FEEDBACK LOOP FIX, not a spacing preference</h2>
+     *
+     * The caption is empty at rest and reads {@code NEXT: FUZZER VOLLEY -6} while an action is
+     * hovered. It lives inside the meter, the meter sits beside the cost strip in one row, and the
+     * strip is a {@code FlowPane} — so the caption appearing widened the meter, which narrowed the
+     * strip, which reflowed the chips, which moved the chip out from under the pointer. That fired
+     * MOUSE_EXITED, which cleared the caption, which shrank the meter, which moved the chip back
+     * under the pointer, which fired MOUSE_ENTERED. The strip visibly oscillated for as long as the
+     * pointer rested near a chip's edge.
+     *
+     * <p>Reserving the space means the meter's width never depends on what the pointer is doing, so
+     * the loop cannot start. Wide enough for the longest action name the game ships plus its prefix
+     * and cost; a caption longer than this clips rather than pushes, which is the correct failure —
+     * the same figure is printed in the chip the player is already looking at.
+     */
+    public static final double ATTENTION_PREVIEW_WIDTH = 190;
+
     /** The character grid the breach viewport draws its ASCII render into. */
     public static final int VIEWPORT_ROWS = 18;
 

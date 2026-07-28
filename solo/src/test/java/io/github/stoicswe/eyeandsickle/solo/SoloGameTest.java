@@ -7,6 +7,7 @@ import io.github.stoicswe.eyeandsickle.protocol.game.ComputeBudget;
 import io.github.stoicswe.eyeandsickle.protocol.game.Cycles;
 import io.github.stoicswe.eyeandsickle.solo.rules.ComputeRules;
 import io.github.stoicswe.eyeandsickle.solo.rules.MiningRules;
+import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
 import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import io.github.stoicswe.eyeandsickle.solo.state.MinerState;
 import io.github.stoicswe.eyeandsickle.solo.state.NodeState;
@@ -214,11 +215,68 @@ class SoloGameTest {
             TestClock clock = new TestClock(T0);
             SoloGame game = bare(new SaveStore(dir.resolve("save.json")), clock);
             game.allocateSelfMining(100);
-            clock.advance(Duration.ofHours(1));
-            game.tick();
 
-            // 100 cycles × 0.4 EC/cycle-hr = 40 EC = 4000 minor units.
-            assertThat(game.balance().minorUnits()).isEqualTo(4_000L);
+            // ⚠ Since 2026-07-27 this is a Poisson process, not a rate, so the EXPECTATION is the
+            // thing that is exactly 40 EC/hr and a single simulated hour is a sample around it.
+            // Asserting both: the published figure is pinned to the minor unit, because that is the
+            // number docs/design/03 §1 prices the whole economy against, and the simulation is
+            // checked to actually track it.
+            assertThat(game.mining().expectedMinorUnitsPerHour()).isEqualTo(4_000L);
+
+            for (int hour = 0; hour < 24; hour++) {
+                clock.advance(Duration.ofHours(1));
+                game.tick();
+            }
+            // 24 hours is about 2880 pool shares; a 6% band is roughly three standard errors.
+            assertThat(game.balance().minorUnits()).isBetween(90_000L, 102_000L);
+        }
+
+        @Test
+        @DisplayName("pooled mining never has an empty hour, which is what makes it the floor (I4)")
+        void pooledIsAFloor(@TempDir Path dir) {
+            TestClock clock = new TestClock(T0);
+            SoloGame game = bare(new SaveStore(dir.resolve("save.json")), clock);
+            game.allocateSelfMining(100);
+
+            long previous = 0;
+            for (int hour = 0; hour < 12; hour++) {
+                clock.advance(Duration.ofHours(1));
+                game.tick();
+                long now = game.balance().minorUnits();
+                // docs/design/04 §1.1: heat can destroy a deployment network but never the floor.
+                // A floor with dry hours in it is not one, and a player who went hot and then earned
+                // nothing for an hour would be punished twice for the same mistake.
+                assertThat(now).as("hour %d", hour).isGreaterThan(previous);
+                previous = now;
+            }
+        }
+
+        @Test
+        @DisplayName("solo mining pays in rare lumps, and the choice is the player's")
+        void soloIsALottery(@TempDir Path dir) {
+            TestClock clock = new TestClock(T0);
+            SoloGame game = bare(new SaveStore(dir.resolve("save.json")), clock);
+            game.allocateSelfMining(100);
+            assertThat(game.setMiningMode(MiningMode.SOLO)).isTrue();
+
+            // Same rig, same cycles, and now a payout worth four hours of the pooled rate arriving
+            // about once every four hours. Nothing was bought and nothing was unlocked — Invariants
+            // I1 and I2 are untouched, because the only thing that changed is where the cycles point.
+            assertThat(game.mining().payoutMinorUnits()).isEqualTo(Balance.BLOCK_SUBSIDY_MINOR_UNITS);
+            assertThat(game.mining().expectedPayoutSeconds()).isBetween(13_000.0d, 15_000.0d);
+            assertThat(game.mining().chanceWithin(3600)).isBetween(0.15d, 0.35d);
+
+            int dry = 0;
+            for (int hour = 0; hour < 24; hour++) {
+                long before = game.balance().minorUnits();
+                clock.advance(Duration.ofHours(1));
+                game.tick();
+                if (game.balance().minorUnits() == before) {
+                    dry++;
+                }
+            }
+            // Most hours pay nothing at all. That is the trade, and it is why pooled is the default.
+            assertThat(dry).isGreaterThan(12);
         }
 
         @Test
@@ -393,15 +451,15 @@ class SoloGameTest {
         void shortSessionsEarn() {
             // Naive hour-based integer maths would pay nothing for anything under an hour, so a
             // player doing five-minute sessions would earn nothing at all and never know why.
-            long tenMinutes = MiningRules.selfMiningYield(100, Duration.ofMinutes(10));
+            long tenMinutes = MiningRules.deployedYield(100, Duration.ofMinutes(10));
             assertThat(tenMinutes).isEqualTo(666L);
         }
 
         @Test
         @DisplayName("zero allocation earns zero")
         void zeroEarnsZero() {
-            assertThat(MiningRules.selfMiningYield(0, Duration.ofHours(5))).isZero();
-            assertThat(MiningRules.selfMiningYield(100, Duration.ZERO)).isZero();
+            assertThat(MiningRules.deployedYield(0, Duration.ofHours(5))).isZero();
+            assertThat(MiningRules.deployedYield(100, Duration.ZERO)).isZero();
         }
 
         @Test

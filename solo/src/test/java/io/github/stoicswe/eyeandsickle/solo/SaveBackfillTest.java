@@ -84,6 +84,30 @@ class SaveBackfillTest {
     }
 
     @Test
+    @DisplayName("a save from before the chain existed joins it, pooled, at its current height")
+    void backfillsTheChain(@TempDir Path dir) {
+        SaveStore store = new SaveStore(dir.resolve("save.json"));
+        SoloSave old = pretopology();
+        old.chain = null;
+        store.save(old);
+
+        SoloGame game = SoloGame.open(store, "operator", new TestClock(T0));
+
+        // Joining a chain with a past rather than starting one. A height of 0 would say the chain
+        // had been waiting for this player, which is the opposite of what a shared ledger is.
+        assertThat(game.state().chain).isNotNull();
+        // 124 blocks of history, all of them inspectable — the chain existed before this character
+        // and says so. See Balance.CHAIN_START_HEIGHT.
+        assertThat(game.mining().height()).isEqualTo(io.github.stoicswe.eyeandsickle.solo.Balance.CHAIN_START_HEIGHT);
+        assertThat(game.mining().difficulty()).isPositive();
+        // ⚠ Pooled, not solo. A character who predates the choice must not be opted into the
+        // lottery by a migration — I4 makes self-mining the floor, and a floor that sometimes pays
+        // nothing is not one.
+        assertThat(game.mining().mode())
+                .isEqualTo(io.github.stoicswe.eyeandsickle.protocol.game.MiningMode.POOLED);
+    }
+
+    @Test
     @DisplayName("a save that already has a world is left exactly as it was")
     void neverRegenerates(@TempDir Path dir) {
         SaveStore store = new SaveStore(dir.resolve("save.json"));
@@ -126,9 +150,14 @@ class SaveBackfillTest {
         assertThat(reopened.state().resolutions.getLast().outcome).isEqualTo("ABORTED");
         // And the player comes back to the target list, not to a slate for an attempt they never
         // saw end. The log line is where "this happened while you were away" belongs.
+        //
+        // ⚠ The wording is shared with closing the breach window, which abandons an attempt by the
+        // same method: closing the console and closing the client are the same gesture as far as the
+        // attempt is concerned, and two implementations of "abandon" would be two chances for one of
+        // them to forget to release the cycles.
         assertThat(reopened.breachSnapshot()).isEmpty();
         assertThat(reopened.state().log.stream().map(e -> e.message))
-                .anySatisfy(message -> assertThat(message).contains("did not survive the session"));
+                .anySatisfy(message -> assertThat(message).contains("abandoned"));
     }
 
     @Test
@@ -145,6 +174,56 @@ class SaveBackfillTest {
         // The outcome slate is where a loss becomes comprehensible (docs/design/05 §1 constraint 4).
         // A player who quit rather than read it should still get to.
         assertThat(SoloGame.open(store, "operator", new TestClock(T0)).breachSnapshot()).isPresent();
+    }
+
+    @Test
+    @DisplayName("abandoning on demand is the same act as abandoning on load, and frees the cycles")
+    void abandonOnDemand(@TempDir Path dir) {
+        SaveStore store = new SaveStore(dir.resolve("save.json"));
+        SoloGame game = SoloGame.open(store, "operator", new TestClock(T0));
+        game.state().rig.foreignMiners.getFirst().discovered = true;
+        var target = game.breachTargets().getFirst();
+        assertThat(game.beginBreach(target.targetId()).applied()).isTrue();
+
+        long heldDuringBreach = io.github.stoicswe.eyeandsickle.solo.rules.ComputeRules
+                .availableCycles(game.state().rig);
+
+        // What closing the breach window does. Same method the load-time path uses, because closing
+        // the console and closing the client are the same gesture as far as the attempt is concerned.
+        assertThat(game.abandonBreach()).isTrue();
+
+        assertThat(game.breachSnapshot()).isEmpty();
+        assertThat(game.state().resolutions.getLast().outcome).isEqualTo("ABORTED");
+        // The cycles are released onto the thermal curve rather than held forever by a console
+        // nobody is sitting at — which is the whole reason this happens on close at all.
+        assertThat(io.github.stoicswe.eyeandsickle.solo.rules.ComputeRules
+                        .recoveringCycles(game.state().rig))
+                .isPositive();
+        assertThat(io.github.stoicswe.eyeandsickle.solo.rules.ComputeRules
+                        .availableCycles(game.state().rig))
+                .isEqualTo(heldDuringBreach);
+    }
+
+    @Test
+    @DisplayName("abandoning when nothing is running is a no-op, not a refusal")
+    void abandonIsSilentWhenIdle(@TempDir Path dir) {
+        SoloGame game = SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", new TestClock(T0));
+        // Closing an idle breach window is a perfectly ordinary thing to do, and complaining about
+        // it would be the client narrating its own bookkeeping.
+        assertThat(game.abandonBreach()).isFalse();
+        assertThat(game.state().resolutions).isEmpty();
+    }
+
+    @Test
+    @DisplayName("a resolved breach is not abandoned — its slate is still the player's to read")
+    void resolvedIsNotAbandoned(@TempDir Path dir) {
+        SoloGame game = SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", new TestClock(T0));
+        game.state().rig.foreignMiners.getFirst().discovered = true;
+        game.beginBreach(game.breachTargets().getFirst().targetId());
+        game.abortBreach();
+
+        assertThat(game.abandonBreach()).isFalse();
+        assertThat(game.breachSnapshot()).isPresent();
     }
 
     @Test

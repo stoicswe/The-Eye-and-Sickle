@@ -17,6 +17,8 @@ import io.github.stoicswe.eyeandsickle.client.ui.widgets.SweepPanel;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeAllocation;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeBudget;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeConsumer;
+import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
+import io.github.stoicswe.eyeandsickle.protocol.game.MiningSnapshot;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
@@ -139,7 +141,13 @@ public final class RigMonitorView {
                         + "look like one that is, and looking like one is not the same as being one.");
         tableNote.setWrapText(true);
 
-        VBox tableSide = new VBox(UiTokens.SPACE_3, tableNote, table);
+        // The history strip sits between the tabs and the table: a table answers "what is running
+        // now" and cannot answer "was that always there", which is the question the manual audit
+        // actually turns on. See RigHistory.
+        RigHistory history = new RigHistory();
+        table.setOnSample(history::sample);
+
+        VBox tableSide = new VBox(UiTokens.SPACE_3, history, tableNote, table);
         VBox.setVgrow(tableSide, Priority.ALWAYS);
 
         HBox tabs = Ui.row(UiTokens.SPACE_3);
@@ -169,17 +177,22 @@ public final class RigMonitorView {
             }
             visible(overview, tab[0].isOverview());
             visible(tableSide, !tab[0].isOverview());
+            history.show(tab[0]);
             if (!tab[0].isOverview()) {
                 table.setColumns(tab[0].columns());
             }
         };
 
-        VBox notices = new VBox(UiTokens.SPACE_2);
+        // ⚠ No inline strip. A kill or a restart is answered by the rig's own log — the rules write
+        // a line for both the success and the refusal — and the notification system carries it from
+        // there. Success matters as much as failure here: killing a row makes it vanish from a table
+        // of three dozen similar rows, and a player who is not certain they clicked the right one
+        // needs the engine to say what went.
         table.bind(session::processes);
-        table.setOnKill(process -> report(notices, session.killProcess(process.processId())));
-        table.setOnRestart(process -> report(notices, session.restartProcess(process.processId())));
+        table.setOnKill(process -> session.killProcess(process.processId()));
+        table.setOnRestart(process -> session.restartProcess(process.processId()));
 
-        root.getChildren().addAll(head, tabs, notices, overview, tableSide);
+        root.getChildren().addAll(head, tabs, overview, tableSide);
 
         Runnable refresh = () -> {
             ComputeBudget budget = session.computeBudget();
@@ -191,7 +204,7 @@ public final class RigMonitorView {
             free.set(String.valueOf(available));
             recovering.set(String.valueOf(budget.recovering().cycles()));
 
-            grid.show(slices(budget));
+            grid.show(slices(budget, session.miningChain()));
             cage.show(session.mining().selfMiningCycles(), total, session.personalHeat());
             activity.refresh();
 
@@ -213,31 +226,12 @@ public final class RigMonitorView {
         };
 
         applyTab[0].run();
-        report(notices, null);
         refresh.run();
         session.onChange(s -> refresh.run());
 
         ScrollPane scroll = new ScrollPane(root);
         scroll.setFitToWidth(true);
         return scroll;
-    }
-
-    /**
-     * Prints whatever the rules said about a kill or a restart, and nothing of the view's own.
-     *
-     * <p>⚠ Success is reported too, not only refusal. Killing a row makes it vanish from a table of a
-     * dozen similar rows, and a player who is not certain they clicked the right one needs the engine
-     * to say what went — otherwise the most consequential action on this panel is also its quietest.
-     */
-    private static void report(VBox notices, GameSession.Outcome outcome) {
-        if (outcome == null) {
-            notices.getChildren().clear();
-        } else if (outcome.succeeded()) {
-            notices.getChildren().setAll(Note.consequence("", "Done. The log has the detail."));
-        } else {
-            notices.getChildren().setAll(Note.consequence("", outcome.message()));
-        }
-        visible(notices, !notices.getChildren().isEmpty());
     }
 
     /** Shows or hides a node and takes it out of the layout with it. */
@@ -253,7 +247,7 @@ public final class RigMonitorView {
      * Thermal Budget curve" is a state the player can act on and the consumer they came from is not.
      * Everything else keeps its owner.
      */
-    static List<CycleGrid.Slice> slices(ComputeBudget budget) {
+    static List<CycleGrid.Slice> slices(ComputeBudget budget, MiningSnapshot mining) {
         Map<ComputeConsumer, Long> active = new EnumMap<>(ComputeConsumer.class);
         long recovering = 0;
         for (ComputeAllocation allocation : budget.allocations()) {
@@ -269,7 +263,7 @@ public final class RigMonitorView {
             long cycles = active.getOrDefault(consumer, 0L);
             if (cycles > 0) {
                 slices.add(new CycleGrid.Slice(
-                        owner(consumer), (int) cycles, label(consumer), detail(consumer, cycles)));
+                        owner(consumer), (int) cycles, label(consumer), detail(consumer, mining)));
             }
         }
         if (recovering > 0) {
@@ -328,10 +322,19 @@ public final class RigMonitorView {
         };
     }
 
-    private static String detail(ComputeConsumer consumer, long cycles) {
+    /**
+     * The right-hand note on an allocation row.
+     *
+     * <p>⚠ The mining figure is the engine's <b>expectation</b>, read off the port rather than
+     * multiplied out here. Self-mining is a Poisson process since 2026-07-27 and its rate depends on
+     * the mode — a solo miner keeps the fee a pooled one pays — so a view that did its own
+     * arithmetic would print the wrong number for half the players and look authoritative doing it.
+     */
+    private static String detail(ComputeConsumer consumer, MiningSnapshot mining) {
         if (consumer == ComputeConsumer.SELF_MINING) {
-            return String.format(
-                    Locale.ROOT, "%.1f EC/hr", cycles * RigStatus.MINOR_UNITS_PER_CYCLE_HOUR / 100.0d);
+            return String.format(Locale.ROOT, "~%.1f EC/hr %s",
+                    mining.expectedMinorUnitsPerHour() / 100.0d,
+                    mining.mode() == MiningMode.SOLO ? "solo" : "pooled");
         }
         return consumer == ComputeConsumer.DEPLOYED_MINER ? "on your rig" : "held";
     }

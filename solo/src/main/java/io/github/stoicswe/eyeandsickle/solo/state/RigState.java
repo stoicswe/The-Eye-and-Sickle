@@ -1,6 +1,8 @@
 package io.github.stoicswe.eyeandsickle.solo.state;
 
 import io.github.stoicswe.eyeandsickle.solo.Balance;
+import io.github.stoicswe.eyeandsickle.solo.Pools;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -24,6 +26,78 @@ public final class RigState {
 
     /** Cycles the player has voluntarily committed to self-mining. Safe, silent, zero-heat (I4). */
     public long selfMiningCycles = 0L;
+
+    /**
+     * Which way those cycles are pointed: {@code "POOLED"} or {@code "SOLO"}.
+     *
+     * <p>⚠ <b>Pooled is the default, and that is Invariant I4 talking.</b> {@code
+     * docs/design/03-economy.md} §1 prices self-mining as the income <em>floor</em> — the thing a
+     * player falls back on when heat has closed everything else off — and a floor has to be the
+     * guaranteed figure. Solo mining has the same expectation and none of the guarantee: a hot
+     * player who was silently opted into it could mine a whole session for nothing, which turns the
+     * safety net into a second punishment and is precisely the "fun-ejector" {@code
+     * docs/design/04-mining.md} §1.1 warns against. Solo is a thing you choose.
+     *
+     * <p>A string rather than the enum for the same reason every other persisted vocabulary here is:
+     * a save that predates a constant must load rather than throw.
+     */
+    public String miningMode = "POOLED";
+
+    /**
+     * Which pool, when pooled. Ignored entirely when solo.
+     *
+     * <p>An id rather than the record, and tolerant of an unknown one — a save naming a pool that no
+     * longer exists falls back to the default rather than throwing, the same way an unknown mode
+     * does. A player should never be locked out of their own save by a content change.
+     */
+    public String miningPoolId = Pools.DEFAULT_ID;
+
+    /**
+     * Normalised progress toward the next payout, and the {@code Exp(1)} variate it is racing.
+     *
+     * <p>See {@code ChainState} for why this pair is normalised rather than counted in hashes. ⚠ It
+     * is persisted but <b>never published</b>: mining is memoryless, so a progress readout would be
+     * a lie, and a player who believed it would hold cycles on mining to protect progress that does
+     * not exist ({@code MiningSnapshot}).
+     */
+    public double miningWorkDone = 0.0d;
+
+    public double miningWorkTarget = 1.0d;
+
+    /**
+     * Sub-minor-unit change owed to the player, carried between payouts.
+     *
+     * <p>⚠ Not fussiness. A pool share is worth about 33.3 minor units, and truncating each one
+     * would quietly skim a third of a minor unit per share — about 40 EC over a hundred hours, and
+     * it would make a session played in one sitting pay differently from the same session played in
+     * ten. That is the exact class of bug {@code MiningRules} was already written to avoid, so the
+     * remainder is carried instead of dropped.
+     */
+    public double miningResidueMinorUnits = 0.0d;
+
+    /**
+     * Earned but not yet paid out, in minor units — the pool's internal balance for this rig.
+     *
+     * <p>Settled every {@link Balance#POOL_SETTLE_SECONDS}, which is what keeps {@code ledger(1)}
+     * readable at 120 shares an hour. ⚠ Persisted, so a quit never loses it; the first tick back
+     * settles it because the check is against the clock rather than a counter.
+     */
+    public long miningPendingMinorUnits = 0L;
+
+    /** How many payouts are waiting in {@link #miningPendingMinorUnits}, for the ledger's wording. */
+    public int miningPendingPayouts = 0;
+
+    /** When the pool last settled up. */
+    public Instant miningSettledAt;
+
+    /** Blocks found, or shares accepted, over this character's life. */
+    public long miningPayouts = 0L;
+
+    /** Everything mining has ever paid this character, in minor units. */
+    public long miningMinorUnits = 0L;
+
+    /** When the last payout landed, or null if none ever has. */
+    public Instant miningLastPayoutAt;
 
     public List<AllocationState> allocations = new ArrayList<>();
 
