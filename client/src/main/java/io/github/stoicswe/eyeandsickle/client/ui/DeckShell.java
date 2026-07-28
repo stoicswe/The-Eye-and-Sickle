@@ -953,7 +953,7 @@ public final class DeckShell {
         // ⚠ No style class any more. There is no CSS for this — see the note in theme.css: a
         // background radius under the notch's polygon clip is applied and then cut straight off,
         // which is how this feature silently did nothing the first time.
-        boolean rounded = profile.settings().roundedWindows;
+        boolean rounded = profile.appearance().roundedWindows;
         // ⚠ The desk windows are shaped by a CLIP, not by CSS — see WindowFrame.clip. The class
         // above only reaches painted backgrounds; without this call the setting would appear to do
         // nothing at all, which is exactly what it did on the first attempt.
@@ -968,7 +968,7 @@ public final class DeckShell {
     public void applyControlOrderSetting() {
         desk.setControlOrder(
                 io.github.stoicswe.eyeandsickle.client.ui.chrome.ControlOrder.resolve(
-                        profile.settings().subwindowControlOrder),
+                        profile.appearance().subwindowControlOrder),
                 MAC);
     }
 
@@ -1069,19 +1069,19 @@ public final class DeckShell {
         // a margin and the deck is pushed in by exactly that margin — that pairing is condition 2 of
         // the §9 amendment (a bezel may not cost legibility), and setting one without the other
         // either paints the casing over the top strip or leaves a blank band around the deck.
-        BezelStyle casing = BezelStyle.byId(profile.settings().bezel).orElse(BezelStyle.OFF);
+        BezelStyle casing = BezelStyle.byId(profile.appearance().bezel).orElse(BezelStyle.OFF);
         bezel.setStyle(casing);
         javafx.scene.layout.StackPane.setMargin(
                 deckRoot, new javafx.geometry.Insets(casing.margin()));
         javafx.scene.layout.StackPane.setMargin(
                 notices, new javafx.geometry.Insets(casing.margin()));
 
-        substrate.setMode(WallpaperMode.byId(profile.settings().wallpaper).orElse(WallpaperMode.DRIFT));
-        substrate.setAberration(profile.settings().crtAberration);
+        substrate.setMode(WallpaperMode.byId(profile.appearance().wallpaper).orElse(WallpaperMode.DRIFT));
+        substrate.setAberration(profile.appearance().crtAberration);
         crt.setEdgeSource(this::glitchEdges);
-        crt.setCurvature(profile.settings().crtCurvature / 100.0d);
-        crt.setScanlines(profile.settings().crtScanlines);
-        crt.setGlitch(profile.settings().crtGlitch);
+        crt.setCurvature(profile.appearance().crtCurvature / 100.0d);
+        crt.setScanlines(profile.appearance().crtScanlines);
+        crt.setGlitch(profile.appearance().crtGlitch);
     }
 
     /**

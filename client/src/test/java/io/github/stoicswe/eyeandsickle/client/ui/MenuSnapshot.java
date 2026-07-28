@@ -92,6 +92,9 @@ public final class MenuSnapshot {
             public void playSolo(int slot, String handleIfNew) {}
 
             @Override
+            public void setUpNewCharacter(int slot, String suggestedHandle) {}
+
+            @Override
             public void connectOnline(String serverAddress) {}
 
             @Override

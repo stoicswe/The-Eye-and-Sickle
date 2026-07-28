@@ -26,7 +26,7 @@ class BezelStyleTest {
         // keep making while they are trying to read a number.
         assertThat(BezelStyle.values()[0]).isEqualTo(BezelStyle.OFF);
         assertThat(BezelStyle.OFF.margin()).isZero();
-        assertThat(new ClientProfile(dir).settings().bezel).isEqualTo(BezelStyle.OFF.id());
+        assertThat(new ClientProfile(dir).appearance().bezel).isEqualTo(BezelStyle.OFF.id());
     }
 
     @Test

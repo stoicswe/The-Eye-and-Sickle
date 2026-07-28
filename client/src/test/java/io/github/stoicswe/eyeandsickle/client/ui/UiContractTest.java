@@ -220,7 +220,7 @@ class UiContractTest {
         void defaultIsSquare() {
             // The setting exists; it is not the default. §9's rejection list still describes what
             // this client looks like out of the box.
-            assertThat(new io.github.stoicswe.eyeandsickle.client.profile.ClientProfile.Settings()
+            assertThat(new io.github.stoicswe.eyeandsickle.client.profile.VisualSettings()
                             .roundedWindows)
                     .isFalse();
         }

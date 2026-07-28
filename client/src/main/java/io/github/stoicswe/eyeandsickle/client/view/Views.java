@@ -1218,7 +1218,7 @@ public final class Views {
         // offering 1280 × 800 at a scale where 1280 × 800 is unusable. Removing the scale removes
         // the whole degenerate branch instead of papering over it downstream.
         int casingMargin = io.github.stoicswe.eyeandsickle.client.ui.BezelStyle
-                .byId(profile.settings().bezel)
+                .byId(profile.appearance().bezel)
                 .orElse(io.github.stoicswe.eyeandsickle.client.ui.BezelStyle.OFF)
                 .margin();
         for (int percent : io.github.stoicswe.eyeandsickle.client.ui.UiScale.PERCENTAGES) {
@@ -1280,7 +1280,7 @@ public final class Views {
                 var tooBig = new ArrayList<String>();
                 var tooScaled = new ArrayList<String>();
                 int margin = io.github.stoicswe.eyeandsickle.client.ui.BezelStyle
-                        .byId(profile.settings().bezel)
+                        .byId(profile.appearance().bezel)
                         .orElse(io.github.stoicswe.eyeandsickle.client.ui.BezelStyle.OFF)
                         .margin();
                 for (var candidate : io.github.stoicswe.eyeandsickle.client.ui.WindowSize.selectable()) {
@@ -2016,7 +2016,7 @@ public final class Views {
         controlOrder.getItems().addAll(
                 io.github.stoicswe.eyeandsickle.client.ui.chrome.ControlOrder.selectable());
         controlOrder.setValue(io.github.stoicswe.eyeandsickle.client.ui.chrome.ControlOrder
-                .resolve(profile.settings().subwindowControlOrder));
+                .resolve(profile.appearance().subwindowControlOrder));
         controlOrder.setConverter(new javafx.util.StringConverter<>() {
             @Override
             public String toString(io.github.stoicswe.eyeandsickle.client.ui.chrome.ControlOrder o) {
@@ -2030,7 +2030,7 @@ public final class Views {
         });
         controlOrder.valueProperty().addListener((o, was, now) -> {
             if (now != null) {
-                profile.settings().subwindowControlOrder = now.id();
+                profile.appearance().subwindowControlOrder = now.id();
                 profile.save();
                 if (onDeskSettingsChanged != null) {
                     onDeskSettingsChanged.run();
@@ -2039,9 +2039,9 @@ public final class Views {
         });
 
         CheckBox rounded = new CheckBox("Rounded window corners");
-        rounded.setSelected(profile.settings().roundedWindows);
+        rounded.setSelected(profile.appearance().roundedWindows);
         rounded.selectedProperty().addListener((o, was, now) -> {
-            profile.settings().roundedWindows = now;
+            profile.appearance().roundedWindows = now;
             profile.save();
             if (onDeskSettingsChanged != null) {
                 onDeskSettingsChanged.run();
@@ -2072,7 +2072,7 @@ public final class Views {
         wallpaper.getItems()
                 .addAll(io.github.stoicswe.eyeandsickle.client.ui.WallpaperMode.selectable());
         wallpaper.setValue(io.github.stoicswe.eyeandsickle.client.ui.WallpaperMode
-                .byId(profile.settings().wallpaper)
+                .byId(profile.appearance().wallpaper)
                 .orElse(io.github.stoicswe.eyeandsickle.client.ui.WallpaperMode.DRIFT));
         wallpaper.setConverter(new javafx.util.StringConverter<>() {
             @Override
@@ -2087,7 +2087,7 @@ public final class Views {
         });
         wallpaper.valueProperty().addListener((o, was, now) -> {
             if (now != null) {
-                profile.settings().wallpaper = now.id();
+                profile.appearance().wallpaper = now.id();
                 profile.save();
                 onDeskSettingsChanged.run();
             }
@@ -2103,7 +2103,7 @@ public final class Views {
         ChoiceBox<io.github.stoicswe.eyeandsickle.client.ui.BezelStyle> bezel = new ChoiceBox<>();
         bezel.getItems().addAll(io.github.stoicswe.eyeandsickle.client.ui.BezelStyle.selectable());
         bezel.setValue(io.github.stoicswe.eyeandsickle.client.ui.BezelStyle
-                .byId(profile.settings().bezel)
+                .byId(profile.appearance().bezel)
                 .orElse(io.github.stoicswe.eyeandsickle.client.ui.BezelStyle.OFF));
         Label bezelNote = wrapped(bezel.getValue().note());
         bezelNote.getStyleClass().add("es-text-secondary");
@@ -2120,7 +2120,7 @@ public final class Views {
         });
         bezel.valueProperty().addListener((o, was, now) -> {
             if (now != null) {
-                profile.settings().bezel = now.id();
+                profile.appearance().bezel = now.id();
                 bezelNote.setText(now.note());
                 profile.save();
                 onDeskSettingsChanged.run();
@@ -2134,17 +2134,17 @@ public final class Views {
         });
 
         CheckBox scanlines = new CheckBox("CRT scanlines");
-        scanlines.setSelected(profile.settings().crtScanlines);
+        scanlines.setSelected(profile.appearance().crtScanlines);
         scanlines.selectedProperty().addListener((o, was, now) -> {
-            profile.settings().crtScanlines = now;
+            profile.appearance().crtScanlines = now;
             profile.save();
             onDeskSettingsChanged.run();
         });
 
         CheckBox aberration = new CheckBox("Chromatic aberration");
-        aberration.setSelected(profile.settings().crtAberration);
+        aberration.setSelected(profile.appearance().crtAberration);
         aberration.selectedProperty().addListener((o, was, now) -> {
-            profile.settings().crtAberration = now;
+            profile.appearance().crtAberration = now;
             profile.save();
             onDeskSettingsChanged.run();
         });
@@ -2152,23 +2152,23 @@ public final class Views {
         // A slider rather than a checkbox: curvature is the one artefact with a useful middle. A
         // trace of rim aberration reads as glass; a lot of it reads as a cheap filter, and where the
         // line falls between those is taste, which is exactly what a slider is for.
-        Slider curvature = new Slider(0, 100, profile.settings().crtCurvature);
+        Slider curvature = new Slider(0, 100, profile.appearance().crtCurvature);
         curvature.setShowTickMarks(true);
         curvature.setMajorTickUnit(25);
         curvature.setBlockIncrement(5);
         Label curvatureValue = io.github.stoicswe.eyeandsickle.client.ui.Ui.micro(
-                profile.settings().crtCurvature + "%");
+                profile.appearance().crtCurvature + "%");
         curvature.valueProperty().addListener((o, was, now) -> {
-            profile.settings().crtCurvature = (int) Math.round(now.doubleValue());
-            curvatureValue.setText(profile.settings().crtCurvature + "%");
+            profile.appearance().crtCurvature = (int) Math.round(now.doubleValue());
+            curvatureValue.setText(profile.appearance().crtCurvature + "%");
             profile.save();
             onDeskSettingsChanged.run();
         });
 
         CheckBox glitch = new CheckBox("Signal glitch");
-        glitch.setSelected(profile.settings().crtGlitch);
+        glitch.setSelected(profile.appearance().crtGlitch);
         glitch.selectedProperty().addListener((o, was, now) -> {
-            profile.settings().crtGlitch = now;
+            profile.appearance().crtGlitch = now;
             profile.save();
             onDeskSettingsChanged.run();
         });
@@ -2176,7 +2176,7 @@ public final class Views {
         ChoiceBox<io.github.stoicswe.eyeandsickle.client.ui.cursors.CursorSkin> cursor = new ChoiceBox<>();
         cursor.getItems().addAll(io.github.stoicswe.eyeandsickle.client.ui.cursors.CursorSkin.selectable());
         cursor.setValue(io.github.stoicswe.eyeandsickle.client.ui.cursors.CursorSkin
-                .byId(profile.settings().cursorSkin)
+                .byId(profile.appearance().cursorSkin)
                 .orElse(io.github.stoicswe.eyeandsickle.client.ui.cursors.CursorSkin.SYSTEM));
         cursor.setConverter(new javafx.util.StringConverter<>() {
             @Override
@@ -2191,7 +2191,7 @@ public final class Views {
         });
         cursor.valueProperty().addListener((o, was, now) -> {
             if (now != null) {
-                profile.settings().cursorSkin = now.id();
+                profile.appearance().cursorSkin = now.id();
                 profile.save();
                 // Through the theme manager, because a pointer is drawn in the current palette's
                 // colours and only the theme manager knows which stylesheets are live.
@@ -2343,6 +2343,7 @@ public final class Views {
                 hostnameResult));
 
         pages.put("Appearance", settingsPage(
+                scopeNote(session),
                 theme,
                 wrapped("Every theme is the same deck with a different palette — one stylesheet "
                         + "owns the layout, the hairlines and the motion, so no skin can hide or "
@@ -2351,6 +2352,7 @@ public final class Views {
                         + "rather than a style, and nothing else about the client changes.")));
 
         pages.put("Windows", settingsPage(
+                scopeNote(session),
                 nativeBorder,
                 wrapped("Gives the game window your system's own title bar and buttons "
                         + "instead of the ones it draws itself. Takes effect the next time "
@@ -2396,6 +2398,7 @@ public final class Views {
                         + "arithmetic is invented, which is why this is opt-in.")));
 
         pages.put("Screen", settingsPage(
+                scopeNote(session),
                 Ui.label("Casing"),
                 bezel,
                 bezelNote,
@@ -2469,6 +2472,7 @@ public final class Views {
         pages.put("Accessibility", settingsPage(
                 Ui.label("Pointer"),
                 cursor,
+                scopeNote(session),
                 wrapped("The pointer is the last piece of your operating system left on "
                         + "screen, so the deck can draw its own — in whatever colour the "
                         + "current theme means by \"live\". \"System pointer\" leaves yours "
@@ -2724,7 +2728,38 @@ public final class Views {
         return body;
     }
 
-    private static String validateHandle(String handle) {
+    /**
+     * Who the appearance settings on this page belong to.
+     *
+     * <h2>Why this line has to exist</h2>
+     *
+     * Appearance became per character on 2026-07-28, and the Settings window is reached from two
+     * places that look identical: the login screen, where it edits the machine's look, and the deck,
+     * where it edits the loaded character's. Without a sentence saying which, a player who re-themes
+     * from the menu and then finds their character unchanged has been told nothing at all — and the
+     * conclusion they will draw is that the setting is broken, not that it is scoped.
+     *
+     * <p>⚠ Not every control on these pages is per character. The system window border, the window
+     * size, text size and reduce-motion are machine-wide, and each says so in its own note. This
+     * line is deliberately about the ones that moved.
+     */
+    private static Label scopeNote(GameSession session) {
+        Label note = wrapped(session == null
+                ? "These settings belong to this machine — the menu, and the next character you "
+                        + "create starts from them. Load a character and this page edits that "
+                        + "character's look instead."
+                : "These settings belong to " + session.handle() + ". Each character keeps its own "
+                        + "look, so changing them here leaves your other characters alone.");
+        note.getStyleClass().add("es-settings-scope");
+        return note;
+    }
+
+    /**
+     * Package-private so {@link SetupWizardView} validates a handle with THIS rule rather than a
+     * second one that drifts from it. A setup assistant that accepted a name the Operator page
+     * would later reject is worse than having no assistant.
+     */
+    static String validateHandle(String handle) {
         if (handle == null || handle.isBlank()) {
             return "A handle cannot be blank.";
         }

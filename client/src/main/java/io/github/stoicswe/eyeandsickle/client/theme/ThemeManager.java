@@ -56,7 +56,7 @@ public final class ThemeManager {
 
     public ThemeManager(ClientProfile profile) {
         this.profile = profile;
-        this.current.set(ThemeId.byId(profile.settings().themeId).orElse(ThemeId.DECK));
+        this.current.set(ThemeId.byId(profile.appearance().themeId).orElse(ThemeId.DECK));
         this.reducedMotion = resolveReducedMotion();
         Fonts.load();
         Pulse.shared().setReducedMotion(reducedMotion);
@@ -118,7 +118,28 @@ public final class ThemeManager {
     /** Switches theme and persists the choice. */
     public void select(ThemeId id) {
         current.set(id);
-        profile.settings().themeId = id.id();
+        profile.appearance().themeId = id.id();
+        applyAll();
+    }
+
+    /**
+     * Re-reads the look after the profile has been pointed at a <b>different</b> one, then applies it.
+     *
+     * <h2>⚠ Why {@code applyAll()} alone is not enough</h2>
+     *
+     * This class caches the current {@link ThemeId} in a property, and {@code applyTo} paints from
+     * that cache rather than from the profile. {@code select()} keeps the two in step because it
+     * writes both. But {@code ClientProfile.useCharacterAppearance} swaps the entire
+     * {@code VisualSettings} the profile points at — behind this class's back — so the cache is
+     * suddenly describing the palette of whoever was loaded <em>before</em>. Calling
+     * {@code applyAll()} then faithfully re-applies the wrong theme, and the symptom is a character
+     * opening in the previous character's colours, which looks like the per-character setting having
+     * failed to save.
+     *
+     * <p>Call this, not {@code applyAll()}, after any change to <em>which</em> look is in force.
+     */
+    public void reloadAppearance() {
+        current.set(ThemeId.byId(profile.appearance().themeId).orElse(ThemeId.DECK));
         applyAll();
     }
 
@@ -140,7 +161,7 @@ public final class ThemeManager {
      */
     public void refreshCursors() {
         var skin = io.github.stoicswe.eyeandsickle.client.ui.cursors.CursorSkin
-                .byId(profile.settings().cursorSkin)
+                .byId(profile.appearance().cursorSkin)
                 .orElse(io.github.stoicswe.eyeandsickle.client.ui.cursors.CursorSkin.SYSTEM);
         List<String> sheets = scenes.isEmpty()
                 ? List.of(resource(ThemeId.BASE_STYLESHEET))

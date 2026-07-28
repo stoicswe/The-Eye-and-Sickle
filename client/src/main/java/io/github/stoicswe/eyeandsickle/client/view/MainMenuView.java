@@ -70,6 +70,14 @@ public final class MainMenuView {
         /** Start or resume a solo character in the given slot, with this handle if it is new. */
         void playSolo(int slot, String handleIfNew);
 
+        /**
+         * Opens the setup assistant for an empty slot.
+         *
+         * <p>Separate from {@link #playSolo} on purpose: creating a character and resuming one are
+         * different acts, and only the first has anything to ask.
+         */
+        void setUpNewCharacter(int slot, String suggestedHandle);
+
         /** Connect to a home server. Currently reports why it cannot — see CL-8. */
         void connectOnline(String serverAddress);
 
@@ -198,7 +206,13 @@ public final class MainMenuView {
         footer.setPadding(new Insets(16, 40, 28, 40));
         root.setBottom(footer);
 
-        if (!profile.settings().askedFamiliarity) {
+        // ⚠ The setup assistant asks this now, properly, on a pane of its own — so it must NOT
+        // also fire here on a fresh install, where it would pop over the login screen and then be
+        // asked again two minutes later. It survives for one case only: a profile that already has
+        // characters and has never been asked, i.e. a save made before the assistant existed. Those
+        // players would otherwise never see the question unless they created another character.
+        boolean anyCharacters = slots.soloSlots().stream().anyMatch(CharacterSlots.Slot::occupied);
+        if (!profile.settings().askedFamiliarity && anyCharacters) {
             javafx.application.Platform.runLater(() -> askFamiliarity(profile));
         }
         return root;
@@ -434,18 +448,18 @@ public final class MainMenuView {
         TextField handle = new TextField();
         handle.setPromptText("handle");
         handle.setPrefColumnCount(18);
-        // ⚠ A blank field still starts a character, called "operator". The alternative is a button
-        // that does nothing and does not say why, and this screen's whole job is to get out of the
-        // way — the handle is renameable in Settings.
-        Runnable start = () -> actions.playSolo(slot.index(),
-                handle.getText() == null || handle.getText().isBlank()
-                        ? "operator" : handle.getText().trim());
+        // The field is a HEAD START, not the decision: whatever is typed here arrives pre-filled on
+        // the assistant's first question, where it can still be changed. Leaving it blank is fine —
+        // the assistant asks for a handle properly and will not continue without one.
+        Runnable start = () -> actions.setUpNewCharacter(slot.index(),
+                handle.getText() == null ? "" : handle.getText().trim());
         Button create = menuButton("New character", start::run);
         handle.setOnAction(event -> start.run());
         HBox row = new HBox(10, handle, create);
         row.setAlignment(Pos.CENTER);
 
-        Label note = new Label("A new operator on this machine. Nothing here needs a network.");
+        Label note = new Label("A new operator on this machine. Set-up asks five short questions; "
+                + "nothing here needs a network.");
         note.getStyleClass().add("es-small");
         box.getChildren().addAll(row, note);
         return box;
@@ -599,6 +613,14 @@ public final class MainMenuView {
             @Override
             public void playSolo(int slot, String handleIfNew) {
                 playSolo.accept(slot, handleIfNew);
+            }
+
+            @Override
+            public void setUpNewCharacter(int slot, String suggestedHandle) {
+                // Small callers get the old behaviour: create the character straight away. The
+                // assistant is a screen the application owns, and a helper that took a callback for
+                // it would be asking every caller to build one.
+                playSolo.accept(slot, suggestedHandle);
             }
 
             @Override

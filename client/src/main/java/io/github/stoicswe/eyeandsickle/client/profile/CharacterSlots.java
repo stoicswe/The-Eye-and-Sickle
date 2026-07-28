@@ -78,8 +78,17 @@ public final class CharacterSlots {
         }
     }
 
-    /** Deletes a slot. The caller is responsible for confirming — this does not ask. */
+    /**
+     * Deletes a slot. The caller is responsible for confirming — this does not ask.
+     *
+     * <p>⚠ The slot's <b>appearance</b> goes with it. Slots are reused, and a new character
+     * inheriting a deleted one's palette is a ghost nobody can explain: the assistant would show
+     * them choosing Deck and the game would open in Phosphor. Forgotten even when the file was
+     * already gone, so a half-deleted slot cannot leave one behind.
+     */
     public boolean delete(int slot) {
+        profile.settings().forgetAppearance(slot);
+        profile.save();
         try {
             return Files.deleteIfExists(saveFile(slot));
         } catch (IOException e) {

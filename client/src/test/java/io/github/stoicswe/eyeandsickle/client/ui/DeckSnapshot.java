@@ -96,10 +96,10 @@ public final class DeckSnapshot {
         // The screen artefacts ship off, so a snapshot with the defaults would prove only that they
         // are off. Turned on here because the render IS the check for them — none of the three has a
         // failure mode a text assertion could catch.
-        profile.settings().crtScanlines = true;
-        profile.settings().crtAberration = true;
-        profile.settings().crtGlitch = true;
-        profile.settings().crtCurvature = 100;
+        profile.appearance().crtScanlines = true;
+        profile.appearance().crtAberration = true;
+        profile.appearance().crtGlitch = true;
+        profile.appearance().crtCurvature = 100;
         ThemeManager themes = new ThemeManager(profile);
 
         var game = SoloGame.open(new SaveStore(profileDir.resolve("save.json")), "halflight", Clock.systemUTC());

@@ -170,6 +170,58 @@ A row of round faces with a name under each — macOS's user picker — over GDM
 
 Online play is the last face in the row — macOS's *"Other…"*, GDM's *"Not listed?"*. That placement is the claim: another way to be somebody, not another mode of the game.
 
+### 3.2 The setup assistant — the second centred layout (2026-07-28)
+
+§3.1 carved out **`MainMenuView` by name**. This is the second and, on current plans, the last: the pane a new character is created through.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  Back                    ▪ ▪ ▪ ▫ ▫ ▫ ▫                       │
+│                                                              │
+│                                                              │
+│                    How should it look?                       │
+│         Every palette is the same deck. One stylesheet…      │
+│                                                              │
+│              [swatch] [swatch] [swatch]                      │
+│              [swatch] [swatch] [swatch]                      │
+│                                                              │
+│  Cancel                                    [ CONTINUE ]      │
+└──────────────────────────────────────────────────────────────┘
+```
+
+macOS's Setup Assistant, in this deck's furniture: **one decision per pane**, a large title, a short paragraph of consequence, the control, and the only weighted button on the screen in the bottom right. Seven panes — welcome, identity, picture, palette, accessibility, teaching, ready.
+
+**Why it exists when Settings already has all of it.** Settings answers a question the player already has; an assistant tells them the question *exists*. A new player handed a deck of twenty tool windows does not know the pointer is theirs to pick, that there are six palettes, or that the game will stop explaining Unix if asked. The teaching level (CL-4 / T-2) is the clearest case — it materially changes the game, its default is right for one audience and wrong for another, and it used to be asked in a bare `Alert`.
+
+| | |
+|---|---|
+| **Scope** | `SetupWizardView` only, reached from the login screen's empty-slot branch |
+| **Progress** | Discrete **squares**, not dots — §4's vocabulary. A wizard's progress is genuinely countable, unlike the splash's bar (§4.1) |
+| **Accent** | Continue, and the selected option in any list. §2.1's one amber, spent on "what happens next" and "which one is chosen" |
+| **Options** | Rows, never a `ChoiceBox`. §9 bans hidden UI, and a pane with one question and a whole window has no argument for a menu |
+| **Motion** | None. Panes swap; nothing animates |
+
+⚠ **Only two values belong to the character** — the handle and the picture. Palette, pointer, motion, text size, hostname and teaching level are **profile-global**. The assistant runs per character and asks all of them anyway, because a player creating their second character is also a player who might now want the high-visibility palette. What makes that safe: **every global pane is seeded from the value already set**, so pressing Continue through the whole wizard changes nothing. macOS dodges the same split by asking the long questions only on first boot; that was rejected here because it hides the one screen that tells a player these options exist.
+
+⚠ **The globals are applied live** — a palette cannot be chosen from its name — so the caller snapshots them on entry and **Cancel puts them all back**. Trying three palettes and backing out must not re-theme the character the player was already playing.
+
+⚠ **The palette swatches carry literal colours**, one block per theme, and have to: a swatch is rendered under whichever palette is *currently* live, so `-es-` tokens would paint all six tiles identically in whichever theme is on. §10 criterion 2 is satisfied the way §4.1's splash satisfies it — the colours are in `theme.css`, they are simply not resolved from the palette. `SetupSwatchTest` reads both sides and fails the build when they drift.
+
+⚠ **Appearance belongs to the character (amended 2026-07-28).** The assistant's palette pane originally wrote a machine-wide setting, so creating a second character silently re-themed the first. It does not any more: `themeId`, pointer skin, wallpaper, casing, the three screen artefacts, curvature, rounded corners and subwindow control order all live in `VisualSettings`, one per solo slot. The assistant previews on a **detached** copy that belongs to no character until one is created — which is what makes Cancel free rather than something that has to be unwound.
+
+| Scope | Fields | Why |
+|---|---|---|
+| **Per character** | `themeId`, `cursorSkin`, `wallpaper`, `bezel`, `crtScanlines`, `crtAberration`, `crtGlitch`, `crtCurvature`, `roundedWindows`, `subwindowControlOrder` | Three characters are three operators at three rigs, and the login screen already presents them that way |
+| **Machine-wide** | `uiScalePercent`, `reducedMotionOverride` | Accessibility **floors** (`docs/client/07`). Per-character would hand a player who needs 150% text 100% on every new character |
+| **Machine-wide** | `nativeWindowBorder` | `Stage.initStyle` is rejected on a realised Stage — per-character it could not take effect until a restart |
+| **Machine-wide** | `windowSize`, `fullScreen` | The window's geometry, not the deck's look; per-character it would resize the player's window on every save switch |
+
+⚠ **Settings says whose look it is.** The window is reached from two places that look identical — the login screen (the machine's) and the deck (the character's) — so each appearance page carries one line naming the owner. Without it, a player who re-themes from the menu and finds their character unchanged concludes the setting is broken rather than scoped.
+
+⚠ **`ThemeManager` caches the current `ThemeId` and paints from the cache.** Pointing the profile at a different look changes nothing on screen by itself, and `applyAll()` after a swap faithfully re-applies the *previous* character's palette. `reloadAppearance()` re-reads then applies; `VisualSettingsTest` asserts every swap in the client is immediately followed by it.
+
+⚠ **Escape is not bound.** Nothing owns Escape before the deck (the pause-menu filter is installed in `startDeck`), and on a screen whose job is a sequence of decisions a key that discards the sequence is one keystroke away from losing a picture the player just cropped. Cancel is a control they have to mean.
+
 ---
 
 ## 4. Component catalog

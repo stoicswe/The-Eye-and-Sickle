@@ -20,8 +20,13 @@ class WindowChromeSettingsTest {
     @DisplayName("⚠ both chrome opt-ins ship OFF — §0 and §9 describe the default, not an option")
     void chromeOptInsDefaultOff() {
         ClientProfile.Settings settings = new ClientProfile.Settings();
+        // ⚠ The two chrome opt-ins now live in different places, and deliberately so: rounding is
+        // per character (it is part of the look), while the system border is machine-wide because
+        // Stage.initStyle is rejected on a realised Stage and a per-character one could not take
+        // effect until a restart.
+        VisualSettings look = new VisualSettings();
 
-        assertThat(settings.roundedWindows)
+        assertThat(look.roundedWindows)
                 .as("§9.3: rounded corners are opt-in; §9's rejection list describes the default")
                 .isFalse();
         assertThat(settings.nativeWindowBorder)
@@ -37,12 +42,13 @@ class WindowChromeSettingsTest {
         // stored settings. Storing one as a function of the other would make a player's explicit
         // choice disappear the next time they toggled the other.
         ClientProfile.Settings settings = new ClientProfile.Settings();
+        VisualSettings look = new VisualSettings();
         settings.nativeWindowBorder = true;
 
-        assertThat(settings.roundedWindows).isFalse();
+        assertThat(look.roundedWindows).isFalse();
 
-        settings.roundedWindows = true;
+        look.roundedWindows = true;
         settings.nativeWindowBorder = false;
-        assertThat(settings.roundedWindows).isTrue();
+        assertThat(look.roundedWindows).isTrue();
     }
 }

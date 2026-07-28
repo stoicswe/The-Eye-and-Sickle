@@ -1,13 +1,11 @@
 package io.github.stoicswe.eyeandsickle.client.ui;
 
 import javafx.geometry.Pos;
-import javafx.scene.Group;
 import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
-import javafx.scene.shape.Circle;
 import javafx.scene.shape.Rectangle;
 
 /**
@@ -47,16 +45,13 @@ import javafx.scene.shape.Rectangle;
  * the four dark palettes that is invisible; on {@code classic} the ground is light and the swap is a
  * real change. That is the correct reading — the firmware is the machine's, the desktop is yours.
  *
- * <h2>⚠ The glow is CONCENTRIC STROKES, not an effect</h2>
+ * <h2>The glow</h2>
  *
- * §9 lists drop shadows, blur and glassmorphism as build-blocking and {@code UiContractTest} fails
- * the build on a {@code dropshadow(} anywhere in the stylesheet — the §9.3 amendment reversed the
- * rounded-corner ban and left that one standing. So the halo is four circles sharing a centre, each
- * a little wider and a lot more transparent than the one inside it. It also degrades better: a
- * Gaussian glow on a 3px stroke is mush at 150% UI scale, and four rings are four rings.
- *
- * <p>They breathe, on a sine over the whole halo's opacity. That is continuous motion, permitted
- * here by §5.1 and nowhere else; see {@link Fade} for the argument.
+ * {@link GlowRing} draws it, and its header carries the argument: eight overlapping strokes rather
+ * than an effect, because §9's ban on drop shadows and blur is still standing. Here it also
+ * <b>breathes</b>, on a sine over the halo's opacity, on wall time rather than on progress — a glow
+ * that slowed as the bar filled would be reporting on a load, and there is nothing to report. That
+ * is continuous motion, permitted by §5.1 and nowhere else; see {@link Fade} for the argument.
  *
  * <h2>The bar measures nothing, and that is why it may be continuous</h2>
  *
@@ -105,18 +100,7 @@ public final class PowerOn extends StackPane {
      */
     private static final double RING_RADIUS = 33;
 
-    /** Matches {@code .es-poweron-ring}'s stroke width — the layout box has to allow for it. */
-    private static final double CORE_STROKE = 3;
 
-    /**
-     * The halo, outermost first: how far each stroke sits from the bright ring.
-     *
-     * <p>⚠ The offsets are close and the widths (stylesheet) are wide, so every stroke OVERLAPS its
-     * neighbours. The first cut used four rings spaced evenly across thirteen points and read as
-     * four concentric circles — banding, not glow. A glow is a falloff, and a falloff drawn in
-     * strokes needs them to touch.
-     */
-    private static final double[] HALO_OFFSETS = {16.5, 12.5, 9, 6, 3.5, 1.5, -2, -4};
 
     /** One full breath of the halo. Slow enough to read as glow rather than as a blink. */
     private static final double BREATH_MS = 2200;
@@ -133,7 +117,7 @@ public final class PowerOn extends StackPane {
     private final VBox column;
     private final Label leading;
     private final Label trailing;
-    private final Group halo;
+    private final GlowRing ring;
     private javafx.animation.AnimationTimer ticker;
     private boolean finished;
 
@@ -147,25 +131,10 @@ public final class PowerOn extends StackPane {
 
         // ── the ring ──────────────────────────────────────────────────────────────────────────
         //
-        // Outermost first, so the bright core paints last and stays crisp. The offsets shrink and
-        // the stylesheet's alphas rise toward it — that ramp IS the glow.
-        halo = new Group();
-        for (int i = 0; i < HALO_OFFSETS.length; i++) {
-            halo.getChildren().add(haloRing(RING_RADIUS + HALO_OFFSETS[i], "es-poweron-glow-" + (i + 1)));
-        }
-
-        Circle core = new Circle(RING_RADIUS);
-        core.getStyleClass().add("es-poweron-ring");
-
-        // ⚠ Sized to the BRIGHT RING, not to the halo — the glow is allowed to overflow its own
-        // layout box. A box that contained the halo would push `u` and `S` a further seventeen
-        // points out on each side, and the three characters would stop reading as one word. Panes
-        // do not clip in JavaFX, so overflow costs nothing here.
-        StackPane ring = new StackPane(new Group(halo, core));
-        double span = RING_RADIUS * 2 + CORE_STROKE;
-        ring.setMinSize(span, span);
-        ring.setPrefSize(span, span);
-        ring.setMaxSize(span, span);
+        // The emblem lives in GlowRing, which carries the whole argument for why the glow is eight
+        // overlapping strokes rather than an effect, and why it overflows its own layout box.
+        GlowRing ring = new GlowRing(RING_RADIUS);
+        this.ring = ring;
 
         HBox wordmark = new HBox(UiTokens.SPACE_2, leading, ring, trailing);
         wordmark.setAlignment(Pos.CENTER);
@@ -209,11 +178,6 @@ public final class PowerOn extends StackPane {
         return label;
     }
 
-    private static Circle haloRing(double radius, String styleClass) {
-        Circle circle = new Circle(radius);
-        circle.getStyleClass().add(styleClass);
-        return circle;
-    }
 
     /**
      * Starts the splash.
@@ -267,7 +231,7 @@ public final class PowerOn extends StackPane {
         }
         // The breath runs on wall time, not on progress: a glow that slowed down as the bar filled
         // would be reporting on the load, and there is nothing to report.
-        halo.setOpacity(0.55 + 0.45 * Math.sin(elapsedMs / BREATH_MS * 2 * Math.PI));
+        ring.setGlow(0.55 + 0.45 * Math.sin(elapsedMs / BREATH_MS * 2 * Math.PI));
         double progress = Math.min(1.0, elapsedMs / FILL_MS);
         renderAt(progress);
         if (progress >= 1.0) {

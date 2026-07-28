@@ -14,6 +14,7 @@ import io.github.stoicswe.eyeandsickle.client.view.CalcView;
 import io.github.stoicswe.eyeandsickle.client.view.CommandPalette;
 import io.github.stoicswe.eyeandsickle.client.view.FileManagerView;
 import io.github.stoicswe.eyeandsickle.client.view.MainMenuView;
+import io.github.stoicswe.eyeandsickle.client.view.SetupWizardView;
 import io.github.stoicswe.eyeandsickle.client.view.BreachView;
 import io.github.stoicswe.eyeandsickle.client.view.LogView;
 import io.github.stoicswe.eyeandsickle.client.view.NetMapView;
@@ -218,7 +219,7 @@ public class EyeAndSickleClient extends Application {
         // the number in Settings described something the player never got.
         io.github.stoicswe.eyeandsickle.client.ui.BezelStyle casing =
                 io.github.stoicswe.eyeandsickle.client.ui.BezelStyle
-                        .byId(profile.settings().bezel)
+                        .byId(profile.appearance().bezel)
                         .orElse(io.github.stoicswe.eyeandsickle.client.ui.BezelStyle.OFF);
         // Both sides, and scaled with everything else — the casing is drawn inside the scaled deck,
         // so a bezel that ignored the factor would shrink as the interface grew.
@@ -341,11 +342,20 @@ public class EyeAndSickleClient extends Application {
      */
     private void showMainMenu(boolean fadeIn) {
         closeSession();
+        // Leaving a character puts the machine back into its own clothes. The login screen belongs
+        // to the machine, not to whichever operator was last sitting at it.
+        profile.useMenuAppearance();
+        themes.reloadAppearance();
 
         MainMenuView.Actions actions = new MainMenuView.Actions() {
             @Override
             public void playSolo(int slot, String handleIfNew) {
                 startSolo(slot, handleIfNew);
+            }
+
+            @Override
+            public void setUpNewCharacter(int slot, String suggestedHandle) {
+                showSetupWizard(slot, suggestedHandle);
             }
 
             @Override
@@ -377,6 +387,75 @@ public class EyeAndSickleClient extends Application {
         if (fadeIn) {
             io.github.stoicswe.eyeandsickle.client.ui.Fade.in(content);
         }
+    }
+
+    /**
+     * The setup assistant, between "New character" and the character existing.
+     *
+     * <p>⚠ It writes the profile's GLOBAL settings live, so the player can see a palette rather than
+     * read its name — which means backing out has to put them back. The snapshot is taken here
+     * rather than inside the view because the restore has to outlive the view: by the time cancel
+     * runs, that node is being discarded.
+     *
+     * <p>The picture is the one value that cannot be applied as it is chosen. There is no save to
+     * hold it until {@link #startSolo} has run, so it rides out of the wizard and is applied to the
+     * session immediately afterwards.
+     */
+    private void showSetupWizard(int slot, String suggestedHandle) {
+        ClientProfile.Settings settings = profile.settings();
+        io.github.stoicswe.eyeandsickle.client.profile.SettingsSnapshot before =
+                io.github.stoicswe.eyeandsickle.client.profile.SettingsSnapshot.of(settings);
+
+        // ⚠ The palette is previewed on a look that belongs to NOBODY yet. The assistant is choosing
+        // the appearance of a character that does not exist, so its edits must not reach the menu's
+        // — that is what makes Cancel free rather than something that has to be unwound, and it is
+        // why cancelling out of pane four cannot re-theme the character the player was playing.
+        io.github.stoicswe.eyeandsickle.client.profile.VisualSettings pending =
+                settings.appearance.copy();
+        profile.usePendingAppearance(pending);
+        themes.reloadAppearance();
+
+        SetupWizardView.Actions actions = new SetupWizardView.Actions() {
+            @Override
+            public void applyPreview() {
+                applyWindowSettings();
+            }
+
+            @Override
+            public void begin(int chosenSlot, String handle, String avatarPng) {
+                // The look becomes the character's here and nowhere earlier. startSolo re-points the
+                // profile at the slot, so the pending set has to be stored against it FIRST or the
+                // character opens wearing the menu's palette instead of the one just chosen.
+                settings.characterAppearance.put(String.valueOf(chosenSlot), pending);
+                profile.save();
+                startSolo(chosenSlot, handle);
+                if (session != null && avatarPng != null && !avatarPng.isEmpty()) {
+                    session.setAvatar(avatarPng);
+                }
+            }
+
+            @Override
+            public void cancel() {
+                // The pending look is simply dropped — nothing wrote it anywhere. Only the
+                // machine-wide settings the assistant touched need putting back.
+                before.restoreTo(settings);
+                profile.save();
+                profile.useMenuAppearance();
+                themes.reloadAppearance();
+                // ⚠ Restoring the VALUES is only half of it: two of them need a runtime call before
+                // anything on screen changes. applyWindowSettings is what actually moves the UI
+                // scaler — UiScale.setPercent alone leaves the Stage's minimum size stale.
+                themes.setReducedMotionOverride(before.reducedMotionOverride());
+                applyWindowSettings();
+                showMainMenu();
+            }
+        };
+
+        Scene scene = scaled(
+                SetupWizardView.create(profile, themes, slot, suggestedHandle, actions), 980, 760);
+        stage.setScene(scene);
+        themes.adopt(scene);
+        themes.applyAll();
     }
 
     /** Settings reached from the menu, before a game exists. */
@@ -455,7 +534,7 @@ public class EyeAndSickleClient extends Application {
         // ⚠ With a native frame the OS owns the outer corners, so clipping the scene root would cut
         // the game away INSIDE a square window — a visible gap between the content and the frame.
         // Desk windows still round; that is the deck's own furniture and stays the deck's business.
-        if (!profile.settings().roundedWindows || profile.settings().nativeWindowBorder) {
+        if (!profile.appearance().roundedWindows || profile.settings().nativeWindowBorder) {
             root.setClip(null);
             return;
         }
@@ -526,6 +605,13 @@ public class EyeAndSickleClient extends Application {
         String handle = handleIfNew != null && !handleIfNew.isBlank()
                 ? handleIfNew.trim()
                 : (profile.settings().soloHandle.isBlank() ? "operator" : profile.settings().soloHandle);
+
+        // ⚠ BEFORE the session, the shell, the windows and the deck. Everything below this line
+        // reads the appearance to build itself, and a deck constructed against the menu's palette
+        // and re-themed afterwards flashes the wrong look for one frame — on the screen the player
+        // is watching most closely, immediately after choosing it.
+        profile.useCharacterAppearance(slot);
+        themes.reloadAppearance();
 
         session = new LocalGameSession(SoloGame.open(store, handle, Clock.systemUTC()));
 

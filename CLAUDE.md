@@ -310,6 +310,55 @@ width, two's complement, byte order and overflow, and every *other* window hands
 the machine's notation without any surface that makes them legible. `client/ui/calc/` is the engine and
 is pure — the shell's `calc(1)` drives the same one, so the two cannot come to different answers.
 
+**Three screens come before the deck, and they are three different fictions (2026-07-28).**
+`ui/PowerOn` is the rig's **firmware** — a glowing ring with `u` and `S` fading in beside it as a bar
+fills, white on black, once per *process*. `view/MainMenuView` is the **login screen** — macOS's user
+picker (round faces, name under each) over GDM's furniture (`docs/design/ui-design-language.md` §3.1).
+`view/SetupWizardView` is the **setup assistant**, five questions on the way to a new character (§3.2).
+Then `ui/BootSequence` — **uOS** booting, printing that save's real state — and then the deck.
+
+⚠ **The splash ignores the palette on purpose.** `.es-poweron` declares its own white and black
+rather than resolving `-es-` tokens, so the five overlays have nothing to override: firmware runs
+before anything knows who the player is. ⚠ Its glow is **eight overlapping concentric strokes**
+(`ui/GlowRing`), not an effect — §9's ban on drop shadows and blur still stands, and evenly-spaced
+strokes render as concentric circles rather than as a falloff. ⚠ `GlowRing`'s colours are declared
+under `.es-poweron` and **resolve nowhere else**; the assistant restates them in the palette's terms.
+
+⚠ **APPEARANCE IS PER CHARACTER (2026-07-28).** `profile/VisualSettings` holds palette, pointer skin,
+wallpaper, casing, the three screen artefacts, curvature, rounded corners and subwindow control
+order — one per solo slot, in `Settings.characterAppearance` keyed by slot number. `Settings.appearance`
+is the machine's own look: the splash, the login screen, and the seed for a new character.
+`profile.appearance()` returns whichever is in force; **never cache it.**
+
+⚠ **Three things stay machine-wide, each for its own reason.** `uiScalePercent` and
+`reducedMotionOverride` are accessibility **floors** (`docs/client/07`) — per-character would give a
+player who needs 150% text 100% on every new character. `nativeWindowBorder` cannot be per-character
+at all: `Stage.initStyle` is rejected on a realised Stage. `windowSize`/`fullScreen` are geometry, and
+per-character would resize the player's window on every save switch.
+
+⚠ **`ThemeManager` caches the current `ThemeId` and paints from the cache**, so pointing the profile at
+a different look changes nothing by itself and `applyAll()` re-applies the PREVIOUS character's
+palette. Call **`themes.reloadAppearance()`** after every swap; `VisualSettingsTest` asserts that.
+
+⚠ **Migration is setter-only `@JsonProperty` hooks.** The mapper has `FAIL_ON_UNKNOWN_PROPERTIES` off,
+so without them every pre-split `settings.json` would have loaded with its ten appearance keys
+silently dropped — a player launching into a theme they never chose, with no error anywhere.
+
+⚠ **Only the handle and the picture belong to the SAVE.** The assistant previews appearance on a
+**detached** `VisualSettings` that becomes the character's only when it is created — which is what
+makes Cancel free rather than something to unwind. It still writes four machine-wide settings
+(hostname, teaching, text size, motion), and `SettingsSnapshot` restores those on Cancel. The picture
+cannot be applied where it is chosen (no save exists yet), so it rides out and lands via
+`session.setAvatar` immediately after `startSolo`. **CL-4 / T-2 is answered here now**, not in an
+`Alert` on the login screen.
+
+⚠ **Continuous motion is rationed by FILENAME.** A `Timeline` + `KeyValue` interpolates with
+`Interpolator.LINEAR` **by default**, so a fade could be added anywhere without the word appearing in
+the source — passing §10 criterion 7 by never tripping it. `UiContractTest` therefore asserts
+`AnimationTimer` appears in exactly `Fade.java` and `PowerOn.java` (§5.1). ⚠ And both fade their
+**content**, never the scene root: the root paints the ground and the Stage is `TRANSPARENT`, so
+ramping it shows the window through itself.
+
 **The deck is the client, as of 2026-07-26.** One `StageStyle.UNDECORATED` Stage — no OS chrome on any
 platform — laid out as `docs/design/ui-design-language.md` §3 specifies: top status strip, 34px rail,
 desk, command strip. Inside it, `ui/chrome/DeskManager` is a window manager the client draws itself:

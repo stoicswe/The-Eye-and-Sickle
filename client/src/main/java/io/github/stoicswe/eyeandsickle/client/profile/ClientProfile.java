@@ -62,10 +62,22 @@ public final class ClientProfile {
     private final Path settingsFile;
     private Settings settings;
 
+    /**
+     * The look currently in force.
+     *
+     * <p>⚠ A POINTER into {@link Settings}, not a copy. It is the menu's appearance before a
+     * character is loaded and that character's afterwards, and everything that draws — the theme
+     * manager, the deck, the settings panel — reads it through {@link #appearance()} rather than
+     * knowing which of the two it has. That is what stops "which look is this" being a question
+     * asked in twelve places and answered differently in one of them.
+     */
+    private VisualSettings active;
+
     public ClientProfile(Path directory) {
         this.directory = directory;
         this.settingsFile = directory.resolve("settings.json");
         this.settings = readSettings();
+        this.active = settings.appearance;
     }
 
     /** The conventional profile directory for this platform, unless overridden. */
@@ -112,6 +124,42 @@ public final class ClientProfile {
         return settings;
     }
 
+    /**
+     * The look currently in force — the menu's, or the loaded character's.
+     *
+     * <p>Never cached by a caller. A character load swaps what this returns, and a widget holding
+     * the previous one would keep painting the previous character's palette.
+     */
+    public VisualSettings appearance() {
+        return active;
+    }
+
+    /** Uses the menu's look: the splash, the login screen, and Settings with no game loaded. */
+    public void useMenuAppearance() {
+        this.active = settings.appearance;
+    }
+
+    /**
+     * Uses a solo slot's look, creating it from the menu's on first use.
+     *
+     * <p>That first-use copy is the migration: every character that existed before appearance
+     * became per-character simply keeps the look the machine already had.
+     */
+    public void useCharacterAppearance(int slot) {
+        this.active = settings.appearanceFor(slot);
+    }
+
+    /**
+     * Uses a detached look that belongs to nothing yet.
+     *
+     * <p>⚠ For the setup assistant, and only for it. It previews a palette on a character that does
+     * not exist, so its edits must not land in {@link Settings} at all until the character is
+     * created — which is what makes cancelling free rather than something that has to be undone.
+     */
+    public void usePendingAppearance(VisualSettings pending) {
+        this.active = pending;
+    }
+
     // ------------------------------------------------------------------ persistence
 
     private Settings readSettings() {
@@ -156,10 +204,104 @@ public final class ClientProfile {
      */
     public static final class Settings {
 
-        /** Theme id, e.g. {@code deck} or {@code deck-hc}. Lowercase, per the glossary's convention. */
-        public String themeId = "deck";
+        /**
+         * How the deck looks <b>right now, with no character loaded</b> — and the seed for the next
+         * one created.
+         *
+         * <p>The firmware splash, the login screen and the setup assistant all render before any
+         * character exists, so something has to own their appearance. This does. A new character's
+         * look starts as a copy of it, which means a player who sets up their machine once and then
+         * makes a second character does not have to set it up again.
+         */
+        public VisualSettings appearance = new VisualSettings();
 
         /**
+         * One look per solo slot.
+         *
+         * <p>⚠ Keyed by slot number <b>as a string</b>, because JSON object keys are strings and an
+         * integer key would round-trip through Jackson as one anyway. Use
+         * {@link #appearanceFor(int)} rather than touching the map: it creates a slot's entry from
+         * {@link #appearance} on first use, which is what silently and correctly gives every
+         * character that existed before this split the look the machine already had.
+         *
+         * <p>⚠ {@code CharacterSlots.delete} removes the entry. A slot is reused, and inheriting a
+         * deleted character's palette is the kind of ghost nobody can explain.
+         */
+        public java.util.Map<String, VisualSettings> characterAppearance = new java.util.LinkedHashMap<>();
+
+        /** The look belonging to a solo slot, created from the menu's on first use. */
+        public VisualSettings appearanceFor(int slot) {
+            return characterAppearance.computeIfAbsent(String.valueOf(slot), key -> appearance.copy());
+        }
+
+        /** Forgets a slot's look. Called when the character in it is deleted. */
+        public void forgetAppearance(int slot) {
+            characterAppearance.remove(String.valueOf(slot));
+        }
+
+        // ── migration from profiles written before appearance became per-character ──────────────
+        //
+        // ⚠ Setter-only, so Jackson READS them and never writes them back. The mapper ignores
+        // unknown properties, which means that without these ten methods a settings.json written by
+        // an older build would load with every appearance field silently reset to its default — a
+        // player would launch into a theme they never chose and have no way to know why. Each one
+        // lands in `appearance`, which is then copied into any character that gets loaded.
+        //
+        // They can be deleted once no profile in the wild predates this change, which in practice
+        // means never; they cost ten lines and one JSON key each.
+
+        @com.fasterxml.jackson.annotation.JsonProperty("themeId")
+        public void migrateThemeId(String value) {
+            appearance.themeId = value;
+        }
+
+        @com.fasterxml.jackson.annotation.JsonProperty("cursorSkin")
+        public void migrateCursorSkin(String value) {
+            appearance.cursorSkin = value;
+        }
+
+        @com.fasterxml.jackson.annotation.JsonProperty("wallpaper")
+        public void migrateWallpaper(String value) {
+            appearance.wallpaper = value;
+        }
+
+        @com.fasterxml.jackson.annotation.JsonProperty("bezel")
+        public void migrateBezel(String value) {
+            appearance.bezel = value;
+        }
+
+        @com.fasterxml.jackson.annotation.JsonProperty("crtScanlines")
+        public void migrateCrtScanlines(boolean value) {
+            appearance.crtScanlines = value;
+        }
+
+        @com.fasterxml.jackson.annotation.JsonProperty("crtAberration")
+        public void migrateCrtAberration(boolean value) {
+            appearance.crtAberration = value;
+        }
+
+        @com.fasterxml.jackson.annotation.JsonProperty("crtGlitch")
+        public void migrateCrtGlitch(boolean value) {
+            appearance.crtGlitch = value;
+        }
+
+        @com.fasterxml.jackson.annotation.JsonProperty("crtCurvature")
+        public void migrateCrtCurvature(int value) {
+            appearance.crtCurvature = value;
+        }
+
+        @com.fasterxml.jackson.annotation.JsonProperty("roundedWindows")
+        public void migrateRoundedWindows(boolean value) {
+            appearance.roundedWindows = value;
+        }
+
+        @com.fasterxml.jackson.annotation.JsonProperty("subwindowControlOrder")
+        public void migrateSubwindowControlOrder(String value) {
+            appearance.subwindowControlOrder = value;
+        }
+
+        /** Theme id, e.g. {@code deck} or {@code deck-hc}. Lowercase, per the glossary's convention. */
+                /**
          * {@code explain} | {@code terms} | {@code off} — {@code docs/client/04} §3.10's {@code teach}
          * command. Defaults to {@code explain}, which is right for the audience the education goal
          * targets and probably wrong for a player who already knows Unix; CL-4 / T-2 tracks that.
@@ -177,9 +319,7 @@ public final class ClientProfile {
          * run a deliberately enlarged or high-contrast one; replacing it by default would be an
          * accessibility regression dressed as art direction. The custom skins are opt-in.
          */
-        public String cursorSkin = "system";
-
-        /** Master switch for the slide-in notices. Everything they say stays in the log either way. */
+                /** Master switch for the slide-in notices. Everything they say stays in the log either way. */
         public boolean notificationsEnabled = true;
 
         /**
@@ -243,64 +383,6 @@ public final class ClientProfile {
         public boolean bandwidthCapsWindows = false;
 
         /**
-         * The desk wallpaper: {@code off}, {@code still} or {@code drift}.
-         *
-         * <p>See {@code ui/widgets/Substrate}. Stored by id rather than as an ordinal so a profile
-         * survives the enum gaining a mode, and read through {@code Substrate.Mode.byId} which
-         * falls back rather than throwing on a value written by a newer client.
-         */
-        public String wallpaper = "drift";
-
-        /**
-         * The drawn casing around the deck: a {@code ui/BezelStyle} id.
-         *
-         * <p>⚠ <b>A bezel, which {@code ui-design-language.md} §9 cut twice and §9.1 pointedly kept
-         * cut when four other artefacts were permitted.</b> Allowed since 2026-07-27 on explicit
-         * direction, under §9.1's same four conditions — and this default is the first of them.
-         * {@code off} is the shipped look, and an effect the player switches on is a costume where
-         * one welded to the interface is a claim about fidelity the interface has to keep making
-         * while they are trying to read a number.
-         */
-        public String bezel = "off";
-
-        /**
-         * CRT scanlines over the whole deck.
-         *
-         * <p><b>Opt-in, and the default is not laziness.</b> Scanlines lay a repeating dark band
-         * across every glyph on screen, which costs real contrast on body text — {@code
-         * docs/design/ui-design-language.md} §9 banned them outright until 2026-07-26 and now
-         * permits them as an <em>optional</em> effect. A legibility cost belongs to the player to
-         * accept, so the client never turns it on for them.
-         */
-        public boolean crtScanlines = false;
-
-        /** Chromatic aberration. Opt-in, same argument as {@link #crtScanlines}. */
-        public boolean crtAberration = false;
-
-        /**
-         * VHS-style signal glitch — occasional tracking bands.
-         *
-         * <p>Opt-in, and additionally suppressed whenever reduced motion is on: it is the only one
-         * of the three that moves, and §5 makes {@code prefers-reduced-motion} non-optional.
-         */
-        public boolean crtGlitch = false;
-
-        /**
-         * Simulated tube curvature, 0–100. Drives the radial edge aberration and the glass boundary.
-         *
-         * <p>⚠ <b>It does not warp the interface</b>, and cannot: real barrel distortion needs a
-         * pixel shader or a per-frame render-to-texture mapped onto a 3D mesh, and the second one
-         * both costs tens of milliseconds a frame and breaks click hit-testing, because the pointer
-         * would land where the undistorted node is rather than where the player sees it. What this
-         * scales is the aberration and the bowed glass edge — the part of the effect that is
-         * genuinely visible and genuinely affordable. Named {@code curvature} anyway because that is
-         * what the player is dialling, and {@code CrtOverlay} states the limit in one paragraph.
-         *
-         * <p>Zero by default, like every other artefact.
-         */
-        public int crtCurvature = 0;
-
-        /**
          * How big the deck window is, as a {@code ui/WindowSize} id.
          *
          * <p>⚠ There is no OS chrome on the deck (§0), so there is no OS resize handle either. Until
@@ -313,7 +395,7 @@ public final class ClientProfile {
         /**
          * How large the interface is drawn, as a percentage. 100 is the shipped look.
          *
-         * <p>An {@code int} rather than a double for the same reason {@link #crtCurvature} is: it is
+         * <p>An {@code int} rather than a double for the same reason {@code VisualSettings.crtCurvature} is: it is
          * a percentage a player picks off a list, and a float in a settings file invites a value
          * like {@code 1.2500000000000002} that no control can ever show as selected.
          *
@@ -392,9 +474,7 @@ public final class ClientProfile {
      * drifts toward the generic is. What it must never round is anything a <em>measurement</em> is
      * read off — see §9.3.
      */
-    public boolean roundedWindows = false;
-
-    /**
+        /**
      * Whether the game window wears the operating system's own frame instead of drawing its own.
      *
      * <p>⚠ <b>Off by default, and this is the one setting that contradicts §0 outright.</b>
@@ -426,9 +506,7 @@ public final class ClientProfile {
      * <p>Defaults to {@code system}: whatever this computer does, because that is the arrangement
      * the player's hand already knows.
      */
-    public String subwindowControlOrder = "system";
-
-        /** Which solo slot was last played, so the menu can pre-select it. 1-based; 0 means none. */
+            /** Which solo slot was last played, so the menu can pre-select it. 1-based; 0 means none. */
         public int lastSoloSlot = 0;
 
         /**

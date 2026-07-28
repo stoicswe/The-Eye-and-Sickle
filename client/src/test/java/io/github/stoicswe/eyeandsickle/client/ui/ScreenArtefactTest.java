@@ -3,6 +3,7 @@ package io.github.stoicswe.eyeandsickle.client.ui;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.stoicswe.eyeandsickle.client.profile.ClientProfile;
+import io.github.stoicswe.eyeandsickle.client.profile.VisualSettings;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -70,17 +71,19 @@ class ScreenArtefactTest {
         @Test
         @DisplayName("all three artefacts ship off, and the wallpaper ships on")
         void shippedDefaults() {
-            ClientProfile.Settings fresh = new ClientProfile.Settings();
+            // ⚠ VisualSettings, not Settings — the artefacts became part of a character's look on
+            // 2026-07-28. The defaults did not move; only where they are declared did.
+            VisualSettings look = new VisualSettings();
 
             // §9.1 condition 1: an effect the player switches on is a costume; one welded to the
             // interface is a claim about fidelity the interface then has to keep making.
-            assertThat(fresh.crtScanlines).as("scanlines cost contrast on body text").isFalse();
-            assertThat(fresh.crtAberration).isFalse();
-            assertThat(fresh.crtGlitch).as("the only artefact that moves").isFalse();
+            assertThat(look.crtScanlines).as("scanlines cost contrast on body text").isFalse();
+            assertThat(look.crtAberration).isFalse();
+            assertThat(look.crtGlitch).as("the only artefact that moves").isFalse();
 
             // The wallpaper is not an artefact — it is greeble, which §9 makes build-blocking to
             // remove. It ships on, and drifting, with off and still one setting away.
-            assertThat(WallpaperMode.byId(fresh.wallpaper)).contains(WallpaperMode.DRIFT);
+            assertThat(WallpaperMode.byId(look.wallpaper)).contains(WallpaperMode.DRIFT);
         }
     }
 

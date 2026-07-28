@@ -2310,3 +2310,179 @@
    radius: §9.3 gates -fx-background-radius and this is not one. */
 .es-poweron-track { -fx-fill: rgba(255, 255, 255, 0.14); }
 .es-poweron-fill  { -fx-fill: -es-firmware-ink; }
+
+
+/* ══ THE SETUP ASSISTANT (ui-design-language.md §3.2) ═══════════════════════════════════════════
+ *
+ * One question per pane, centred on empty ground — §3.1's exception, extended. The deck's tiling
+ * rule does not reach here for the same reason it does not reach the login screen: there is no live
+ * state to lay out, and filling the screen would mean inventing panels to fill it with.
+ *
+ * ⚠ Two-class selectors on every text fill. `.label { -fx-text-fill: -es-text; }` is a one-class
+ * rule that comes LATER in this file, so equal specificity hands it the win — a bare
+ * `.es-setup-title { -fx-text-fill: ... }` applies its font and silently drops its colour. */
+
+.es-setup { -fx-background-color: -es-void; }
+
+.es-setup-title {
+    -fx-font-family: "Martian Mono", monospace;
+    -fx-font-weight: 700;
+    -fx-font-size: 25px;
+}
+.es-setup .es-setup-title { -fx-text-fill: -es-text-hi; }
+
+.es-setup-blurb { -fx-font-size: 12.5px; }
+.es-setup .es-setup-blurb { -fx-text-fill: -es-text; }
+
+.es-setup-foot { -fx-font-size: 11px; }
+.es-setup .es-setup-foot { -fx-text-fill: -es-dim-1; }
+
+.es-setup-trouble { -fx-font-size: 11.5px; }
+.es-setup .es-setup-trouble { -fx-text-fill: -es-alarm; }
+
+.es-setup-summary { -fx-font-size: 12px; }
+.es-setup .es-setup-summary { -fx-text-fill: -es-dim-1; }
+
+/* The shell prompt, previewed live as the handle is typed. The one place on this screen that shows
+   the game's own voice rather than the assistant's. */
+.es-setup-preview {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 14px;
+    -fx-padding: 5 9 5 9;
+    -fx-background-color: -es-panel;
+    -fx-border-color: -es-rule;
+    -fx-border-width: 1;
+}
+.es-setup .es-setup-preview { -fx-text-fill: -es-amber; }
+
+.es-setup-field {
+    -fx-background-color: -es-panel;
+    -fx-border-color: -es-rule-hi;
+    -fx-border-width: 1;
+    -fx-padding: 5 8 5 8;
+    -fx-font-size: 13px;
+}
+.es-setup .es-setup-field { -fx-text-fill: -es-text-hi; }
+.es-setup-field:focused { -fx-border-color: -es-amber; }
+
+/* ⚠ Steps are SQUARES, not dots, and that is §4's vocabulary rather than macOS's. The whole deck
+   says "a quantity you can count is drawn as cells"; a wizard's progress is exactly that, and it is
+   the one progress indicator in the client that IS countable. (The splash's bar is not — §4.1.) */
+.es-setup-step      { -fx-background-color: -es-rule-hi; }
+.es-setup-step-done { -fx-background-color: -es-dim-2; }
+.es-setup-step-on   { -fx-background-color: -es-amber; }
+
+/* Back and Cancel. Quiet on purpose: exactly one control on this screen moves the player forward,
+   and it should be the only one with any weight. */
+.es-setup-link { -fx-font-size: 12px; -fx-padding: 4 6 4 6; }
+.es-setup .es-setup-link { -fx-text-fill: -es-dim-1; }
+.es-setup .es-setup-link:hover { -fx-text-fill: -es-text-hi; }
+
+/* An exclusive option, drawn as a row. §9 bans hidden UI; a ChoiceBox on a pane whose entire job is
+   one question would collapse the answers behind a click for no gain. */
+.es-setup-choice {
+    -fx-padding: 6 12 6 12;
+    -fx-background-color: -es-panel;
+    -fx-border-color: -es-rule;
+    -fx-border-width: 1;
+    -fx-font-size: 12px;
+    -fx-min-width: 168;
+}
+.es-setup .es-setup-choice { -fx-text-fill: -es-text; }
+.es-setup .es-setup-choice:hover { -fx-text-fill: -es-text-hi; }
+.es-setup-choice:hover { -fx-border-color: -es-rule-hi; }
+/* The ordered-scale variant: same control, laid along a row, so it must not carry the column's
+   line-up minimum. Eight cells at 168 points is wider than the smallest window the deck supports. */
+.es-setup-choice-tight { -fx-min-width: 40; -fx-padding: 6 10 6 10; }
+.es-setup-choice-on { -fx-background-color: -es-panel-hi; -fx-border-color: -es-amber; }
+.es-setup .es-setup-choice-on { -fx-text-fill: -es-text-hi; }
+
+/* ⚠ Chips need their own rules HERE. `.es-breach-chip` is scoped to `.es-cost-strip`, so a Chip
+   used anywhere else renders as bare text — which is exactly how the breach target list's controls
+   came out once, and how CONTINUE came out on the first pass of this screen. */
+.es-setup-go,
+.es-setup-action {
+    -fx-border-color: -es-rule-hi;
+    -fx-border-width: 1;
+    -fx-background-color: -es-panel-hi;
+}
+.es-setup .es-setup-go,
+.es-setup .es-setup-action { -fx-text-fill: -es-text-hi; }
+
+/* Continue. The only weighted control on the screen, so it is the only one wearing the accent. */
+.es-setup-go { -fx-padding: 8 22 8 22; -fx-font-size: 11px; -fx-border-color: -es-amber; }
+.es-setup-go:hover { -fx-background-color: -es-panel; }
+.es-setup .es-setup-go { -fx-text-fill: -es-amber; }
+
+.es-setup-action { -fx-padding: 6 14 6 14; -fx-font-size: 10px; }
+
+.es-setup-action:hover { -fx-border-color: -es-dim-2; }
+
+/* ⚠ The emblem's own colours are declared under `.es-poweron` and resolve NOWHERE ELSE — a
+   looked-up colour is found by walking up from the node that uses it, and this screen has no
+   `.es-poweron` ancestor. On the splash the ring is white on black unconditionally; here it belongs
+   to the palette, so it is restated in the palette's terms. Alpha has to come from -fx-opacity
+   because JavaFX has no rgba() over a looked-up colour. */
+.es-setup .es-poweron-ring   { -fx-stroke: -es-text-hi; }
+.es-setup .es-poweron-glow-1,
+.es-setup .es-poweron-glow-2,
+.es-setup .es-poweron-glow-3,
+.es-setup .es-poweron-glow-4,
+.es-setup .es-poweron-glow-5,
+.es-setup .es-poweron-glow-6,
+.es-setup .es-poweron-glow-7,
+.es-setup .es-poweron-glow-8 { -fx-stroke: -es-text-hi; }
+.es-setup .es-poweron-glow-1 { -fx-opacity: 0.028; }
+.es-setup .es-poweron-glow-2 { -fx-opacity: 0.050; }
+.es-setup .es-poweron-glow-3 { -fx-opacity: 0.085; }
+.es-setup .es-poweron-glow-4 { -fx-opacity: 0.140; }
+.es-setup .es-poweron-glow-5 { -fx-opacity: 0.210; }
+.es-setup .es-poweron-glow-6 { -fx-opacity: 0.300; }
+.es-setup .es-poweron-glow-7 { -fx-opacity: 0.220; }
+.es-setup .es-poweron-glow-8 { -fx-opacity: 0.100; }
+
+/* ── palette swatches ───────────────────────────────────────────────────────────────────────────
+ *
+ * ⚠ LITERAL COLOURS, one block per theme, and they have to be. A swatch is rendered under whichever
+ * palette is CURRENTLY live, so `-es-` tokens would paint all six tiles identically in the theme
+ * that happens to be on — which is exactly the thing the tiles exist to distinguish. §10 criterion 2
+ * is satisfied the way the power-on splash satisfies it: the colours are in this file, they are
+ * simply not resolved from the palette.
+ *
+ * ⚠ These duplicate the values in the palette overlays, and duplication is the price of showing a
+ * palette from inside another one. `SetupSwatchTest` reads both and fails the build when they drift. */
+
+.es-setup-swatch { -fx-padding: 4; -fx-background-color: transparent; -fx-border-color: transparent; -fx-border-width: 1; }
+.es-setup-swatch:hover { -fx-border-color: -es-rule-hi; }
+.es-setup-swatch-on { -fx-border-color: -es-amber; }
+
+.es-setup-swatch-name { -fx-font-size: 10.5px; }
+.es-setup .es-setup-swatch-name { -fx-text-fill: -es-dim-1; }
+.es-setup .es-setup-swatch-on .es-setup-swatch-name { -fx-text-fill: -es-text-hi; }
+
+.es-swatch-screen { -fx-border-width: 1; }
+
+.es-swatch-deck .es-swatch-screen { -fx-background-color: #07090A; -fx-border-color: #2C383B; }
+.es-swatch-deck .es-swatch-strip  { -fx-background-color: #11171A; }
+.es-swatch-deck .es-swatch-pane   { -fx-background-color: #0C1012; }
+.es-swatch-deck .es-swatch-accent { -fx-background-color: #FFAE38; }
+.es-swatch-deck-hc .es-swatch-screen { -fx-background-color: #000000; -fx-border-color: #9AA6A6; }
+.es-swatch-deck-hc .es-swatch-strip  { -fx-background-color: #1C1C1C; }
+.es-swatch-deck-hc .es-swatch-pane   { -fx-background-color: #0A0A0A; }
+.es-swatch-deck-hc .es-swatch-accent { -fx-background-color: #FFC048; }
+.es-swatch-phosphor .es-swatch-screen { -fx-background-color: #050A07; -fx-border-color: #1E3A22; }
+.es-swatch-phosphor .es-swatch-strip  { -fx-background-color: #0C1A0E; }
+.es-swatch-phosphor .es-swatch-pane   { -fx-background-color: #081109; }
+.es-swatch-phosphor .es-swatch-accent { -fx-background-color: #4AFF6E; }
+.es-swatch-amber .es-swatch-screen { -fx-background-color: #0A0704; -fx-border-color: #3F2C12; }
+.es-swatch-amber .es-swatch-strip  { -fx-background-color: #1A1208; }
+.es-swatch-amber .es-swatch-pane   { -fx-background-color: #120C05; }
+.es-swatch-amber .es-swatch-accent { -fx-background-color: #FFB000; }
+.es-swatch-classic .es-swatch-screen { -fx-background-color: #A8A8A8; -fx-border-color: #1A1A1A; }
+.es-swatch-classic .es-swatch-strip  { -fx-background-color: #F4F4F4; }
+.es-swatch-classic .es-swatch-pane   { -fx-background-color: #E4E4E4; }
+.es-swatch-classic .es-swatch-accent { -fx-background-color: #8A4A00; }
+.es-swatch-cyberdeck .es-swatch-screen { -fx-background-color: #05090C; -fx-border-color: #233D4A; }
+.es-swatch-cyberdeck .es-swatch-strip  { -fx-background-color: #0F1A22; }
+.es-swatch-cyberdeck .es-swatch-pane   { -fx-background-color: #0A1218; }
+.es-swatch-cyberdeck .es-swatch-accent { -fx-background-color: #FF9B3D; }

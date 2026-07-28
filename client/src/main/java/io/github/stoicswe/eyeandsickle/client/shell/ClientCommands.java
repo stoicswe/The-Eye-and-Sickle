@@ -240,7 +240,7 @@ public final class ClientCommands {
                 inv -> {
                     Optional<String> arg = inv.stage().argument(0);
                     if (arg.isEmpty()) {
-                        return Command.Output.ok("wallpaper is " + profile.settings().wallpaper
+                        return Command.Output.ok("wallpaper is " + profile.appearance().wallpaper
                                 + " — `wallpaper off|still|drift`");
                     }
                     String want = arg.get().toLowerCase(java.util.Locale.ROOT);
@@ -250,7 +250,7 @@ public final class ClientCommands {
                         // a refusal that does not say what would have worked teaches nothing.
                         return Command.Output.usage("wallpaper: expected off, still or drift");
                     }
-                    profile.settings().wallpaper = mode.get().id();
+                    profile.appearance().wallpaper = mode.get().id();
                     profile.save();
                     onDeskChanged.run();
                     return Command.Output.ok("wallpaper " + mode.get().id() + " — " + mode.get().note());
@@ -263,7 +263,7 @@ public final class ClientCommands {
                 true,
                 inv -> {
                     Optional<String> arg = inv.stage().argument(0);
-                    ClientProfile.Settings s = profile.settings();
+                    io.github.stoicswe.eyeandsickle.client.profile.VisualSettings s = profile.appearance();
                     if (arg.isEmpty()) {
                         return Command.Output.ok("scanlines " + onOff(s.crtScanlines)
                                 + " · aberration " + onOff(s.crtAberration)
