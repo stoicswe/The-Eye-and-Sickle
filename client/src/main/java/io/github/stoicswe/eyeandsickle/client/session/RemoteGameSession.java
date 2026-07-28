@@ -74,6 +74,16 @@ public final class RemoteGameSession implements GameSession {
     }
 
     @Override
+    public String avatar() {
+        return "";
+    }
+
+    @Override
+    public Outcome setAvatar(String base64Png) {
+        return unavailable();
+    }
+
+    @Override
     public ComputeBudget computeBudget() {
         return lastBudget;
     }
@@ -402,6 +412,78 @@ public final class RemoteGameSession implements GameSession {
     @Override
     public java.util.List<SweepOption> sweepOptions() {
         return java.util.List.of();
+    }
+
+    // ⚠ Empty and 69, never a fabricated session. A shell window this class handed back would be a
+    // window that accepted commands and answered none of them.
+
+    @Override
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.RemoteSession> sessions() {
+        return java.util.List.of();
+    }
+
+    @Override
+    public Outcome openSession(String address) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome closeSession(String address) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome changeDirectory(String address, String path) {
+        return unavailable();
+    }
+
+    @Override
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.FsEntry> list(
+            String address, String path) {
+        return java.util.List.of();
+    }
+
+    @Override
+    public java.util.List<String> read(String address, String path) {
+        return java.util.List.of();
+    }
+
+    @Override
+    public java.util.List<String> info(String address, String path) {
+        return java.util.List.of();
+    }
+
+    @Override
+    public Outcome download(
+            String address,
+            io.github.stoicswe.eyeandsickle.protocol.game.FsEntry entry,
+            String destination) {
+        return unavailable();
+    }
+
+    @Override
+    public java.util.List<String> downloadDestinations() {
+        return java.util.List.of();
+    }
+
+    @Override
+    public Outcome install(String path) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome sell(String path) {
+        return unavailable();
+    }
+
+    @Override
+    public java.util.List<RunningTask> transfers() {
+        return java.util.List.of();
+    }
+
+    @Override
+    public void noteAccess(String address, String path) {
+        // Nothing to record against a server that is not there.
     }
 
     @Override

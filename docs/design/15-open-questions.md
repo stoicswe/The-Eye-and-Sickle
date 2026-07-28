@@ -320,6 +320,7 @@ The six server slices were built in isolation and could not implement each other
 - **W-4: player sessions** are in-memory (`InMemoryPlayerSessionStore`), fine for one allowlist-bounded process; a multi-instance deployment would need a shared store.
 - **W-5: faction-tool forfeiture** (`NoOpFactionToolForfeiture`) records intent and does nothing — the real forfeiture on faction abandonment (`01` §5) is unbuilt.
 - **W-6: AT Proto authentication** falls back to the self-guarding dev provider, which refuses every sign-in unless `eyeandsickle.identity.dev-signin.enabled` is set. A production node has no working sign-in until W-1's network resolver lands.
+  ⚠ **W-6 understates the work.** A production provider is one of six pieces — client metadata document, PAR, DPoP, PKCE, refresh, and bidirectional handle resolution — and the *blocking* item is a decision nobody has made: whether the OAuth client is the home server (which then needs a public HTTPS URL, because `client_id` must equal its own metadata URL) or the desktop app. All of it, with sources, is in [`../architecture/10-oauth-and-did-resolution.md`](../architecture/10-oauth-and-did-resolution.md).
 
 ### From the UI overhaul (`ui-design-language.md`, 2026-07-26)
 
@@ -911,3 +912,346 @@ Record resolutions here when they land (date — question — outcome — where 
   The host half is now editable in Settings (beside the handle, because the two are the two halves of one string) and from `hostname(1)`, which behaves like the real one — no argument prints the short name, an argument sets it. `.local` is appended rather than stored, and a typed `.local` is stripped so nobody gets `rig.local.local`. Validation is **RFC 1123's**, not ours: letters, digits and hyphens, no leading or trailing hyphen, 63 characters. An underscore is refused even though nothing here would break on one, and the refusal says whose rule that is — a refusal that teaches something true beats a permissiveness that teaches nothing.
 
   ⚠ The prompt was built once at startup, so renaming the operator never updated it either. Both halves now rebuild through `DeckShell.applyPrompt()`. Recorded in `client/profile/Hostname`, `client/profile/ClientProfile`, `client/ui/DeckShell`, `client/shell/ClientCommands`.
+
+- 2026-07-28 — **Shell sessions on remote machines, and a filesystem for every machine to have.** Four decisions were needed before any of it could be written, and all four are recorded here because none of them was in a document.
+
+  **1. A SESSION IS NOT THE VANTAGE.** `[PROPOSAL] → decided.` `connect` moves the vantage — the single point a sweep measures hop distance from, and a hard ceiling no purchase moves (**I2**, `07-recon-tools.md` §2). A **session** is a shell on a machine the player already holds: many at once, each costing compute, none buying reach. ⚠ Had the two been merged, reach would silently multiply by the number of windows a player had open, which is I2's ceiling sold for the price of a click. `SessionRules` never reads or writes `vantageAddress`, and `SessionRulesTest.Vantage` is the assertion that says so. The map's menu therefore calls the two things different names: **Open a shell** and **Move vantage here**.
+
+  **2. A session costs compute** — `Balance.SESSION_CYCLES`, two cycles held while open, on a new `ComputeConsumer.SHELL_SESSION`. Not a cap. §4's meta-rule is that compute is the master scarcity, so "how many machines can I sit on at once" should be answered by the rig; a hard cap would answer it with a number nobody can argue with, which is worse. ⚠ Its **own** consumer, never folded into `CONTROL_CHANNEL` — that one's total is the self-correcting cap on deployed miners (`04-mining.md` §2.2) and works only because the number means exactly one thing. ⚠ Released on close, **not** put into thermal recovery: recovery is the price of having driven the silicon (`01` §1.3) and an idle shell has driven nothing, so charging it would teach players to leave sessions open — the opposite of what the hold is for. Classified **outward** for noise: a live connection to somebody else's machine is the most visible thing short of a sweep, and a silent one would make holding footholds indefinitely the quietest possible play.
+
+  **3. Every machine has a filesystem, and it is Ubuntu's.** `[PROPOSAL]` for the content, decided for the shape. `solo/fs/VirtualFs` generates an FHS layout — `/etc`, `/var/log`, `/home/<user>`, `/usr/bin`, `/mnt` — because every one of those is real and transfers to any Linux machine the player ever touches. The rig's three storage tiers appear as **mounts** (`/mnt/vault`, `/mnt/standard`, `/mnt/hot`), not folders: `01` §6 makes them three places with different exposure, which is what a mount is and what a folder is not. `/rig/...` is untouched, so `ls`, `df`, tab-completion and `docs/client/04` §3.2 keep their teaching.
+
+  ⚠ **Generated, never stored.** A host's tree is derived from its address and its state on every read. Not for save size — because a stored tree would be a *cache of game state* and would eventually disagree with it, on the exact surface a player uses to decide whether a machine has been tampered with. A deployed miner shows up as a unit file in `/etc/systemd/system` because `deployedMiners` is non-empty, and stops the moment the miner does. Seeded on the address so a listing does not reshuffle between visits, which is what makes "was this here before?" answerable at all — the question `04-mining.md` §3.1 is built on.
+
+  ⚠ **Nothing in the package touches a real filesystem.** `docs/client/04` §3.1 rule 3 forbids concatenating a typed path into a host filesystem call. That mattered when the surface was a shell printing `/rig/storage/vault`; it matters more now, because a file manager is precisely the widget that makes a path look openable. `VirtualFs.normalise` resolves `..` textually and cannot climb above `/`.
+
+  **4. Files are sparse and real.** A host's existing `documentId` and `lootMinorUnits` surface as files you find by browsing (`~/Documents/*.txt`, `~/wallet.dat`); `get` hands straight to `download`, so the rules stay authoritative and no new economy is introduced. The contribution is that the player **finds** them by looking instead of pressing a button labelled DOWNLOAD. Readability is the rules' verdict, decided once in `SoloGame.list` — a machine with no foothold shows its shape and opens nothing, which is also what a port scan really tells you.
+
+  **The window.** One shell window per machine, id `shell:<address>`. ⚠ This is **not** the thing **WL-8** forbids: its stated reason is that two windows of one tool would be *"a live view of the same session state"* with no way to tell them apart, and two shells on two machines are two states, exactly as two terminal windows on two servers are. It is deliberately **not** in `WindowSpec` — that enum is the closed catalogue of *tools*, and a shell is an instance created by an act in the game, so a rail key and an accelerator for it would be chrome for a window that may not exist.
+
+  **The right-click command menu** is built from `NodeCommands.catalogue()`, which is also what the parser reads. One list: a flag that exists is offerable and a flag that is offered runs. The builder shows each option *with what it does* and previews the line assembling itself, then writes it into the input rather than running it — so the menu is a way of learning the keyboard rather than a row of buttons, and the last act is always the player's.
+
+- 2026-07-28 — **The file manager, and one decision it forced: a mount is a session.**
+
+  `files` (`Shortcut+Shift+H`, a twentieth window, **WL-1**) draws `solo/fs/VirtualFs` in GNOME Files' layout — places sidebar, breadcrumb path bar, detail list, hidden-files toggle. The layout is copied because it is the arrangement an Ubuntu user already knows and the window's purpose is that what a player learns in it transfers; the chrome is not (§9's rejection list stands).
+
+  ⚠ **A mount is a session, and there is no second concept.** "Connect to machine" opens a shell session; unmounting closes it. In Ubuntu, mounting a remote share *is* holding a connection open, so modelling it twice here would give the game two lists of "machines I am attached to", two compute costs and two gates — and the two lists would eventually disagree. The consequence is that a mount costs `Balance.SESSION_CYCLES` and needs a foothold, exactly as a shell does, and that opening a shell from the map also mounts the machine here. One fact, two windows.
+
+  ⚠ **Unreadable entries are dimmed, never hidden.** The *shape* of a filesystem is real information a sweep legitimately gives you; hiding it would make an unbreached machine look empty rather than closed, which is a different and false claim. What such an entry must not do is open, and that refusal is the rules' (`FsEntry.readable`, I14) printed in words rather than expressed as a row that silently does nothing.
+
+  ⚠ **The path bar is breadcrumbs and not a text field**, and that is a safety decision as much as a usability one. Segments answer "how do I get back above here" as well as "where am I" — but the deciding argument is that a field a player could *type a path into* would be a place to type a path that goes somewhere, which `docs/client/04` §3.1 rule 3 forbids outright.
+
+  **The kind markers are `ls -F`'s**, shared with the node shell through `NodeCommands.marker`: `/` for a directory or mount, `*` for an executable, `@` for a link. The two **game** kinds — a recovered fragment and an ethecoin cache — get characters `ls` does not define, rather than borrowing a real marker for an invented meaning; that mirrors the real/game split `FsKind` already documents. ⚠ Block-element icons (`▸ ▪ ▤ ◆`) were written first and `GlyphCoverageTest` rejected all four — they are in neither bundled face, so they would have been drawn by a host-OS fallback with its own advance width and sheared the name column differently on every platform. The replacement is better anyway, because `/` and `*` are real and transfer.
+
+  **The connect dialog lists only machines the map already shows a foothold on** — the rules' answer rendered as received. Deliberately not a free-text address field: a field would let a player type an address they have not discovered and learn from the refusal whether it exists, which is a free Ping Sweep (`07-recon-tools.md` §3) built out of an error message.
+
+- 2026-07-28 — **VaultStore, a macOS-shaped home, real application bundles, and a counter-forensics log.** Four changes with one thread through them: the filesystem stopped being decoration and became a place things are actually kept, which forced a decision about what can be taken from it.
+
+  **1. `Storage` is now `VaultStore`, and the tiers left `/mnt`.** The window keeps the id `storage` — ids are what saved desk layouts, accelerators and `window storage` key on, and renaming one discards every player's remembered geometry to gain nothing. The three tiers moved from `/mnt/{vault,standard,hot}` to **`~/.VaultStore/{vault,standard,hot}`**, hidden. ⚠ They were never mounts — nobody mounted them — and a `/mnt/vault` sitting in the sidebar of a machine an intruder is standing on is a signpost to the one place that is meant to be safe. The leading dot hides nothing from a determined reader, which is the correct strength: `01-core-resources.md` §6 already says what the real protection is, and it is the **tier**, not the folder name.
+
+  **2. The root is Ubuntu's and the home is macOS's** — a deliberate hybrid, and both halves are real somewhere. uOS takes the FHS for `/etc`, `/var/log`, `/usr` because those transfer to any Linux box; the home takes `Applications`, `Desktop`, `Documents`, `Downloads`, `Movies`, `Music`, `Pictures` because that is what a desktop user recognises. What would be dishonest is claiming to *be* Ubuntu, and nothing does. The file manager's sidebar follows Finder's four sections. ⚠ **iCloud and AirDrop are absent for different reasons**: iCloud by request, AirDrop because it has no analogue at all — and a sidebar entry that does nothing teaches that entries in that list may be decorative. **Shared** now means "machines you hold but have not mounted", which replaced the connect popup with something better.
+
+  **3. Applications are real bundles.** `Network.app/Contents/{Info.plist,MacOS/network,Resources,Upgrades}` — the genuine macOS layout, and the fact worth carrying away is that **an application on a Mac is a folder**. ⚠ `Contents/Upgrades` is **ours** and is not part of a real bundle; the rest is. *(A shipped `fs(7)` page ought to state that split and the `/root` privilege simplification, and does not exist yet — worth adding, and it needs a curriculum entry first.)* An item's upgrade appears in its program's bundle via `solo/fs/Apps`, which lives in the rules because "what does this upgrade" is a game question that has to be true on the server too.
+
+  **4. ⚠ [PROPOSAL] A counter-forensics loop, and the invariant it nearly broke.** A remote actor who copies something writes a line to `/var/log/remote-access.log` carrying the address they came from — which is what makes retaliation possible — and may **wipe that address before leaving**.
+
+  ⚠ **Redaction blanks the address; it never deletes the line.** Deleting rows is the obvious "improvement" and it is the wrong one: it turns a legible crime into a missing file, and a player who cannot tell they were robbed has no reason to investigate anything. What survives a wipe is the timestamp, the action, the path and the **sequence number**, so a partial wipe reads as a wipe. The log says so in words, because somebody who removes an address knew there was one to remove, and that is itself evidence.
+
+  ⚠ **The tier still decides what can be taken, and this is the important part.** Upgrades being visible inside `~/Applications/…/Upgrades/` would otherwise be a **fourth exposure surface routing around the vault** — and the vault being genuinely safe is what the whole risk economy is priced against (**I12**). So the Applications folder is a **view** onto items that live in tiers, and `AccessLog.canTake` answers from the item's tier exactly as §6 says: vault never, standard while the owner is online, hot zone always. A vault item is not takeable however deep an intruder navigates.
+
+  ⚠ **None of it can fire in single player**, and that is correct rather than unfinished — every writer is a remote actor and solo has none. The log still exists, is listed in `/var/log` and is readable from the first minute, because a log that materialised only once something had happened would be a log nobody had learned to check. The rules are written and tested now (`AccessLogTest`) so that **CL-8** landing a transport is a transport change and not an engine change. **Open:** whether taking an upgrade removes it from the owner or copies it, what it costs the thief in heat, and whether wiping the log should itself be detectable — none is decided.
+
+- 2026-07-28 — **Recents became a place, and `Contents/MacOS` became `Contents/uOS`.**
+
+  **1. Recents is a directory, not a sidebar widget.** It was a session-local list of visited places bolted to the side of the file manager. It is now `~/.local/share/recently-used` — **GNOME's own location** — which means `ls ~/.local/share/recently-used` works in the shell, the entries are navigable, and a player who learns that "recent files" is a thing on disk has learned something true and slightly uncomfortable.
+
+  ⚠ **This reverses a decision made two hours earlier, and the earlier reasoning was backwards.** The list was deliberately not persisted, on the grounds that a record of where the player has been should not sit in a file on a machine the fiction says is watched. But a real machine keeps that list whether anyone wants it to or not, and the uncomfortable part is the point. It now lives in the **save** (the machine's own state) rather than in the client profile, so it is exactly as exposed as the machine is — and an intruder standing in that directory can read what the owner has been doing, which is a feature of the fiction rather than a leak in it.
+
+  ⚠ **Recorded on deliberate opens only, never from `list`.** Listing runs on every repaint and on every parent lookup, so recording there would fill Recents with machinery instead of history — the one way a recents list stops being worth opening. Hence `GameSession.noteAccess`, called by the file manager's navigation and by the shell's `cd`, `cat` and `get`. Entries are **symlinks carrying their real paths**, which is what a recents entry is: opening one goes to the real thing, and a dead one points at nothing rather than pretending to still hold it. Re-opening something **moves** it rather than adding a second row, and Recents never lists itself.
+
+  **2. `Contents/MacOS` → `Contents/uOS`.** A real macOS bundle puts its binary in `Contents/MacOS/`, and copying that name would have been more faithful — to the wrong claim. These machines run **uOS** (`../client/03-story-theme.md`); a directory inside them named after somebody else's operating system asserts that the rig is a Mac, which is the one thing the layout must not say. Everything else in the bundle keeps its real name, because the rest is a genuine and transferable fact about how an application is packaged. **The directory named after the OS is the single part that has to move when the OS does** — which is itself the thing worth noticing about the convention.
+
+- 2026-07-28 — **Network replaced Shared, ejecting is explained, and transfers take the time the link allows.**
+
+  **1. `Shared` is gone; `Network` sits under Locations.** It lists every machine that has been **breached**, connected or not — which is what makes it a network view rather than a connection list. A machine you hold is somewhere you can go; whether you are currently there is a second fact, and the **eject** control carries it in place. Two sections, one of machines you could connect to and one of machines you had, made the player track a distinction one control already expresses.
+
+  ⚠ **Ejecting disconnects and stops nothing else, and the tooltip says so in as many words.** Deployed miners keep mining, bots keep working, the foothold stays a foothold. What ejecting buys is **quiet** — a held session is outward traffic and the loudest thing short of a sweep (`NoiseRules`) — plus the cycles it was holding. This is worth stating loudly because the failure is silent and permanent: a player who believes ejecting kills their miners will never eject, and will be louder than they need to be forever.
+
+  **2. ⚠ [PROPOSAL] TR-1 — the link is 1 Gbit down / 150 Mbit up, uniform, with no upgrade path.** `Balance.LINK_DOWN_BITS` and `LINK_UP_BITS`.
+
+  ⚠ **The two numbers are different on purpose, and the difference is the teaching.** A download is bounded by `min(your down, their up)` — so with a Gigabit line against a 150 Mbit uplink, **every transfer runs at 18.75 MB/s no matter how good your connection is.** That is the most useful true thing about file transfers that nearly everyone has experienced and almost nobody has had named for them, and a player who works out that upgrading their own line would change nothing has learned it. Decimal bits for the link and bytes for files, converted in exactly one place, because the two units meeting is where transfer arithmetic is usually got wrong.
+
+  **Package sizes became load-bearing.** They were decoration until transfer time was derived from them. An upgrade is now 40–320 MB (≈2–17 s), a schematic 2–20 MB, a fragment a few kB. A 400 ms handshake means nothing is instant-to-zero — without it a 4 kB document transfers in under a millisecond and the readout is a flicker that reads as the game failing rather than as the transfer genuinely being immediate.
+
+  **A transfer is a task, not a modal.** It goes in `save.tasks`, so it shows in the rig monitor's activity list, persists, and completes on the first tick after a reload. Closing the file manager does not cancel a download. It holds **no compute** — moving bytes is I/O, not arithmetic, and charging cycles would make the compute readout answer a question it is not measuring. Progress is drawn as **cells, never a continuous bar** (§4): a smooth fill would imply a precision two timestamps do not have.
+
+  **3. Foreign machines carry application bundles too**, so upgrades are stealable in both directions. A one-directional version of the theft mechanic would be a punishment rather than a game.
+
+  **Open, and deliberately not decided:**
+  - **TR-1** — whether the link is ever upgradable, and if so whether upgrading *your* downlink is deliberately useless (it is, under this model) or whether uplink upgrades on machines you hold become a thing worth buying.
+  - **TR-2** — what an arriving file *becomes*. Today a transfer completes and logs; whether a `.upg` installs, enters the vault, or must be applied by hand is unresolved, and it interacts with `02-unlock-gates.md`'s gate assignment.
+  - Whether pulling a file off a machine should cost the thief heat, which interacts with `08-stealth-and-noise.md`.
+
+- 2026-07-28 — **TR-2 resolved: what an arriving file becomes. Repac, installing, and an unsafe secondary market.**
+
+  **1. Everything arrives as itself, except upgrades.** A `.txt` stays a `.txt`. Converting a recovered fragment into some game-specific artefact would make the filesystem a metaphor again, and the whole point of it being a filesystem is that it is not.
+
+  **2. Repac.** An upgrade lives on somebody else's machine as `<name>.pkg` — a vendor package. It downloads to a folder **the player picks** (a Save-as-style submenu; `get <file> <into>` in the shell), and **Repac** — the rig's own packaging tool, never a window, never run by hand — turns it into `<name>.upg`. Double-clicking that installs it and the `.upg` is consumed.
+
+  ⚠ **Repac is instant but logged.** A download already has a progress bar and two bars for one act is noise; the interesting wait — the one bounded by somebody else's uplink — has already happened. It gets a log line anyway, because *a package silently becoming a different file* is precisely the step worth having noticed. A player who reads `repac: sweep-wide.pkg -> sweep-wide.upg` has learned that a downloaded package is not the same object as an installed program, which is a real and frequently-missing distinction for one line of output.
+
+  ⚠ **Installed upgrades land in the VAULT.** A stolen upgrade arriving in the hot zone would be immediately re-stealable, and a chain of players stealing one upgrade back and forth is a loop with no decision in it. Moving it out is the player's choice and is what §6's trade is for.
+
+  **3. ⚠ [PROPOSAL] Only ETHECOIN-gated upgrades may be resold — this is Invariant I2.** If a schematic-gated tool could be stolen and sold for ethecoin, **anyone with enough ethecoin could buy a ceiling**, which is exactly what I2 forbids and what I8 forbids for zero-days. Resale is therefore restricted to items whose gate is *already* ethecoin: money reselling a money-gated item opens no route that was not open. Everything else can still be **stolen and used** — raiding is an established acquisition route (§6) and nothing here changes it. What is refused is turning a gated item into currency, and the refusal says which gate and why rather than a bare "cannot sell".
+
+  **Rejected alternative:** letting anything be resold, on the grounds that theft should be lucrative. It is lucrative; it just cannot be lucrative *in ethecoin* for a ceiling item without deleting I2. Resale is 60% of catalogue price — well below retail, because theft has no compute cost, no thermal recovery and no cap, and at parity it would dominate every other income source.
+
+  **4. ⚠ [PROPOSAL] The market is not escrowed, and that needs a THIRD reputation.** A seller takes payment and then chooses whether to send. Not sending is a real available move — which is what makes buying from a stranger a decision rather than a transaction.
+
+  ⚠ **`traderReputation` must never share a field with `factionReputation` or `validatorReputation`.** `CLAUDE.md` and the glossary already forbid conflating the first two; this is the third and the same rule applies. All three are independent on purpose: **a Sickle hero can be a thief, and a scrupulous trader can be a validator nobody trusts.** Collapsing any two would make one a proxy for the other and delete a whole axis of characterisation.
+
+  ⚠ **A penalty is a CHANCE, and it rises.** 20% for the first defection, +18 points each time, saturating at 95%. A guaranteed penalty is just a price, and a price is something a player budgets for; a rising chance cannot be budgeted — the first is usually free, the fifth usually is not, and the seller never knows which one costs them. Reputation is deliberately **slow to build and quick to lose** (+2 per delivery, −15 per caught defection): if honesty paid back as fast as defection cost, the optimal play would be to alternate and the score would measure nothing but volume. The roll happens **once and is recorded**, never re-rolled on read — the same rule the sweep's frozen result follows, because a chance a player can re-roll by reloading is not a chance, it is a delay.
+
+  ⚠ **Neither the market nor the reputation can fire in single player** — both parties are players. A solo trader reputation is a permanent zero. Rules and tests exist now so **CL-8** is a transport change, not an engine change.
+
+  **Still open:** whether an undelivered sale should be visible to anyone but the buyer; whether standing should decay toward zero over time; and whether a very high standing should unlock anything, which would make it a ceiling and needs checking against I2 before it is offered.
+
+- 2026-07-28 — **The filesystem restructured: a macOS root over a FreeBSD base system.**
+
+  **The root is four entries and a mount point** — `/Applications`, `/Library`, `/System`, `/Users`, `/mnt`. It was a twenty-directory Linux FHS root, of which a desktop user touches two. macOS's four say what each one is *for* at the top level: programs, shared support, the operating system, people.
+
+  ⚠ **The FHS did not disappear; it moved inside `/System`, where it belongs.** Those directories *are* the operating system, and having them at the root was always the thing that made a Unix filesystem look forbidding. Homes moved from `/home/<user>` to `/Users/<user>`, and `/Applications` is system-wide as on macOS rather than per-user.
+
+  **Why this pairing is not arbitrary:** macOS's own userland descends from FreeBSD, so a macOS root over a FreeBSD base is the one real system this layout is closest to. `docs/client/03`'s uOS is that system.
+
+  **`/System` is a FreeBSD base system down to individual files** — `boot/loader.conf`, `boot/kernel/kernel` and its modules, `etc/rc.conf` beside `etc/defaults/rc.conf`, `etc/master.passwd`, `etc/rc.d/*` as executables, `rescue/`, `libexec/ld-elf.so.1`, `lib/libc.so.7`, the `/usr` split, `/var`. Owned `root:wheel`, mode `r-xr-xr-x` throughout, because the base system is not yours to edit and the mode string is where a player sees that before trying.
+
+  ⚠ **Nothing in `/System` opens, and that is the design rather than a limitation.** Two reasons, and the second matters more. It is **honest**: a game cannot ship a real kernel, and a `/System/boot/kernel/kernel` that printed invented bytes would be teaching something false about the one subject this tree exists to teach. And it is **better teaching**: a directory you cannot open but *can look up* is one you end up reading about, which is how anybody actually learns a hierarchy. Double-clicking a system file returns the manual's note on what that directory is for, plus a pointer to `man hier`.
+
+  ⚠ **Somebody else's `/System` is equally closed.** Holding a foothold buys you their *files*, not their operating system — an OS readable off a machine you broke into would be a claim this game cannot back.
+
+  ⚠ **The remote-access log moved to `/Library/Logs/remote-access.log`**, out of `/System/var/log`. Structural, not cosmetic: the base system does not open, and *a record of an intrusion nobody can read is not a record*. It sits with the machine's other readable logs, which is where macOS puts a log belonging to the computer rather than to the OS.
+
+  **The teaching this is built around** is `/usr/local`. FreeBSD develops its base system as one coherent, versioned whole and puts everything installed afterwards under `/usr/local` and nowhere else; Linux draws no such line. That difference explains a whole category of problem — *the upgrade removed my software* — that one design has and the other does not. It is now the centre of the shipped `hier(7)` page.
+
+  **Manual: `hier(7)` shipped, and it is an anchor rather than the whole expansion.** Curriculum entry landed first (`../education/03-operating-systems.md` §3.10a) per `CLAUDE.md`'s ordering rule, with a `verified:` line. ⚠ It deliberately asserts **nothing version-specific to FreeBSD 15** — the layout is the durable, checkable part, and a claim about one release is the kind that goes stale silently. Remaining, and deliberately not rushed: per-file pages (`rc.conf(5)`, `loader.conf(5)`, `master.passwd(5)`, `rc.d(8)`, `ports(7)`), each of which needs its own curriculum entry and its own verification, and each of which is a factual claim about a real system.
+
+  **One bug this caught:** the file manager opened at a hard-coded `/home/<handle>`, which after the move renders as an **empty folder rather than an error** — so nothing complains and the window just looks broken. Now routed through `VirtualFs.home`.
+
+- 2026-07-28 — **⚠ Reported: "the OS folders say they cannot be accessed on my own machine". Correct, and my earlier rule was too broad.**
+
+  `SystemTree` hard-coded `readable = false` on every entry, so on the player's **own rig** the file manager dimmed `/System` and answered a double-click with *"you do not hold this machine. Breach it first."* — about their own machine.
+
+  ⚠ **The original argument was sound for a kernel and wrong for a config file.** "A game cannot ship a real kernel" is true of `/System/boot/kernel/kernel`; it is not true of `/System/etc/rc.conf`, which is nine lines of text anybody can read on their own laptop right now. Refusing both taught that an operating system is a closed box, which is the **opposite** of what this tree exists for. The base system is read-**only** — every mode in it is `r-xr-xr-x` — and it was never meant to be unlookable.
+
+  **What it does now:**
+
+  - **Text configuration reads, in FreeBSD's real formats** — `rc.conf`, `defaults/rc.conf`, `loader.conf`, `fstab`, `passwd`, `group`, `hosts`, `resolv.conf`, `motd`. The *values* are this machine's; the *formats* are FreeBSD's, and the formats are the part being taught. `defaults/rc.conf` carries its own warning not to edit it, which is the real reason that file exists.
+  - **Binaries say what they are** — `file`'s answer, not `cat`'s screenful of noise. That half of the original argument survives intact.
+  - ⚠ **`master.passwd` stays closed even to its owner, for the REAL reason.** Mode 0600, owner root, on every FreeBSD machine alive. Being refused is how a player meets the split — and the world-readable `passwd` beside it explains, in its own header, that the asterisks are where the hashes are not.
+  - **Somebody else's `/System` follows the same rule as the rest of their machine**: outline always, contents once you hold a foothold. That is realistic and is a genuine recon reward — their `rc.conf` tells you what that box actually runs.
+
+  ⚠ **A second bug fixed on the way, and it is the more general one.** Both the file manager and the shell checked `FsEntry.readable` *before* asking the rules. `readable` is one bit and there is more than one reason a file will not open — mode, ownership, or not holding the machine — so the view was picking a sentence it had no business picking. Both now **ask the engine first** and fall back to a generic refusal only when it has nothing to say. Any future "you cannot read this because…" belongs in the rules, not in a view.
+
+- 2026-07-28 — **⚠ Reported: double-clicking a folder in `/System` opened an info panel calling it a binary.** Two bugs, and the second is embarrassing in a useful way.
+
+  **1. The directory check had ended up BELOW the read call.** When I reordered `open()` to ask the rules before trusting `FsEntry.readable`, the `read` went above `if (entry.directory())` — so a folder was read as a file. Opening a folder is not a question about permissions or contents; it is **navigation**, and it is what a double-click means everywhere a person has ever double-clicked anything. It is now first, unconditional, and above everything.
+
+  **2. `isBinary` said a directory was an ELF executable.** The check was "a system path with no text contents", and a directory has no text contents. So the panel described `/System/bin` as *"ELF 64-bit LSB executable, x86-64, dynamically linked, stripped"*. It now takes the directory flag from the caller rather than guessing from the path — **a path cannot tell you what a thing is**, which is the entire reason `FsKind` exists.
+
+  **New: right-click → Get info.** macOS's own name and macOS's own idea — a panel about the thing rather than the thing. Header facts come from the `FsEntry` the listing already holds; everything below comes from `GameSession.info`, because "what is `/System/bin` for" is a question about the world and not about a widget.
+
+  ⚠ **This is where most of the filesystem's teaching now lives, and it needed its own verb.** A folder cannot be opened *into* a text view, so before this existed there was no way to find out what `/System/rescue` was for. `read` answers "show me what is in it" and is what a double-click means; `info` answers "what am I looking at" and is what a right-click means. They are different questions asked at different moments, and one method could not have served both.
+
+  `stat` in the shell prints the same note, from the same call — a `stat` that said less than a right-click would send players to the mouse to learn things.
+
+- 2026-07-28 — **Window controls follow the host OS, and rounded corners become an opt-in (§9 amended).**
+
+  **1. On macOS the Stage controls are on the LEFT, in macOS's order.** They were on the right on every platform. This deck draws its own chrome (§0), which means it also inherits the obligation to put it where the player's OS would — and a close button on the wrong side is not merely unfamiliar, it gets **mis-clicked**, because the hand goes where it has gone ten thousand times before.
+
+  ⚠ **The group is reordered, not mirrored.** macOS runs close, minimise, zoom left-to-right; everyone else runs minimise, maximise, close. Mirroring the existing group would have put *close* in the far corner on a Mac, which is where *zoom* lives there — the single worst place to move a close button to. `WrapStrip.setPinned` grew a side, and the flow starts after the controls so nothing runs underneath them.
+
+  **2. ⚠ §9.3 — rounded corners are permitted as an opt-in.** Amended on explicit direction, to allow more user controllability; the same direction §9.1 already took for screen artefacts. Settings → Desk → *Rounded window corners*, **off by default**, one 6px radius in one CSS block gated on `.es-rounded`, applied to the outer Stage and the desk's window frames.
+
+  ⚠ **It must never round anything a measurement is read off** — not a meter cell, the cycle grid, a hazard band or a character-cell texture. A cell with a soft corner reads as a *smaller cell*, and the entire point of a discrete meter (§4) is that a player can count it. **Rounding a window is taste; rounding a measurement is a lie about a number.**
+
+  **The contract test was replaced, not deleted.** `UiContractTest` used to assert "radius is 0 everywhere". It now asserts that a non-zero radius appears **only** inside an `.es-rounded` rule, and a second test asserts such a rule names none of the measurement classes. So the contract still has teeth; what changed is what it is a contract *about*. Off-by-default keeps §9's rejection list an accurate description of what ships.
+
+- 2026-07-28 — **⚠ Reported: the rounded-corner toggle did nothing. It could not have worked, and the reason is worth writing down.**
+
+  **Both painted parts of a window frame are already `setClip`ped to a `Polygon` for the 18px notch — and a polygon clip cuts square corners no matter what `-fx-background-radius` says.** The first implementation set the CSS property, which was applied faithfully and then clipped straight back off. Nothing reported a problem: the stylesheet was valid, the rule matched, the class was on the root. It simply had no visible effect, which is the worst failure shape a setting can have.
+
+  ⚠ **The rule to carry forward: on this deck, corner geometry is a CLIP, not a stylesheet property.** Anything drawn inside a notched frame is shaped by `WindowFrame.clip`. `Shape.intersect(roundedRect, notch)` is used rather than a hand-built arc path, because the notch geometry is already correct and tested (`notchPoints`, §10 criterion 6) and re-deriving it would be a second implementation of a machine-checked claim.
+
+  **A toggle re-lays every live frame**, not just new ones — the clip is computed in `layoutChildren`, so an untouched frame keeps the shape it was born with and the setting would appear to apply only to windows opened afterwards.
+
+  **⚠ The outer Stage needs `StageStyle.TRANSPARENT`, and that has a real cost.** An `UNDECORATED` window still paints its own corner pixels, so a rounded clip cuts the deck away and the OS fills the gap — which looks like a bug rather than a radius. `TRANSPARENT` is the only style where a corner can actually be *absent*. It is **not** the default because a transparent Stage needs a compositor, and there are Linux setups without one where the result is a black frame. The style is chosen at startup from the setting, `initStyle` cannot change on a realised Stage, and the Settings panel therefore says the outer window changes on the next start while desk windows change immediately.
+
+  **Also: the `[+]` control is green on hover** (`-es-gain`), matching every traffic-light control a player has used. ⚠ That is a **third** use of a hue §2.1a rations to two — the balance delta and a breached node. It is defensible because §2.1's rationing is about **data**: a green number claims something was gained, and a maximise button is chrome. ⚠ Do not extend it further without re-reading §2.1a — three uses is a vocabulary, five is a palette, and a palette is what the single-accent rule exists to prevent.
+
+- 2026-07-28 — **The main window respects the rounded toggle, and the application has a name.**
+
+  **1. The Stage is now always `TRANSPARENT`.** It had been conditional on the setting, so the main window could only change on a restart while desk windows changed instantly. ⚠ **A toggle that half works is worse than one that does not**, because the player cannot tell which half is broken. Always-transparent is safe for people who never touch the setting: the scene's ground holder covers the window edge to edge, so nothing is actually see-through until a corner is clipped away. The residual Linux-without-a-compositor risk is only exercised by opting in, and the Settings text says so.
+
+  ⚠ **The clip goes on the SCENE ROOT, not the deck.** The scene root is the UI-scale holder and the deck is inside it — clipping the deck leaves the holder painting square corners over the top, which is indistinguishable from the setting doing nothing. That is now the *second* way this feature has silently failed (the first was CSS being clipped off by the notch polygon), and both failures looked identical from the outside. **Clip the outermost thing, so nothing downstream can paint the corner back in.**
+
+  **2. The application is called `EAS uOS Client`.** `apple.awt.application.name` and `glass.appName`, set in `Launcher` ⚠ **before `Application.launch`** — both are read once at toolkit init, and setting them afterwards is accepted, does nothing, and reports nothing, so the window comes up named "java" with no error to chase. `-Xdock:name` added to `client/pom.xml` and both `.run/` configurations.
+
+  ⚠ **This does not rename the process.** `ps`, Activity Monitor and the Windows task list still say `java`, because that is genuinely what is executing. Changing it needs a native launcher — a `jpackage` app image — and `jpackage` cannot cross-compile, so it would need one build machine per platform (`client/pom.xml`'s closing comment). What this fixes is every place the desktop asks the *application* its name.
+
+- 2026-07-28 — **Application naming across three platforms, and the window radius consolidated.**
+
+  **1. `EAS uOS Client`, and three platforms answer differently.**
+
+  | Platform | Reads | Set by |
+  |---|---|---|
+  | macOS | Menu bar, dock, force-quit list | `apple.awt.application.name` + `-Xdock:name` |
+  | Linux | Taskbar label, window grouping, `WM_CLASS` | `glass.appName`, and the Stage title as fallback |
+  | Windows | Taskbar button label | **The Stage title, and nothing else** |
+
+  ⚠ **The Stage title is now the app name rather than the game's, and that is the load-bearing change.** The deck is undecorated (§0), so the title is *invisible inside the game* — the only thing that ever reads it is the OS window list. Windows has no in-JVM way to name an application at all: its taskbar groups by executable and labels by title. A title nobody can see is worth more as the one label all three platforms agree to read.
+
+  ⚠ **Set before `Application.launch`.** Both properties are read once at toolkit init; setting them afterwards is accepted, does nothing, and reports nothing — the window comes up named "java" with no error to chase.
+
+  ⚠ **None of it renames the PROCESS.** `ps`, Activity Monitor and the Windows Details tab still say `java`, because that is genuinely what is executing. Renaming needs a `jpackage` app image, and `jpackage` cannot cross-compile.
+
+  **2. ⚠ [UNVERIFIED] The radius approximates macOS Tahoe and has not been measured against it.** `UiTokens.WINDOW_RADIUS = 16`. Tahoe's windows are visibly rounder than the ~10pt Big Sur through Sequoia used, and the value reflects that — but the exact figure was **not checked against the real thing**, and `CLAUDE.md` forbids stating an unverified real-world fact as one. It is a single constant so confirming it is a one-line change.
+
+  ⚠ **It will not match exactly however the number is tuned.** macOS corners are a **continuous curve** — a squircle — and JavaFX's `arcWidth`/`arcHeight` give a **circular arc**. A circular corner reads tighter at the same nominal radius because curvature changes abruptly where the arc meets the straight edge, which is precisely what a squircle exists to avoid. Matching properly means building the clip from a Bézier path; deliberately not done yet, because **a wrong radius is one number and a wrong curve family is a shape nobody can adjust.**
+
+  **3. The radius moved into `UiTokens` and the CSS block was deleted.** It had been a literal in two view classes plus a stylesheet rule — a §7.2 violation I introduced (sizes live in `UiTokens` and nowhere else), and the two could have drifted so the deck curved by a different amount than the windows inside it. `theme.css` now carries a comment where the rule was, saying that corner geometry here is a clip and that anyone arriving to add a radius is in the wrong file.
+
+- 2026-07-28 — **⚠ §0.1 — the system window border becomes an opt-in.** §0 cancelled the `Stage`-per-tool model because *"the entire aesthetic depends on the player never seeing their own operating system"*, and §10 criterion 1 makes no visible OS chrome an acceptance criterion. Amended on explicit direction, for the same reason §9.1 permits screen artefacts and §9.3 permits rounded corners. **Off by default** — §0 and §10 criterion 1 still describe what ships, and a test now holds both chrome defaults so a flip cannot make two documents wrong at once with a green build.
+
+  ⚠ **Two things switch off with it, and both are correctness rather than polish.** The deck's own `[−] [+] [×]`, because two sets of window controls on one window is not redundancy — it is a question the player must answer every time they want to quit. And the top strip's drag handler, because the OS title bar already drags the window and a second handle inside the content **fights** it: press the strip and the window jumps by the offset between the two.
+
+  ⚠ **Outer rounding becomes the OS's business.** With a native frame the window manager owns the corners, so the scene-root clip is skipped — applying it would cut the game away *inside* a square frame and leave a visible gap. Desk windows still round; those are the deck's own furniture. The two settings interact **at render time only**; neither is stored as a function of the other, or a player's explicit choice would vanish the next time they toggled the other one.
+
+  **The title follows the frame.** Undecorated it carries the *application* name, because it is invisible in-game and its only reader is the OS window list (and on Windows it is the only naming lever there is). With a native frame the title bar is on screen and is the game's own furniture, so it says *The Eye and Sickle*.
+
+  ⚠ **Restart-only, and unavoidably this time.** `initStyle` is rejected on a realised Stage, and `DECORATED` and `TRANSPARENT` cannot both be true of one window. The rounded-corners setting dodged this by making the Stage *always* transparent; there is no equivalent escape here, and the Settings text says so rather than leaving the player to find out.
+
+  **Tool windows are unaffected and always will be.** §0's cancellation of the `Stage`-per-tool model is unchanged — this is the main window only.
+
+- 2026-07-28 — **Settings rebuilt as a sidebar and a detail pane, following macOS System Settings.**
+
+  It was thirteen headings in one scroll. Finding *wallpaper* meant going past the pointer, the severity floor and every subsystem checkbox — and ⚠ **there was no scroll position from which a player could see what the panel even covered.** A category list answers *"what can I change"* before *"change it"*, which is the question somebody opening Settings is actually asking.
+
+  **Nine categories**, in display order: Operator · Appearance · Windows · Desk · Screen · Notices · Teaching · Accessibility · About.
+
+  Two regroupings worth naming, because they are not where the old headings were:
+
+  - **Windows** took the chrome settings (native border, rounded corners) *and* the window-size block, which had been floating under a bare `SCREEN` separator. Size, border and corners are three questions about one object; they were in three places.
+  - **Accessibility** took Pointer and Motion. That is where macOS puts them and where someone hunting for either will look — and both are genuine accessibility controls rather than decoration: the system-pointer default is a floor (`../client/07-accessibility.md`), and Reduce motion follows the OS preference unless overridden.
+
+  ⚠ **The sidebar is built from the page map and nothing else.** A hand-written list of names beside a map of pages is two things to keep in step, and the failure mode is a sidebar entry that selects nothing.
+
+  ⚠ **Search filters category NAMES, not the prose.** Deliberately: this panel's help text is long and argumentative, so matching on it would return every category for words like "default" or "window". **A filter that never narrows is worse than no filter, because it looks like it is working.**
+
+  **Prose stays with its control** rather than being collected per page. Several of these settings have consequences invisible from the checkbox — scanlines cost real contrast, the Bandwidth cap is uncalibrated, the native border needs a restart — and a note two scrolls from the thing it is about is a note nobody reads *before* deciding.
+
+- 2026-07-28 — **Desk-window control order is a setting: `Match this computer` / `macOS — close first` / `Windows — close last`.**
+
+  ⚠ **Order only. It never changes which SIDE the controls are on.** The side is a platform convention the outer window already follows unconditionally, and two players can disagree about whether close comes first without disagreeing about which corner it lives in. `ControlOrder` carries no notion of a side, and a test asserts it never grows one.
+
+  ⚠ **Desk windows only. The outer window keeps following the host OS.** That one sits *beside* the player's real windows and is judged against them; a desk window sits inside the game and is judged against the game. Making the outer window configurable would let somebody put close where their OS puts zoom — the one arrangement guaranteed to cost a session.
+
+  ⚠ **Reordered, not mirrored.** macOS runs close, minimise, zoom; Windows runs minimise, maximise, close. Reversing the row would put minimise where the other convention puts maximise, so a player who chose "macOS" would get neither convention. Same trap the outer window's macOS side hit, and the same fix.
+
+  **A change rebuilds the controls on windows that are already open.** A frame keeping the order it was born with would make the setting look like it only applied to windows opened afterwards — the failure the rounded-corners toggle had before its clip was re-laid, now the third time this shape of bug has come up. **Any global appearance flag has to reach live objects, not just new ones.**
+
+  **Default is `system`**, because that is the arrangement the player's hand already knows. `closeFirst(boolean mac)` takes the platform as an argument rather than reading `os.name`, so the decision is testable as the other operating system.
+
+- 2026-07-28 — **⚠ Reported: "weird spacing" in Settings. Two causes, and the first is a JavaFX trap worth naming.**
+
+  **1. A layout constraint only grows a child up to its MAXIMUM, and a Control's computed maximum is not a Pane's.** `VBox.setVgrow(body, ALWAYS)` and `HBox.setHgrow(detail, ALWAYS)` were both set and both looked correct — but the `ScrollPane` inside stopped at its *preferred* height, so a category's content sat in the top third of a tall window with dead space under it, and the sidebar's hairline divider ended wherever the last category happened to fall. That reads as the panel having ended there.
+
+  ⚠ The fix is an explicit `setMaxHeight(Double.MAX_VALUE)` on the scroll pane, the sidebar and the body. **Vgrow without a max is a constraint that silently does nothing**, and it is invisible in code review because the grow call is right there and obviously correct. Worth remembering next time a pane "won't fill".
+
+  **2. A `ScrollPane` brings Modena's white viewport background with it.** Transparent now — against a dark theme an unstyled viewport is not a subtle defect, it is the brightest thing on screen.
+
+  **The page padding is left-only.** The right edge belongs to the content: this panel's prose is long, and every pixel off the measure is another line of wrapping in a window the player has already made as wide as they want it.
+
+- 2026-07-28 — **About gets real rig facts, and the operator gets a picture.**
+
+  **1. About reads like a spec sheet, and every line is real.** uOS release, kernel, hostname, operator, mode · compute, memory buffer, bandwidth, thermal budget · the three storage tiers with used-of-capacity · uptime and balance. All read from the session — the cycle count is the one the rig monitor draws, the tier capacities are the ones the storage rules enforce.
+
+  ⚠ **Compute is stated in CYCLES and never converted to gigahertz.** A rig's capacity is a count of concurrent work, not a clock speed (`01-core-resources.md` §1.1), and dressing it as MHz would make the one screen built to look like a real spec sheet lie about the resource the whole game turns on. **A spec sheet with invented numbers is the worst possible place for atmosphere.**
+
+  ⚠ Caught while rendering it: `Balance` showed `Ethecoin[minorUnits=0]` — the record's `toString()`. It renders without complaint and reads as a leaked internal, on exactly the screen that must look real.
+
+  **2. ⚠ A profile picture, and it crosses §7's boundary once — deliberately, under three conditions.** `docs/client/00` §4.5 makes the profile directory the only host filesystem this client touches and §7 makes that a security boundary. Choosing a picture:
+
+  - **The player picks the file in their own OS's dialog.** Nothing in the game builds a path, and nothing a player types anywhere reaches that code.
+  - ⚠ **It is read once, and the PIXELS are what is kept.** The path is discarded and never persisted — a stored path would mean the game reading an arbitrary host location on every launch, forever, which is precisely what §7 exists to prevent. It also means the picture travels with the character: a save copied to another machine still has its face.
+  - **Failure is silent.** An unreadable or absurd file yields no picture and no exception; a chooser that could throw would let a malformed image end a session.
+
+  Crop and zoom rather than auto-fit — the result is a small square, and fitting would letterbox, which looks like a bug rather than a policy. ⚠ The crop is taken by **snapshotting the viewport the player framed**, not by recomputing it from zoom and offset: reconstructing the crop arithmetically is a second implementation of the framing they can already see, and it would drift the first time the viewport's padding changed.
+
+  **3. The default picture is generated, not shipped** — a silhouette torn up by static, seeded on the handle so it is theirs and stable across launches. ⚠ Deliberately unflattering: a neutral grey head reads as *loading*, while a figure breaking up under interference reads as **somebody who has not told you who they are** — which is the right thing to say about an operator with no picture, and a placeholder that looks finished never gets replaced.
+
+  **A minimal PNG encoder** (`ui/Png`) rather than `SwingFXUtils` + `ImageIO`, which would drag `javafx-swing` and `java.desktop` into a client with no other use for either. PNG's container is a signature, three chunks and a zlib stream. The deciding argument was testability: `int[]` in, `byte[]` out is checkable headlessly, and a `SwingFXUtils` path could only be tested by starting a toolkit. ⚠ If it ever grows a per-row filter heuristic, the dependency was the better trade after all.
+
+- 2026-07-28 — **The operator's picture appears on the top strip, beside their name.**
+
+  Sized to `STRIP_HEIGHT` minus a hair, so it sits inside the strip's own band rather than setting it — a cell that grew to fit a picture would push every other readout on the strip down with it.
+
+  ⚠ **Guarded on the stored value, not refreshed unconditionally.** The strip repaints on every session change, which is about once a second because self-mining credits on every tick, and decoding a PNG that often to draw the same twenty-two pixels is pure waste. The cache key is `avatar + handle` rather than the avatar alone — the generated silhouette is **seeded on the handle**, so renaming has to change the face even when no picture is set. Keying on the picture alone would leave a renamed operator wearing the old one's noise until a restart.
+
+- 2026-07-28 — **The main menu is a login screen: macOS's user picker over GDM's furniture** — recorded in `ui-design-language.md` §3.1.
+
+  A row of round faces with a name under each, a brand band above, and Settings/Quit in a bottom bar where a greeter puts its power controls. Online play is the **last face in the row** — macOS's *"Other…"*, GDM's *"Not listed?"* — which is a claim about what it is: another way to be somebody, not another mode of the game.
+
+  **What it replaced, and why that was wrong.** A stacked column of slot cards, each carrying a handle, a balance, a cycle count, an hours-played line and two buttons. That is a save-management screen: it made the player read six numbers before they could start playing. The numbers moved *under the selected face*, where they answer "is this the one I meant" rather than "which of these exists". The faces earn their place because the pictures are real — three characters called `kyy`, `kyyr` and `kyyrell` are indistinguishable in a list and instantly different as faces.
+
+  §3's **"tiling, not floating"** rule is explicitly scoped to the deck by the new §3.1. Tiling exists so a player reading four live panels never hunts for one; this screen has no live state and one question, and filling it edge to edge would mean inventing panels to fill it with.
+
+  ⚠ **Selection follows keyboard focus, and that is what forced the implementation shape.** The first cut rebuilt the whole row on every selection change — which destroys the node that just gained focus, so the first Tab moved the highlight and then dropped the player out of the picker entirely. The plates are built once and **restyled**; only a deletion rebuilds, and that is the one moment when losing focus costs nothing because a modal has just closed. Without it the picker would have been mouse-only, a straight regression from the per-slot buttons it replaced.
+
+  ⚠ **The circles are `Circle` nodes, not a corner radius** — and both reasons matter. §9.3 permits a non-zero radius only under `.es-rounded` and `UiContractTest` fails the build on one anywhere else; and it would not have worked regardless, because the picture is an `ImageView` and an image has no background for a radius to round. Same lesson as the window corners: **geometry is a clip, not CSS.**
+
+  Two states are distinguished at rest rather than on selection: an empty slot is a **dashed** ring, a damaged save is a dashed ring in the alarm hue. Otherwise the only thing separating "nothing here" from "your character will not load" is one character of glyph, and that difference matters most *before* the player has clicked anything. Empty slots are captioned by number (`Slot 2`), because on a first run three captions reading "empty" answer none of the question this screen exists to ask.
+
+  ⚠ **The menu had no way to move the window.** The Stage is undecorated (§0) and the drag handle that solves this on the deck is the top strip, which does not exist yet on this screen — so a first launch onto a badly-placed window had a title bar on every screen of the client except the first one. The brand band is now the handle, and it is not installed when §0.1's native border is on, where the OS title bar would fight it.
+
+  Rendered by `MenuSnapshot` (test scope, alongside `DeckSnapshot`) in both the populated and first-run states. Everything this screen gets right or wrong is positional, and no text assertion sees it.
+
+- 2026-07-28 — **A firmware splash before the login screen: a mark and a loading bar** — recorded in `ui-design-language.md` §4.1, built as `client/ui/PowerOn`.
+
+  The client now has **two** boot screens and they are different machines talking. `PowerOn` is firmware: it plays once per process, before the login screen, and it knows nothing because no operator has been chosen yet. `BootSequence` is uOS: it plays after a character is opened and every line it prints is that save's real state. Power on → who are you? → uOS → the deck.
+
+  ⚠ **Once per process, not per visit to the menu.** `showMainMenu` is reached from four places — startup, quit-to-menu, the pause menu, a failed connection — and only the first is a machine being switched on. A cold boot on every logout is a machine with a fault. The flag lives in `EyeAndSickleClient`, not in `PowerOn`, because only the caller knows which arrival it is.
+
+  **§4's "never a continuous bar" was amended, narrowly, and the rule is stronger for it.** The ban exists so a countable quantity stays countable — the cycle grid is 100 cells rather than a percentage for exactly this reason. This bar counts nothing: solo loads in milliseconds, there is no work to wait for, and what it shows is time passing. Nine discrete cells here would make it look like a *reading of something*, which is the failure the rule is actually about. Scope is one bar, 248 × 6, in the whole client.
+
+  ⚠ **Its rounded ends are `Rectangle.arcWidth`, not `-fx-background-radius`** — §9.3 gates the CSS property and `UiContractTest` fails the build on one outside `.es-rounded`. Same answer the login screen's circles reached, in the same week, for the same reason: **geometry is a shape, not CSS.** It advances on `Pulse`'s 100ms driver (~24 steps), so there is no `Timeline` and no `Interpolator` in the file, and §5's step timing is met by construction rather than by care.
+
+  **The mark** is a horned daemon whose head is a tree's crown — canopy, face, forking trunk, splayed roots — in U+2588 and spaces only, on IBM Plex Mono because Martian Mono has no block elements at all.
+
+  ⚠ **A VBox of one Label per row is the wrong node graph for block art, and it is not obvious until you look at it.** Rows stack at the font's line height, which leaves a vertical gap wider than the horizontal gap the glyph itself leaves — so the silhouette reads as a beaded lattice rather than a creature. One Label holding every row takes `-fx-line-spacing`, which goes negative and closes it.
+
+  `PowerOnTest` checks the **grid**, not the string: every row the same width, two characters only, exactly one connected mass, exactly three enclosed holes (two eyes and the maw). Character art has no compiler, and three of those four were real defects during authoring — a floating cell beside the trunk that read as a dead pixel, an isolated notch in the crown, and a sheared row. ⚠ The hole count needs **one cell of virtual border** when flood-filling, or the array's own edge cuts the surrounding void into pieces and the gaps between the branch tips all count as holes; the first run reported eight.
+
+- 2026-07-28 — **The splash's bar slides, the handover is a fade, and the mark is an apple** — recorded in `ui-design-language.md` §4.1 and the new §5.1.
+
+  **§5 was amended, narrowly.** "Step and linear timing only" stands for the interface and does not reach a title card. The distinction the section is really drawing is between motion the player is **working inside** and motion they only **watch**: a panel that fades in makes them wait to read it, and a value that tweens is a number lying about what it is. Neither applies to a splash handing over to a login screen — nothing is readable during it, nothing is interactive, nothing is measured. `Motion`'s own header carried the anti-fade argument and it is still correct *about a panel*; its javadoc now says which half it owns, because leaving it reading as an absolute would have been the next person's trap.
+
+  ⚠ **The bar was driven off `Pulse` and that was wrong.** Pulse ticks at 100ms, so the fill advanced in twenty-four eleven-pixel lurches. That rate is right for everything that twitches and wrong for the one thing on the screen that slides. It is an `AnimationTimer` now, ramping from elapsed nanoseconds — still no `Timeline` and no `Interpolator`. `Pulse.TICK_MS` was briefly made public for the old approach and is private again.
+
+  ⚠ **`AnimationTimer` is now rationed by filename, and the check matters more than it looks.** §10 criterion 7 rations `Interpolator.LINEAR` to `SweepPanel` — but a `Timeline` + `KeyValue` interpolates with `LINEAR` **by default**, so a fade could be added anywhere without the word ever appearing in the source. That would be passing the check by never tripping it. `UiContractTest` now asserts `AnimationTimer` appears in exactly `Fade.java` and `PowerOn.java`.
+
+  ⚠ **The content fades, never the ground.** The Stage is `TRANSPARENT` (§0) and the scene root paints the ground colour, so ramping the root's opacity shows the window through itself for a fifth of a second. Both ends ramp their *content* over a black that never moves — which is also what a real firmware handover looks like. The menu fades in **only** when arriving from the splash; quit-to-menu, the pause menu and a failed connection are screen changes the player asked for, and delaying those puts lag between a click and its result.
+
+  **The mark is an apple with nothing bitten out of it.** What makes it hostile is carved into the silhouette rather than taken off it: eyes slanted down toward the core, and a grin with two fangs. Four drafts got there — a horned tree-daemon read as an insect, then as a rabbit; the first apples read as pumpkins, twice. ⚠ **Two lessons worth keeping.** A monospace cell here is ~1.8× taller than wide, so an art grid that is *square in cells* renders markedly **taller than wide** — the pumpkin readings were mostly this, not the drawing. And a shape whose sides run dead vertical for eight rows reads as a pumpkin whatever else is true of it; curvature has to change on nearly every row.
+
+- 2026-07-28 — **The splash mark is a glowing ring reading `uOS`, white on black, unthemed** — replaces the block-drawn apple; `ui-design-language.md` §4.1 rewritten.
+
+  The ring is the **O**; `u` and `S` fade in beside it on the *bar's* progress, so the thing the player watches complete and the thing that completes are the same. The block art and `PowerOnTest` are gone with it — there is no character grid left to check — and `PowerOn.renderAt(progress)` is now the single place anything moves with the bar, which is also what `PowerOnSnapshot` calls, so the still and the screen cannot disagree.
+
+  ⚠ **This screen ignores the palette, and that is the point.** Firmware runs before anything knows who the player is. `.es-poweron` declares its own two colours instead of resolving `-es-` tokens, so the five overlays have nothing to override. §10 criterion 2 is satisfied — the colours are in the stylesheet, they are simply not the palette's. At the handover, black gives way to the menu's ground: invisible on the four dark palettes, a real change on `classic`, and correct either way.
+
+  ⚠ **The glow is eight overlapping strokes, because §9's shadow ban still stands.** The §9.3 amendment reversed the rounded-corner ban and left drop shadows, blur and glassmorphism build-blocking; `UiContractTest` fails on a `dropshadow(` anywhere in the stylesheet. First attempt spaced four strokes evenly across thirteen points and rendered as **four concentric circles** — banding, not glow. A falloff drawn in strokes needs them to overlap, so the radii are close and the widths wide and their alphas accumulate. Two of the eight sit *inside* the bright ring: light spills both ways, and an outward-only halo reads as a printed ring with a shadow.
+
+  ⚠ **The halo overflows its layout box deliberately.** The ring's `StackPane` is sized to the bright circle, not the glow. Sizing it to the glow pushes `u` and `S` seventeen points further out on each side and the three characters stop reading as one word. Panes do not clip in JavaFX, so the overflow costs nothing.
+
+  ⚠ **`PowerOn.still()` exists because `play()` cannot be snapshotted.** Under reduced motion `play` finishes on the spot and the handover fade takes the content to zero opacity — correct behaviour that renders as an entirely black page, which is what the first snapshot produced.

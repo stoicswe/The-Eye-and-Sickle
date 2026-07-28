@@ -394,6 +394,63 @@ public final class Balance {
      * these three numbers to teach the false-positive trade, so changing them changes a teaching
      * example as well as a cost.
      */
+    /**
+     * Cycles one open shell session holds, for as long as it is open.
+     *
+     * <p>Small on purpose — two cycles is a twentieth of a starting rig, so the first few sessions
+     * are effectively free and the twentieth is not. That shape is the whole reason the cost exists
+     * rather than a cap: {@code docs/design/00} §4's meta-rule is that compute is the master
+     * scarcity, and "how many machines can I sit on at once" should be a question the rig answers.
+     * A hard cap would answer it with a number nobody could argue with, which is worse.
+     *
+     * <p>⚠ Held, never spent, and it does <b>not</b> enter thermal recovery on close — see
+     * {@code SessionRules.close}. Recovery is the price of having <em>worked</em> the silicon
+     * ({@code docs/design/01} §1.3), and an idle shell has not.
+     */
+    // ── The link (docs/design/15 — TR-1 is open: whether this is ever upgradable) ─────────────
+    //
+    // ⚠ DECIMAL bits, because that is what a network is measured in. A file is measured in bytes,
+    // and the two units meeting is the single most common place people get transfer arithmetic
+    // wrong — 150 Mbit/s is 18.75 MB/s, not 150. Keeping the constants in bits and converting once,
+    // here, is what stops that error being made twice in different places.
+
+    /** Downstream, bits per second. Gigabit. */
+    public static final long LINK_DOWN_BITS = 1_000_000_000L;
+
+    /** Upstream, bits per second. Asymmetric, the way a real consumer line is. */
+    public static final long LINK_UP_BITS = 150_000_000L;
+
+    /**
+     * Connection setup, in milliseconds, before a byte moves.
+     *
+     * <p>Real: a handshake, a key exchange and a request happen before any payload does. It exists
+     * here for an honest reason rather than a cosmetic one — without it a four-kilobyte document
+     * transfers in under a millisecond and the progress readout is a flicker, which would read as
+     * the game failing to do anything rather than as the transfer being genuinely instant.
+     */
+    public static final long TRANSFER_SETUP_MS = 400L;
+
+    /**
+     * How fast a download from another machine actually goes, in bytes per second.
+     *
+     * <p>⚠ <b>The bottleneck is the REMOTE END'S UPLOAD, not your download.</b> Gigabit down is
+     * irrelevant when the machine you are pulling from can only push 150 Mbit — so every transfer in
+     * this game runs at 18.75 MB/s no matter how good your line is. That is the single most useful
+     * true thing about file transfers that most people have experienced and few have had named for
+     * them, and it is why the two constants above are different numbers rather than one.
+     */
+    public static long downloadBytesPerSecond() {
+        return Math.min(LINK_DOWN_BITS, LINK_UP_BITS) / 8L;
+    }
+
+    /** How long moving {@code bytes} takes, setup included. Never zero — see the setup constant. */
+    public static java.time.Duration transferTime(long bytes) {
+        long payloadMillis = Math.max(0L, bytes) * 1000L / Math.max(1L, downloadBytesPerSecond());
+        return java.time.Duration.ofMillis(TRANSFER_SETUP_MS + payloadMillis);
+    }
+
+    public static final long SESSION_CYCLES = 2L;
+
     public static final long SCAN_QUICK_CYCLES = 5L;
 
     public static final long SCAN_FULL_CYCLES = 15L;

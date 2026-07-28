@@ -90,6 +90,11 @@
               stops the client from breaking on a JDK bump later.
             -->
             <option>--enable-native-access=javafx.graphics</option>
+            <!-- What macOS puts in the menu bar and the dock. Without it the running application is
+                 called "java", which is the runtime's name rather than the game's. Harmless on
+                 Windows and Linux, which ignore the flag. Launcher sets the matching system
+                 properties for the platforms that read those instead. -->
+            <option>-Xdock:name=EAS uOS Client</option>
           </options>
         </configuration>
       </plugin>

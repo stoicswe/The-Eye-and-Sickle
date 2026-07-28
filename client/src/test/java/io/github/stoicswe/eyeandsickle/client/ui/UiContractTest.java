@@ -74,6 +74,28 @@ class UiContractTest {
         }
 
         @Test
+        @DisplayName("§5.1 — continuous motion is rationed to the firmware handover")
+        void animationTimerIsRationed() throws IOException {
+            // ⚠ This assertion exists because the LINEAR one above cannot see the alternative. A
+            // Timeline + KeyValue interpolates with Interpolator.LINEAR by DEFAULT, so a fade could
+            // be added without the word appearing anywhere — passing the check by not tripping it.
+            // AnimationTimer is the honest way to write a continuous ramp, and this rations it by
+            // name so a second one is a decision somebody makes on purpose.
+            //
+            // Both permitted users are the power-on splash (§5.1): the progress bar, and the fade
+            // that hands over to the login screen. Neither is a surface the player works inside.
+            List<String> users = new ArrayList<>();
+            for (Path source : javaSources()) {
+                if (stripComments(read(source)).contains("AnimationTimer")) {
+                    users.add(source.getFileName().toString());
+                }
+            }
+            assertThat(users)
+                    .as("continuous per-frame motion is permitted only on the splash (§5.1)")
+                    .containsExactlyInAnyOrder("Fade.java", "PowerOn.java");
+        }
+
+        @Test
         @DisplayName("the only LINEAR interpolation is the sweep bar §5 asks for")
         void linearIsRationed() throws IOException {
             // LINEAR is permitted — §5 specifies a linear sweep loop — but it is the one continuous
@@ -141,12 +163,66 @@ class UiContractTest {
                     .doesNotContain("dropshadow(")
                     .doesNotContain("gaussian")
                     .doesNotContain("innershadow(");
+            // ⚠ §9 AMENDED 2026-07-28: a non-zero radius is permitted, but ONLY under `.es-rounded`
+            // — the opt-in the player turns on in Settings, off by default. So the assertion is no
+            // longer "radius is always 0"; it is "radius is 0 unless the rule is gated on that
+            // class". Which keeps the shipped appearance square and keeps the setting honest.
+            //
+            // Checked by scanning back to the start of each declaration block, because a radius
+            // smuggled into an ungated rule is exactly the drift this test exists to catch.
             Matcher radius = Pattern.compile("-fx-(background|border)-radius:\\s*([^;]+);").matcher(body);
             while (radius.find()) {
-                assertThat(radius.group(2).trim())
-                        .as("border radius is 0 everywhere (§2.3)")
-                        .isEqualTo("0");
+                if (radius.group(2).trim().equals("0")) {
+                    continue;
+                }
+                int blockStart = body.lastIndexOf('{', radius.start());
+                int selectorStart = Math.max(0, body.lastIndexOf('}', blockStart) + 1);
+                String selector = body.substring(selectorStart, blockStart);
+                assertThat(selector)
+                        .as("a non-zero radius may only appear under .es-rounded (§9, amended)")
+                        .contains(".es-rounded");
             }
+        }
+    }
+
+    @Nested
+    @DisplayName("§9 amended — the rounded-window opt-in stays narrow")
+    class RoundedOptIn {
+
+        @Test
+        @DisplayName("⚠ it rounds WINDOWS, and never anything a measurement is read off")
+        void nothingMeasurableIsRounded() throws IOException {
+            // Rounding a window is taste. Rounding a meter cell, the cycle grid or a hazard band is
+            // a lie about a number — a cell with a soft corner reads as a smaller cell, and the
+            // entire point of a discrete meter (§4) is that a player can count it.
+            String css = Files.readString(CLIENT_RESOURCES.resolve(UI_RESOURCES + "theme.css"));
+            String body = css.replaceAll("(?s)/\\*.*?\\*/", "");
+            Matcher radius = Pattern.compile("-fx-(background|border)-radius:\\s*([^;]+);").matcher(body);
+            while (radius.find()) {
+                if (radius.group(2).trim().equals("0")) {
+                    continue;
+                }
+                int blockStart = body.lastIndexOf('{', radius.start());
+                int selectorStart = Math.max(0, body.lastIndexOf('}', blockStart) + 1);
+                String selector = body.substring(selectorStart, blockStart);
+                for (String forbidden : java.util.List.of(
+                        "es-cell", "es-meter", "es-cycle", "es-hazard", "es-greeble",
+                        "es-substrate", "es-block", "es-tick")) {
+                    assertThat(selector)
+                            .as("%s must never be rounded — it is a measurement", forbidden)
+                            .doesNotContain(forbidden);
+                }
+            }
+        }
+
+        @Test
+        @DisplayName("the shipped default is square")
+        void defaultIsSquare() {
+            // The setting exists; it is not the default. §9's rejection list still describes what
+            // this client looks like out of the box.
+            assertThat(new io.github.stoicswe.eyeandsickle.client.profile.ClientProfile.Settings()
+                            .roundedWindows)
+                    .isFalse();
         }
     }
 

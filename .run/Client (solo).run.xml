@@ -29,7 +29,7 @@
       client/pom.xml keeps the javafx.graphics form because the plugin launches on the module path.
       The two are correct for their own launch mode and must not be made to match.
     -->
-    <option name="VM_PARAMETERS" value="--enable-native-access=ALL-UNNAMED" />
+    <option name="VM_PARAMETERS" value="--enable-native-access=ALL-UNNAMED -Xdock:name=EAS uOS Client" />
     <method v="2">
       <option name="Make" enabled="true" />
     </method>

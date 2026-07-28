@@ -87,6 +87,17 @@ public final class NetGraph extends VBox {
 
     private final Consumer<String> onNode;
 
+    /**
+     * Right-click on a machine's cell.
+     *
+     * <p>Separate from {@link #onNode} because they answer different questions: a left click asks
+     * "which machine am I talking about", a right click asks "what can I do to it". Folding the
+     * second into the first would mean opening a menu also moved the selection, so the actions in
+     * the menu would be about a machine the player had just changed by opening the menu.
+     */
+    private java.util.function.BiConsumer<String, javafx.scene.input.ContextMenuEvent> onNodeMenu =
+            (address, event) -> {};
+
     private NetMap current = NetMap.empty();
     private String selected = "";
     private List<String> lines = List.of();
@@ -120,6 +131,12 @@ public final class NetGraph extends VBox {
     }
 
     /** Rebuilds the picture. Null-safe: a null map draws the same empty state an empty one does. */
+    /** Installs the right-click handler. See the field for why it is not {@code onNode}. */
+    public void setOnNodeMenu(
+            java.util.function.BiConsumer<String, javafx.scene.input.ContextMenuEvent> handler) {
+        this.onNodeMenu = handler == null ? (address, event) -> {} : handler;
+    }
+
     public void setMap(NetMap map) {
         this.current = map == null ? NetMap.empty() : map;
         // The packet restarts with the map rather than carrying over. Its position means "this edge,
@@ -310,6 +327,10 @@ public final class NetGraph extends VBox {
         label.setFocusTraversable(true);
         Cursors.shared().clickable(label);
         label.setOnMouseClicked(event -> onNode.accept(piece.address()));
+        label.setOnContextMenuRequested(event -> {
+            onNodeMenu.accept(piece.address(), event);
+            event.consume();
+        });
         label.setOnKeyPressed(event -> {
             if (event.getCode() == KeyCode.SPACE || event.getCode() == KeyCode.ENTER) {
                 onNode.accept(piece.address());

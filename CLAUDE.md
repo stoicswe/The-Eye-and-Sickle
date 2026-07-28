@@ -141,9 +141,166 @@ mvn -Pquality spotless:apply        # format
 ```
 
 The client **runs offline out of the box**: `mvn install -DskipTests && mvn -pl client javafx:run` opens a
-playable solo game with no network, account or database. Nineteen tool windows, five themes, a shell
-with real pipelines and globs, and a 22-page offline manual parsed from `client/src/main/resources/
+playable solo game with no network, account or database. Twenty tool windows, five themes, a shell
+with real pipelines and globs, and a 23-page offline manual parsed from `client/src/main/resources/
 .../terms/`.
+
+⚠ **Window controls sit on the LEFT on macOS, in macOS's order** (close, minimise, zoom) and on the
+right everywhere else. The group is **reordered, not mirrored** — mirroring would put close where zoom
+lives on a Mac, which is the worst possible place to move a close button. `DeckShell.MAC`.
+
+**The application is named `EAS uOS Client`** — `Launcher.APP_NAME`, set via
+`apple.awt.application.name` and `glass.appName` **before `Application.launch`** (both are read once
+at toolkit init; setting them later is accepted, does nothing, and reports nothing), plus
+`-Xdock:name` in `client/pom.xml` and `.run/`. ⚠ This does **not** rename the *process* — `ps` and
+Activity Monitor still say `java`, because that is genuinely the executable. Renaming it needs a
+`jpackage` app image, which cannot cross-compile.
+
+⚠ **`view/AvatarChooser` is the ONLY place the client reads a host file it did not write**, and it
+holds §7's boundary by three conditions: the player picks it in their own OS dialog, it is read
+**once** and only the pixels are kept (never the path — a stored path means reading an arbitrary host
+location on every launch), and failure is silent. `ui/Png` is a hand-rolled minimal encoder so no
+`javafx-swing`/`java.desktop` dependency is needed and the format work stays headless-testable.
+
+⚠ **`Vgrow`/`Hgrow` without an explicit `setMaxHeight`/`setMaxWidth` can silently do nothing.** A
+layout constraint grows a child only up to its maximum, and a **Control**'s computed maximum is not
+the unbounded value a Pane reports — so a `ScrollPane` with `Vgrow.ALWAYS` still stops at its
+preferred height. Settings had exactly this: the grow call was present and obviously correct, and the
+pane sat in the top third of the window. Invisible in review. Also: an unstyled `ScrollPane` paints
+Modena's **white** viewport over a dark theme.
+
+⚠ **Any global appearance flag must reach LIVE objects, not just new ones.** This has now bitten
+three times — rounded corners (frames kept their birth clip), and control order (frames kept their
+birth layout). `DeskManager.setRoundedCorners` and `setControlOrder` both walk every open window.
+
+⚠ **`subwindowControlOrder` is ORDER only and DESK WINDOWS only.** It never changes which side the
+controls sit on, and never touches the outer window — that one sits beside the player's real windows
+and follows the host OS unconditionally, because putting close where their OS puts zoom costs
+sessions. Reordered, never mirrored: reversing the row puts minimise where the other convention puts
+maximise, giving neither.
+
+⚠ **Two chrome opt-ins now amend contracts, and both ship OFF** — `roundedWindows` (§9.3) and
+`nativeWindowBorder` (§0.1). §0, §9 and §10 criterion 1 still describe the *default*, and
+`WindowChromeSettingsTest` holds that. With a native border the deck must **not** draw its own
+`[−] [+] [×]` (two sets of window controls is a question, not a redundancy) and must **not** install
+the strip drag handler (it fights the OS title bar). Restart-only: `initStyle` is rejected on a
+realised Stage and `DECORATED`/`TRANSPARENT` are mutually exclusive.
+
+⚠ **The Stage is `StageStyle.TRANSPARENT` unless the native border is on.** It used to be conditional on the rounded-corners
+setting, which meant the main window could only change on a restart while desk windows changed
+instantly — a toggle that half works is worse than one that does not. The scene's ground holder
+covers the window edge to edge, so nothing is see-through until a corner is clipped away. The clip
+goes on the **Scene root**, not the deck: clipping the deck leaves the scale holder painting the
+corners back in, which is indistinguishable from the setting doing nothing.
+
+⚠ **Corner geometry on this deck is a CLIP, not a CSS property.** `WindowFrame` already clips both
+painted parts to a `Polygon` for the 18px notch, and **a polygon clip cuts square corners whatever
+`-fx-background-radius` says** — the first rounded-corners attempt set the CSS, which applied and was
+then clipped off, with nothing anywhere reporting a problem. `WindowFrame.clip` intersects a rounded
+rect with the notch. A toggle must `requestLayout()` every live frame, or it appears to affect only
+windows opened afterwards. The outer Stage needs `StageStyle.TRANSPARENT` to have a real corner
+(UNDECORATED paints its own), which is chosen at startup and cannot change on a realised Stage.
+
+⚠ **§9's rounded-corner ban was amended (§9.3, 2026-07-28) to an opt-in**, off by default, gated on
+`.es-rounded`. It rounds the Stage and desk windows and **must never round a measurement** — a meter
+cell with a soft corner reads as a smaller cell, and discrete meters exist to be counted.
+`UiContractTest.RoundedOptIn` enforces both halves.
+
+⚠ **The rig root is macOS-shaped over a FreeBSD base**: `/Applications`, `/Library`, `/System`,
+`/Users`, `/mnt`. Homes are `/Users/<name>`; `/Applications` is system-wide. The Linux FHS did not
+vanish — it lives inside **`/System`** (`solo/fs/SystemTree`), laid out as FreeBSD lays one out,
+`root:wheel` and `r-xr-xr-x` throughout. **`/System` is read-ONLY, not unlookable** — text
+configuration (`rc.conf`, `fstab`, `passwd`, `loader.conf`, …) reads in FreeBSD's real formats;
+binaries answer with `file`'s line rather than invented bytes; and `master.passwd` stays closed even
+to its owner because it is mode 0600, which is the real reason and the thing worth teaching. On a
+machine you breach, the same rule as the rest of it: outline always, contents once you hold it.
+
+⚠ **Ask the rules before trusting `FsEntry.readable`.** It is one bit and there are several reasons a
+file will not open (mode, ownership, no foothold). Views that branched on it first told players to
+"breach" their own rig. `session.read` first; generic refusal only if it says nothing.
+
+⚠ **Never hard-code a home path.** Use `VirtualFs.home(user)`. The `/home` → `/Users` move broke the
+file manager's start path, and a missing directory renders as an *empty folder rather than an error*,
+so nothing complains.
+
+⚠ **The three storage tiers live in `~/.VaultStore/`, not `/mnt`, and the window is called
+VaultStore** (id still `storage` — ids key saved desk layouts). They were never mounts, and a
+`/mnt/vault` in the sidebar of a machine an intruder is standing on is a signpost to the one place
+meant to be safe. The dot hides nothing from a determined reader; `design/01` §6's **tier** is the
+real protection.
+
+⚠ **The rig root is Ubuntu's (FHS) and the home is macOS's** (`Applications`, `Desktop`, `Documents`,
+`Downloads`, `Movies`, `Music`, `Pictures`). Both halves are real somewhere; nothing claims to *be*
+Ubuntu. Applications are genuine macOS bundles — `Network.app/Contents/MacOS/network` — and the fact
+worth teaching is that an application on a Mac is a folder. `Contents/Upgrades` is **ours** and is
+not part of a real bundle.
+
+⚠ **There are now THREE reputations and none may share a field.** `factionReputation` (Eye/Sickle
+standing), `validatorReputation` (federation trust, server-side) and — new — **`traderReputation`**
+(whether you deliver what you were paid for, `solo/rules/SecondaryMarket`). A Sickle hero can be a
+thief; a scrupulous trader can be a validator nobody trusts. Collapsing any two deletes an axis.
+
+⚠ **Only ETHECOIN-gated upgrades may be resold.** Selling a schematic-gated tool for ethecoin would
+let anyone with enough money buy a ceiling — I2, and I8 for zero-days. Anything can still be *stolen
+and used*; what is refused is turning a gated item into currency. `solo/rules/Repac.sellable`.
+
+⚠ **A download is bounded by the REMOTE END'S UPLOAD, not your download** — `Balance.LINK_DOWN_BITS`
+is 1 Gbit and `LINK_UP_BITS` is 150 Mbit, so every transfer runs at 18.75 MB/s however good the local
+link is. The two constants are different numbers *because* that is the teaching. Package sizes are
+load-bearing now that transfer time derives from them (an upgrade is 40–320 MB ≈ 2–17 s); re-tuning
+one means re-checking the other. A transfer is a **task** in `save.tasks`, so closing the file manager
+does not cancel it, and it holds no compute — moving bytes is I/O, not arithmetic. Upgradability is
+open as **TR-1**.
+
+⚠ **Ejecting a machine disconnects and stops nothing else.** Miners, bots and the foothold all
+survive; what it buys is quiet (a held session is outward and loud) and the cycles back. Said in the
+tooltip because the failure is silent: a player who thinks eject kills their miners never ejects.
+
+⚠ **Recents is a real directory** — `~/.local/share/recently-used`, GNOME's own location — and it is
+**persisted in the save**, not the profile. It is therefore as exposed as the machine is: an intruder
+standing in it reads what the owner has been doing, which is the fiction working rather than leaking.
+Recorded via `GameSession.noteAccess` on deliberate opens only; recording from `list` would fill it
+with repaint machinery instead of history.
+
+⚠ **App bundles use `Contents/uOS/`, not `Contents/MacOS/`.** A real macOS bundle names that
+directory after the operating system — so ours names it after *ours*. Everything else in the bundle
+keeps its real name; the OS-named directory is the one part that has to move when the OS does.
+
+⚠ **`solo/rules/AccessLog` is a [PROPOSAL] counter-forensics loop, and it must not become a fourth
+exposure surface.** A remote actor who copies something is logged with the address they came from and
+may wipe that address before leaving — **blanking it, never deleting the line**, because a deleted
+row turns a legible crime into a missing file. `canTake` answers from the item's **tier** (§6), so an
+upgrade visible inside an app bundle is a *view* onto an item, not a way around the vault (**I12**).
+Nothing writes to it in solo — there are no remote actors — and that is why it is tested rather than
+demonstrated.
+
+**The file manager (2026-07-28).** `Shortcut+Shift+H`. GNOME Files' layout over `solo/fs/VirtualFs`:
+places sidebar, breadcrumb path bar, detail list, hidden-files toggle. ⚠ **A mount IS a session** —
+"Connect to machine" opens a shell session and unmounting closes it, so the file manager's mounted
+list and the set of open shells are one fact rather than two that drift. Kind markers are `ls -F`'s
+and are shared with the node shell (`NodeCommands.marker`). ⚠ Block-element icons were tried first
+and `GlyphCoverageTest` rejected four of them — they are in neither bundled face.
+
+**Shell sessions (2026-07-28).** Right-click a machine on the map → *Open a shell*, and a terminal
+window opens on it: `ls`, `cd`, `cat`, `stat`, `find`, `df`, `get` and the rest, with a right-click
+menu that templates any command's options and previews the line before writing it into the input.
+Many at once, one window per machine (`shell:<address>` — not a `WindowSpec`; see `docs/client/05`
+§2.1 for why that is not the WL-8 duplication).
+
+⚠ **A session is NOT the vantage, and merging them breaks the reach model.** The vantage is the
+single point a sweep measures hop distance from — a hard ceiling no purchase moves (**I2**). A
+session is a shell on a machine already held: it costs `Balance.SESSION_CYCLES` while open, buys no
+reach, and `SessionRules` never touches `vantageAddress`. Had they been one thing, reach would
+multiply by the number of windows a player had open. The map's menu says *Open a shell* and *Move
+vantage here* precisely so the two never blur.
+
+⚠ **`solo/fs/VirtualFs` generates every machine's filesystem and stores none of it.** Not for save
+size — a stored tree would be a cache of game state that eventually disagrees with it, on the exact
+surface a player uses to decide whether a machine has been tampered with. A deployed miner is a unit
+file in `/etc/systemd/system` because `deployedMiners` is non-empty. Seeded on the address, so a
+listing never reshuffles between visits — which is what makes "was this here before?" answerable.
+**Nothing in the package touches a real filesystem**, and `normalise` resolves `..` textually and
+cannot climb above `/`.
 
 ⚠ **`calc` is the one tool window that takes no `GameSession`,** and keeping it that way is the point.
 It spends nothing, is gated by nothing and cannot be lost, so adding it required checking no invariant —

@@ -238,6 +238,35 @@ public final class DeskManager {
         return Optional.of(window);
     }
 
+    /**
+     * Turns rounded corners on or off for every window on the desk (§9.3).
+     *
+     * <p>⚠ Every live frame is re-laid, not just new ones. The clip is computed in
+     * {@code layoutChildren}, so a frame that is not asked to lay out again keeps the shape it was
+     * born with — and the player would see the setting take effect only on windows they opened
+     * afterwards, which reads as the toggle being broken rather than lazy.
+     */
+    /**
+     * Sets the control order for every window on the desk, open ones included.
+     *
+     * <p>⚠ Desk windows only. The outer game window keeps following the host OS — it sits beside
+     * the player's real windows and is judged against them, and letting a player put close where
+     * their OS puts zoom is the one arrangement guaranteed to cost somebody a session.
+     */
+    public void setControlOrder(ControlOrder order, boolean mac) {
+        WindowFrame.setControlOrder(order, mac);
+        for (DeskWindow window : windows.values()) {
+            window.frame().rebuildControls();
+        }
+    }
+
+    public void setRoundedCorners(boolean rounded) {
+        WindowFrame.setRounded(rounded);
+        for (DeskWindow window : windows.values()) {
+            window.frame().requestLayout();
+        }
+    }
+
     public void close(String id) {
         DeskWindow window = windows.remove(id);
         if (window == null) {

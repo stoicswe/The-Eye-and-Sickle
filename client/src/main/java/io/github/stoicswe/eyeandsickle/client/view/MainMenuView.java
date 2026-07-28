@@ -4,7 +4,6 @@ import io.github.stoicswe.eyeandsickle.client.profile.CharacterSlots;
 import io.github.stoicswe.eyeandsickle.client.profile.ClientProfile;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeId;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeManager;
-import java.util.List;
 import java.util.function.Consumer;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -14,8 +13,6 @@ import javafx.scene.control.ButtonType;
 import javafx.scene.control.Tooltip;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Label;
-import javafx.scene.control.ScrollPane;
-import javafx.scene.control.Separator;
 import javafx.scene.control.TextField;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
@@ -25,7 +22,7 @@ import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 
 /**
- * The main menu — where the game starts.
+ * The main menu — a login screen.
  *
  * <h2>Why a menu at all, when the client used to open straight into a game</h2>
  *
@@ -35,6 +32,17 @@ import javafx.scene.layout.VBox;
  * on a timer, and nothing is at stake — which makes it the right place for the two questions that are
  * awkward everywhere else: which character, and how much explanation do you want.
  *
+ * <h2>macOS's user picker over GDM's furniture ({@code ui-design-language.md} §3.1)</h2>
+ *
+ * A row of round faces with a name under each, and the system controls in a bottom bar. Both halves
+ * say the same thing, which is the thing this screen is for: <b>the question is "who", and everything
+ * else is chrome.</b> §3's tiling rule does not reach here — see §3.1 for why, and for what the
+ * stacked column of slot cards this replaced was getting wrong.
+ *
+ * <p>⚠ The pictures are the ones the operators actually have, generated silhouettes included — which
+ * is what makes them worth showing. Three characters called {@code kyy}, {@code kyyr} and
+ * {@code kyyrell} are indistinguishable in a list and instantly different as faces.
+ *
  * <h2>CL-4 / T-2, answered here</h2>
  *
  * The teaching layer defaults to {@code explain}, which is right for the audience the education goal
@@ -43,15 +51,18 @@ import javafx.scene.layout.VBox;
  * cost: the player is already stopped, choosing something. It is asked once, it is answerable in one
  * click, and {@code teach} changes it later at any time.
  *
- * <h2>What the online section does and does not claim</h2>
+ * <h2>What the home-server face does and does not claim</h2>
  *
- * It lists home servers the player has named and says, in as many words, that it cannot list their
- * characters yet because the transport is not built (<b>CL-8</b>). Showing an empty character list
- * would read as "you have none", which is a different and false statement.
+ * It says, in as many words, that the transport is not built (<b>CL-8</b>) — before taking an address
+ * rather than after. A field that accepts input and then fails teaches the player to distrust the
+ * address they typed, which is a worse outcome than the missing feature.
  */
 public final class MainMenuView {
 
     private MainMenuView() {}
+
+    /** Diameter of a face, in points. Large enough that a 96px avatar is not upscaled. */
+    private static final double FACE = 84;
 
     /** What the menu can ask the application to do. */
     public interface Actions {
@@ -67,53 +78,113 @@ public final class MainMenuView {
         void quit();
     }
 
+    /**
+     * The login screen.
+     *
+     * <h2>macOS's user picker over GDM's furniture</h2>
+     *
+     * A row of round faces with a name under each, the way macOS asks who you are — and a top band
+     * carrying the machine's identity with the system controls parked bottom-right, the way GNOME's
+     * greeter does. Both are the same idea: <b>the question is "who", and everything else is
+     * chrome.</b>
+     *
+     * <p>It replaced a stacked column of slot cards, each carrying a handle, a balance, a cycle
+     * count, an hours-played line and two buttons. That is a save-management screen, and it asked
+     * the player to read six numbers before they could start playing. A face and a name is the whole
+     * question; the numbers moved under the selected face, where they answer "is this the one I
+     * meant" rather than "which of these exists".
+     *
+     * <p>⚠ The pictures are the ones the operators actually have, generated silhouettes included —
+     * which is what makes them worth showing. Three characters called {@code kyy}, {@code kyyr} and
+     * {@code kyyrell} are indistinguishable in a list and instantly different as faces.
+     */
     public static Region create(
             ClientProfile profile, ThemeManager themes, CharacterSlots slots, Actions actions) {
 
         BorderPane root = new BorderPane();
         root.getStyleClass().add("es-splash");
 
-        // ---------------------------------------------------------------- title
+        // ── the top band ──────────────────────────────────────────────────────────────────────
+        //
+        // GDM puts the clock and the machine up here. So does this: the game's name, and the
+        // profile the client is running out of, which is the closest thing it has to a hostname.
         Label title = new Label("THE EYE AND SICKLE");
         title.getStyleClass().add("es-splash-title");
-        Label subtitle = new Label("An operator's console. Single player by default; nothing here needs a network.");
+        Label subtitle = new Label("An operator's console");
         subtitle.getStyleClass().add("es-splash-subtitle");
-        subtitle.setWrapText(true);
 
-        VBox header = new VBox(6, title, subtitle);
+        VBox header = new VBox(4, title, subtitle);
         header.setAlignment(Pos.CENTER);
-        header.setPadding(new Insets(48, 24, 24, 24));
+        header.setPadding(new Insets(56, 24, 8, 24));
+        installWindowDrag(header, profile);
         root.setTop(header);
 
-        // ---------------------------------------------------------------- body
-        VBox body = new VBox(18);
-        body.setPadding(new Insets(0, 48, 24, 48));
-        body.setMaxWidth(860);
+        // ── the faces ─────────────────────────────────────────────────────────────────────────
+        //
+        // ⚠ Built ONCE and restyled, never rebuilt. Selection follows keyboard focus here, and a row
+        // that replaces its children on every change destroys the node that just gained focus — the
+        // first arrow key would move the highlight and then drop the player out of the picker
+        // entirely. Rebuilding also makes the picker mouse-only in practice, which is a regression
+        // from the list of per-slot buttons this screen replaced.
+        HBox faces = new HBox(34);
+        faces.setAlignment(Pos.CENTER);
 
-        body.getChildren().add(sectionLabel("SOLO — on this machine"));
-        body.getChildren().add(soloSection(profile, slots, actions));
+        VBox detail = new VBox(10);
+        detail.setAlignment(Pos.CENTER);
+        detail.setMinHeight(150);
 
-        body.getChildren().add(new Separator());
-        body.getChildren().add(sectionLabel("ONLINE — on a home server"));
-        body.getChildren().add(onlineSection(profile, actions));
+        int[] chosen = {firstOccupied(slots)};
+        java.util.List<Face> plates = new java.util.ArrayList<>();
+        Runnable[] showDetail = new Runnable[1];
+        Runnable[] rebuildFaces = new Runnable[1];
 
-        ScrollPane scroll = new ScrollPane(centred(body));
-        scroll.setFitToWidth(true);
-        scroll.setStyle("-fx-background-color: transparent;");
-        root.setCenter(scroll);
+        showDetail[0] = () -> {
+            for (Face plate : plates) {
+                plate.setSelected(plate.slot == chosen[0]);
+            }
+            detail.getChildren().clear();
+            slots.soloSlots().stream()
+                    .filter(candidate -> candidate.index() == chosen[0])
+                    .findFirst()
+                    .ifPresent(slot -> detail.getChildren().add(
+                            signIn(slots, slot, actions, rebuildFaces[0])));
+        };
 
-        // ---------------------------------------------------------------- footer
+        // Only a deletion runs this: it changes what a face IS, not merely which one is lit, so the
+        // row genuinely has to be built again. It is also the one moment when losing focus costs
+        // nothing — a modal confirmation has just closed and focus is being restored regardless.
+        rebuildFaces[0] = () -> {
+            plates.clear();
+            faces.getChildren().clear();
+            for (CharacterSlots.Slot slot : slots.soloSlots()) {
+                Face plate = face(slot, () -> {
+                    chosen[0] = slot.index();
+                    showDetail[0].run();
+                });
+                plates.add(plate);
+                faces.getChildren().add(plate.box);
+            }
+            faces.getChildren().add(otherFace(profile, actions).box);
+            showDetail[0].run();
+        };
+        rebuildFaces[0].run();
+
+        VBox centre = new VBox(26, faces, detail);
+        centre.setAlignment(Pos.CENTER);
+        centre.setPadding(new Insets(20, 40, 20, 40));
+        root.setCenter(centre);
+
+        // ── the bottom bar ────────────────────────────────────────────────────────────────────
+        //
+        // Where a greeter puts its power controls. ⚠ The profile path is the thing that gives way
+        // when the bar is short of room, and it has to be said explicitly: an HBox shrinks whatever
+        // it can, and a Button's minimum is the width of an ellipsis. A truncated PATH still says
+        // where to look; a truncated BUTTON cannot be guessed. menuButton() pins the buttons at their
+        // preferred width, so this is the only child left that can give.
         Button settings = menuButton("Settings", actions::openSettings);
         Button quit = menuButton("Quit", actions::quit);
-        Label profileNote = new Label("Profile: " + profile.directory());
-        profileNote.getStyleClass().add("es-text-secondary");
-        // ⚠ Must be the thing that gives way when the footer is short of room, and it was not.
-        // It carries the profile path — ~70 characters on macOS — and as a wrapping Label it held
-        // its width while the two Buttons beside it shrank to their ellipsis, so a freshly-launched
-        // client with no saved window geometry showed "..." where "Settings" and "Quit" should be.
-        // A truncated PATH still tells the player where to look; a truncated BUTTON tells them
-        // nothing and cannot be guessed. minWidth(0) lets it shrink, and the tooltip keeps the whole
-        // path reachable at any size.
+        Label profileNote = new Label(profile.directory().toString());
+        profileNote.getStyleClass().add("es-small");
         profileNote.setWrapText(false);
         profileNote.setMinWidth(0);
         profileNote.setTextOverrun(javafx.scene.control.OverrunStyle.CENTER_ELLIPSIS);
@@ -124,138 +195,319 @@ public final class MainMenuView {
         HBox.setHgrow(spacer, Priority.ALWAYS);
         HBox footer = new HBox(10, profileNote, spacer, settings, quit);
         footer.setAlignment(Pos.CENTER_LEFT);
-        footer.setPadding(new Insets(16, 48, 32, 48));
+        footer.setPadding(new Insets(16, 40, 28, 40));
         root.setBottom(footer);
 
-        // ---------------------------------------------------------------- CL-4 / T-2
         if (!profile.settings().askedFamiliarity) {
             javafx.application.Platform.runLater(() -> askFamiliarity(profile));
         }
         return root;
     }
 
-    // ------------------------------------------------------------------ solo
-
-    private static Region soloSection(ClientProfile profile, CharacterSlots slots, Actions actions) {
-        VBox column = new VBox(10);
-        for (CharacterSlots.Slot slot : slots.soloSlots()) {
-            column.getChildren().add(slotCard(profile, slots, slot, actions));
+    /**
+     * Makes the top band drag the window.
+     *
+     * <p>⚠ Without this the menu cannot be moved at all. The Stage is undecorated (§0), and the drag
+     * handle that solves this on the deck is the top strip — which does not exist yet on this screen.
+     * A player who launches for the first time onto a badly-placed window has a title bar on every
+     * other screen of the client and none on the first one.
+     *
+     * <p>Not installed when the OS is drawing the frame: its title bar already drags the window, and
+     * a second handle inside the content fights it — press on the band and the window jumps by the
+     * offset between the two.
+     */
+    private static void installWindowDrag(Region handle, ClientProfile profile) {
+        if (profile.settings().nativeWindowBorder) {
+            return;
         }
-        return column;
+        double[] grab = {0, 0};
+        handle.setOnMousePressed(event -> {
+            javafx.stage.Window window = handle.getScene() == null ? null : handle.getScene().getWindow();
+            if (window != null) {
+                grab[0] = event.getScreenX() - window.getX();
+                grab[1] = event.getScreenY() - window.getY();
+            }
+        });
+        handle.setOnMouseDragged(event -> {
+            javafx.stage.Window window = handle.getScene() == null ? null : handle.getScene().getWindow();
+            if (window instanceof javafx.stage.Stage stage && !stage.isMaximized()) {
+                stage.setX(event.getScreenX() - grab[0]);
+                stage.setY(event.getScreenY() - grab[1]);
+            }
+        });
     }
 
-    private static Region slotCard(
-            ClientProfile profile, CharacterSlots slots, CharacterSlots.Slot slot, Actions actions) {
+    /** The slot a fresh launch lands on: the first with a character in it, else the first empty. */
+    private static int firstOccupied(CharacterSlots slots) {
+        return slots.soloSlots().stream()
+                .filter(CharacterSlots.Slot::occupied)
+                .map(CharacterSlots.Slot::index)
+                .findFirst()
+                .orElse(slots.soloSlots().isEmpty() ? 1 : slots.soloSlots().getFirst().index());
+    }
 
-        VBox card = new VBox(6);
-        card.getStyleClass().add("es-slot-card");
+    /**
+     * One face in the picker: the ring, whatever it holds, and the name under it.
+     *
+     * <p>Kept as an object rather than a bare {@code Region} so selection can be a <b>restyle</b>
+     * of live nodes. See the note in {@link #create} for why rebuilding is not an option.
+     */
+    private static final class Face {
 
-        Label heading = new Label("SLOT " + slot.index());
-        heading.getStyleClass().add("es-panel-title");
+        final VBox box;
+        final int slot;
+        private final javafx.scene.shape.Circle ring;
+        private final Label caption;
+        private final String restingRing;
 
-        Label summary = new Label(slot.summary());
-        if (!slot.occupied() && !slot.unreadable()) {
-            summary.getStyleClass().add("es-slot-empty");
+        Face(int slot, javafx.scene.Node inner, String name, String restingRing) {
+            this.slot = slot;
+            this.restingRing = restingRing;
+
+            ring = new javafx.scene.shape.Circle(FACE / 2 + 4);
+            ring.getStyleClass().add(restingRing);
+
+            StackPane plate = new StackPane(ring, inner);
+            double outer = FACE + 8;
+            plate.setMinSize(outer, outer);
+            plate.setPrefSize(outer, outer);
+            plate.setMaxSize(outer, outer);
+
+            caption = new Label(name);
+            caption.getStyleClass().add("es-face-name");
+
+            box = new VBox(9, plate, caption);
+            box.setAlignment(Pos.CENTER);
+            box.getStyleClass().add("es-face");
+            box.setFocusTraversable(true);
+            io.github.stoicswe.eyeandsickle.client.ui.cursors.Cursors.shared().clickable(box);
         }
+
+        void setSelected(boolean on) {
+            // ⚠ remove-then-add, never setAll. A Label carries "label" in its own style-class list,
+            // and clearing it takes the control's Modena skin down with it.
+            ring.getStyleClass().removeAll(
+                    "es-face-ring", "es-face-ring-empty", "es-face-ring-bad", "es-face-ring-on");
+            ring.getStyleClass().add(on ? "es-face-ring-on" : restingRing);
+            caption.getStyleClass().removeAll("es-face-name", "es-face-name-on");
+            caption.getStyleClass().add(on ? "es-face-name-on" : "es-face-name");
+        }
+
+        /** Click, Enter or Space — and, for the slot faces, arriving by Tab. */
+        void onPick(Runnable action, boolean alsoOnFocus) {
+            box.setOnMouseClicked(event -> {
+                box.requestFocus();
+                action.run();
+            });
+            box.setOnKeyPressed(event -> {
+                if (event.getCode() == javafx.scene.input.KeyCode.ENTER
+                        || event.getCode() == javafx.scene.input.KeyCode.SPACE) {
+                    action.run();
+                    event.consume();
+                }
+            });
+            if (alsoOnFocus) {
+                // Selection follows focus, the way a radio group does — so Tab through the row and
+                // the summary under it keeps up, with nothing extra to press. Gained only: focus
+                // moving on to the "Continue" button below must not deselect the operator it starts.
+                box.focusedProperty().addListener((property, was, now) -> {
+                    if (Boolean.TRUE.equals(now)) {
+                        action.run();
+                    }
+                });
+            }
+        }
+    }
+
+    /**
+     * A character slot, as a face.
+     *
+     * <h2>The circle is a SHAPE, not a corner radius</h2>
+     *
+     * ⚠ {@code -fx-background-radius} would be two mistakes at once. The first is §9: a non-zero
+     * radius is permitted only under {@code .es-rounded}, and {@code UiContractTest} fails the build
+     * on one anywhere else. The second is that it would not work regardless — the picture is an
+     * {@code ImageView}, and an image has no background for a radius to round. The ring is a
+     * {@link javafx.scene.shape.Circle} behind the picture and the picture is clipped by another,
+     * which is the same lesson the window corners taught: <b>geometry is a clip, not CSS.</b>
+     */
+    private static Face face(CharacterSlots.Slot slot, Runnable onPick) {
+        javafx.scene.Node picture;
+        if (slot.occupied()) {
+            javafx.scene.image.ImageView view = new javafx.scene.image.ImageView(
+                    io.github.stoicswe.eyeandsickle.client.ui.Avatar.image(
+                            slot.avatarPng(), slot.handle()));
+            view.setFitWidth(FACE);
+            view.setFitHeight(FACE);
+            view.setClip(new javafx.scene.shape.Circle(FACE / 2, FACE / 2, FACE / 2));
+            picture = view;
+        } else {
+            Label glyph = new Label(slot.unreadable() ? "!" : "+");
+            glyph.getStyleClass().add("es-face-glyph");
+            picture = glyph;
+        }
+
+        // An empty slot is captioned by its NUMBER, not by the word "empty": on a first run all
+        // three say the same thing, and three identical captions answer none of the question this
+        // screen exists to ask. The glyph already says the slot is empty.
+        String name = slot.occupied() ? slot.handle() : "Slot " + slot.index();
+        // ⚠ A damaged save gets its own ring rather than the empty one. Otherwise the only thing
+        // separating "nothing here" from "your character will not load" is one character of glyph,
+        // and the difference matters most before the player has clicked anything.
+        Face plate = new Face(slot.index(), picture, name,
+                slot.occupied() ? "es-face-ring"
+                        : slot.unreadable() ? "es-face-ring-bad" : "es-face-ring-empty");
+        plate.onPick(onPick, true);
+        plate.box.setAccessibleText(slot.occupied()
+                ? "Character " + slot.handle() + " in slot " + slot.index()
+                : slot.unreadable()
+                        ? "Slot " + slot.index() + ", damaged save"
+                        : "Empty character slot " + slot.index());
+        return plate;
+    }
+
+    /**
+     * The last face in the row: a home server.
+     *
+     * <p>macOS calls this "Other…" and GDM calls it "Not listed?". Both mean the same thing — the
+     * identity you want is not one of these — and putting online play <em>there</em>, rather than in
+     * a section of its own, says exactly what it is: another way to be somebody, not another mode of
+     * the game.
+     *
+     * <p>⚠ This one does <b>not</b> select on focus. It opens a popup, and a Tab that opens a dialog
+     * is a trap: the player is trying to reach the buttons past it.
+     */
+    private static Face otherFace(ClientProfile profile, Actions actions) {
+        Label glyph = new Label("//");
+        glyph.getStyleClass().add("es-face-glyph");
+
+        Face plate = new Face(0, glyph, "Home server", "es-face-ring-empty");
+        plate.onPick(() -> showServerPrompt(profile, plate.box, actions), false);
+        plate.box.setAccessibleText("Connect to a home server");
+        return plate;
+    }
+
+    /**
+     * What sits under the chosen face: the numbers, and the way in.
+     *
+     * <p>This is where a login screen puts the password field, and it does the same job — it is the
+     * only control on the screen that <em>starts</em> anything, so it is the only one that needs to
+     * be found. Everything above it answers "which"; this answers "go".
+     */
+    private static Region signIn(
+            CharacterSlots slots, CharacterSlots.Slot slot, Actions actions, Runnable repaint) {
+
+        VBox box = new VBox(10);
+        box.setAlignment(Pos.CENTER);
+
         if (slot.unreadable()) {
-            // Shown, not hidden. A slot that silently reads as empty invites the player to overwrite
-            // the character they were trying to recover.
-            summary.getStyleClass().add("es-state-refused");
-            summary.setWrapText(true);
+            // Shown as broken rather than hidden: a slot that silently reads as empty invites the
+            // player to overwrite the thing they were trying to recover.
+            Label problem = new Label(slot.summary());
+            problem.getStyleClass().add("es-state-refused");
+            problem.setWrapText(true);
+            problem.setMaxWidth(520);
+            box.getChildren().add(problem);
+            return box;
         }
-
-        Label detail = new Label(slot.detail());
-        detail.getStyleClass().add("es-text-secondary");
-
-        HBox controls = new HBox(8);
-        controls.setAlignment(Pos.CENTER_LEFT);
 
         if (slot.occupied()) {
+            Label summary = new Label(slot.summary());
+            summary.getStyleClass().add("es-small");
+            Label detail = new Label(slot.detail());
+            detail.getStyleClass().add("es-small");
+
             Button play = menuButton("Continue", () -> actions.playSolo(slot.index(), null));
-            play.setDefaultButton(slot.index() == profile.settings().lastSoloSlot);
-            Button delete = new Button("Delete");
-            delete.setOnAction(e -> {
-                // Deleting a character is irreversible and there is no undo, so it asks — and the
-                // confirmation names the handle, because "are you sure?" with no subject is how
-                // people delete the wrong thing.
-                Alert confirm = new Alert(
-                        Alert.AlertType.CONFIRMATION,
-                        "Delete " + slot.handle() + " in slot " + slot.index() + "? This cannot be undone.",
-                        ButtonType.CANCEL,
-                        ButtonType.OK);
-                confirm.setHeaderText("Delete this character");
-                confirm.showAndWait().filter(b -> b == ButtonType.OK).ifPresent(b -> {
+            play.setDefaultButton(true);
+            Button delete = menuButton("Delete", () -> {
+                if (confirmDelete(slot)) {
                     slots.delete(slot.index());
-                    Alert done = new Alert(Alert.AlertType.INFORMATION,
-                            "Slot " + slot.index() + " is empty. Reopen the menu to start a new character there.");
-                    done.setHeaderText(null);
-                    done.showAndWait();
-                });
+                    repaint.run();
+                }
             });
-            controls.getChildren().addAll(play, delete);
-        } else if (slot.unreadable()) {
-            Label cannot = new Label("This slot will not be overwritten automatically.");
-            cannot.getStyleClass().add("es-text-secondary");
-            controls.getChildren().add(cannot);
-        } else {
-            TextField handle = new TextField();
-            handle.setPromptText("handle");
-            handle.setPrefWidth(180);
-            handle.setAccessibleText("Handle for a new character in slot " + slot.index());
-            Button start = menuButton("New character", () -> {
-                String chosen = handle.getText() == null || handle.getText().isBlank()
-                        ? "operator"
-                        : handle.getText().trim();
-                actions.playSolo(slot.index(), chosen);
-            });
-            controls.getChildren().addAll(handle, start);
+            HBox row = new HBox(10, play, delete);
+            row.setAlignment(Pos.CENTER);
+            box.getChildren().addAll(summary, detail, row);
+            return box;
         }
 
-        card.getChildren().addAll(heading, summary);
-        if (!slot.detail().isEmpty()) {
-            card.getChildren().add(detail);
-        }
-        card.getChildren().add(controls);
-        card.setAccessibleText("Solo slot " + slot.index() + ". " + slot.summary() + ". " + slot.detail());
-        return card;
+        TextField handle = new TextField();
+        handle.setPromptText("handle");
+        handle.setPrefColumnCount(18);
+        // ⚠ A blank field still starts a character, called "operator". The alternative is a button
+        // that does nothing and does not say why, and this screen's whole job is to get out of the
+        // way — the handle is renameable in Settings.
+        Runnable start = () -> actions.playSolo(slot.index(),
+                handle.getText() == null || handle.getText().isBlank()
+                        ? "operator" : handle.getText().trim());
+        Button create = menuButton("New character", start::run);
+        handle.setOnAction(event -> start.run());
+        HBox row = new HBox(10, handle, create);
+        row.setAlignment(Pos.CENTER);
+
+        Label note = new Label("A new operator on this machine. Nothing here needs a network.");
+        note.getStyleClass().add("es-small");
+        box.getChildren().addAll(row, note);
+        return box;
     }
 
-    // ------------------------------------------------------------------ online
+    /**
+     * The home-server prompt, opened from the "Home server" face.
+     *
+     * <p>⚠ It says plainly that online play is not wired up (CL-8) rather than accepting an address
+     * and failing later. A field that takes input and then reports {@code EX_UNAVAILABLE} teaches
+     * the player to distrust the address they typed; a prompt that says so first does not.
+     */
+    private static void showServerPrompt(ClientProfile profile, javafx.scene.Node anchor, Actions actions) {
+        javafx.stage.Popup popup = new javafx.stage.Popup();
+        popup.setAutoHide(true);
 
-    private static Region onlineSection(ClientProfile profile, Actions actions) {
-        VBox box = new VBox(10);
-        box.getStyleClass().add("es-slot-card");
-
-        Label explanation = new Label(
-                "Online play runs against a home server — someone's self-hosted machine, which owns "
-                        + "the game state. Losses there are real. A solo character cannot be carried "
-                        + "across: going online means creating a character on that server.");
-        explanation.setWrapText(true);
-
-        TextField address = new TextField();
+        TextField address = new TextField(profile.settings().knownServers.isEmpty()
+                ? "" : profile.settings().knownServers.getFirst());
         address.setPromptText("https://home.example");
-        address.setAccessibleText("Home server address");
-        List<String> known = profile.settings().knownServers;
-        if (!known.isEmpty()) {
-            address.setText(known.getFirst());
-        }
+        address.setPrefColumnCount(28);
 
         Button connect = menuButton("Connect", () -> actions.connectOnline(address.getText()));
+        Label note = new Label(
+                "Online play runs against a home server — someone's self-hosted machine, which owns "
+                        + "the game state. Losses there are real, and a solo character cannot be "
+                        + "carried across.\n\nNot available yet: the client has the session shape and "
+                        + "no transport behind it (CL-8). Connecting will tell you exactly that "
+                        + "rather than hanging.");
+        note.setWrapText(true);
+        note.setMaxWidth(420);
+        note.getStyleClass().add("es-small");
 
-        HBox row = new HBox(8, address, connect);
-        row.setAlignment(Pos.CENTER_LEFT);
-        HBox.setHgrow(address, Priority.ALWAYS);
+        VBox panel = new VBox(10,
+                sectionLabel("HOME SERVER"),
+                new HBox(10, address, connect),
+                note);
+        panel.getStyleClass().addAll("es-files", "es-body-pad", "es-files-dialog");
+        popup.getContent().add(panel);
+        if (anchor.getScene() != null && anchor.getScene().getWindow() != null) {
+            var bounds = anchor.localToScreen(anchor.getBoundsInLocal());
+            popup.show(anchor, bounds.getMinX() - 180, bounds.getMaxY() + 8);
+        }
+    }
 
-        // Honest about the state of things rather than presenting a dead form.
-        Label status = new Label(
-                "Not available yet. The client has the session shape for online play and no transport "
-                        + "behind it — no REST client and no AT Protocol sign-in (CL-8). Connecting "
-                        + "will tell you exactly that rather than hanging.");
-        status.setWrapText(true);
-        status.getStyleClass().add("es-state-unreachable");
+    // ------------------------------------------------------------------ deleting
 
-        box.getChildren().addAll(explanation, row, status);
-        return box;
+    /**
+     * Asks before destroying a character, and names it.
+     *
+     * <p>Deletion is irreversible and there is no undo, so it asks — and the question NAMES the
+     * handle, because "are you sure?" with no subject is how people delete the wrong thing. On a
+     * screen where three faces sit side by side and the selected one is distinguished only by a
+     * ring, that matters more than it did on the old list.
+     */
+    private static boolean confirmDelete(CharacterSlots.Slot slot) {
+        Alert confirm = new Alert(
+                Alert.AlertType.CONFIRMATION,
+                "Delete " + slot.handle() + " in slot " + slot.index() + "? This cannot be undone.",
+                ButtonType.CANCEL,
+                ButtonType.OK);
+        confirm.setHeaderText("Delete this character");
+        return confirm.showAndWait().filter(button -> button == ButtonType.OK).isPresent();
     }
 
     // ------------------------------------------------------------------ CL-4 / T-2
@@ -293,7 +545,7 @@ public final class MainMenuView {
 
     private static Label sectionLabel(String text) {
         Label l = new Label(text);
-        l.getStyleClass().add("es-panel-title");
+        l.getStyleClass().add("es-label");
         return l;
     }
 
@@ -309,13 +561,6 @@ public final class MainMenuView {
         b.setMinWidth(Region.USE_PREF_SIZE);
         b.setOnAction(e -> action.run());
         return b;
-    }
-
-    private static Region centred(Region content) {
-        StackPane pane = new StackPane(content);
-        pane.setAlignment(Pos.TOP_CENTER);
-        pane.setStyle("-fx-background-color: transparent;");
-        return pane;
     }
 
     /** A theme picker for the menu's settings dialog, so the look can be changed before playing. */

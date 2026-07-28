@@ -59,7 +59,19 @@ public enum WindowSpec {
     RECON("recon", "Recon", "less", "What you have learned about a target, and what it would cost to learn more.", 760, 640, 480, 400, KeyCode.DIGIT3, false, true, false),
     AUDIT("audit", "Audit", "ps / netstat / df", "Processes, connections and storage on your own rig. When these three disagree, something is hiding.", 900, 600, 640, 400, KeyCode.DIGIT4, false, true, false),
     MINING("mining", "Mining", "a miner dashboard", "Self-mining allocation and deployed-miner collection. The income floor, and the only offline income.", 820, 600, 560, 400, KeyCode.DIGIT5, false, true, false),
-    STORAGE("storage", "Storage", "ls across three mounts", "Your items across the three tiers. Moving one changes how exposed it is.", 840, 620, 560, 420, KeyCode.DIGIT6, false, true, false),
+    /**
+     * Items across the three tiers.
+     *
+     * <p>⚠ Renamed from "Storage" to <b>VaultStore</b> on 2026-07-28, and the id stays
+     * {@code storage} deliberately — the id is what saved desk layouts, accelerator bindings and
+     * {@code window storage} in the shell are keyed on, and renaming it would silently discard every
+     * player's remembered geometry for this window to gain nothing.
+     *
+     * <p>The Unix analogue changed with it: the tiers stopped being mount points at {@code /mnt} and
+     * moved into {@code ~/.VaultStore}, because nobody mounted them and a {@code /mnt/vault} in the
+     * sidebar of a machine an intruder is standing on is a signpost to the one place meant to be safe.
+     */
+    STORAGE("storage", "VaultStore", "ls ~/.VaultStore", "Your items across the three tiers. Moving one changes how exposed it is.", 840, 620, 560, 420, KeyCode.DIGIT6, false, true, false),
     LEDGER("ledger", "Ledger", "a transaction log", "Every ethecoin movement and what caused it. The audit trail for your own balance.", 880, 560, 600, 360, KeyCode.DIGIT7, false, true, false),
     BOTNET("botnet", "Botnet", "jobs / systemctl", "Bot frames, their loadouts and what they are doing. Bots assist; they never solve it for you.", 780, 560, 520, 400, KeyCode.DIGIT8, false, true, false),
     DEFENSE("defense", "Defense", "a firewall / IDS console", "What is armed and what it costs to keep armed. Defending your own rig never generates heat.", 780, 560, 520, 380, KeyCode.DIGIT9, false, true, false),
@@ -123,6 +135,20 @@ public enum WindowSpec {
      * costs the design nothing to justify: there is no invariant a calculator can touch.
      */
     CALC("calc", "Calculator", "bc / printf %x / a programmer's calculator", "One value in hex, decimal, octal and binary at once, with its bits. Word width, two's complement, masks, shifts and byte order.", 820, 700, 560, 460, KeyCode.C, true, true, false),
+
+    /**
+     * The file manager.
+     *
+     * <p>⚠ A twentieth window, logged against <b>WL-1</b> with {@code man}, {@code log},
+     * {@code breach} and {@code calc}. It is GNOME Files' shape — places sidebar, breadcrumb path
+     * bar, detail list — because that is the arrangement an Ubuntu user already knows and this
+     * window's purpose is that what a player learns in it transfers to a real machine.
+     *
+     * <p>⚠ The accelerator is <b>H</b>, for Home, and not F. {@code Shortcut+F} is per-window find
+     * (§6.3) and {@code Shortcut+Shift+F} is already spoken for by {@code recon}'s search-all
+     * (§2.6); taking either would break a documented binding to gain a better mnemonic.
+     */
+    FILES("files", "Files", "nautilus / ls / mount", "Your rig's filesystem, and every machine you hold mounted onto it. Ubuntu's layout, because it is the one worth learning.", 980, 660, 640, 440, KeyCode.H, true, true, false),
 
     /** The answer to losing a window behind another. Opens on first run alongside the rig monitor. */
     SWITCHER("switcher", "Windows", "jobs", "Every tool in the catalogue, open or not. The way back to a window you lost.", 280, 520, 240, 320, KeyCode.J, true, true, true);

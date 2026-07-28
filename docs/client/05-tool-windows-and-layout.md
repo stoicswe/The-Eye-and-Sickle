@@ -121,18 +121,22 @@ The thirteen ids below marked **(00 §6.1)** come from `00-client-overview.md` �
 | — | `comms` ✚ | Comms | `mail` / `who` | 720×620 | 480×400 | `Shortcut+Shift+P` | yes | no |
 | — | `settings` ✚ | Settings | `~/.config` | 760×620 | 560×440 | `Shortcut+,` | yes | no |
 | — | `calc` ✚ | Calculator | `bc` / `printf %x` | 820×700 | 560×460 | `Shortcut+Shift+C` | yes | no |
+| — | `files` ✚ | Files | `nautilus` / `ls` / `mount` | 980×660 | 640×440 | `Shortcut+Shift+H` | yes | no |
 | — | `switcher` | Windows | `jobs` | 280×520 | 240×320 | `Shortcut+Shift+J` | yes | **yes** |
 
 `dock` is reserved as the id of the docked shell's single `Stage` (§5.2). It is not a tool and never appears in the switcher.
 
+**`shell:<address>` is reserved for a machine shell** *(2026-07-28)*, and is deliberately **not** in this table. The catalogue is the closed set of *tools*; a shell is an **instance** of one, created by opening a session on a machine and destroyed by closing it. Putting it here would mean a rail key and an accelerator for a window that may not exist. ⚠ One window per machine is **not** the duplication **WL-8** forbids — WL-8's reason is that two windows of one tool would be "a live view of the same session state" with no way to tell which you were reading, and two shells on two different machines are two states, exactly as two terminal windows on two servers are.
+
 **Minimum sizes obey one rule:** no window's minimum may exceed **720×480**, so that any two tools fit side by side on a 1366×768 laptop with room for the rig strip. `netmap` and `breach` sit exactly on it (720×480); a graph below that is a list pretending to be a graph.
 
-### 2.2 Three windows this document adds — and one it does not
+### 2.2 Four windows this document adds — and one it does not
 
-`00-client-overview.md` §6.1 lists thirteen. This document adds **`comms`**, **`settings`** and **`calc`**, and says so rather than quietly extending a table another doc owns.
+`00-client-overview.md` §6.1 lists thirteen. This document adds **`comms`**, **`settings`**, **`calc`** and **`files`**, and says so rather than quietly extending a table another doc owns.
 
 - **`comms`** — `identity` is `whoami`: *your* handle, DID, heat bands, faction standing, burners. The social layer is a different subject entirely — other operators, recovered messages, compiled dossiers, the evidence threshold and the mass-vote override (`../design/12-identity-and-social.md` §2–§3). Folding "who might be informing on me" into "who am I" would bury a whole system inside a status panel. The Unix pairing makes the split legible: `id` versus `who`/`mail`.
 - **`settings`** — `00-client-overview.md` §4.2 already routes theme selection through "Settings → Appearance" and §5.2 makes the teaching level a persistent choice, so the surface is presupposed; it simply had no id. It also has to hold the layout escape hatch (§3.8).
+- **`files`** *(added 2026-07-28)* — the file manager. GNOME Files' **layout** — places sidebar, breadcrumb path bar, detail list — because that is the arrangement an Ubuntu user already knows and this window's purpose is that what a player learns in it transfers to a real machine. None of its chrome: no rounded corners, no shadows, no coloured folder icons (§9). Kind is carried by `ls -F`'s own trailing marker (`/`, `*`, `@`), **shared with the node shell** so two surfaces drawing one tree do not need two alphabets; the two *game* kinds get markers `ls` does not define, rather than borrowing a real one for an invented meaning. ⚠ **A mount is a session** — "Connect to machine" opens a shell session and unmounting closes it. There is deliberately no second mount concept: in Ubuntu, mounting a remote share *is* holding a connection, and modelling it twice would give the game two lists of "machines I am attached to" that would eventually disagree. Hidden files follow Nautilus (off by default), and the count of what is hidden is stated rather than silently omitted.
 - **`calc`** *(added 2026-07-28)* — one value in hex, decimal, octal and binary at once, with its bits as a clickable grid, a register width, a two's-complement reading, the bitwise and shift operations, and a byte-order swap. It earns its slot on pillar **C6**, not on a game system: `../education/01-foundations.md` is a whole domain about bases, bit width, two's complement, byte order and overflow, and every other window in this catalogue hands the player numbers in the machine's notation without any surface that makes them legible. It is also **the only window that takes no `GameSession`** — it spends nothing, is gated by nothing and cannot be lost, so it is the one addition that required checking no invariant. Terminal half: `calc(1)`, aliased `bc`, driving the same engine (**C1**).
 
 Tracked as **WL-1**. If the catalogue owner would rather have thirteen, `comms` folds into `identity` as a second section and `settings` becomes a `ModalPane` over whichever window invoked it — both are cheaper than the reverse.
@@ -231,6 +235,8 @@ Deterministic traversal order is what lets a screen-reader user walk the graph a
 **The glyph key is a column beside the graph, not a strip beneath it** *(2026-07-28)*. Ten glyph/word pairs do not fit across the panel, and the horizontal scroll belongs to the *data area* rather than to the panel — so the tail of the strip ran off the right edge with no way to reach it, and the entries that vanished were `░░` (contact) and `··` (beyond), the two dimmest states and the two most in need of naming. A column has a bounded width and an unbounded run of entries, which is the shape this data has.
 
 **The sweep ladder shows the rules' verdict** *(2026-07-28)*. All three rungs are always *offered* and always pressable; the two the player has not bought read as `LOCKED`, dimmed, with a tooltip naming the tool, its price, and what the tier buys over the base — §5's rule that a gate is never a generic "locked", applied to the one panel that had been showing a gate as nothing at all. ⚠ The verdict arrives through `GameSession.sweepOptions()` and is **never computed in the view** (C4); an *absent* verdict — a session that cannot reach the rules — is rendered as offered, not as locked, because asserting a gate nobody asserted is the same violation arriving by the back door. It is deliberately not `setDisable(true)`: a disabled JavaFX node is skipped by picking and shows no tooltip, which would remove the explanation at the moment it is wanted. The tooltip's first sentence is Invariant **I2** — same reach, no tier buys reach at any price.
+
+**Right-clicking a machine opens its action menu** *(2026-07-28)* — open a shell, breach, move the vantage here, download, select. ⚠ The right-click **selects first and then opens**, or the menu would act on whatever was selected before while the pointer is plainly over something else. ⚠ "Open a shell" and "Move vantage here" are deliberately different entries with different words: a session is a shell on a machine you already hold, and the vantage is the single point a sweep measures from (**I2**). Calling both "connect" is how a player comes to believe eight shells gave them eight vantages. Everything in the menu is also on the selection strip, because a context menu is discoverable only by people who try right-clicking.
 
 **Initial focus:** the last focused node, else the entry node.
 **Fed by:** `../design/07-recon-tools.md` (all six overlays); `../design/09-defense-and-hardening.md` §1 (ring weight); `../design/05-hacking-minigame.md` §3.1 (Traversal); `../design/01-core-resources.md` §3.1 (hop distance).
@@ -583,6 +589,7 @@ All bindings use JavaFX's `KeyCombination.SHORTCUT_DOWN`, which resolves to ⌘ 
 | `Shortcut+Shift+I` | `identity` | " |
 | `Shortcut+Shift+P` | `comms` (mnemonic: people) | " |
 | `Shortcut+Shift+C` | `calc` | " |
+| `Shortcut+Shift+H` | `files` (mnemonic: Home) | " |
 | `Shortcut+Shift+J` | `switcher` (mnemonic: `jobs`) | " |
 | `Shortcut+,` | `settings` — the macOS Preferences convention, honoured on all three | " |
 | `Shortcut+\`` | Cycle open tool windows | `00-client-overview.md` §6.3 |

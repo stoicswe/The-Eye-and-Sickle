@@ -1879,6 +1879,22 @@ public final class Views {
             Runnable onDeskSettingsChanged,
             java.util.function.Consumer<String> onRename,
             Runnable onWindowChanged) {
+        return settings(profile, themes, onDeskSettingsChanged, onRename, onWindowChanged, null);
+    }
+
+    /**
+     * The whole panel, with a live session where there is one.
+     *
+     * @param session the running character, or {@code null} from the main menu. The picture and the
+     *     About page both need it; everything else is a client preference and does not
+     */
+    public static Region settings(
+            ClientProfile profile,
+            ThemeManager themes,
+            Runnable onDeskSettingsChanged,
+            java.util.function.Consumer<String> onRename,
+            Runnable onWindowChanged,
+            GameSession session) {
         VBox root = panel("SETTINGS");
 
         TextField handle = new TextField(profile.settings().soloHandle);
@@ -1973,6 +1989,63 @@ public final class Views {
         teaching.valueProperty().addListener((o, was, now) -> {
             profile.settings().teachingLevel = now;
             profile.save();
+        });
+
+        // ⚠ §9's rejection list bans rounded corners, and that still describes the DEFAULT. This is
+        // opt-in and off unless asked for, because it is the player's screen and a radius is a
+        // matter of taste rather than of legibility. What it never rounds is a measurement — see
+        // theme.css's block and UiContractTest.RoundedOptIn.
+        // ⚠ §0.1, amended 2026-07-28. The one setting that contradicts §0 outright — that document
+        // cancelled the Stage-per-tool model because "the entire aesthetic depends on the player
+        // never seeing their own operating system", and this hands the OS its frame back. Offered
+        // for the same reason §9.1 and §9.3 are: it is the player's machine. Off by default, so the
+        // shipped game still looks like the game.
+        CheckBox nativeBorder = new CheckBox("Use the system window border");
+        nativeBorder.setSelected(profile.settings().nativeWindowBorder);
+        nativeBorder.selectedProperty().addListener((o, was, now) -> {
+            profile.settings().nativeWindowBorder = now;
+            profile.save();
+        });
+
+        // ⚠ Order only, and desk windows only — see ui/chrome/ControlOrder. The outer window keeps
+        // following the host OS: it sits beside the player's real windows and is judged against
+        // them, and letting somebody put close where their OS puts zoom is the one arrangement
+        // guaranteed to cost a session.
+        ChoiceBox<io.github.stoicswe.eyeandsickle.client.ui.chrome.ControlOrder> controlOrder =
+                new ChoiceBox<>();
+        controlOrder.getItems().addAll(
+                io.github.stoicswe.eyeandsickle.client.ui.chrome.ControlOrder.selectable());
+        controlOrder.setValue(io.github.stoicswe.eyeandsickle.client.ui.chrome.ControlOrder
+                .resolve(profile.settings().subwindowControlOrder));
+        controlOrder.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(io.github.stoicswe.eyeandsickle.client.ui.chrome.ControlOrder o) {
+                return o == null ? "" : o.label();
+            }
+
+            @Override
+            public io.github.stoicswe.eyeandsickle.client.ui.chrome.ControlOrder fromString(String s) {
+                return io.github.stoicswe.eyeandsickle.client.ui.chrome.ControlOrder.SYSTEM;
+            }
+        });
+        controlOrder.valueProperty().addListener((o, was, now) -> {
+            if (now != null) {
+                profile.settings().subwindowControlOrder = now.id();
+                profile.save();
+                if (onDeskSettingsChanged != null) {
+                    onDeskSettingsChanged.run();
+                }
+            }
+        });
+
+        CheckBox rounded = new CheckBox("Rounded window corners");
+        rounded.setSelected(profile.settings().roundedWindows);
+        rounded.selectedProperty().addListener((o, was, now) -> {
+            profile.settings().roundedWindows = now;
+            profile.save();
+            if (onDeskSettingsChanged != null) {
+                onDeskSettingsChanged.run();
+            }
         });
 
         // §11 question 1, shipped as a choice rather than settled by fiat. See DeskManager.
@@ -2190,130 +2263,229 @@ public final class Views {
 
         VBox window = windowSection(profile, onWindowChanged, onWindowSizingChanged);
 
-        root.getChildren()
-                .addAll(
-                        new Label("OPERATOR"),
-                        new HBox(8, handle, applyHandle),
-                        wrapped(onRename != null
-                                ? "Your handle, shown on the strip with its bytes underneath. Solo "
-                                        + "only: online, a handle is not yours to choose — identity "
-                                        + "comes from an AT Proto DID and the server owns it."
-                                : "Sets the handle for the next character you start. Renaming a "
-                                        + "character you are already playing is done from inside "
-                                        + "the game."),
-                        handleResult,
-                        new HBox(8, hostname, applyHostname),
-                        wrapped("What the rig calls itself. The prompt reads "
-                                + "`handle@hostname.local:~$` — who you are, then where you are, "
-                                + "which is the order every terminal and every SSH session uses. "
-                                + "`.local` is mDNS: the name a machine answers to on the network "
-                                + "it is plugged into with nobody having configured DNS, and your "
-                                + "own machine has one. Letters, digits and hyphens only, 63 "
-                                + "characters at most — DNS's rules, not this game's."),
-                        hostnameResult,
-                        new Separator(),
-                        new Label("APPEARANCE"),
-                        theme,
-                        wrapped("Every theme is the same deck with a different palette — one stylesheet "
-                                + "owns the layout, the hairlines and the motion, so no skin can hide or "
-                                + "soften a number. \"Deck — high visibility\" raises body text to WCAG "
-                                + "AAA and makes every hairline visible; it is an accessibility floor "
-                                + "rather than a style, and nothing else about the client changes."),
-                        new Separator(),
-                        new Label("TEACHING"),
-                        teaching,
-                        wrapped("`explain` shows a plain-language line with each term; `terms` shows the "
-                                + "term only; `off` shows neither. The manual stays available at any "
-                                + "level — try `man compute`."),
-                        new Separator(),
-                        new Label("DESK"),
-                        freeDrag,
-                        wrapped("Off: windows snap to a grid, and tile when dragged against an edge of "
-                                + "the desk — a side fills that half, a corner that quarter. On: they go "
-                                + "exactly where you put them."),
-                        bandwidthCap,
-                        wrapped("Off by default, and this one is not calibrated. The idea is that screen "
-                                + "space is attention: Bandwidth caps how many engagements run at once, so "
-                                + "it should cap how many tools you can have open. A starting rig has 1 "
-                                + "Bandwidth, so the budget below adds six always-free windows — the "
-                                + "monitor, terminal, log, manual, settings and switcher — to it. That "
-                                + "arithmetic is invented, which is why this is opt-in."),
-                        new Separator(),
-                        window,
-                        new Label("SCREEN"),
-                        new Label("CASING"),
-                        bezel,
-                        bezelNote,
-                        wrapped("The machine around the screen. Off by default. It is drawn "
-                                + "OUTSIDE the viewport \u2014 the resolution you pick under WINDOW "
-                                + "is the screen's, and the casing is added beyond it, so the "
-                                + "window grows rather than the deck shrinking. It never covers "
-                                + "anything you have to read, and nothing about it moves, so it "
-                                + "costs no frames and is unaffected by Reduce motion. Pairs with "
-                                + "the Cyberdeck palette above, but every theme draws it."),
-                        new Label("WALLPAPER"),
-                        wallpaper,
-                        wrapped("Machine texture behind every window — the same alphabet as the greeble "
-                                + "strips, drawn far dimmer and never in amber. \"Still\" keeps the "
-                                + "texture and stops the movement. Turning on Reduce motion below stops "
-                                + "it too, without changing this setting."),
-                        scanlines,
-                        aberration,
-                        glitch,
-                        new Label("EDGE CURVATURE"),
-                        new HBox(8, curvature, curvatureValue),
-                        wrapped("Screen artefacts, all three off by default. Scanlines lay a dark band "
-                                + "across every other row of pixels and drift slowly, with a refresh bar "
-                                + "rolling down the screen — that is what makes them read as a tube "
-                                + "rather than as a texture. They cost real contrast on body text, which "
-                                + "is a trade to make deliberately rather than one the client makes for "
-                                + "you. Aberration separates the wallpaper into red and cyan a pixel "
-                                + "either side; it is not applied to the whole screen, which would cost "
-                                + "more per frame than the effect is worth. Signal glitch tears short "
-                                + "fragments off the edges of windows and the elements inside them, so a "
-                                + "busy desk breaks up more than an empty one. Reduce motion stops every "
-                                + "moving part and leaves the still ones drawn."),
-                        wrapped("Edge curvature raises the red/cyan separation towards the rim and the "
-                                + "corners, the way curved glass does — zero in the middle, worst at the "
-                                + "corners. It does NOT bend the interface: warping the picture would "
-                                + "need a shader we do not have, and faking it would put every click "
-                                + "somewhere other than where you see the control. Text stays straight."),
-                        new Separator(),
-                        new Label("NOTICES"),
-                        notify,
-                        wrapped("A notice repeats something the rig already logged — nothing here is "
-                                + "the only place a message exists, and the log window keeps all of "
-                                + "it. Ignoring every notice costs you nothing."),
-                        new Label("SEVERITY FLOOR"),
-                        severity,
-                        wrapped("These are RFC 5424 levels, and the numbering runs backwards on "
-                                + "purpose: 0 is Emergency and 7 is Debug, so a LOWER number is a "
-                                + "stricter filter. It is the same number `log -p` takes — set 4 "
-                                + "here, type `log -p 4`, and you will see the same set. That habit "
-                                + "works on any Linux machine you ever touch."),
-                        new Label("SUBSYSTEMS"),
-                        facilities,
-                        wrapped("Unchecked subsystems stay silent. These are the rig's own facility "
-                                + "names, so anything you mute here is still findable with "
-                                + "`log | grep <name>`."),
-                        new Separator(),
-                        new Label("POINTER"),
-                        cursor,
-                        wrapped("The pointer is the last piece of your operating system left on "
-                                + "screen, so the deck can draw its own — in whatever colour the "
-                                + "current theme means by \"live\". \"System pointer\" leaves yours "
-                                + "alone, and that is the default on purpose: your OS has already "
-                                + "tuned it for your display and your eyesight. The text I-beam is "
-                                + "never replaced under any skin, because its shape tells you which "
-                                + "two characters the caret will land between."),
-                        new Separator(),
-                        new Label("MOTION"),
-                        reducedMotion,
-                        wrapped("Follows your system setting unless you change it here. Suppresses the "
-                                + "panel wipe, the caret blink, the greeble and the sweep bar; readouts "
-                                + "keep updating, because that is information, not animation."),
-                        new Separator(),
-                        secondary("Profile directory: " + profile.directory()));
+        // ── the pages ─────────────────────────────────────────────────────────────────────────
+        //
+        // ⚠ Rebuilt from one long scroll into a sidebar and a detail pane on 2026-07-28, following
+        // macOS System Settings. The old shape put thirteen headings in a single column, so finding
+        // "wallpaper" meant scrolling past the pointer, the severity floor and every subsystem
+        // checkbox — and there is no scroll position at which a player can see what the panel even
+        // covers. A category list answers "what can I change" before "change it", which is the whole
+        // reason that layout won.
+        //
+        // Categories are declared in ONE map, in display order, and the sidebar is built from it.
+        // A second list of names beside the pages would be two things to keep in step.
+        java.util.LinkedHashMap<String, javafx.scene.Node> pages = new java.util.LinkedHashMap<>();
+
+        // ── the picture ───────────────────────────────────────────────────────────────────────
+        //
+        // ⚠ The one place this client reads a host file it did not write — see AvatarChooser for
+        // the three conditions that keep §7's boundary intact. What is stored is the PIXELS; the
+        // path the player picked is discarded and never persisted.
+        VBox avatarBox = new VBox(6);
+        Runnable[] refreshAvatar = new Runnable[1];
+        BreachView.Chip pickPicture = new BreachView.Chip("Choose picture", "es-files-action");
+        BreachView.Chip clearPicture = new BreachView.Chip("Use default", "es-files-action");
+        refreshAvatar[0] = () -> {
+            avatarBox.getChildren().setAll(AvatarChooser.row(
+                    session == null ? "" : session.avatar(),
+                    session == null ? profile.settings().soloHandle : session.handle(),
+                    52));
+        };
+        refreshAvatar[0].run();
+        pickPicture.onInvoke(() -> {
+            if (session == null) {
+                return;
+            }
+            AvatarChooser.choose(
+                    avatarBox.getScene() == null ? null : avatarBox.getScene().getWindow(),
+                    session.handle(),
+                    encoded -> {
+                        session.setAvatar(encoded);
+                        refreshAvatar[0].run();
+                    });
+        });
+        clearPicture.onInvoke(() -> {
+            if (session != null) {
+                session.setAvatar("");
+                refreshAvatar[0].run();
+            }
+        });
+
+        pages.put("Operator", settingsPage(
+                avatarBox,
+                Ui.row(8, pickPicture, clearPicture),
+                wrapped(session == null
+                        ? "A picture can be set once a character is loaded."
+                        : "Opens your system's own file dialog, then lets you crop and zoom. The "
+                                + "picture is stored with the character, not as a link to the file "
+                                + "you picked \u2014 so it travels with the save, and the game never "
+                                + "reads that location again. With none set you get a silhouette "
+                                + "generated from your handle, breaking up under static."),
+                new Separator(),
+                new HBox(8, handle, applyHandle),
+                wrapped(onRename != null
+                        ? "Your handle, shown on the strip with its bytes underneath. Solo "
+                                + "only: online, a handle is not yours to choose — identity "
+                                + "comes from an AT Proto DID and the server owns it."
+                        : "Sets the handle for the next character you start. Renaming a "
+                                + "character you are already playing is done from inside "
+                                + "the game."),
+                handleResult,
+                new Separator(),
+                new HBox(8, hostname, applyHostname),
+                wrapped("What the rig calls itself. The prompt reads "
+                        + "`handle@hostname.local:~$` — who you are, then where you are, "
+                        + "which is the order every terminal and every SSH session uses. "
+                        + "`.local` is mDNS: the name a machine answers to on the network "
+                        + "it is plugged into with nobody having configured DNS, and your "
+                        + "own machine has one. Letters, digits and hyphens only, 63 "
+                        + "characters at most — DNS's rules, not this game's."),
+                hostnameResult));
+
+        pages.put("Appearance", settingsPage(
+                theme,
+                wrapped("Every theme is the same deck with a different palette — one stylesheet "
+                        + "owns the layout, the hairlines and the motion, so no skin can hide or "
+                        + "soften a number. \"Deck — high visibility\" raises body text to WCAG "
+                        + "AAA and makes every hairline visible; it is an accessibility floor "
+                        + "rather than a style, and nothing else about the client changes.")));
+
+        pages.put("Windows", settingsPage(
+                nativeBorder,
+                wrapped("Gives the game window your system's own title bar and buttons "
+                        + "instead of the ones it draws itself. Takes effect the next time "
+                        + "you start the game — a window's frame is fixed before it first "
+                        + "appears and cannot be swapped while it is open. With it on, the "
+                        + "game stops drawing its own window buttons and the top strip stops "
+                        + "acting as a drag handle, because your title bar already does both."),
+                new Separator(),
+                rounded,
+                wrapped("Off by default, and deliberately: this deck is drawn in hard edges "
+                        + "and hairlines, and softening them is the first step toward looking "
+                        + "like an ordinary dark-mode developer tool. It rounds windows only "
+                        + "— never a meter cell or the cycle grid, because a cell with a soft "
+                        + "corner reads as a smaller cell and those are meant to be counted."),
+                wrapped("Applies to everything at once — the game window and every window "
+                        + "on the desk — and takes effect immediately. On Linux without a "
+                        + "compositing window manager the corners may come out black rather "
+                        + "than transparent; that is the one place this depends on your "
+                        + "desktop rather than on the game."),
+                new Separator(),
+                Ui.label("Window buttons, inside the game"),
+                controlOrder,
+                wrapped("Which order the buttons on a tool window sit in. It does not move them to "
+                        + "the other side — that follows your system and stays there — and it does "
+                        + "not touch the game's own window, which sits next to your real ones and "
+                        + "should behave like them. Takes effect immediately, on windows that are "
+                        + "already open."),
+                new Separator(),
+                window));
+
+        pages.put("Desk", settingsPage(
+                freeDrag,
+                wrapped("Off: windows snap to a grid, and tile when dragged against an edge of "
+                        + "the desk — a side fills that half, a corner that quarter. On: they go "
+                        + "exactly where you put them."),
+                new Separator(),
+                bandwidthCap,
+                wrapped("Off by default, and this one is not calibrated. The idea is that screen "
+                        + "space is attention: Bandwidth caps how many engagements run at once, so "
+                        + "it should cap how many tools you can have open. A starting rig has 1 "
+                        + "Bandwidth, so the budget below adds six always-free windows — the "
+                        + "monitor, terminal, log, manual, settings and switcher — to it. That "
+                        + "arithmetic is invented, which is why this is opt-in.")));
+
+        pages.put("Screen", settingsPage(
+                Ui.label("Casing"),
+                bezel,
+                bezelNote,
+                wrapped("The machine around the screen. Off by default. It is drawn "
+                        + "OUTSIDE the viewport \u2014 the resolution you pick under Windows "
+                        + "is the screen's, and the casing is added beyond it, so the "
+                        + "window grows rather than the deck shrinking. It never covers "
+                        + "anything you have to read, and nothing about it moves, so it "
+                        + "costs no frames and is unaffected by Reduce motion. Pairs with "
+                        + "the Cyberdeck palette, but every theme draws it."),
+                new Separator(),
+                Ui.label("Wallpaper"),
+                wallpaper,
+                wrapped("Machine texture behind every window — the same alphabet as the greeble "
+                        + "strips, drawn far dimmer and never in amber. \"Still\" keeps the "
+                        + "texture and stops the movement. Turning on Reduce motion under "
+                        + "Accessibility stops it too, without changing this setting."),
+                new Separator(),
+                Ui.label("Artefacts"),
+                scanlines,
+                aberration,
+                glitch,
+                new HBox(8, curvature, curvatureValue),
+                wrapped("Screen artefacts, all three off by default. Scanlines lay a dark band "
+                        + "across every other row of pixels and drift slowly, with a refresh bar "
+                        + "rolling down the screen — that is what makes them read as a tube "
+                        + "rather than as a texture. They cost real contrast on body text, which "
+                        + "is a trade to make deliberately rather than one the client makes for "
+                        + "you. Aberration separates the wallpaper into red and cyan a pixel "
+                        + "either side; it is not applied to the whole screen, which would cost "
+                        + "more per frame than the effect is worth. Signal glitch tears short "
+                        + "fragments off the edges of windows and the elements inside them, so a "
+                        + "busy desk breaks up more than an empty one. Reduce motion stops every "
+                        + "moving part and leaves the still ones drawn."),
+                wrapped("Edge curvature raises the red/cyan separation towards the rim and the "
+                        + "corners, the way curved glass does — zero in the middle, worst at the "
+                        + "corners. It does NOT bend the interface: warping the picture would "
+                        + "need a shader we do not have, and faking it would put every click "
+                        + "somewhere other than where you see the control. Text stays straight.")));
+
+        pages.put("Notices", settingsPage(
+                notify,
+                wrapped("A notice repeats something the rig already logged — nothing here is "
+                        + "the only place a message exists, and the log window keeps all of "
+                        + "it. Ignoring every notice costs you nothing."),
+                new Separator(),
+                Ui.label("Severity floor"),
+                severity,
+                wrapped("These are RFC 5424 levels, and the numbering runs backwards on "
+                        + "purpose: 0 is Emergency and 7 is Debug, so a LOWER number is a "
+                        + "stricter filter. It is the same number `log -p` takes — set 4 "
+                        + "here, type `log -p 4`, and you will see the same set. That habit "
+                        + "works on any Linux machine you ever touch."),
+                new Separator(),
+                Ui.label("Subsystems"),
+                facilities,
+                wrapped("Unchecked subsystems stay silent. These are the rig's own facility "
+                        + "names, so anything you mute here is still findable with "
+                        + "`log | grep <name>`.")));
+
+        pages.put("Teaching", settingsPage(
+                teaching,
+                wrapped("`explain` shows a plain-language line with each term; `terms` shows the "
+                        + "term only; `off` shows neither. The manual stays available at any "
+                        + "level — try `man compute`.")));
+
+        // ⚠ Pointer and Motion live together under Accessibility, which is where macOS puts them
+        // and where a player looking for either will look. Both are also genuine accessibility
+        // controls rather than decoration: the system pointer default is a floor (docs/client/07),
+        // and Reduce motion follows the OS preference unless overridden.
+        pages.put("Accessibility", settingsPage(
+                Ui.label("Pointer"),
+                cursor,
+                wrapped("The pointer is the last piece of your operating system left on "
+                        + "screen, so the deck can draw its own — in whatever colour the "
+                        + "current theme means by \"live\". \"System pointer\" leaves yours "
+                        + "alone, and that is the default on purpose: your OS has already "
+                        + "tuned it for your display and your eyesight. The text I-beam is "
+                        + "never replaced under any skin, because its shape tells you which "
+                        + "two characters the caret will land between."),
+                new Separator(),
+                Ui.label("Motion"),
+                reducedMotion,
+                wrapped("Follows your system setting unless you change it here. Suppresses the "
+                        + "panel wipe, the caret blink, the greeble and the sweep bar; readouts "
+                        + "keep updating, because that is information, not animation.")));
+
+        pages.put("About", settingsPage(about(profile, session)));
+
+        root.getChildren().add(settingsBody(pages));
         return scrollable(root);
     }
 
@@ -2376,6 +2548,182 @@ public final class Views {
      *
      * @return null when the handle is fine
      */
+    /**
+     * About — what this machine is, in the shape a real one answers that question.
+     *
+     * <h2>Real facts, in a real order</h2>
+     *
+     * Every line is read from the session. None of it is decoration: the cycle count is the compute
+     * budget the rig monitor draws, the tier capacities are the ones the storage rules enforce, the
+     * uptime is the character's own. A spec sheet with invented numbers on it would be the one
+     * screen in the game that lies for atmosphere, and this game's whole teaching posture is that it
+     * does not.
+     *
+     * <p>⚠ Compute is stated in <b>cycles</b> and never converted to gigahertz. A rig's capacity is
+     * a count of concurrent work, not a clock speed ({@code docs/design/01} §1.1), and dressing it
+     * up as MHz would teach the one thing about this resource that is false.
+     */
+    private static VBox about(ClientProfile profile, GameSession session) {
+        VBox box = new VBox(4);
+        if (session == null) {
+            box.getChildren().add(secondary("No character loaded."));
+            box.getChildren().add(wrapped("Profile directory: " + profile.directory()));
+            return box;
+        }
+        var capacity = session.capacity();
+        long total = session.computeBudget().total().cycles();
+        long uptime = session.uptimeSeconds();
+
+        box.getChildren().addAll(
+                Ui.label("uOS"),
+                spec("System", "uOS 15.0-RELEASE"),
+                spec("Kernel", "FreeBSD-derived, GENERIC"),
+                spec("Hostname", io.github.stoicswe.eyeandsickle.client.profile.Hostname
+                        .qualified(profile.settings().rigHostname)),
+                spec("Operator", session.handle()),
+                spec("Mode", session.mode().label()),
+                new Separator(),
+                Ui.label("Hardware"),
+                // Cycles, never gigahertz. See the class comment.
+                spec("Compute", total + " cycles"),
+                spec("Memory buffer", capacity.memoryBuffer() + " units"),
+                spec("Bandwidth", capacity.bandwidth() + " concurrent"),
+                spec("Thermal budget", capacity.thermalBudget() + " units"),
+                new Separator(),
+                Ui.label("Storage"),
+                spec("Vault", tier(session,
+                        io.github.stoicswe.eyeandsickle.protocol.game.StorageTier.VAULT)),
+                spec("Standard", tier(session,
+                        io.github.stoicswe.eyeandsickle.protocol.game.StorageTier.STANDARD_STORAGE)),
+                spec("Hot zone", tier(session,
+                        io.github.stoicswe.eyeandsickle.protocol.game.StorageTier.HIGH_HACKABLE_ZONE)),
+                new Separator(),
+                Ui.label("This character"),
+                spec("Uptime", Ui.clock(uptime)),
+                // ⚠ money(), not String.valueOf. Ethecoin is a record, so its toString is
+                // "Ethecoin[minorUnits=0]" — which renders without complaint and reads as a leaked
+                // internal, on the one screen whose whole job is to look like a real spec sheet.
+                spec("Balance", money(session.balance().minorUnits())),
+                new Separator(),
+                wrapped("Profile directory: " + profile.directory()),
+                wrapped("Everything this client writes lives in that one directory — settings, "
+                        + "window positions and the save. It is the only place on your machine the "
+                        + "game touches, which is what lets the terminal look like a shell without "
+                        + "being one."));
+        return box;
+    }
+
+    /** {@code KEY   value} — the readout shape the rest of the client uses. */
+    private static HBox spec(String key, String value) {
+        Label name = Ui.label(key);
+        name.setMinWidth(130);
+        HBox row = new HBox(8, name, Ui.value(value));
+        row.setAlignment(Pos.CENTER_LEFT);
+        return row;
+    }
+
+    private static String tier(
+            GameSession session, io.github.stoicswe.eyeandsickle.protocol.game.StorageTier t) {
+        return session.items(t).size() + " of " + session.storageCapacity(t) + " slots";
+    }
+
+    /**
+     * One settings page: a column of controls and the prose that explains them.
+     *
+     * <p>Prose stays <em>with</em> its control rather than being collected at the bottom. Several of
+     * these settings have consequences a player cannot see from the checkbox — scanlines cost real
+     * contrast, the Bandwidth cap is uncalibrated, the native border needs a restart — and a note
+     * two scrolls away from the thing it is about is a note nobody reads before deciding.
+     */
+    private static VBox settingsPage(javafx.scene.Node... children) {
+        VBox page = new VBox(10);
+        page.getStyleClass().add("es-settings-page");
+        page.getChildren().addAll(children);
+        return page;
+    }
+
+    /**
+     * The sidebar and the detail pane — macOS System Settings' arrangement.
+     *
+     * <h2>Why a category list beat one long column</h2>
+     *
+     * The old panel put thirteen headings in a single scroll, so finding "wallpaper" meant going
+     * past the pointer, the severity floor and every subsystem checkbox — and there was no scroll
+     * position from which a player could see what the panel even <em>covered</em>. A sidebar answers
+     * "what can I change" before "change it", which is the question somebody opening Settings is
+     * actually asking.
+     *
+     * <p>⚠ The categories come from the page map and nothing else. A hand-written list of names
+     * beside a map of pages is two things to keep in step, and the failure is a sidebar entry that
+     * selects nothing.
+     *
+     * <p>The search field filters the sidebar by name. Deliberately not a full-text search over the
+     * prose: this panel's help text is long and argumentative, so matching on it would return every
+     * category for words like "default" or "window" — a filter that never narrows is worse than no
+     * filter, because it looks like it is working.
+     */
+    private static Region settingsBody(java.util.LinkedHashMap<String, javafx.scene.Node> pages) {
+        VBox sidebar = new VBox(2);
+        sidebar.getStyleClass().add("es-settings-sidebar");
+        sidebar.setMinWidth(170);
+        sidebar.setPrefWidth(170);
+        sidebar.setMaxWidth(170);
+
+        ScrollPane detail = new ScrollPane();
+        detail.setFitToWidth(true);
+        detail.getStyleClass().add("es-settings-detail");
+        HBox.setHgrow(detail, Priority.ALWAYS);
+        // ⚠ An explicit MAX height, not just Hgrow/Vgrow.
+        //
+        // A layout constraint only grows a child up to its maximum, and for a Control the computed
+        // maximum is not the unbounded value a Pane reports — so the detail pane stopped at its
+        // preferred height and the category's content sat in the top third of the window with dead
+        // space under it. Vgrow was set and looked correct; the clamp was one level down.
+        detail.setMaxHeight(Double.MAX_VALUE);
+
+        TextField search = new TextField();
+        search.setPromptText("Search");
+        search.getStyleClass().add("es-settings-search");
+
+        String[] selected = {pages.keySet().iterator().next()};
+        Runnable[] rebuild = new Runnable[1];
+
+        rebuild[0] = () -> {
+            String needle = search.getText() == null
+                    ? "" : search.getText().trim().toLowerCase(Locale.ROOT);
+            sidebar.getChildren().clear();
+            sidebar.getChildren().add(search);
+            for (String name : pages.keySet()) {
+                if (!needle.isEmpty() && !name.toLowerCase(Locale.ROOT).contains(needle)) {
+                    continue;
+                }
+                Label row = new Label(name);
+                row.getStyleClass().add(name.equals(selected[0])
+                        ? "es-settings-row-on" : "es-settings-row");
+                row.setMaxWidth(Double.MAX_VALUE);
+                io.github.stoicswe.eyeandsickle.client.ui.cursors.Cursors.shared().clickable(row);
+                row.setOnMouseClicked(event -> {
+                    selected[0] = name;
+                    rebuild[0].run();
+                });
+                sidebar.getChildren().add(row);
+            }
+            detail.setContent(pages.get(selected[0]));
+        };
+        search.textProperty().addListener((o, was, now) -> rebuild[0].run());
+        rebuild[0].run();
+
+        HBox body = new HBox(10, sidebar, detail);
+        body.setFillHeight(true);
+        body.setMaxHeight(Double.MAX_VALUE);
+        VBox.setVgrow(body, Priority.ALWAYS);
+        // The sidebar's hairline is the divider between the two halves, so it has to run the full
+        // height of the panel — a rule that stops where the last category happens to fall reads as
+        // the panel having ended there.
+        sidebar.setMaxHeight(Double.MAX_VALUE);
+        return body;
+    }
+
     private static String validateHandle(String handle) {
         if (handle == null || handle.isBlank()) {
             return "A handle cannot be blank.";

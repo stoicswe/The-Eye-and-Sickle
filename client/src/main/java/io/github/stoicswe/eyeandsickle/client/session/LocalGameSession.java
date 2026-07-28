@@ -2,6 +2,7 @@ package io.github.stoicswe.eyeandsickle.client.session;
 
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeBudget;
 import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
+import io.github.stoicswe.eyeandsickle.protocol.game.RemoteSession;
 import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
 import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.SoloGame;
@@ -49,6 +50,19 @@ public final class LocalGameSession implements GameSession {
     @Override
     public String handle() {
         return game.state().handle;
+    }
+
+    @Override
+    public String avatar() {
+        return game.state().avatarPng;
+    }
+
+    @Override
+    public Outcome setAvatar(String base64Png) {
+        game.state().avatarPng = base64Png == null ? "" : base64Png;
+        persist();
+        return changed(Outcome.ok(base64Png == null || base64Png.isBlank()
+                ? "picture cleared" : "picture set"));
     }
 
     @Override
@@ -609,6 +623,185 @@ public final class LocalGameSession implements GameSession {
     @Override
     public io.github.stoicswe.eyeandsickle.protocol.game.NetMap net() {
         return game.net();
+    }
+
+    // ── Shell sessions and the filesystem ─────────────────────────────────────────────────────
+    //
+    // ⚠ Deliberately NOT routed through connectTo. A session is a shell on a machine already held;
+    // the vantage is the single point a sweep measures from (I2). See SessionRules.
+
+    @Override
+    public java.util.List<RemoteSession> sessions() {
+        java.util.List<RemoteSession> out = new java.util.ArrayList<>();
+        for (var state : game.sessions()) {
+            var host = game.net().at(state.address);
+            out.add(new RemoteSession(
+                    state.address,
+                    host.map(io.github.stoicswe.eyeandsickle.protocol.game.Sighting::label).orElse(""),
+                    state.cwd,
+                    state.openedAt,
+                    state.cycles,
+                    host.map(io.github.stoicswe.eyeandsickle.protocol.game.Sighting::vantage).orElse(false)
+                            && isOwnRig(state.address)));
+        }
+        return java.util.List.copyOf(out);
+    }
+
+    private boolean isOwnRig(String address) {
+        return game.net().at(address)
+                .map(s -> s.kind() == io.github.stoicswe.eyeandsickle.protocol.game.HostKind.SELF)
+                .orElse(false);
+    }
+
+    @Override
+    public Outcome openSession(String address) {
+        return announce("net", openSessionIntent(address));
+    }
+
+    private Outcome openSessionIntent(String address) {
+        var opened = game.openSession(address);
+        if (opened.succeeded()) {
+            return changed(Outcome.ok("shell opened on " + address
+                    + " — " + opened.session().cycles + " cycles held while it stays open"));
+        }
+        // Each refusal names the thing that would fix it. A shell that just said "no" on a machine
+        // the player can SEE is the most frustrating possible refusal, because the obstacle is
+        // invisible: docs/client/04 §3.5's rule that 77 means "not yet, and here is why".
+        return switch (opened.refusal()) {
+            case UNKNOWN_HOST -> Outcome.refused(
+                    "no machine at " + address + " — sweep for it first");
+            case NO_FOOTHOLD -> Outcome.gated(
+                    "no foothold on " + address + " — breach it before you can run anything on it");
+            case NOT_ENOUGH_COMPUTE -> notEnoughCycles(
+                    io.github.stoicswe.eyeandsickle.solo.Balance.SESSION_CYCLES);
+        };
+    }
+
+    @Override
+    public Outcome closeSession(String address) {
+        if (!game.closeSession(address)) {
+            return Outcome.refused("no shell open on " + address);
+        }
+        return announce("net", changed(Outcome.ok("shell on " + address + " closed; cycles returned")));
+    }
+
+    @Override
+    public Outcome changeDirectory(String address, String path) {
+        if (game.changeDirectory(address, path)) {
+            return changed(Outcome.ok(game.session(address).map(s -> s.cwd).orElse("/")));
+        }
+        // The wording is a real `cd`'s, because it is the message a player will meet again.
+        return Outcome.refused("cd: " + path + ": No such file or directory");
+    }
+
+    @Override
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.FsEntry> list(
+            String address, String path) {
+        return game.list(address, path);
+    }
+
+    @Override
+    public java.util.List<String> read(String address, String path) {
+        return game.read(address, path);
+    }
+
+    @Override
+    public java.util.List<String> info(String address, String path) {
+        return game.info(address, path);
+    }
+
+    @Override
+    public Outcome download(
+            String address,
+            io.github.stoicswe.eyeandsickle.protocol.game.FsEntry entry,
+            String destination) {
+        var started = game.download(address, entry, destination);
+        if (started.succeeded()) {
+            return announce("net", changed(Outcome.ok(
+                    "downloading " + entry.name() + " — " + bytes(started.bytes()) + " at "
+                            + megabits(io.github.stoicswe.eyeandsickle.solo.Balance.LINK_UP_BITS)
+                            + ", about " + Math.max(1, started.duration().toSeconds()) + "s")));
+        }
+        return switch (started.refusal()) {
+            case NOT_CONNECTED -> Outcome.refused(
+                    "not connected to " + address + " — mount it before pulling anything off it");
+            case NOT_READABLE -> Outcome.gated(
+                    entry.name() + ": you do not hold this machine. Breach it first.");
+            case ALREADY_RUNNING -> Outcome.refused(entry.name() + " is already on its way");
+            // Named rather than generic: a player who tried to copy a log file is entitled to know
+            // it is scenery rather than to conclude downloads are broken.
+            case NOT_TRANSFERABLE -> Outcome.refused(
+                    entry.name() + ": nothing on your rig would know what to do with this. "
+                            + "Fragments, wallets, upgrades and schematics are what transfer.");
+        };
+    }
+
+    @Override
+    public java.util.List<String> downloadDestinations() {
+        String home = io.github.stoicswe.eyeandsickle.solo.fs.VirtualFs.home(handle());
+        // The home folders a desktop actually offers in a Save-as sheet. Downloads first, because it
+        // is the default and the first entry is the one a hurried player takes.
+        java.util.List<String> out = new java.util.ArrayList<>();
+        out.add(home + "/Downloads");
+        for (String folder : io.github.stoicswe.eyeandsickle.solo.fs.VirtualFs.homeFolders()) {
+            String path = home + "/" + folder;
+            if (!out.contains(path)) {
+                out.add(path);
+            }
+        }
+        return java.util.List.copyOf(out);
+    }
+
+    @Override
+    public Outcome install(String path) {
+        var result = game.install(path);
+        return result.ok()
+                ? announce("storage", changed(Outcome.ok(result.message())))
+                : Outcome.refused(result.message());
+    }
+
+    @Override
+    public Outcome sell(String path) {
+        var result = game.sell(path);
+        return result.ok()
+                ? announce("ledger", changed(Outcome.ok(
+                        result.message() + " for " + money(result.minorUnits()))))
+                // 77 rather than 1 for the gate case: it is "not this way", not "no".
+                : new Outcome(
+                        result.refusal() == io.github.stoicswe.eyeandsickle.solo.rules.Repac
+                                .Refusal.NOT_SELLABLE ? Outcome.NOPERM : Outcome.REFUSED,
+                        result.message());
+    }
+
+    @Override
+    public java.util.List<RunningTask> transfers() {
+        java.time.Instant asOf = game.now();
+        return game.transfers().stream()
+                .map(task -> new RunningTask(
+                        task.taskId, task.kind, task.label,
+                        "the other end's upload is the ceiling, not your download",
+                        task.startedAt, task.endsAt, task.cycles, asOf))
+                .toList();
+    }
+
+    /** Bytes, in the units a transfer readout should use. Decimal — see Balance's link constants. */
+    private static String bytes(long value) {
+        if (value < 1_000_000L) {
+            return String.format(Locale.ROOT, "%.0f kB", value / 1_000.0d);
+        }
+        return String.format(Locale.ROOT, "%.1f MB", value / 1_000_000.0d);
+    }
+
+    private static String megabits(long bits) {
+        return (bits / 1_000_000L) + " Mbit/s";
+    }
+
+    @Override
+    public void noteAccess(String address, String path) {
+        game.noteAccess(address, path);
+        // No announce(): looking at a folder is not an event and does not belong in the rig's log.
+        // Recents changed, though, and the file manager's sidebar draws it.
+        changed(Outcome.ok(""));
     }
 
     private Outcome sweepIntent(String flag) {

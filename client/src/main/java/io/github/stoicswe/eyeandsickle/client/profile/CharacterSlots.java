@@ -69,12 +69,12 @@ public final class CharacterSlots {
                 return Slot.empty(index, file);
             }
             return new Slot(index, file, true, save.handle, save.ethecoinMinorUnits, save.rig.totalCycles,
-                    save.playedSeconds, save.lastPlayedAt, save.createdAt, null);
+                    save.playedSeconds, save.lastPlayedAt, save.createdAt, null, save.avatarPng);
         } catch (RuntimeException unreadable) {
             // A corrupt or future-format save is shown as such rather than hidden. A slot that
             // silently reads as empty invites the player to overwrite the thing they were trying to
             // recover.
-            return new Slot(index, file, false, "", 0, 0, 0, null, null, unreadable.getMessage());
+            return new Slot(index, file, false, "", 0, 0, 0, null, null, unreadable.getMessage(), "");
         }
     }
 
@@ -109,10 +109,19 @@ public final class CharacterSlots {
             long playedSeconds,
             Instant lastPlayedAt,
             Instant createdAt,
-            String problem) {
+            String problem,
+            /**
+             * The character's picture as a base64 PNG, or empty.
+             *
+             * <p>Carried on the slot so the menu can show a face without opening the save twice —
+             * and because the login screen is the one place a picture is doing real work: it is how
+             * a player tells three of their own characters apart at a glance, which a handle in
+             * eight-point type does less well.
+             */
+            String avatarPng) {
 
         static Slot empty(int index, Path file) {
-            return new Slot(index, file, false, "", 0, 0, 0, null, null, null);
+            return new Slot(index, file, false, "", 0, 0, 0, null, null, null, "");
         }
 
         public boolean unreadable() {

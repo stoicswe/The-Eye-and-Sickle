@@ -33,10 +33,12 @@ class SchemaVocabularyTest {
 
     private static final String CORE = "db/migration/core/V2__core_schema.sql";
     private static final String PUZZLE_CLASSES = "db/migration/core/V4__breach_puzzle_classes.sql";
+    private static final String SHELL_SESSIONS = "db/migration/core/V5__shell_sessions.sql";
     private static final String FEDERATION = "db/migration/federation/V1001__federation_schema.sql";
 
     private static final String CORE_SQL = read(CORE);
     private static final String PUZZLE_CLASSES_SQL = read(PUZZLE_CLASSES);
+    private static final String SHELL_SESSIONS_SQL = read(SHELL_SESSIONS);
     private static final String FEDERATION_SQL = read(FEDERATION);
 
     // ------------------------------------------------------------------ vocabularies
@@ -64,8 +66,24 @@ class SchemaVocabularyTest {
     void computeConsumerVocabularyMatches() {
         // Invariant I6 lives in this list: control_channel (charged to the deployer) and
         // deployed_miner (charged to the host) are two consumers, never one.
-        assertThat(inList(CORE_SQL, "compute_allocations", "consumer_type"))
+        //
+        // ⚠ Read from V5, not V2. V5 rebuilt this constraint to add shell_session, and V2 must not
+        // be edited to match — Flyway checksums a migration that has already run, so a "tidied" V2
+        // fails every existing deployment on startup instead of migrating it. The effective
+        // vocabulary is whatever the LAST migration to touch the constraint declared.
+        assertThat(inRebuiltList(SHELL_SESSIONS_SQL, "consumer_type"))
                 .isEqualTo(EnumColumns.COMPUTE_CONSUMER_VALUES);
+    }
+
+    @Test
+    @DisplayName("⚠ V2's original vocabulary is left alone, because Flyway has checksummed it")
+    void theBaselineIsNotRewritten() {
+        // The tempting "fix" for the test above is to add shell_session to V2 and delete V5. That
+        // turns a green build into a startup failure on every server that has already run V2, and
+        // the failure is a checksum mismatch that says nothing about what changed. This assertion
+        // exists to make that edit fail here instead of there.
+        assertThat(inList(CORE_SQL, "compute_allocations", "consumer_type"))
+                .doesNotContain("shell_session");
     }
 
     @Test

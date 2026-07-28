@@ -33,6 +33,13 @@ import io.github.stoicswe.eyeandsickle.solo.breach.Rng;
 import io.github.stoicswe.eyeandsickle.solo.net.FolderRules;
 import io.github.stoicswe.eyeandsickle.solo.net.NetRules;
 import io.github.stoicswe.eyeandsickle.solo.net.SweepTier;
+import io.github.stoicswe.eyeandsickle.solo.net.SessionRules;
+import io.github.stoicswe.eyeandsickle.solo.net.TransferRules;
+import io.github.stoicswe.eyeandsickle.solo.fs.Recents;
+import io.github.stoicswe.eyeandsickle.solo.fs.VirtualFs;
+import io.github.stoicswe.eyeandsickle.protocol.game.FsEntry;
+import io.github.stoicswe.eyeandsickle.solo.state.SessionState;
+import io.github.stoicswe.eyeandsickle.solo.state.HostState;
 import io.github.stoicswe.eyeandsickle.solo.net.TopologyGenerator;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachSnapshot;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachTarget;
@@ -280,6 +287,15 @@ public final class SoloGame {
      */
     public void resume() {
         Instant now = clock.instant();
+        // ⚠ Sessions are pruned FIRST, before anything reads the compute picture. A session on a
+        // machine the player no longer holds is a live reservation against a shell that would refuse
+        // every command — two cycles the rig monitor shows as spent with nothing to point at. It has
+        // to happen on the offline path for the same reason task settlement does: a foothold can be
+        // lost to a patch that landed while the game was closed.
+        for (String address : SessionRules.prune(save)) {
+            EventLog.notice(save, "net",
+                    "shell session on " + address + " ended: the foothold is gone.", now);
+        }
         long recovered = ComputeRules.settleRecovered(save.rig, now);
         // ⚠ Tasks settle HERE, not only in tick(). resume() sets lastTick = now, so the first tick
         // after loading sees zero elapsed time and returns early — a six-minute scan that ended
@@ -718,6 +734,317 @@ public final class SoloGame {
         return BreachRules.actions(save);
     }
 
+    // ── Shell sessions and the filesystem ─────────────────────────────────────────────────────
+    //
+    // ⚠ A session is NOT the vantage. See SessionRules: the vantage is singular and is what a sweep
+    // measures from (I2); a session is a shell on a machine already held, costs compute, and buys no
+    // reach. Nothing in this block reads or writes vantageAddress.
+
+    /** Opens a shell session, or reports why not. */
+    public SessionRules.Opened openSession(String address) {
+        return SessionRules.open(save, address, clock.instant());
+    }
+
+    /** Closes one. Returns whether there was one to close. */
+    public boolean closeSession(String address) {
+        return SessionRules.close(save, address);
+    }
+
+    public List<SessionState> sessions() {
+        return SessionRules.all(save);
+    }
+
+    public Optional<SessionState> session(String address) {
+        return SessionRules.find(save, address);
+    }
+
+    public boolean changeDirectory(String address, String path) {
+        return SessionRules.changeDirectory(save, address, path, clock.instant());
+    }
+
+    /**
+     * A directory listing on a machine.
+     *
+     * <p>⚠ The <em>rules</em> decide what is readable, here, once — a session on a host you hold
+     * reads it, and everything else sees the shape and nothing inside. A view that worked that out
+     * for itself would be answering "may I read this", which is exactly the class of question
+     * Invariant <b>I14</b> reserves for this side.
+     */
+    public List<FsEntry> list(String address, String path) {
+        Instant now = clock.instant();
+        if (SessionRules.isOwnRig(save, address) || address == null || address.isBlank()) {
+            return VirtualFs.listRig(
+                    path, save.handle, installed(),
+                    io.github.stoicswe.eyeandsickle.solo.rules.AccessLog.size(save),
+                    Recents.entries(save), save.files, now);
+        }
+        HostState host = SessionRules.host(save, address);
+        if (host == null) {
+            return List.of();
+        }
+        return VirtualFs.listHost(host, path, minerIdsOn(address), now);
+    }
+
+    /** Ids of miners THIS player has deployed on a host — what makes one visible in /etc/systemd. */
+    private List<String> minerIdsOn(String address) {
+        for (NodeState node : save.knownNodes) {
+            if (node.address.equals(address)) {
+                return node.deployedMiners.stream().map(m -> m.minerId).toList();
+            }
+        }
+        return List.of();
+    }
+
+    /**
+     * Every owned item, with the tier it sits in.
+     *
+     * <p>⚠ The tier travels with the item on purpose. An upgrade shown inside an application bundle
+     * is a <b>view</b> onto an item that lives in a storage tier, and the tier is still what decides
+     * whether a remote actor can take it ({@code docs/design/01} §6, {@code rules/AccessLog}).
+     */
+    private List<VirtualFs.Installed> installed() {
+        return save.items.stream()
+                .map(i -> new VirtualFs.Installed(i.itemType, i.displayName, i.tier, i.equipped))
+                .toList();
+    }
+
+    /**
+     * A file's readable contents, or empty.
+     *
+     * <p>⚠ Only files the rules actually model return anything. Inventing log lines for
+     * {@code /var/log/syslog} would be the engine fabricating content on a surface a player uses to
+     * investigate, which is the one place a plausible lie does real damage.
+     */
+    public List<String> read(String address, String path) {
+        String p = VirtualFs.normalise(path);
+        boolean own = SessionRules.isOwnRig(save, address) || address == null || address.isBlank();
+        if (own && VirtualFs.ACCESS_LOG.equals(p)) {
+            return remoteAccessLog();
+        }
+        if (io.github.stoicswe.eyeandsickle.solo.fs.SystemTree.isSystem(p)) {
+            // ⚠ A directory never "reads". It is navigated into, and a caller that asked to read one
+            // has asked the wrong question — answering it produced a folder described as an ELF
+            // binary in the file manager.
+            if (io.github.stoicswe.eyeandsickle.solo.fs.SystemTree.isDirectory(p, clock.instant())) {
+                return List.of();
+            }
+            return systemFile(p, own);
+        }
+        return List.of();
+    }
+
+    /**
+     * What this thing IS — the "Get info" answer, as opposed to what it contains.
+     *
+     * <h2>Why this is separate from {@link #read}</h2>
+     *
+     * They answer different questions and a player asks them at different moments. {@code read} is
+     * "show me what is in it" and is what a double-click means. This is "what am I looking at", which
+     * is what a right-click means — and it is the one that works on a <b>directory</b>, where there
+     * are no contents to show but there is a great deal to say.
+     *
+     * <p>It is also where the teaching lives. Somebody who opens {@code /System/bin} gets a listing;
+     * somebody who asks about {@code /System/bin} gets told what that directory is for and why it is
+     * short. The second is the interesting one.
+     */
+    public List<String> info(String address, String path) {
+        String p = VirtualFs.normalise(path);
+        boolean own = SessionRules.isOwnRig(save, address) || address == null || address.isBlank();
+        List<String> out = new java.util.ArrayList<>();
+
+        if (io.github.stoicswe.eyeandsickle.solo.fs.SystemTree.isSystem(p)) {
+            String note = io.github.stoicswe.eyeandsickle.solo.fs.SystemTree.note(p);
+            if (!note.isBlank()) {
+                out.add(note);
+            }
+            if (io.github.stoicswe.eyeandsickle.solo.fs.SystemTree.MODE_RESTRICTED.contains(p)) {
+                out.add("");
+                out.add("Mode 0600, owner root. On a real FreeBSD machine this file holds the");
+                out.add("password hashes, which is why it is the one file in /etc nobody but root");
+                out.add("may read -- and why /etc/passwd sits beside it, world-readable, with an");
+                out.add("asterisk where each hash would be.");
+            }
+            out.add("");
+            out.add("The base system is read-only: every mode in /System is r-xr-xr-x, owner");
+            out.add("root:wheel. You can read all of it and change none of it. Anything you install");
+            out.add("goes in /System/usr/local, which is the one directory here that is yours.");
+            out.add("");
+            out.add("See `man hier`.");
+            return List.copyOf(out);
+        }
+
+        if (Recents.dirFor(save.handle).equals(p)) {
+            out.add("Places you have opened, newest first. A real desktop keeps this too --");
+            out.add("~/.local/share/recently-used -- which means it is readable by anything that");
+            out.add("gets onto this machine. Worth remembering before you go somewhere private.");
+            return List.copyOf(out);
+        }
+        if (p.startsWith(VirtualFs.home(save.handle) + "/" + VirtualFs.VAULTSTORE)) {
+            out.add("Your items. The three tiers are an exposure ladder, not three folders:");
+            out.add("vault is never exposed, standard is exposed while you are online, and the hot");
+            out.add("zone is raidable even while you are not. Capacity runs the other way.");
+            return List.copyOf(out);
+        }
+        if (p.startsWith(VirtualFs.APPLICATIONS)) {
+            out.add("An application bundle is a DIRECTORY, not a file -- that is the thing worth");
+            out.add("knowing about how a desktop packages a program. Contents/ holds the parts:");
+            out.add("the executable, its resources, and Upgrades/, which is ours rather than a");
+            out.add("real bundle's.");
+            return List.copyOf(out);
+        }
+        if (!own) {
+            out.add("On " + address + ". You are reading somebody else's machine.");
+        }
+        return List.copyOf(out);
+    }
+
+    /**
+     * Reading something out of the base system.
+     *
+     * <h2>⚠ Config files read; binaries do not. That is what a real machine does.</h2>
+     *
+     * An earlier version refused everything on the grounds that a game cannot ship a real kernel.
+     * True of {@code /boot/kernel/kernel} and false of {@code /etc/rc.conf} — one is twenty-eight
+     * megabytes of machine code, the other is nine lines anybody can read on their own laptop right
+     * now. Refusing both taught that an operating system is a closed box, which is the opposite of
+     * what this tree exists for.
+     *
+     * <p>Each answer also carries the manual's note on what that part of the system is <em>for</em>,
+     * so opening a file is a chance to learn where you are as well as what it says.
+     */
+    private List<String> systemFile(String path, boolean own) {
+        var note = io.github.stoicswe.eyeandsickle.solo.fs.SystemTree.note(path);
+        List<String> contents = io.github.stoicswe.eyeandsickle.solo.fs.SystemTree.contents(path);
+        List<String> out = new java.util.ArrayList<>();
+
+        if (!contents.isEmpty()) {
+            out.addAll(contents);
+        } else if (io.github.stoicswe.eyeandsickle.solo.fs.SystemTree.isBinary(path, false)) {
+            // What `file` would tell you, rather than the screenful of noise `cat` would.
+            out.add(VirtualFs.nameOf(path)
+                    + ": ELF 64-bit LSB executable, x86-64, dynamically linked, stripped");
+            out.add("");
+            out.add("A binary. There is nothing here a person reads.");
+        } else if (!own) {
+            return List.of();
+        } else {
+            out.add("cat: " + VirtualFs.nameOf(path) + ": Permission denied");
+            out.add("");
+            out.add("Mode 0600, owner root. On a real FreeBSD machine this file holds the password");
+            out.add("hashes, which is why it is the one file in /etc nobody but root may read —");
+            out.add("and why /etc/passwd sits beside it, world-readable, with an asterisk where");
+            out.add("each hash would be.");
+        }
+        if (!note.isBlank()) {
+            out.add("");
+            out.add("-- " + note);
+            out.add("   See `man hier`.");
+        }
+        return List.copyOf(out);
+    }
+
+    /**
+     * Starts a download from a machine this rig is connected to.
+     *
+     * <p>Refuses rather than throwing, matching every other rule here. The duration comes out of
+     * {@code Balance.transferTime}, which is bounded by the <b>remote end's upload</b> — see
+     * {@code TransferRules}.
+     */
+    public TransferRules.Started download(String address, FsEntry entry, String destination) {
+        String where = destination == null || destination.isBlank()
+                ? io.github.stoicswe.eyeandsickle.solo.rules.Repac.defaultDestination(save.handle)
+                : destination;
+        return TransferRules.begin(save, address, entry, where, clock.instant());
+    }
+
+    /** Installs a downloaded package. The file is consumed; the item lands in the vault. */
+    public io.github.stoicswe.eyeandsickle.solo.rules.Repac.Result install(String path) {
+        var result = io.github.stoicswe.eyeandsickle.solo.rules.Repac.install(
+                save, path, clock.instant());
+        if (result.ok()) {
+            EventLog.notice(save, "storage", result.message(), clock.instant());
+        }
+        return result;
+    }
+
+    /**
+     * Sells a downloaded package on the secondary market.
+     *
+     * <p>The credit goes through the same ledger call every other income uses — there is exactly one
+     * place in this engine that moves money, and a second one would eventually disagree with the
+     * balance.
+     */
+    public io.github.stoicswe.eyeandsickle.solo.rules.Repac.Result sell(String path) {
+        var result = io.github.stoicswe.eyeandsickle.solo.rules.Repac.sell(save, path);
+        if (result.ok() && result.minorUnits() > 0) {
+            credit(result.minorUnits(), "RESALE", result.message());
+        }
+        return result;
+    }
+
+    /**
+     * Which item an upgrade package on a foreign machine installs.
+     *
+     * <p>Derived from the bundle the file was sitting in, which is the only honest source: the app
+     * it upgrades is where it was found. A package whose bundle names no known program installs
+     * nothing and is worth nothing, which is the correct outcome rather than an error.
+     */
+    private String upgradeTypeFor(String path) {
+        if (!path.endsWith(io.github.stoicswe.eyeandsickle.solo.rules.Repac.PAYLOAD_SUFFIX)) {
+            return "";
+        }
+        for (String segment : path.split("/")) {
+            var app = io.github.stoicswe.eyeandsickle.solo.fs.Apps.byBundle(segment);
+            if (app.isEmpty()) {
+                continue;
+            }
+            // ⚠ Resolved to a REAL catalogue id, not to the prefix that matched. A prefix is a
+            // matching rule, not an item — installing one would add an item nothing else in the
+            // game has ever heard of, and selling one would price a thing with no price.
+            return Catalogue.offerings().stream()
+                    .filter(offering -> app.get().itemPrefixes().stream()
+                            .anyMatch(prefix -> offering.id().startsWith(prefix)))
+                    .map(Catalogue.Offering::id)
+                    .findFirst()
+                    .orElse("");
+        }
+        return "";
+    }
+
+    /** Every transfer in flight, for the progress readout. */
+    public List<io.github.stoicswe.eyeandsickle.solo.state.TaskState> transfers() {
+        return TransferRules.inFlight(save);
+    }
+
+    /**
+     * Records that the operator looked at something — what fills Recents.
+     *
+     * <p>⚠ Called <b>explicitly</b> by the surfaces where a player deliberately opened something,
+     * never from {@link #list}. {@code list} runs on every repaint and on every parent lookup, so
+     * recording there would fill Recents with directories nobody chose to visit — which is the one
+     * way a recents list becomes useless, because the signal is drowned by the machinery.
+     *
+     * <p>Only the player's own rig has a Recents. Browsing somebody else's machine does not put
+     * anything in yours, and this method quietly does nothing for a remote address rather than
+     * refusing — the caller does not need to know which machines keep one.
+     */
+    public void noteAccess(String address, String path) {
+        if (!(SessionRules.isOwnRig(save, address) || address == null || address.isBlank())) {
+            return;
+        }
+        boolean directory = list(address, path).stream()
+                .anyMatch(e -> !VirtualFs.parentOf(e.path()).equals(VirtualFs.parentOf(
+                        VirtualFs.normalise(path))))
+                || VirtualFs.normalise(path).equals("/")
+                || !list(address, path).isEmpty();
+        Recents.record(save, path, directory, clock.instant());
+    }
+
+    /** The remote-access log as the player reads it. Empty in solo — nothing remote exists. */
+    public List<String> remoteAccessLog() {
+        return io.github.stoicswe.eyeandsickle.solo.rules.AccessLog.render(save);
+    }
+
     // ── The network (docs/design/07 + the sweep model) ────────────────────────────────────────
     //
     // Thin, like the breach facade above: the rules live in solo/net/ and this is only what the
@@ -910,6 +1237,37 @@ public final class SoloGame {
             // network stayed empty, the log claimed a scan had finished, and nothing anywhere said
             // otherwise. A task list with more than one kind of task in it needs a switch, and the
             // moment it grew a second kind it stopped having one.
+            if (TransferRules.KIND.equals(task.kind)) {
+                // Arriving is the whole of it. What the file BECOMES — an item, a schematic, a
+                // recovered fragment — is the receiving rule's business and is deliberately not
+                // decided here; TR-2 in docs/design/15 has what is still open about that.
+                String destination = TransferRules.destinationOf(task);
+                String name = VirtualFs.nameOf(TransferRules.pathOf(task));
+                var arrived = io.github.stoicswe.eyeandsickle.solo.rules.Repac.arrive(
+                        save,
+                        destination.isBlank()
+                                ? io.github.stoicswe.eyeandsickle.solo.rules.Repac
+                                        .defaultDestination(save.handle)
+                                : destination,
+                        name,
+                        TransferRules.addressOf(task),
+                        TransferRules.bytesOf(task),
+                        upgradeTypeFor(TransferRules.pathOf(task)),
+                        task.endsAt);
+                EventLog.notice(save, "net",
+                        name + " arrived from " + TransferRules.addressOf(task)
+                                + " in " + arrived.directory, task.endsAt);
+                // ⚠ Repac fires here rather than being a second timed task. The interesting wait —
+                // the one bounded by somebody else's uplink — has already happened, and two progress
+                // bars for one act is noise. It is LOGGED, though, because a package silently
+                // becoming a different file is the step worth having noticed.
+                io.github.stoicswe.eyeandsickle.solo.rules.Repac.repack(save, arrived, task.endsAt)
+                        .ifPresent(packaged -> EventLog.notice(save, "storage",
+                                "repac: " + name + " -> " + packaged.name
+                                        + " (installable; double-click it, or sell it)",
+                                task.endsAt));
+                continue;
+            }
             if ("sweep".equals(task.kind)) {
                 SweepReport report = NetRules.settleSweep(save, task, task.endsAt);
                 EventLog.notice(save, "net",

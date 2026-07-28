@@ -13,6 +13,8 @@ import javafx.scene.layout.Pane;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.shape.Polygon;
+import javafx.scene.shape.Rectangle;
+import javafx.scene.shape.Shape;
 
 /**
  * A notched panel with its own drawn chrome.
@@ -126,23 +128,65 @@ public final class WindowFrame extends Pane {
         this.onMinimize = minimize;
         this.onMaximize = maximize;
         this.onClose = close;
+        rebuildControls();
+    }
+
+    /**
+     * Which order desk windows put their controls in.
+     *
+     * <p>⚠ Static for the same reason {@link #rounded} is: it is one appearance flag for every
+     * window in the game, and threading it through each frame's constructor would make a global fact
+     * look like a per-window one. ⚠ It is <b>order only</b> — the side is the host OS's business and
+     * this never touches it.
+     */
+    private static ControlOrder order = ControlOrder.SYSTEM;
+
+    private static boolean onMac;
+
+    public static void setControlOrder(ControlOrder value, boolean mac) {
+        order = value == null ? ControlOrder.SYSTEM : value;
+        onMac = mac;
+    }
+
+    /**
+     * Rebuilds the control row in the current order.
+     *
+     * <p>Called on every order change as well as at construction, so a toggle reaches windows that
+     * are already open. A frame that kept the order it was born with would make the setting look
+     * like it only applied to windows opened afterwards — the same failure the rounded-corners
+     * toggle had before its clip was re-laid.
+     */
+    void rebuildControls() {
         controls.getChildren().clear();
-        if (minimize != null) {
-            controls.getChildren().add(control("[−]", minimize, false));
-        }
-        if (maximize != null) {
-            controls.getChildren().add(control("[+]", maximize, false));
-        }
-        if (close != null) {
-            controls.getChildren().add(control("[×]", close, true));
+        Label minimizeControl = onMinimize == null ? null : control("[−]", onMinimize, false);
+        Label maximizeControl = onMaximize == null
+                ? null : control("[+]", onMaximize, false, "es-strip-ctl-max");
+        Label closeControl = onClose == null ? null : control("[×]", onClose, true);
+
+        // ⚠ Reordered, not mirrored. macOS runs close, minimise, zoom; Windows runs minimise,
+        // maximise, close. Reversing the row would put minimise where the other convention puts
+        // maximise, so a player who chose "macOS" would get neither convention.
+        for (Label control : order.closeFirst(onMac)
+                ? new Label[] {closeControl, minimizeControl, maximizeControl}
+                : new Label[] {minimizeControl, maximizeControl, closeControl}) {
+            if (control != null) {
+                controls.getChildren().add(control);
+            }
         }
     }
 
     private Label control(String glyph, Runnable action, boolean destructive) {
+        return control(glyph, action, destructive, null);
+    }
+
+    private Label control(String glyph, Runnable action, boolean destructive, String extra) {
         Label label = new Label(glyph);
         label.getStyleClass().add("es-strip-ctl");
         if (destructive) {
             label.getStyleClass().add("es-strip-ctl-close");
+        }
+        if (extra != null) {
+            label.getStyleClass().add(extra);
         }
         label.setOnMouseClicked(e -> {
             // Consumed so the click does not also reach the strip's drag handler and leave the
@@ -186,12 +230,58 @@ public final class WindowFrame extends Pane {
         inner.resizeRelocate(UiTokens.HAIR, UiTokens.HAIR,
                 Math.max(0, w - 2 * UiTokens.HAIR), Math.max(0, h - 2 * UiTokens.HAIR));
 
-        edge.setClip(notch(w, h));
-        inner.setClip(notch(Math.max(0, w - 2 * UiTokens.HAIR), Math.max(0, h - 2 * UiTokens.HAIR)));
+        edge.setClip(clip(w, h));
+        inner.setClip(clip(Math.max(0, w - 2 * UiTokens.HAIR), Math.max(0, h - 2 * UiTokens.HAIR)));
     }
 
-    private static Polygon notch(double w, double h) {
-        return new Polygon(notchPoints(w, h));
+    /**
+     * Whether windows are drawn with rounded corners (§9.3, opt-in, off by default).
+     *
+     * <h2>⚠ Static, and that is deliberate rather than lazy</h2>
+     *
+     * It is one appearance flag for every window in the game — the setting says so in as many words
+     * — and threading it through {@code DeskManager} into each frame's constructor would make a
+     * global fact look like a per-window one, which is an invitation for two windows to disagree.
+     * {@link #setRounded} re-lays every live frame so a toggle takes effect immediately.
+     */
+    private static boolean rounded;
+
+    public static boolean isRounded() {
+        return rounded;
+    }
+
+    public static void setRounded(boolean on) {
+        rounded = on;
+    }
+
+    /**
+     * The clip: the notch, and the corner radius when it is switched on.
+     *
+     * <h2>⚠ THE CLIP IS WHY CSS COULD NOT DO THIS</h2>
+     *
+     * Both painted parts of a frame are already {@link Node#setClip}ped to a {@link Polygon} for the
+     * 18px notch, and <b>a polygon clip cuts square corners no matter what {@code
+     * -fx-background-radius} says</b>. The first attempt at this feature set the CSS property, the
+     * toggle appeared to do nothing, and nothing anywhere reported a problem — the radius was being
+     * applied and then clipped off. Shape is the thing to change here; the stylesheet is not.
+     *
+     * <p>{@link Shape#intersect} rather than a hand-built path, because the notch geometry is
+     * already correct and tested ({@link #notchPoints}) and re-deriving it with arcs would be a
+     * second implementation of §10 criterion 6.
+     */
+    private static Shape clip(double w, double h) {
+        Polygon notch = new Polygon(notchPoints(w, h));
+        if (!rounded || w <= 0 || h <= 0) {
+            return notch;
+        }
+        Rectangle round = new Rectangle(w, h);
+        // ⚠ UiTokens, not a literal. Sizes live there and nowhere else (§7.2) — and this one is
+        // shared with the outer window, which must curve by the same amount or the deck looks like
+        // two programs stacked on each other.
+        double radius = Math.min(UiTokens.WINDOW_RADIUS, Math.min(w, h) / 2);
+        round.setArcWidth(radius * 2);
+        round.setArcHeight(radius * 2);
+        return Shape.intersect(round, notch);
     }
 
     /**

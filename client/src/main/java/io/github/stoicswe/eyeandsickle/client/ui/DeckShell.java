@@ -76,11 +76,14 @@ public final class DeckShell {
      * interface is telling the player how to use it. Spelling the modifier is also more honest on
      * Windows and Linux, where Shortcut is Control and the Apple glyph would have been wrong even
      * if it had rendered.
+     *
+     * <p>Derived from {@link #MAC}, which also decides which side the window controls sit on.
      */
-    private static final String SHORTCUT =
-            System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("mac")
-                    ? "CMD "
-                    : "CTRL ";
+    /** Whether this is macOS. Decides the modifier's name and which side the window controls sit on. */
+    private static final boolean MAC =
+            System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).contains("mac");
+
+    private static final String SHORTCUT = MAC ? "CMD " : "CTRL ";
 
     /** How many nodes the glitch edge-walk may visit per window. Bounds an FX-thread walk. */
     private static final int GLITCH_NODE_BUDGET = 220;
@@ -137,6 +140,25 @@ public final class DeckShell {
      * game states as fact.
      */
     private final Label operatorHex = Ui.micro("");
+
+    /**
+     * The operator's picture, beside their name on the strip.
+     *
+     * <p>Small — {@link UiTokens#STRIP_HEIGHT} minus a hair, so it sits inside the strip's own band
+     * rather than setting the band's height. A cell that grew to fit a picture would push every
+     * other readout on the strip down with it.
+     */
+    private final javafx.scene.image.ImageView operatorFace = new javafx.scene.image.ImageView();
+
+    /**
+     * What {@link #operatorFace} is currently showing.
+     *
+     * <p>⚠ The strip refreshes on every session change — about once a second, because self-mining
+     * credits on every tick — and decoding a PNG that often to draw the same twenty-two pixels would
+     * be pure waste. This is the guard: the image is rebuilt only when the stored picture actually
+     * changes, which is when the player sets one.
+     */
+    private String operatorFaceKey;
 
     private final KeyValue heat = KeyValue.keyOnly("Personal heat");
     private final ThermoMeter thermo = new ThermoMeter();
@@ -316,6 +338,37 @@ public final class DeckShell {
     }
 
     /**
+     * Opens a shell window for one machine, or raises the one already open on it.
+     *
+     * <h2>⚠ One window per machine — and why that is not the thing WL-8 forbids</h2>
+     *
+     * {@code docs/client/05} §3.7 rules out a second window for the same tool, and its stated reason
+     * is that the two would be <em>"a live view of the same session state"</em> with no way to tell
+     * which you were reading. Two shells on two different machines are not one state twice; they are
+     * two machines, exactly as two terminal windows on two servers are. The id carries the address,
+     * so the desk keeps them apart and the title bar says which is which.
+     *
+     * <p>The window is <b>not</b> in {@link WindowSpec}. That enum is the closed catalogue of tools,
+     * and a shell is not a tool — it is an instance of one, created by an act in the game and
+     * destroyed by another. Putting it in the catalogue would mean a rail key and an accelerator for
+     * a window that may not exist.
+     */
+    public void showShell(String address, String title, Region content, Runnable onClosed) {
+        String id = "shell:" + address;
+        if (desk.find(id).isPresent()) {
+            desk.open(new DeskManager.Spec(id, title, address, content, 760, 520, true));
+            return;
+        }
+        desk.open(new DeskManager.Spec(id, title, address, content, 760, 520, true))
+                .ifPresent(window -> Motion.reveal(window.frame(), 0));
+    }
+
+    /** Takes a shell window off the desk. Called when the session ends from inside. */
+    public void closeShell(String address) {
+        desk.close("shell:" + address);
+    }
+
+    /**
      * Builds a tool's content and marks its controls as clickable.
      *
      * <p>The sweep is here rather than in each view because {@code -fx-cursor: hand} had to leave
@@ -349,7 +402,13 @@ public final class DeckShell {
 
         refusal.getStyleClass().addAll("es-label", "es-value-warn");
 
-        topStrip.add(cell(stacked(operator, operatorHex)));
+        operatorFace.setFitWidth(UiTokens.STRIP_HEIGHT - UiTokens.HAIR);
+        operatorFace.setFitHeight(UiTokens.STRIP_HEIGHT - UiTokens.HAIR);
+        operatorFace.setPreserveRatio(true);
+        operatorFace.getStyleClass().add("es-avatar");
+        HBox operatorCell = new HBox(UiTokens.SPACE_3, operatorFace, stacked(operator, operatorHex));
+        operatorCell.setAlignment(Pos.CENTER_LEFT);
+        topStrip.add(cell(operatorCell));
         // The thermometer and the band name together. §2.2.4 requires the name; the thermometer
         // adds "how close to the next band", which the name cannot carry.
         // ⚠ Stacked, not side by side, since the meter turned horizontal on 2026-07-27. `heat` is
@@ -373,9 +432,31 @@ public final class DeckShell {
         topStrip.add(clockCell);
         // ⚠ Pinned, never wrapped. These are the only way to minimise, maximise or close an
         // undecorated Stage, so they must not migrate to a second row as the window narrows.
-        topStrip.setPinned(stageControls());
+        //
+        // ⚠ AND ON THE LEFT ON macOS. Every other platform puts window controls on the right; macOS
+        // puts them on the left, and this deck draws its own (§0), which means it also inherits the
+        // obligation to put them where the player's OS would. A close button on the wrong side is
+        // not merely unfamiliar — it gets mis-clicked, because the hand goes where it has gone ten
+        // thousand times before.
+        // ⚠ Only when the deck is drawing its own frame. With the OS's frame on (§0.1) the window
+        // already HAS minimise, maximise and close a few pixels above these — two sets of window
+        // controls on one window is not a redundancy, it is a question the player has to answer
+        // every time they want to close the game.
+        if (!profile.settings().nativeWindowBorder) {
+            topStrip.setPinned(stageControls(), MAC);
+        }
 
-        // The top strip is the drag handle for the whole undecorated Stage.
+        // The top strip is the drag handle for the whole undecorated Stage — and only then. With a
+        // native frame the OS title bar drags the window, and a second drag handle inside the
+        // content fights it: press on the strip and the window jumps by the offset between the two.
+        if (!profile.settings().nativeWindowBorder) {
+            installStripDrag();
+        }
+        return topStrip;
+    }
+
+    /** The strip is the drag handle for an undecorated Stage. Not installed when the OS frames it. */
+    private void installStripDrag() {
         topStrip.setOnMousePressed(e -> {
             dragX = e.getScreenX() - stageOrZero(true);
             dragY = e.getScreenY() - stageOrZero(false);
@@ -391,7 +472,6 @@ public final class DeckShell {
                 stage.setMaximized(!stage.isMaximized());
             }
         });
-        return topStrip;
     }
 
     private double stageOrZero(boolean x) {
@@ -464,9 +544,16 @@ public final class DeckShell {
                 stage.setMaximized(!stage.isMaximized());
             }
         });
+        // Green on hover, matching the desk windows and matching every traffic-light control the
+        // player has ever used. See the note beside the rule in theme.css — it is a third use of
+        // -es-gain and §2.1a rations that hue.
+        maximize.getStyleClass().add("es-strip-ctl-max");
         Label close = stageControl("[×]", actions::quit);
         close.getStyleClass().add("es-strip-ctl-close");
-        HBox box = cell(minimize, maximize, close);
+        // ⚠ macOS orders them close, minimise, zoom — left to right — and everyone else orders them
+        // minimise, maximise, close. Mirroring the group without reordering it would put close in
+        // the far corner on a Mac, which is where maximise lives there.
+        HBox box = MAC ? cell(close, minimize, maximize) : cell(minimize, maximize, close);
         box.setSpacing(UiTokens.SPACE_3);
         return box;
     }
@@ -500,6 +587,15 @@ public final class DeckShell {
         String handle = Ui.upper(session.handle());
         operator.set(handle);
         operatorHex.setText(hexOf(handle));
+        // ⚠ Guarded on the stored value, not refreshed unconditionally — see operatorFaceKey. The
+        // key includes the handle because the generated silhouette is seeded on it, so renaming
+        // changes the face even when no picture is set.
+        String faceKey = session.avatar() + "|" + handle;
+        if (!faceKey.equals(operatorFaceKey)) {
+            operatorFaceKey = faceKey;
+            operatorFace.setImage(
+                    io.github.stoicswe.eyeandsickle.client.ui.Avatar.image(session.avatar(), handle));
+        }
         if (!operatorHex.getStyleClass().contains("es-operator-hex")) {
             operatorHex.getStyleClass().add("es-operator-hex");
             operatorHex.setTextOverrun(javafx.scene.control.OverrunStyle.CLIP);
@@ -843,6 +939,37 @@ public final class DeckShell {
         prompt.setText(Hostname.prompt(session.handle(), hostname));
         prompt.setAccessibleText("Signed in as " + session.handle()
                 + " on " + Hostname.qualified(hostname) + ". Type a command here.");
+    }
+
+    /**
+     * Applies the rounded-windows choice.
+     *
+     * <p>⚠ A class on the ROOT, so one flag reaches the outer Stage and every desk window at once —
+     * "all windows in the game" was the request, and a per-window toggle would be a promise to
+     * remember every future window type. §9's rejection list still describes the default; this is
+     * opt-in and off unless the player asks.
+     */
+    public void applyRoundedSetting() {
+        // ⚠ No style class any more. There is no CSS for this — see the note in theme.css: a
+        // background radius under the notch's polygon clip is applied and then cut straight off,
+        // which is how this feature silently did nothing the first time.
+        boolean rounded = profile.settings().roundedWindows;
+        // ⚠ The desk windows are shaped by a CLIP, not by CSS — see WindowFrame.clip. The class
+        // above only reaches painted backgrounds; without this call the setting would appear to do
+        // nothing at all, which is exactly what it did on the first attempt.
+        //
+        // The OUTER window is not this class's to round: it is a clip on the Scene root, which lives
+        // above the deck. EyeAndSickleClient.applyRootRounding owns it, and putting it here would
+        // have clipped the deck while the scale holder painted the corners back in.
+        desk.setRoundedCorners(rounded);
+    }
+
+    /** Applies the desk-window control order (order only; never the side). */
+    public void applyControlOrderSetting() {
+        desk.setControlOrder(
+                io.github.stoicswe.eyeandsickle.client.ui.chrome.ControlOrder.resolve(
+                        profile.settings().subwindowControlOrder),
+                MAC);
     }
 
     /** Applies the free-drag / snap-to-grid choice from Settings (§11 question 1). */

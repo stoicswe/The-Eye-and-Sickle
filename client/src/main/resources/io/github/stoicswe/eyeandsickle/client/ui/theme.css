@@ -317,6 +317,14 @@
 .es-strip-ctl   { -fx-text-fill: -es-dim-2; -fx-font-size: 10px; }
 .es-strip-ctl:hover { -fx-text-fill: -es-amber; }
 .es-strip-ctl-close:hover { -fx-text-fill: -es-alarm; }
+/* ⚠ A THIRD use of green, and §2.1a is why it needs saying. The carve-out rations -es-gain to the
+   balance delta and a breached node; this adds a window control. It is defensible because §2.1's
+   rationing is about DATA — a green number claims something was gained — and a maximise button is
+   chrome. It is also the meaning the player already has: every traffic-light control on macOS is
+   red/amber/green for close/minimise/zoom, and matching it costs one line and no ambiguity.
+   ⚠ Do not extend this further without re-reading §2.1a. Three uses is a vocabulary; five is a
+   palette, and a palette is what the single-accent rule exists to prevent. */
+.es-strip-ctl-max:hover { -fx-text-fill: -es-gain; }
 
 /* The focused window's strip is brighter. Depth from brightness, never shadow (§2.1). */
 .es-window-focused > .es-strip { -fx-background-color: -es-panel-hi; }
@@ -1910,3 +1918,395 @@
     -fx-font-family: "IBM Plex Mono", monospace;
     -fx-font-size: 9px;
 }
+
+/* ══ THE NODE SHELL (view/NodeShellView) ═════════════════════════════════════════════════════
+ *
+ * A terminal on somebody else's machine. It borrows the deck terminal's vocabulary rather than
+ * inventing one, because a player who has learned to read one shell in this game must not have to
+ * learn a second — and the two differ in exactly one way that matters, which the STRIP carries:
+ * this one says which machine you are on.
+ *
+ * ⚠ Two-class descendant selectors throughout. The late `.label { -fx-text-fill: -es-text; }` beats
+ * a one-class rule at equal specificity, and a bare `.es-nodeshell-error` would paint in body grey
+ * while its every other property applied — the half-applied failure this stylesheet's header names.
+ *
+ * ⚠ NO AMBER ANYWHERE. §2.1 reserves the accent for live or earning data. A shell is neither, and a
+ * terminal painted in the colour the compute readout uses would dilute the one signal the deck
+ * actually rations. The one exception is `-error`, which is -es-alarm, the same rationed warning the
+ * map allows on a suspected trap. */
+.es-nodeshell {
+    -fx-background-color: -es-void;
+    -fx-border-color: -es-rule;
+    -fx-border-width: 1;
+}
+
+/* Which machine, where on it, and what the session is holding. Chrome, so it never scrolls away —
+   the same argument the map's server strip makes. */
+.es-nodeshell .es-nodeshell-strip { -fx-text-fill: -es-dim-2; }
+
+.es-nodeshell .es-nodeshell-output { -fx-padding: 5 0 5 0; }
+
+.es-nodeshell .es-nodeshell-line,
+.es-nodeshell .es-nodeshell-echo,
+.es-nodeshell .es-nodeshell-error,
+.es-nodeshell .es-nodeshell-prompt,
+.es-nodeshell .es-nodeshell-preview {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 11px;
+}
+.es-nodeshell .es-nodeshell-line   { -fx-text-fill: -es-text; }
+/* The line the player typed, dimmer than its own output. A transcript reads as a conversation only
+   when the two halves are distinguishable, and the answer is the part being read. */
+.es-nodeshell .es-nodeshell-echo   { -fx-text-fill: -es-dim-2; }
+.es-nodeshell .es-nodeshell-error  { -fx-text-fill: -es-alarm; }
+.es-nodeshell .es-nodeshell-prompt { -fx-text-fill: -es-text-hi; }
+
+.es-nodeshell .es-nodeshell-input {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 11px;
+    -fx-text-fill: -es-text-hi;
+    -fx-background-color: transparent;
+    -fx-border-color: transparent transparent -es-rule transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 2 0 2 0;
+}
+
+/* The command builder. A popup, so it is the one thing in this client that sits over the desk —
+   justified because it is modal to a single keystroke's worth of decision and dismisses on any
+   click outside. §3's ban on modals is about hiding information behind them; this hides nothing and
+   its whole content is the command it is about to write into the line you can still see. */
+.es-nodeshell-builder {
+    -fx-background-color: -es-panel;
+    -fx-border-color: -es-text-hi;
+    -fx-border-width: 1;
+}
+/* The assembling command line. Brightest thing in the builder, because it is the answer — every
+   other control in the panel exists to change this one string. */
+.es-nodeshell .es-nodeshell-preview { -fx-text-fill: -es-text-hi; }
+
+.es-nodeshell-action {
+    -fx-padding: 2 9 2 9;
+    -fx-border-color: -es-rule;
+    -fx-border-width: 1;
+}
+.es-nodeshell .es-nodeshell-action         { -fx-text-fill: -es-text; }
+.es-nodeshell .es-nodeshell-action:hover   { -fx-text-fill: -es-text-hi; -fx-border-color: -es-text-hi; }
+.es-nodeshell .es-nodeshell-action:pressed {
+    -fx-text-fill: -es-void;
+    -fx-background-color: -es-text-hi;
+    -fx-border-color: -es-text-hi;
+}
+
+/* ══ THE FILE MANAGER (view/FileManagerView) ═════════════════════════════════════════════════
+ *
+ * GNOME Files' LAYOUT, none of its chrome. The sidebar/breadcrumb/detail-list arrangement is what an
+ * Ubuntu user already knows and is the whole reason the window is shaped that way; the rounded
+ * corners, drop shadows and coloured folder icons are §9's rejection list and are not borrowed.
+ * Kind is carried by a single glyph in the name column, which is the same vocabulary the map uses.
+ *
+ * ⚠ NO AMBER. §2.1 reserves the accent for live or earning data, and a directory listing is neither.
+ * The only coloured thing in this block is `-refusal`, which is -es-alarm — the same rationed
+ * warning the map allows on a suspected trap.
+ *
+ * ⚠ Two-class descendant selectors on every text fill. The late `.label { -fx-text-fill: -es-text; }`
+ * beats a one-class rule at equal specificity, so a bare `.es-files-name` would paint in body grey
+ * while its background applied — the half-applied failure this stylesheet's header warns about. */
+.es-files {
+    -fx-background-color: -es-void;
+    -fx-border-color: -es-rule;
+    -fx-border-width: 1;
+}
+
+/* ── the places sidebar ──────────────────────────────────────────────────────────────────────
+ * A hairline separates it from the listing rather than a panel fill: §2.3 gives this language one
+ * divider and this is it. A filled sidebar would make the window read as two panels, and it is one. */
+.es-files .es-files-sidebar {
+    -fx-border-color: transparent -es-rule transparent transparent;
+    -fx-border-width: 0 1 0 0;
+    -fx-padding: 0 9 0 0;
+}
+.es-files .es-files-place      { -fx-text-fill: -es-dim-1; -fx-padding: 2 5 2 5; }
+.es-files .es-files-place:hover { -fx-text-fill: -es-text-hi; -fx-background-color: -es-panel; }
+/* Where you are. Background AND fill, because a sidebar entry is a place rather than a state and a
+   fill change alone is too quiet to find at a glance in a list of nine. */
+.es-files .es-files-place-on   {
+    -fx-text-fill: -es-text-hi;
+    -fx-background-color: -es-panel-hi;
+    -fx-padding: 2 5 2 5;
+}
+
+/* ── the breadcrumb path bar ─────────────────────────────────────────────────────────────────
+ * Segments, not a text field. A field would answer only "where am I"; segments also answer "how do I
+ * get back to any point above me" — and a field a player could TYPE a path into would be a place to
+ * type a path that goes somewhere, which docs/client/04 §3.1 rule 3 forbids outright. */
+.es-files .es-files-crumb-root { -fx-text-fill: -es-text-hi; }
+.es-files .es-files-crumb      { -fx-text-fill: -es-dim-1; }
+.es-files .es-files-crumb:hover { -fx-text-fill: -es-text-hi; }
+.es-files .es-files-crumb-sep  { -fx-text-fill: -es-dim-3; }
+
+/* ── the listing ─────────────────────────────────────────────────────────────────────────────
+ * Pinned to IBM Plex: the name column carries block and arrow glyphs, and Martian has none of that
+ * range — a fallback face would bring its own advance width and shear the columns per platform.
+ * See GlyphCoverageTest. */
+.es-files .es-files-head  { -fx-padding: 2 0 3 0; -fx-border-color: transparent transparent -es-rule transparent; -fx-border-width: 0 0 1 0; }
+.es-files .es-files-name,
+.es-files .es-files-cell {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 11px;
+}
+.es-files .es-files-name  { -fx-text-fill: -es-text; }
+.es-files .es-files-cell  { -fx-text-fill: -es-dim-2; }
+.es-files .es-files-row   { -fx-padding: 2 0 2 0; }
+.es-files .es-files-row:hover { -fx-background-color: -es-panel; }
+
+/* ⚠ An entry on a machine you do not hold. DIMMED, never hidden: the shape of a filesystem is real
+   information a sweep legitimately gives you, and hiding it would make an unbreached machine look
+   empty rather than closed. What it must not do is open — that refusal is the rules' (I14), printed
+   in words by the view rather than expressed as a row that silently does nothing. */
+.es-files .es-files-row-locked { -fx-padding: 2 0 2 0; -fx-opacity: 0.45; }
+.es-files .es-files-row-locked:hover { -fx-background-color: -es-panel; -fx-opacity: 0.7; }
+
+.es-files .es-files-empty   { -fx-text-fill: -es-dim-2; }
+.es-files .es-files-refusal { -fx-text-fill: -es-alarm; -fx-font-size: 11px; }
+
+/* The connect-to-machine popup. Same argument as the node shell's builder: it hides nothing, its
+   whole content is the list it is about, and it dismisses on any click outside. */
+.es-files-dialog {
+    -fx-background-color: -es-panel;
+    -fx-border-color: -es-text-hi;
+    -fx-border-width: 1;
+}
+
+.es-files-action {
+    -fx-padding: 2 7 2 7;
+    -fx-border-color: -es-rule;
+    -fx-border-width: 1;
+    -fx-alignment: center;
+}
+.es-files .es-files-action         { -fx-text-fill: -es-text; }
+.es-files .es-files-action:hover   { -fx-text-fill: -es-text-hi; -fx-border-color: -es-text-hi; }
+.es-files .es-files-action:pressed {
+    -fx-text-fill: -es-void;
+    -fx-background-color: -es-text-hi;
+    -fx-border-color: -es-text-hi;
+}
+/* A disabled nav key — back with no history. Dimmed and inert; §4.4's rule that a state is never
+   colour alone is satisfied by the pointer, which does not change over it. */
+.es-files .es-files-action:disabled { -fx-text-fill: -es-dim-3; -fx-opacity: 1; }
+
+/* A line of a file being read. Plex and unwrapped: the one file this opens today is a log with
+   columns, and a wrapped log is a log you cannot read down. */
+.es-files .es-files-fileline {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 11px;
+    -fx-text-fill: -es-text;
+}
+
+/* Transfers in flight. CELLS, never a continuous bar (§4) — a smooth fill would imply a precision
+   two timestamps do not have, which is the same argument the cycle grid is built on. */
+.es-files .es-files-transfers { -fx-padding: 3 0 3 0; }
+.es-files-cell-on  { -fx-background-color: -es-text-hi; }
+.es-files-cell-off { -fx-background-color: -es-panel-hi; }
+
+/* ══ ROUNDED WINDOWS (§9.3, opt-in) ══════════════════════════════════════════════════════════
+ *
+ * ⚠ THERE IS NO CSS HERE ON PURPOSE, AND THAT IS THE WHOLE LESSON OF THIS FEATURE.
+ *
+ * The first implementation set -fx-background-radius under an `.es-rounded` class. It did nothing,
+ * silently: both painted parts of a window frame are already setClip()ped to a Polygon for the 18px
+ * notch, and A POLYGON CLIP CUTS SQUARE CORNERS WHATEVER THE BACKGROUND RADIUS SAYS. The rule was
+ * valid, the selector matched, the property applied — and was then clipped straight off.
+ *
+ * Corner geometry on this deck is a CLIP. See WindowFrame.clip (Shape.intersect of a rounded
+ * rectangle with the notch) and EyeAndSickleClient.applyRootRounding (a clip on the Scene root, so
+ * nothing downstream can paint the corner back in). The radius is UiTokens.WINDOW_RADIUS.
+ *
+ * If you are here to add a radius: you are in the wrong file. */
+
+
+/* ══ SETTINGS — sidebar and detail (macOS System Settings' arrangement) ══════════════════════
+ *
+ * Same shape as the file manager's places sidebar, and deliberately the same CLASSES of thing: a
+ * hairline divider rather than a filled panel, a selected row carrying a background as well as a
+ * fill, and no icons. A player who has learned to read one sidebar in this client should not have
+ * to learn a second.
+ *
+ * ⚠ Two-class descendant selectors on every fill — the late `.label { -fx-text-fill: -es-text; }`
+ * beats a one-class rule at equal specificity, and a bare `.es-settings-row` would paint in body
+ * grey while its background applied. */
+.es-settings-sidebar {
+    -fx-border-color: transparent -es-rule transparent transparent;
+    -fx-border-width: 0 1 0 0;
+    -fx-padding: 0 9 0 0;
+}
+.es-panel .es-settings-row     { -fx-text-fill: -es-dim-1; -fx-padding: 3 6 3 6; }
+.es-panel .es-settings-row:hover { -fx-text-fill: -es-text-hi; -fx-background-color: -es-panel; }
+/* Where you are. Background AND fill: a fill change alone is too quiet to find in a list of nine. */
+.es-panel .es-settings-row-on  {
+    -fx-text-fill: -es-text-hi;
+    -fx-background-color: -es-panel-hi;
+    -fx-padding: 3 6 3 6;
+}
+.es-settings-search {
+    -fx-background-color: transparent;
+    -fx-border-color: -es-rule;
+    -fx-border-width: 1;
+    -fx-padding: 2 5 2 5;
+}
+.es-panel .es-settings-search { -fx-text-fill: -es-text-hi; }
+/* ⚠ The detail pane is transparent and unbordered. A ScrollPane brings Modena's own white
+   viewport background with it, which paints a light rectangle over the deck — and against a dark
+   theme that is not subtle, it is the brightest thing on screen. */
+.es-settings-detail,
+.es-settings-detail > .viewport {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+/* Left padding only. The right edge belongs to the content: this panel's prose is long, and every
+   pixel taken off the measure is another line of wrapping in a window the player has already made
+   as wide as they want it. */
+.es-settings-page { -fx-padding: 0 0 12 10; }
+
+/* The operator's picture, and the crop viewport that produces it. A hairline border, because a
+   picture with no edge floats and this deck has exactly one divider (§2.3). */
+.es-avatar { -fx-border-color: -es-rule; -fx-border-width: 1; }
+.es-crop-viewport { -fx-background-color: -es-void; -fx-border-color: -es-rule-hi; -fx-border-width: 1; }
+
+/* ══ THE LOGIN SCREEN (docs/design/ui-design-language.md §3.1) ═══════════════════════════════════
+ *
+ * The menu is a login screen: a row of faces, a name under each, and the system controls parked in
+ * a bottom bar. It has no panels and no rail, so it is the one screen in the client that is mostly
+ * ground — which is why the type sizes here are larger than anywhere else. §2.2's "one large thing"
+ * rule is about a PANEL competing with its neighbours; nothing competes here.
+ *
+ * ⚠ Two-class selectors on every text fill. `.label { -fx-text-fill: -es-text; }` above is a
+ * one-class rule that comes LATER in the file, so equal specificity hands it the win — a bare
+ * `.es-face-name { -fx-text-fill: … }` would apply its font and silently drop its colour. */
+
+.es-splash { -fx-background-color: -es-void; }
+
+.es-splash-title {
+    -fx-font-family: "Martian Mono", monospace;
+    -fx-font-weight: 700;
+    -fx-font-size: 19px;
+}
+.es-splash .es-splash-title { -fx-text-fill: -es-text-hi; }
+
+.es-splash-subtitle {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 10.5px;
+}
+.es-splash .es-splash-subtitle { -fx-text-fill: -es-dim-2; }
+
+/* The ring is a Circle node, not a corner radius — see MainMenuView.facePlate. That makes these
+   -fx-fill/-fx-stroke rather than -fx-background-color/-fx-border-color, and keeps §9's radius rule
+   untouched: there is no radius here to permit. */
+.es-face-ring,
+.es-face-ring-on,
+.es-face-ring-empty,
+.es-face-ring-bad {
+    -fx-fill: -es-panel;
+    -fx-stroke: -es-rule-hi;
+    -fx-stroke-width: 1;
+}
+/* The selected operator. The single amber accent (§2.1) is spent here, because on this screen
+   "which one is selected" is the only state there is. */
+.es-face-ring-on { -fx-stroke: -es-amber; -fx-stroke-width: 2; }
+/* An empty slot reads as an outline rather than as a thing — the dash is what says "nothing here
+   yet" without a word of copy. */
+.es-face-ring-empty {
+    -fx-fill: transparent;
+    -fx-stroke: -es-rule-hi;
+    -fx-stroke-dash-array: 3 4;
+}
+/* A save that will not load. Alarm rather than amber: §2.1 rations the ACCENT, and this is not an
+   accent — it is the one state on this screen the player has to act on before it costs them. */
+.es-face-ring-bad {
+    -fx-fill: transparent;
+    -fx-stroke: -es-alarm;
+    -fx-stroke-dash-array: 3 4;
+}
+.es-splash .es-face-glyph {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 22px;
+    -fx-text-fill: -es-dim-2;
+}
+
+.es-face-name,
+.es-face-name-on {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 12px;
+}
+.es-splash .es-face-name    { -fx-text-fill: -es-dim-1; }
+.es-splash .es-face-name-on { -fx-text-fill: -es-text-hi; }
+
+.es-splash .es-small { -fx-text-fill: -es-dim-1; }
+.es-splash .es-state-refused { -fx-text-fill: -es-alarm; }
+/* The picker is keyboard-driven — selection follows focus (MainMenuView.Face). The ring is what
+   shows it, so the plate itself must not also draw Modena's focus outline on top. */
+.es-face { -fx-background-color: transparent; -fx-padding: 2; }
+.es-face:focused { -fx-background-color: transparent; }
+
+/* ══ POWER ON — the firmware splash (ui-design-language.md §4.1) ════════════════════════════════
+ *
+ * A glowing ring with `u` and `S` fading in beside it, over a bar. The ring is the O.
+ *
+ * ⚠ WHITE ON BLACK, AND THE PALETTE CANNOT REACH IT. Nothing below resolves an -es- token: this
+ * block declares its own two colours and the five palette overlays have nothing to override. §10
+ * criterion 2 is about colours living in the stylesheet rather than in Java, and they do — they are
+ * simply not the palette's. Firmware runs before anything knows who the player is, and a splash in
+ * their chosen accent would be claiming otherwise. */
+
+.es-poweron {
+    -es-firmware-ink:  #FFFFFF;
+    -es-firmware-void: #000000;
+    -fx-background-color: -es-firmware-void;
+}
+
+/* The wordmark. Martian Mono is the display face (§2.2), and `u`/`S` are ASCII, so both bundled
+   faces cover them — this is one of the few textures that does NOT have to be Plex. */
+.es-poweron-letter {
+    -fx-font-family: "Martian Mono", monospace;
+    -fx-font-weight: 700;
+    -fx-font-size: 62px;
+}
+.es-poweron .es-poweron-letter { -fx-text-fill: -es-firmware-ink; }
+
+/* ⚠ The glow is four concentric strokes, not an effect. §9 still lists drop shadows, blur and
+   glassmorphism as build-blocking — the 2026-07-28 amendment reversed the ROUNDED CORNER ban and
+   left that one standing — and UiContractTest fails the build on a `dropshadow(` anywhere in here.
+   The widths grow outward and the alphas fall; that ramp is the glow. */
+.es-poweron-ring {
+    -fx-fill: transparent;
+    -fx-stroke: -es-firmware-ink;
+    -fx-stroke-width: 3;
+}
+.es-poweron-glow-1,
+.es-poweron-glow-2,
+.es-poweron-glow-3,
+.es-poweron-glow-4,
+.es-poweron-glow-5,
+.es-poweron-glow-6,
+.es-poweron-glow-7,
+.es-poweron-glow-8 { -fx-fill: transparent; }
+
+/* Outermost (1) to innermost (8). ⚠ The widths are wide relative to the gaps between the radii in
+   PowerOn.HALO_OFFSETS, so consecutive strokes OVERLAP and their alphas accumulate into a falloff.
+   Spacing them apart instead draws four visible concentric circles, which is banding, not glow. */
+.es-poweron-glow-1 { -fx-stroke: rgba(255, 255, 255, 0.028); -fx-stroke-width: 9; }
+.es-poweron-glow-2 { -fx-stroke: rgba(255, 255, 255, 0.050); -fx-stroke-width: 8; }
+.es-poweron-glow-3 { -fx-stroke: rgba(255, 255, 255, 0.085); -fx-stroke-width: 7; }
+.es-poweron-glow-4 { -fx-stroke: rgba(255, 255, 255, 0.140); -fx-stroke-width: 6; }
+.es-poweron-glow-5 { -fx-stroke: rgba(255, 255, 255, 0.210); -fx-stroke-width: 5; }
+.es-poweron-glow-6 { -fx-stroke: rgba(255, 255, 255, 0.300); -fx-stroke-width: 4; }
+/* Two inside the ring as well. Light spills both ways, and a halo that only goes outward reads as
+   a printed ring with a shadow rather than as something lit. */
+.es-poweron-glow-7 { -fx-stroke: rgba(255, 255, 255, 0.220); -fx-stroke-width: 4; }
+.es-poweron-glow-8 { -fx-stroke: rgba(255, 255, 255, 0.100); -fx-stroke-width: 5; }
+
+/* The bar. Continuous, which §4.1 permits HERE and nowhere else — it measures nothing, and the ban
+   exists to keep a countable quantity countable. Its rounded ends are a Rectangle arc in Java, not a
+   radius: §9.3 gates -fx-background-radius and this is not one. */
+.es-poweron-track { -fx-fill: rgba(255, 255, 255, 0.14); }
+.es-poweron-fill  { -fx-fill: -es-firmware-ink; }

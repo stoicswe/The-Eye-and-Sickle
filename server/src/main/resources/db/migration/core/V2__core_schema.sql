@@ -374,6 +374,9 @@ CREATE TABLE compute_allocations (
     row_version         bigint      NOT NULL DEFAULT 0,
 
     CONSTRAINT ck_compute_allocations_consumer CHECK (consumer_type IN (
+        -- ⚠ 'shell_session' is added by V5, not here. A baseline migration that has already run
+        -- somewhere must never be edited — Flyway checksums it, and a changed V2 fails every
+        -- existing deployment on startup with a checksum mismatch rather than migrating it.
         'active_tool', 'bot_frame', 'self_mining', 'control_channel',
         'deployed_miner', 'defensive_array', 'relay_hop')),
     CONSTRAINT ck_compute_allocations_state    CHECK (state IN ('active', 'recovering')),

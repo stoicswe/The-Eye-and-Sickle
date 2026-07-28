@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test;
 class WindowCatalogueTest {
 
     @Test
-    @DisplayName("the catalogue is 05 §2.1's fifteen, less `map`, plus `man`, `log`, `breach`, `netmap`, `calc`")
+    @DisplayName("the catalogue is 05 §2.1's fifteen, less `map`, plus `man`, `log`, `breach`, `netmap`, `calc`, `files`")
     void catalogueMatchesTheDocuments() {
         // ⚠ The two documents disagree about the size of a table both call closed: docs/client/05
         // §2.1 lists fifteen and never absorbed the `man` window that docs/client/04 §4.6 adds and
@@ -31,6 +31,12 @@ class WindowCatalogueTest {
         // Nineteen: §2.1's fifteen MINUS `map`, plus `man` (T-1), `log`, `breach` — the core loop
         // (docs/design/05), which §2.1 could not list because the minigame had no rules when that
         // table was written — `netmap`, the network tool, and `calc`.
+        //
+        // `files` was ADDED on 2026-07-28 — the file manager. It earns its slot the same way
+        // `calc` does, on pillar C6: the filesystem hierarchy is real, transfers to any Linux
+        // machine, and until this window existed the game had a filesystem nobody could look at.
+        // It is also where a machine you hold is MOUNTED, which is deliberately the same fact as an
+        // open shell session rather than a second one — see FileManagerView.
         //
         // `calc` was ADDED on 2026-07-28 and earns its slot on pillar C6 rather than on a game
         // system: docs/education/01-foundations.md's whole first domain is bases, bit width, two's
@@ -44,12 +50,12 @@ class WindowCatalogueTest {
         // now owns. It had no sweep control, so it was permanently empty for anyone who had not
         // swept elsewhere, and it carried a stale note reading "Breach targeting is not built".
         // `netmap` has had a LIST view on a chip the whole time, so nothing was lost with it.
-        assertThat(WindowSpec.values()).hasSize(19);
+        assertThat(WindowSpec.values()).hasSize(20);
         assertThat(java.util.Arrays.stream(WindowSpec.values()).map(WindowSpec::id).toList())
                 .containsExactlyInAnyOrder(
                         "rig-monitor", "terminal", "recon", "audit", "mining", "storage",
                         "ledger", "botnet", "defense", "market", "identity", "comms", "settings",
-                        "switcher", "man", "log", "breach", "netmap", "calc");
+                        "switcher", "man", "log", "breach", "netmap", "calc", "files");
     }
 
     @Test

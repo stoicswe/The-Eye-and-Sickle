@@ -125,7 +125,7 @@ public final class DeckSnapshot {
                 case TERMINAL -> (Region) TerminalView.create(shell);
                 case LOG -> (Region) LogView.create(session);
                 case MINING -> (Region) Views.mining(session);
-                case SETTINGS -> (Region) Views.settings(profile, themes, () -> {});
+                case SETTINGS -> (Region) Views.settings(profile, themes, () -> {}, null, null, session);
                 case DEFENSE -> (Region) Views.defense(session);
                 case LEDGER -> (Region) Views.ledger(session);
                 // Real views rather than the recon stand-in, because both are visual checks that no

@@ -307,6 +307,11 @@ public final class RigMonitorView {
             case DEFENSIVE_ARRAY -> CycleGrid.Owner.DETECTION;
             case ACTIVE_TOOL -> CycleGrid.Owner.ACTIVE_TOOL;
             case RELAY_HOP -> CycleGrid.Owner.RELAY_HOP;
+            // Shares ACTIVE_TOOL's cell colour: from the grid's point of view a held shell is the
+            // player's own work reaching outward, which is what that owner already means. It keeps
+            // its own LABEL below, so the readout still names it — the grid is a shape, the list is
+            // the place a player finds out what is holding what.
+            case SHELL_SESSION -> CycleGrid.Owner.ACTIVE_TOOL;
         };
     }
 
@@ -318,6 +323,7 @@ public final class RigMonitorView {
             case DEPLOYED_MINER -> "Foreign miner";
             case DEFENSIVE_ARRAY -> "Defensive array";
             case ACTIVE_TOOL -> "Equipped tools";
+            case SHELL_SESSION -> "Shell sessions";
             case RELAY_HOP -> "Relay hops";
         };
     }

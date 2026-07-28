@@ -43,6 +43,23 @@ public final class SoloSave {
     public String faction = "NONE";
 
     /**
+     * The operator's picture, as a base64 PNG. Empty means "none chosen".
+     *
+     * <h2>⚠ The IMAGE is stored, never a path to one</h2>
+     *
+     * {@code docs/client/00} §4.5 makes the profile directory the only host filesystem this client
+     * touches, and §7 makes that a security boundary rather than a scope decision. Choosing a
+     * picture reads one file the player explicitly picked in their own OS's dialog — once — and what
+     * is kept is the <b>pixels</b>. Keeping the path instead would mean the game reading an
+     * arbitrary host location on every launch, forever, which is exactly the boundary the rule
+     * exists to hold.
+     *
+     * <p>It also means the picture travels with the character: a save copied to another machine
+     * still has its face.
+     */
+    public String avatarPng = "";
+
+    /**
      * Always false for a save created locally, and the client must never offer to change it.
      *
      * <p>Kept as an explicit field rather than an implicit rule so that the refusal is greppable and
@@ -72,6 +89,24 @@ public final class SoloSave {
     /** Long-horizon Eye attention. Distinct from noise, which decays and is not persisted. */
     public int personalHeat = 0;
 
+    /**
+     * ⚠ <b>A THIRD REPUTATION, and it must never share a field with the other two.</b>
+     *
+     * <p>Whether this trader delivers what they were paid for — see {@code rules/SecondaryMarket}.
+     * {@link #factionReputationEye} / {@link #factionReputationSickle} are standing with a faction,
+     * and {@code validatorReputation} (server-side) is federation trust weighting. All three are
+     * independent on purpose: a Sickle hero can be a thief, and a scrupulous trader can be a
+     * validator nobody trusts. {@code CLAUDE.md} and the glossary already forbid conflating the
+     * first two; this is the third and the same rule applies.
+     */
+    public int traderReputation = 0;
+
+    /** Sales delivered. Counted separately from reputation, which is a judgement rather than a tally. */
+    public int traderDeliveries = 0;
+
+    /** Sales taken and not delivered — caught or not. Drives the rising detection chance. */
+    public int traderDefections = 0;
+
     public int factionReputationEye = 0;
     public int factionReputationSickle = 0;
 
@@ -89,6 +124,45 @@ public final class SoloSave {
      * a long list of machines to file.
      */
     public List<FolderState> netFolders = new ArrayList<>();
+
+    /**
+     * Open shell sessions, one per machine the player is sitting on.
+     *
+     * <p>⚠ A session is <b>not</b> the vantage. The vantage is singular and is what a sweep measures
+     * hop distance from ({@code docs/design/07} §2, Invariant <b>I2</b>); this is a list, because
+     * having a shell open on a machine you already hold costs compute and buys no reach. Merging the
+     * two would multiply reach by the number of windows a player had open.
+     */
+    public List<SessionState> sessions = new ArrayList<>();
+
+    /**
+     * Every remote access to this rig — {@code /var/log/remote-access.log}.
+     *
+     * <p>⚠ Written only by <b>remote actors</b>, so in single player it stays empty for the life of
+     * the character. That is correct rather than unfinished: the log exists and is readable from the
+     * first minute precisely so a player learns to look at it before they have a reason to. See
+     * {@code rules/AccessLog}, including why an intruder blanks an address rather than deleting a
+     * line.
+     */
+    public List<AccessEntry> remoteAccessLog = new ArrayList<>();
+
+    /**
+     * What the operator has looked at lately — {@code ~/.local/share/recently-used}.
+     *
+     * <p>⚠ A {@link java.util.LinkedList} because {@code Recents} pushes to the front and trims from
+     * the back on every access, and doing that to an ArrayList copies the whole thing each time. It
+     * is capped at thirty, so this is a correctness-of-shape point rather than a performance one:
+     * the type says which end is which.
+     */
+    public java.util.LinkedList<RecentEntry> recents = new java.util.LinkedList<>();
+
+    /**
+     * Files that have actually been downloaded, wherever the player put them.
+     *
+     * <p>The one part of the filesystem that is stored rather than generated — see
+     * {@link StoredFileState}. Kept small by construction: only four kinds of thing transfer.
+     */
+    public List<StoredFileState> files = new ArrayList<>();
 
     public List<DefenseState> defenses = new ArrayList<>();
 

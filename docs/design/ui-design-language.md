@@ -136,6 +136,40 @@ Everything snaps to a character cell. Numbers are tabular-figure everywhere (`fo
 
 **Every region has a header strip.** `LABEL` left, `[−] [□] [×]` glyph controls, then a dim right-aligned identifier (`PROC/ALLOC · 0x2F`). Unlabeled regions are a bug.
 
+### 3.1 The login screen — the one centred layout (2026-07-28)
+
+The diagram above is **the deck**. The main menu is not the deck, and it is the single screen in this client that is allowed to be centred on empty ground.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    THE EYE AND SICKLE                        │
+│                   An operator's console                      │
+│                                                              │
+│         ( ● )      ( ● )      ( + )      ( // )              │
+│        halflight  kestrel     Slot 3   Home server           │
+│                                                              │
+│              halflight · 0 EC · 100 cycles                   │
+│              1 minute played · last seen recently            │
+│                  [ Continue ]  [ Delete ]                    │
+│                                                              │
+│ ~/Library/…/The Eye and Sickle          [Settings]  [Quit]   │
+└──────────────────────────────────────────────────────────────┘
+```
+
+A row of round faces with a name under each — macOS's user picker — over GDM's furniture: the machine's identity in a top band, the system controls in a bottom bar. Both are the same idea, and it is the idea this screen needs: **the question is "who", and everything else is chrome.**
+
+**Why §3's tiling rule does not reach here.** Tiling exists so that a player reading four live panels never has to hunt for one. This screen has no live state and one question; filling it edge to edge would mean inventing panels to fill it *with*. The screen it replaced tried — a stacked column of slot cards, each carrying a handle, a balance, a cycle count, an hours-played line and two buttons — and made the player read six numbers before they could start playing. The numbers moved under the selected face, where they answer *"is this the one I meant"* rather than *"which of these exists"*.
+
+| | |
+|---|---|
+| **Scope** | `MainMenuView` only. The boot sequence and the deck are unchanged |
+| **Selection** | Follows keyboard focus, radio-group style — Tab through the row and the summary keeps up |
+| **Accent** | The selected ring. §2.1's single amber is spent there, because on this screen "which one is selected" is the only state there is |
+| **Alarm** | A damaged save gets its own ring. Not an accent — the one state here the player must act on |
+| **Geometry** | Circles are `Circle` **nodes**, not a corner radius. §9.3's radius gate is untouched: there is no radius here to permit |
+
+Online play is the last face in the row — macOS's *"Other…"*, GDM's *"Not listed?"*. That placement is the claim: another way to be somebody, not another mode of the game.
+
 ---
 
 ## 4. Component catalog
@@ -152,6 +186,46 @@ Everything snaps to a character cell. Numbers are tabular-figure everywhere (`fo
 | **Working panel** | An inset well with a sweep bar crossing it on a linear loop. Used only where something is genuinely in progress. |
 | **Greeble** | Hex quads, block glyphs, dots, 4-digit serials, `//` marks. `dim-3`, 8.5px, clipped at the edge. Regenerates every ~4s. **Unreadable by design.** |
 | **Hazard band** | 45° repeating stripe in `amber-low` or `rule-hi`, ~55% opacity. |
+
+### 4.1 The firmware splash — one continuous bar, permitted (2026-07-28)
+
+The catalog's **Meter** row reads "Never a continuous bar or gradient." That stands everywhere a player reads a quantity, and it is the reason the cycle grid is 100 countable cells rather than a percentage. The **power-on splash** is the one exception, and it is an exception because it breaks none of what the rule protects.
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                                                              │
+│                                                              │
+│                       u   ((O))   S                          │
+│                       ▲     ▲     ▲                          │
+│              fades in at 12–46%   │   fades in at 46–80%     │
+│                       the ring is the O, lit the whole time  │
+│                                                              │
+│                   ▬▬▬▬▬▬▬▬▬▬▬▬▬▭▭▭▭▭▭                        │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+```
+
+**The bar measures nothing.** There is no work to wait for — solo loads in milliseconds — so it is not a progress indicator that happens to be smooth; it is time passing. §4's ban exists so that a countable quantity stays countable, and turning *this* into nine discrete cells would make it look like a reading of something. The rule holds precisely by not applying here.
+
+| | |
+|---|---|
+| **Scope** | `PowerOn` only. One bar, 248 × 6, in the whole client |
+| **Fill** | White on a 14%-white track. Not a palette colour at all — see below |
+| **Ends** | Rounded by `Rectangle.arcWidth`, a **shape**. §9.3's radius gate is on `-fx-background-radius` and is untouched |
+| **Motion** | Slides, per frame, off an `AnimationTimer` — see §5.1. No `Timeline`, no `Interpolator` |
+| **Reduced motion** | Skipped whole. §5 makes atmosphere the first thing to go, and this screen is only that |
+
+**Two boot screens, and the order is the fiction.** `PowerOn` is *firmware*: it plays once per process, before the login screen, and it knows nothing because no operator has been chosen yet. `BootSequence` is *uOS*: it plays after a character is opened and every line it prints is that save's real state. Power on → who are you? → uOS → the deck. Once per **process**, not per visit to the menu: returning from a game is a logout, and a machine that cold-boots on every logout has a fault.
+
+**The mark is a glowing ring, and the ring is the O.** `u` and `S` fade in on either side of it as the bar fills, so what has been on screen the whole time turns out to have been the middle letter of **uOS**. The letters arrive on the *bar's* progress rather than on a timer of their own — the thing the player watches complete and the thing that completes are the same thing.
+
+⚠ **White on black, and the palette cannot reach it.** Every other surface in this client is themed; this one is not. Firmware runs before anything knows who the player is, and a splash in their chosen accent would be claiming otherwise. Nothing in the block resolves an `-es-` palette token — `.es-poweron` declares its own two colours, so the five overlays have nothing to override. §10 criterion 2 still holds: the colours are in the stylesheet, they are simply not the palette's. The visible consequence is at the handover, where black gives way to the menu's own ground — invisible on the four dark palettes, a real change on `classic`. That reading is correct: the firmware is the machine's, the desktop is yours.
+
+⚠ **The glow is concentric strokes, not an effect.** §9 still lists drop shadows, blur and glassmorphism as build-blocking — the 2026-07-28 amendment reversed the *rounded corner* ban and left that one standing — and `UiContractTest` fails the build on a `dropshadow(` anywhere in the stylesheet. So the halo is eight circles sharing a centre, six outside the bright ring and two inside it, and it took two passes to get right: **the first spaced four strokes evenly and read as four concentric circles.** A glow is a falloff, and a falloff drawn in strokes needs the strokes to overlap — the offsets are close and the widths are wide, so their alphas accumulate. The halo also overflows its own layout box on purpose; a box that contained it would push `u` and `S` seventeen points further out on each side and the three characters would stop reading as a word.
+
+The halo **breathes**, on a sine over its opacity, on wall time rather than on progress — a glow that slowed as the bar filled would be reporting on a load, and there is nothing to report. That is continuous motion, permitted by §5.1 and nowhere else.
+
+---
 
 **On greeble:** it is not decoration to be cut in review. It is the single largest difference between this look and a dashboard. Budget roughly 10–15% of pixels to information that carries no meaning.
 
@@ -171,6 +245,23 @@ Everything snaps to a character cell. Numbers are tabular-figure everywhere (`fo
 | Caret | 1.06s step blink |
 
 Numbers that count up are fine. Numbers that smoothly tween are not.
+
+### 5.1 The firmware handover — a continuous fade, permitted (2026-07-28)
+
+**Step and linear timing only** stands for the interface. It does not reach the power-on splash, which is a title card.
+
+The distinction the section is really drawing is between motion the player is **working inside** and motion they are only **watching**. A panel that fades in makes them wait to read it; a value that tweens is a number lying about what it is. Neither applies to a splash handing over to a login screen: nothing is readable during it, nothing is interactive, nothing is being measured. `Motion`'s own header made the anti-fade argument, and that argument was about a *panel* — it is still correct there.
+
+| | |
+|---|---|
+| **Where** | `PowerOn`'s progress bar, and the crossfade from the splash to the login screen. Nowhere else |
+| **Mechanism** | `AnimationTimer`, ramping from elapsed nanoseconds. **No `Interpolator`, no `Timeline`** |
+| **Duration** | 420ms each way, fading through the ground rather than between two screens |
+| **Reduced motion** | Both jump to their final state, and the splash is skipped whole |
+
+⚠ **`AnimationTimer` is rationed by filename, and that check is load-bearing.** A `Timeline` + `KeyValue` interpolates with `Interpolator.LINEAR` **by default**, so a fade could be added anywhere without the word appearing in the source — passing §10 criterion 7's existing check by never tripping it. `UiContractTest` therefore asserts `AnimationTimer` appears in exactly `Fade.java` and `PowerOn.java`. A third user is a decision someone makes on purpose.
+
+⚠ **The content fades, never the ground.** The Stage is `TRANSPARENT` (§0) and the scene root paints the ground colour; ramping the root's opacity shows the window through itself for a fifth of a second. Both ends fade their *content* over a black that never moves.
 
 **`prefers-reduced-motion` kills all of it** — static final state, caret solid. Not optional.
 
@@ -253,14 +344,33 @@ If screen real estate is attention, the UI is a system rather than a skin.
 
 ---
 
+### 0.1 The system window border — permitted as an opt-in (amended 2026-07-28)
+
+**§0 says the entire aesthetic depends on the player never seeing their own operating system, and §10 criterion 1 makes no visible OS chrome an acceptance criterion. Amended on explicit direction, to allow more user controllability** — the same direction §9.1 took for screen artefacts and §9.3 for rounded corners.
+
+| | |
+|---|---|
+| **Setting** | Settings → Desk → *Use the system window border* |
+| **Default** | **Off.** §0 and §10 criterion 1 still describe what ships |
+| **Effect** | The game window is `DECORATED`; the deck stops drawing its own `[−] [+] [×]` and the top strip stops being a drag handle |
+| **Restart** | ⚠ Required, and unavoidably — `initStyle` is rejected on a realised Stage, and `DECORATED` and `TRANSPARENT` cannot both be true of one window |
+
+⚠ **Two things must switch off with it, and both are correctness rather than polish.** The deck's own window controls, because two sets of minimise/maximise/close on one window is not redundancy — it is a question the player has to answer every time they want to quit. And the top strip's drag handler, because the OS title bar already drags the window and a second handle inside the content *fights* it: press the strip and the window jumps by the offset between the two.
+
+⚠ **Rounded corners become the OS's business.** With a native frame the outer corners belong to the window manager, so the scene-root clip is not applied — clipping it would cut the game away *inside* a square frame and leave a visible gap. Desk windows still round; those are the deck's own furniture.
+
+**The title changes with it, too.** Undecorated, the title is invisible in-game and its only reader is the OS window list, so it carries the *application* name (the only lever Windows offers). With a native frame the title bar is on screen and is the game's own furniture, so it says *The Eye and Sickle*.
+
+---
+
 ## 9. Rejection list
 
 Any of these individually undoes the look. Treat as build-blocking.
 
-- Rounded corners, drop shadows, blur, glassmorphism
+- ~~**Rounded corners**~~ — **amended 2026-07-28, see §9.3.** Permitted as an opt-in setting, off by default, and narrowly scoped. Drop shadows, blur and glassmorphism are unchanged and still cut.
 - A second accent hue, or a semantic color system
 - Easing curves — spring, bounce, ease-in-out, ease-out
-- Native window chrome of any kind
+- ~~**Native window chrome of any kind**~~ — **amended 2026-07-28, see §0.1.** Permitted as an opt-in for the main window only, off by default. Tool windows are still drawn by the deck and always will be; §0's cancellation of the `Stage`-per-tool model is unchanged.
 - Hidden UI: hamburgers, modals, collapsed drawers, accordions
 - Proportional (non-mono) type anywhere, including body copy
 - Gradient fills — hazard stripes and the sweep bar are the only gradients, both hard-edged or near-transparent
@@ -269,6 +379,23 @@ Any of these individually undoes the look. Treat as build-blocking.
 - ~~**Bezel**~~ — **amended 2026-07-27, see §9.2.** A drawn casing is now permitted as an opt-in setting under §9.1's four conditions. *Screen curvature* is unchanged and still cut (§9.1 permits only the rim aberration, never a warp).
 - **Vignette** — corner and edge darkening. Still cut: it dims real content by position rather than by meaning, and the corners are where tiled windows go.
 - Any screen artefact that is **not** switchable off by the player (see §9.1)
+
+### 9.3 Rounded corners — permitted as an opt-in (amended 2026-07-28)
+
+**This list previously read "rounded corners… treat as build-blocking". Amended on explicit direction, to allow more user controllability.** The direction is the same one §9.1 already took for screen artefacts, and the same conditions apply.
+
+| | |
+|---|---|
+| **Setting** | Settings → Desk → *Rounded window corners* |
+| **Default** | **Off.** §9's rejection list still describes what this client looks like out of the box |
+| **Scope** | The outer Stage and the desk's window frames. Nothing else |
+| **Radius** | 6px, one value, in one CSS block gated on `.es-rounded` |
+
+⚠ **It must never round anything a measurement is read off.** Not a meter cell, not the cycle grid, not a hazard band, not a character-cell texture. A cell with a soft corner reads as a *smaller cell*, and the entire point of a discrete meter (§4) is that a player can count it. Rounding a window is taste; rounding a measurement is a lie about a number.
+
+That boundary is machine-checked — `UiContractTest.RoundedOptIn` fails the build if a non-zero radius appears outside an `.es-rounded` rule, or if such a rule names any of the measurement classes. The older assertion ("radius is 0 everywhere") was replaced rather than deleted, so the contract still has teeth; what changed is what it is a contract *about*.
+
+**Why an opt-in rather than a straight reversal.** The failure §1 names is *a competent dark-mode developer tool*, and hard edges are most of what keeps this deck from being one. A player who prefers soft corners on their own screen is not a design problem; a shipped default that quietly drifts toward the generic is. Off-by-default keeps the identity and gives the choice away.
 
 ### 9.1 Screen artefacts — permitted, on conditions (amended 2026-07-26)
 

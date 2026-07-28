@@ -12,10 +12,12 @@ import io.github.stoicswe.eyeandsickle.client.teaching.TermDatabase;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeManager;
 import io.github.stoicswe.eyeandsickle.client.view.CalcView;
 import io.github.stoicswe.eyeandsickle.client.view.CommandPalette;
+import io.github.stoicswe.eyeandsickle.client.view.FileManagerView;
 import io.github.stoicswe.eyeandsickle.client.view.MainMenuView;
 import io.github.stoicswe.eyeandsickle.client.view.BreachView;
 import io.github.stoicswe.eyeandsickle.client.view.LogView;
 import io.github.stoicswe.eyeandsickle.client.view.NetMapView;
+import io.github.stoicswe.eyeandsickle.client.view.NodeShellView;
 import io.github.stoicswe.eyeandsickle.client.view.ManView;
 import io.github.stoicswe.eyeandsickle.client.view.MoreViews;
 import io.github.stoicswe.eyeandsickle.client.view.RigMonitorView;
@@ -113,8 +115,45 @@ public class EyeAndSickleClient extends Application {
         // §0 and §10 criterion 1: no OS chrome visible on macOS, Windows or Linux. This has to be
         // set before the Stage is shown — JavaFX rejects a style change on a Stage that has already
         // been realised, and the failure is an IllegalStateException at the worst possible moment.
-        primaryStage.initStyle(javafx.stage.StageStyle.UNDECORATED);
-        primaryStage.setTitle("The Eye and Sickle");
+        // ⚠ ALWAYS TRANSPARENT, not conditionally.
+        //
+        // Both styles are chrome-free, so §0 holds either way. The difference is that an UNDECORATED
+        // window still paints its own corner pixels — so a rounded clip cuts the deck away and the OS
+        // fills the gap, which looks like a rendering fault rather than a radius. TRANSPARENT is the
+        // only style in which a corner can actually be ABSENT.
+        //
+        // ⚠ It used to be conditional on the setting, and that was the wrong trade. `initStyle` is
+        // rejected on a realised Stage, so choosing at startup meant the main window could only
+        // change on a restart — while the desk windows changed instantly. A toggle that half works
+        // is worse than one that does not, because the player cannot tell which half is broken.
+        //
+        // The residual risk is Linux without a compositor, where a transparent Stage can render
+        // black. It is not exercised unless the player opts in: the scene's ground holder covers the
+        // window edge to edge, so with rounding OFF nothing is ever actually see-through and the
+        // window behaves exactly as it always has.
+        // ⚠ DECORATED when the player asked for their OS's own frame (§0.1). It is the one setting
+        // that contradicts §0 outright, and it is off by default so the shipped game still looks
+        // like the game.
+        //
+        // ⚠ Restart-only, unavoidably: initStyle is rejected on a realised Stage, and DECORATED and
+        // TRANSPARENT cannot both be true of one window. The rounded-corners setting could dodge
+        // this by always being TRANSPARENT; this one has no such escape, and the Settings text says
+        // so rather than leaving the player to discover it.
+        primaryStage.initStyle(profile.settings().nativeWindowBorder
+                ? javafx.stage.StageStyle.DECORATED
+                : javafx.stage.StageStyle.TRANSPARENT);
+        // ⚠ The APPLICATION name, not the game's — and deliberately so. This deck is undecorated
+        // (§0), so the title is invisible inside the game and the only thing that ever reads it is
+        // the OS window list. On Windows it is the ONLY lever there is: the taskbar labels a window
+        // by its title and groups by the executable, and no system property changes either. A title
+        // nobody can see is worth more as the one label all three platforms agree to read.
+        // ⚠ Which name depends on whether anyone can SEE it. Undecorated, the title is invisible
+        // in-game and its only reader is the OS window list, so the application name is worth more
+        // there (it is the only lever Windows gives). With a native frame the title bar is on
+        // screen and is the game's own furniture, so it says the game's name.
+        primaryStage.setTitle(profile.settings().nativeWindowBorder
+                ? "The Eye and Sickle"
+                : Launcher.APP_NAME);
         primaryStage.setOnCloseRequest(e -> shutdown());
 
         // ⚠ Both of these must be set before the Stage is ever shown full screen, and neither can be
@@ -129,7 +168,8 @@ public class EyeAndSickleClient extends Application {
         primaryStage.setFullScreenExitKeyCombination(javafx.scene.input.KeyCombination.NO_MATCH);
         primaryStage.setFullScreenExitHint("");
 
-        showMainMenu();
+        // The firmware splash, then the login screen. Once per process — see PowerOn.
+        showPowerOn(() -> showMainMenu(true));
         applyWindowSettings();
         primaryStage.show();
     }
@@ -238,7 +278,49 @@ public class EyeAndSickleClient extends Application {
         uiScale.root().getStyleClass().add("es-scene-ground");
         uiScale.setPercent(io.github.stoicswe.eyeandsickle.client.ui.UiScale
                 .sanitise(profile.settings().uiScalePercent));
-        return new Scene(uiScale.root(), width, height);
+        Scene scene = new Scene(uiScale.root(), width, height);
+        // ⚠ A transparent FILL with an opaque ground holder on top of it. The holder covers the
+        // window edge to edge, so nothing is see-through until the clip takes a corner away — which
+        // is what makes always-TRANSPARENT safe for players who never touch the setting.
+        //
+        // Color.TRANSPARENT rather than a colour: §10 criterion 2 keeps every COLOUR in the
+        // stylesheet, and the absence of one is not a colour.
+        if (!profile.settings().nativeWindowBorder) {
+            scene.setFill(javafx.scene.paint.Color.TRANSPARENT);
+        }
+        applyRootRounding(scene);
+        return scene;
+    }
+
+    /** True once the firmware splash has played. It plays on power-on, not on every logout. */
+    private boolean poweredOn;
+
+    /**
+     * The rig's firmware coming up, before anyone has said who they are.
+     *
+     * <p>Its own Scene, like the uOS boot log — and for the same reason the menu is not built behind
+     * it: the login screen's first paint is a row of pictures being decoded, and a splash sitting on
+     * top of that would hand the player a half-drawn screen the moment it ended.
+     *
+     * <p>⚠ Guarded, and guarded here rather than inside {@link PowerOn}. {@code showMainMenu} is
+     * reached from four places — startup, "quit to menu", the pause menu and a failed connection —
+     * and only the first of those is a machine being switched on.
+     */
+    private void showPowerOn(Runnable then) {
+        if (poweredOn) {
+            then.run();
+            return;
+        }
+        poweredOn = true;
+
+        io.github.stoicswe.eyeandsickle.client.ui.PowerOn splash =
+                io.github.stoicswe.eyeandsickle.client.ui.PowerOn.play(then);
+        Scene scene = scaled(splash, 980, 760);
+        stage.setScene(scene);
+        themes.adopt(scene);
+        themes.applyAll();
+        // Focused so a keypress skips it without the player having to click the window first.
+        splash.requestFocus();
     }
 
     /**
@@ -249,6 +331,15 @@ public class EyeAndSickleClient extends Application {
      * game ticking behind a screen the player thinks is idle.
      */
     private void showMainMenu() {
+        showMainMenu(false);
+    }
+
+    /**
+     * @param fadeIn true only when arriving from the firmware splash. Every other route here — quit
+     *     to menu, the pause menu, a failed connection — is a screen change the player asked for,
+     *     and fading those in would put a delay between their click and the thing they clicked for.
+     */
+    private void showMainMenu(boolean fadeIn) {
         closeSession();
 
         MainMenuView.Actions actions = new MainMenuView.Actions() {
@@ -274,10 +365,18 @@ public class EyeAndSickleClient extends Application {
             }
         };
 
-        Scene scene = scaled(MainMenuView.create(profile, themes, slots, actions), 980, 760);
+        // ⚠ The CONTENT fades, not the Scene root. The root holds the ground colour, and fading
+        // that would show the Scene's TRANSPARENT fill through it (§0) — a see-through window for a
+        // fifth of a second. Fading the content over a black that never moves is also what the
+        // handover should look like.
+        javafx.scene.layout.Region content = MainMenuView.create(profile, themes, slots, actions);
+        Scene scene = scaled(content, 980, 760);
         stage.setScene(scene);
         themes.adopt(scene);
         themes.applyAll();
+        if (fadeIn) {
+            io.github.stoicswe.eyeandsickle.client.ui.Fade.in(content);
+        }
     }
 
     /** Settings reached from the menu, before a game exists. */
@@ -334,12 +433,49 @@ public class EyeAndSickleClient extends Application {
         }
     }
 
+    /**
+     * Rounds — or unrounds — the whole application window.
+     *
+     * <h2>⚠ The SCENE ROOT is clipped, not the deck</h2>
+     *
+     * The scene root is the UI-scale holder, and the deck is inside it. Clipping the deck leaves the
+     * holder's own ground painting square corners over the top, which is indistinguishable from the
+     * setting doing nothing — the exact failure this feature has now had twice, once from CSS being
+     * clipped off and once from clipping the wrong node. Clipping the outermost thing means nothing
+     * downstream can paint the corner back in.
+     *
+     * <p>Sized from the root's own properties rather than from a listener: a size listener on the
+     * deck fires before the {@code BorderPane} has laid out its centre, which is the seventh JavaFX
+     * trap in {@code CLAUDE.md}.
+     */
+    private void applyRootRounding(Scene scene) {
+        if (scene == null || !(scene.getRoot() instanceof javafx.scene.layout.Region root)) {
+            return;
+        }
+        // ⚠ With a native frame the OS owns the outer corners, so clipping the scene root would cut
+        // the game away INSIDE a square window — a visible gap between the content and the frame.
+        // Desk windows still round; that is the deck's own furniture and stays the deck's business.
+        if (!profile.settings().roundedWindows || profile.settings().nativeWindowBorder) {
+            root.setClip(null);
+            return;
+        }
+        javafx.scene.shape.Rectangle clip = new javafx.scene.shape.Rectangle();
+        // ⚠ arcWidth is the full arc, so it is twice the radius. Getting that backwards halves the
+        // curve and looks like the constant being wrong rather than the arithmetic.
+        clip.setArcWidth(io.github.stoicswe.eyeandsickle.client.ui.UiTokens.WINDOW_RADIUS * 2);
+        clip.setArcHeight(io.github.stoicswe.eyeandsickle.client.ui.UiTokens.WINDOW_RADIUS * 2);
+        clip.widthProperty().bind(root.widthProperty());
+        clip.heightProperty().bind(root.heightProperty());
+        root.setClip(clip);
+    }
+
     /** Pushes the desk options to the live shell. A no-op from the menu, where there is no desk. */
     private void applyDeskSettings() {
         if (deck != null) {
             deck.applyPlacementSetting();
             deck.applyWindowCapSetting();
             deck.applyScreenSettings();
+            deck.applyRoundedSetting();
             // The command strip's prompt is built from a setting too, and a prompt still showing the
             // old hostname after the field said it had saved reads as the setting not having worked.
             deck.applyPrompt();
@@ -589,7 +725,49 @@ public class EyeAndSickleClient extends Application {
                 deck.handleEscape();
             }
         });
+        deck.applyRoundedSetting();
+        deck.applyControlOrderSetting();
         deck.restoreLayout();
+    }
+
+    /**
+     * What the map's right-click menu does.
+     *
+     * <p>⚠ The shell is opened by asking the <b>rules</b> first and only then making a window. A
+     * window created before the session exists would be a shell attached to nothing — and the refusal
+     * (no foothold, not enough cycles) is exactly the message the player needs, which they would
+     * never see behind a window that had already opened.
+     */
+    private NetMapView.NodeActions nodeActions() {
+        return new NetMapView.NodeActions() {
+            @Override
+            public void openShell(String address) {
+                boolean already = session.sessions().stream()
+                        .anyMatch(s -> s.address().equals(address));
+                if (!already) {
+                    GameSession.Outcome outcome = session.openSession(address);
+                    if (!outcome.succeeded()) {
+                        // The refusal is already in the log — announce() put it there — so there is
+                        // nothing to print here. Not opening the window IS the response.
+                        return;
+                    }
+                }
+                if (deck == null) {
+                    return;
+                }
+                deck.showShell(
+                        address,
+                        "Shell — " + address,
+                        NodeShellView.create(session, address, () -> deck.closeShell(address)),
+                        () -> deck.closeShell(address));
+            }
+
+            @Override
+            public void breach(String address) {
+                arming.rearm("node:" + address);
+                arming.open();
+            }
+        };
     }
 
     private io.github.stoicswe.eyeandsickle.client.ui.DeckShell.Actions deckActions() {
@@ -644,7 +822,7 @@ public class EyeAndSickleClient extends Application {
             case RIG_MONITOR -> RigMonitorView.create(session, terms, profile);
             case TERMINAL -> TerminalView.create(shell);
             case BREACH -> BreachView.create(session, terms, profile, arming);
-            case NETMAP -> NetMapView.create(session, arming);
+            case NETMAP -> NetMapView.create(session, arming, nodeActions());
             case AUDIT -> Views.audit(session, shell);
             case MINING -> Views.mining(session);
             case STORAGE -> Views.storage(session);
@@ -654,8 +832,9 @@ public class EyeAndSickleClient extends Application {
             case SWITCHER -> Views.switcher(registry);
             case SETTINGS -> Views.settings(
                     profile, themes, this::applyDeskSettings, this::renameOperator,
-                    this::applyWindowSettings);
+                    this::applyWindowSettings, session);
             case CALC -> CalcView.create();
+            case FILES -> FileManagerView.create(session);
             case MAN -> ManView.create(terms);
             case LOG -> LogView.create(session);
             case MARKET -> MoreViews.market(session);

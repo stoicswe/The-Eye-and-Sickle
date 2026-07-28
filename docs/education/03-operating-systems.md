@@ -979,6 +979,102 @@ in `hier(7)`.
 
 ---
 
+### 3.10a `hier(7)`
+
+```
+id:             hier
+section:        7
+name:           hier
+canonical:      hier
+gloss:          Where things live on a Unix machine, and why it is not arbitrary.
+status:         real, simplified
+aliases:        filesystem hierarchy, layout
+seeAlso:        filesystem(7), permissions(7), path(7), ls(1), df(1)
+reading:        hier(7) on any FreeBSD or macOS machine; Filesystem
+                Hierarchy Standard 3.0 (Linux); `man 7 hier`
+revision:       1
+verified:       2026-07-28 — against FreeBSD's hier(7), which is the
+                canonical description of the layout this entry teaches.
+                ⚠ Deliberately asserts nothing version-specific to
+                FreeBSD 15: the LAYOUT is the durable, checkable part,
+                and a claim about one release is the kind that goes
+                stale silently.
+
+--- curriculum only, stripped before shipping ---
+
+domain:         03
+stage:          operating
+prerequisites:  filesystem(7)
+hook:           The `files` window and `/System`, which a player can see
+                the whole shape of and open none of. Being unable to
+                read it is what sends them to this page.
+misconception:  commonly believed that a Unix root directory is a
+                historical accident — twenty cryptic two- and three-letter
+                names with no logic to them; actually the split is by
+                ANSWER TO ONE QUESTION: what must work before the rest of
+                the disk is available. /bin and /sbin hold what boots the
+                machine, /usr holds everything else, and /usr/local holds
+                what nobody shipped with it. Once that question is
+                visible the layout stops needing to be memorised.
+transfer:       On any Mac or Linux machine, run `ls /usr/local/bin`.
+                Everything in it was installed after the operating
+                system. Then run `ls /bin` — that is what the machine
+                needs to start. The two lists being different lengths is
+                the whole idea.
+```
+
+## DESCRIPTION
+
+A Unix filesystem is not one pile of files. It is split by a question:
+**what has to work before the rest of the disk is available?**
+
+    /bin  /sbin  /lib      what the machine needs to start at all
+    /usr                   everything else the system ships
+    /usr/local             everything nobody shipped with it
+    /etc                   configuration, so it survives a reinstall
+    /var                   files that change while it runs
+
+That is the entire logic. `/bin` is short because almost nothing has to be
+there. `/usr` is enormous because almost everything else does. `/usr/local`
+exists so that upgrading the operating system cannot delete the software you
+installed.
+
+⚠ **FreeBSD draws the /usr/local line harder than Linux does.** On FreeBSD
+the base system — kernel, libraries, and the tools in `/bin`, `/sbin`,
+`/usr/bin` and `/usr/sbin` — is developed, versioned and released as one
+coherent whole. Anything from a port or a package installs under
+`/usr/local` and nowhere else. Linux distributions have no such boundary:
+the same `/usr/bin` holds the C library's tools and yesterday's package
+manager install, and telling them apart means asking the package manager.
+
+That difference is the single most useful thing to carry away from this page,
+because it explains a category of problem — "the upgrade removed my software" —
+that one design has and the other does not.
+
+## REAL-WORLD COUNTERPART
+
+real, simplified — the layout is exact and is what `hier(7)` documents on any
+FreeBSD or macOS machine. What is simplified is depth: uOS shows a
+representative subset of each directory rather than the tens of thousands of
+files a real base system contains.
+
+## CAVEATS
+
+**uOS's root is not FreeBSD's root.** uOS puts `/Applications`, `/Library`,
+`/System` and `/Users` at the top, which is macOS's arrangement, and keeps the
+FreeBSD hierarchy inside `/System`. On a real FreeBSD machine those
+directories are the root. On a real Mac, `/System` exists and is very nearly
+this — macOS is the system where both halves of this description are true at
+once, which is why uOS is shaped like it.
+
+**Nothing in `/System` opens, and that is a game limitation stated as one.**
+A real `/System/boot/kernel/kernel` is a real kernel. uOS cannot ship one, and
+a file that printed invented bytes would be teaching something false about the
+one subject this page exists to teach. So the tree is complete and closed, and
+this page is what you get instead.
+
+---
+
 ### 3.11 `inode(7)`
 
 ```

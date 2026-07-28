@@ -50,7 +50,76 @@ public final class Launcher {
 
     private Launcher() {}
 
+    /**
+     * What the desktop should call this program.
+     *
+     * <p>Not the window title — {@code EyeAndSickleClient} sets that, and it is the game's name.
+     * This is the <em>application</em> name: the one in the macOS menu bar, in a dock tooltip, and
+     * in a Linux taskbar group. Without it the answer is "java", which is the name of the runtime
+     * rather than of anything the player installed.
+     */
+    public static final String APP_NAME = "EAS uOS Client";
+
     public static void main(String[] args) {
+        nameTheApplication();
         Application.launch(EyeAndSickleClient.class, args);
+    }
+
+    /**
+     * Tells the desktop what this program is called, before any toolkit reads it.
+     *
+     * <h2>⚠ Before {@code Application.launch}, not after</h2>
+     *
+     * Both properties are read once, when the platform toolkit initialises. Setting them afterwards
+     * is accepted, has no effect, and reports nothing — so the window comes up named "java" and
+     * there is no error to chase. That is why this sits in {@code main} rather than in
+     * {@code start}.
+     *
+     * <h2>Three platforms, three different answers, and only two of them are ours to give</h2>
+     *
+     * <table border="1">
+     *   <caption>What names an application, per platform</caption>
+     *   <tr><th>Platform</th><th>Reads</th><th>Set by</th></tr>
+     *   <tr>
+     *     <td><b>macOS</b></td>
+     *     <td>Menu bar, dock tooltip, force-quit list</td>
+     *     <td>{@code apple.awt.application.name} here, plus {@code -Xdock:name} in
+     *         {@code client/pom.xml} and {@code .run/}</td>
+     *   </tr>
+     *   <tr>
+     *     <td><b>Linux</b></td>
+     *     <td>Taskbar label, window grouping, {@code WM_CLASS}</td>
+     *     <td>{@code glass.appName} here, and the Stage title — which window managers fall back to
+     *         and which several prefer outright</td>
+     *   </tr>
+     *   <tr>
+     *     <td><b>Windows</b></td>
+     *     <td>Taskbar button label</td>
+     *     <td><b>The Stage title, and only the Stage title.</b></td>
+     *   </tr>
+     * </table>
+     *
+     * <h2>⚠ The Stage title is doing most of the work, and that is why it is the app name</h2>
+     *
+     * This deck is undecorated (§0), so the title is <em>invisible inside the game</em> — the only
+     * thing that ever reads it is the OS window list. Windows in particular has no in-JVM way to
+     * name an application at all: its taskbar groups by the executable and labels by the window
+     * title. So the title is set to {@link #APP_NAME} rather than to the game's name, because a
+     * title nobody can see is worth more as the label every platform agrees to read.
+     *
+     * <h2>⚠ None of this renames the PROCESS</h2>
+     *
+     * {@code ps}, Activity Monitor and the Windows Details tab will still say {@code java}, because
+     * that is genuinely the executable running. Renaming it needs a native launcher — a
+     * {@code jpackage} app image — and {@code jpackage} cannot cross-compile, so it would want one
+     * build machine per platform. {@code client/pom.xml}'s closing comment covers why that is not
+     * wired up. What this fixes is every place the desktop asks the <em>application</em> its name.
+     */
+    static void nameTheApplication() {
+        // Both are harmless on platforms that ignore them, which is why neither is guarded by an
+        // os.name check — a branch here would be three code paths to keep correct in exchange for
+        // skipping two setProperty calls.
+        System.setProperty("apple.awt.application.name", APP_NAME);
+        System.setProperty("glass.appName", APP_NAME);
     }
 }

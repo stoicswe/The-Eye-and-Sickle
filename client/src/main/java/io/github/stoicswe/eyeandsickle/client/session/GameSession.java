@@ -50,6 +50,18 @@ public interface GameSession extends AutoCloseable {
     String handle();
 
     /**
+     * The operator's picture as a base64 PNG, or empty when none is set.
+     *
+     * <p>⚠ Pixels, never a path — see {@code SoloSave.avatarPng}. A stored path would mean reading
+     * an arbitrary host location on every launch, which is the boundary {@code docs/client/00} §7
+     * exists to hold.
+     */
+    String avatar();
+
+    /** Sets it. Empty clears it back to the generated silhouette. */
+    Outcome setAvatar(String base64Png);
+
+    /**
      * The rig's capacity ledger — mandatory and always visible ({@code docs/design/01} §1.4).
      *
      * <p>Never null, even while a remote session is reconnecting: a session that cannot answer
@@ -372,6 +384,116 @@ public interface GameSession extends AutoCloseable {
             long cycles,
             long seconds,
             long noiseCycles) {}
+
+    // ── Shell sessions and the filesystem ─────────────────────────────────────────────────────
+    //
+    // ⚠ A SESSION IS NOT THE VANTAGE, and the two verbs below are deliberately not the same verb as
+    // `connectTo`. The vantage is singular and is what a sweep measures hop distance from — a hard
+    // ceiling no purchase moves (Invariant I2). A session is a shell on a machine already held: you
+    // may have many, each costs compute for as long as it is open, and none of them buys reach. If
+    // one ever became a vantage, reach would multiply by the number of windows a player had open,
+    // which is the ceiling sold for the price of a click.
+
+    /** Every shell session currently open, in the order they were opened. */
+    List<io.github.stoicswe.eyeandsickle.protocol.game.RemoteSession> sessions();
+
+    /**
+     * Opens a shell on a machine the player holds a foothold on. Their own rig is always available.
+     *
+     * <p>Idempotent — asking for one that is already open raises nothing and costs nothing, which is
+     * what makes it safe to wire straight to a control a player may double-click.
+     */
+    Outcome openSession(String address);
+
+    /** Closes one, handing its held cycles straight back. */
+    Outcome closeSession(String address);
+
+    /** Moves a session's working directory. Refused, in words, for anything that is not one. */
+    Outcome changeDirectory(String address, String path);
+
+    /**
+     * A directory listing on a machine.
+     *
+     * <p>⚠ {@code FsEntry.readable} is the <b>rules'</b> verdict and a view renders it as received
+     * (C4). A file manager that decided readability itself would be answering "may I read this",
+     * which is the class of question Invariant <b>I14</b> reserves for the authoritative side — and a
+     * file manager is the surface where that mistake is easiest to make, because a path in a tree
+     * looks like something you could simply open.
+     *
+     * @param address the machine, or blank for the player's own rig
+     * @return the entries directly under {@code path}, directories first. Never null
+     */
+    List<io.github.stoicswe.eyeandsickle.protocol.game.FsEntry> list(String address, String path);
+
+    /**
+     * The readable contents of a file, or empty when there are none.
+     *
+     * <p>⚠ Empty is the normal answer. Only a handful of files in this game have text behind them —
+     * the remote-access log, and the two game kinds a host can carry. Everything else is a plausible
+     * artefact whose job is to make a directory look like a directory, and returning invented log
+     * lines for one would be the client fabricating game content on the surface a player is using to
+     * investigate.
+     */
+    List<String> read(String address, String path);
+
+    /**
+     * What a thing IS, rather than what it contains — the "Get info" answer.
+     *
+     * <p>⚠ Separate from {@link #read} because they answer different questions and a player asks
+     * them at different moments: read is "show me what is in it" and is what a double-click means;
+     * this is "what am I looking at" and is what a right-click means. It is also the one that works
+     * on a <b>directory</b>, where there are no contents to show but there is plenty to say.
+     */
+    List<String> info(String address, String path);
+
+    /**
+     * Records that the player deliberately opened something — what fills Recents.
+     *
+     * <p>⚠ Called by the surfaces where a player <b>chose</b> to go somewhere, never from
+     * {@link #list}. Listing runs on every repaint and on every parent lookup, so recording there
+     * would fill Recents with directories nobody visited — which is exactly how a recents list stops
+     * being worth opening.
+     *
+     * <p>Only a machine's own operator has a Recents; noting an access on somebody else's machine
+     * does nothing. Not an intent and returns no {@code Outcome}, because there is nothing here a
+     * rule could refuse.
+     */
+    void noteAccess(String address, String path);
+
+    /**
+     * Starts a download from a machine this rig is connected to.
+     *
+     * <p>⚠ The duration is the <b>remote end's upload</b>, not this rig's download — a Gigabit line
+     * against a 150 Mbit uplink transfers at 18.75 MB/s however good the local link is. The transfer
+     * runs as a {@link RunningTask}, so it appears in the rig monitor's activity list and survives
+     * the file manager being closed.
+     */
+    Outcome download(
+            String address,
+            io.github.stoicswe.eyeandsickle.protocol.game.FsEntry entry,
+            String destination);
+
+    /** Where a download may be put — the folders a "Save as" menu should offer. */
+    List<String> downloadDestinations();
+
+    /**
+     * Installs a downloaded {@code .upg}. The file is consumed and the item becomes owned.
+     *
+     * <p>⚠ Installing is <b>optional</b>: a package is an asset, and selling it is a real
+     * alternative. That is the whole point of the secondary market.
+     */
+    Outcome install(String path);
+
+    /**
+     * Sells a downloaded {@code .upg} on the secondary market.
+     *
+     * <p>⚠ Refused for anything not already gated on ethecoin. Selling a schematic-gated tool would
+     * let anybody with enough money buy a ceiling, which is Invariant <b>I2</b>. The refusal says so.
+     */
+    Outcome sell(String path);
+
+    /** Transfers currently in flight, for a progress readout. A subset of {@link #tasks()}. */
+    List<RunningTask> transfers();
 
     /** Moves the vantage to a host the player holds. Sweeping again measures hops from there. */
     Outcome connectTo(String address);

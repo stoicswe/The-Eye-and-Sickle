@@ -146,6 +146,11 @@ public final class EnumColumns {
             case DEPLOYED_MINER -> "deployed_miner";
             case DEFENSIVE_ARRAY -> "defensive_array";
             case RELAY_HOP -> "relay_hop";
+            // One open shell on a machine the player holds. Its own value, never folded into
+            // control_channel: that column's totals are the self-correcting cap on deployed miners
+            // (docs/design/04 §2.2), and a query that summed shells into it would tighten the cap
+            // every time somebody opened a window. Added by V5.
+            case SHELL_SESSION -> "shell_session";
         };
     }
 
@@ -163,6 +168,7 @@ public final class EnumColumns {
             case "deployed_miner" -> ComputeConsumer.DEPLOYED_MINER;
             case "defensive_array" -> ComputeConsumer.DEFENSIVE_ARRAY;
             case "relay_hop" -> ComputeConsumer.RELAY_HOP;
+            case "shell_session" -> ComputeConsumer.SHELL_SESSION;
             default -> throw unknown("consumer_type", value, COMPUTE_CONSUMER_VALUES);
         };
     }

@@ -21,6 +21,7 @@
 7/pipeline.md
 7/glob.md
 7/quoting.md
+7/hier.md
 
 # Section 1 — commands you run.
 1/ps.md

@@ -50,7 +50,14 @@ enum ConsumptionModel {
      */
     static ConsumptionModel of(ComputeConsumer consumer) {
         return switch (consumer) {
-            case SELF_MINING, BOT_FRAME, CONTROL_CHANNEL, DEFENSIVE_ARRAY, DEPLOYED_MINER -> RESERVATION;
+            // ⚠ SHELL_SESSION is a RESERVATION and specifically NOT per-use, which is the same call
+            // SessionRules.close makes on the solo side and has to stay the same on both. Recovery is
+            // the price of having driven the silicon hard (§1.3); an idle shell has driven nothing, so
+            // charging recovery on close would mean shutting a window opened by mistake cost real
+            // capacity for real minutes — which teaches players to leave sessions open, the exact
+            // opposite of what the hold is for.
+            case SELF_MINING, BOT_FRAME, CONTROL_CHANNEL, DEFENSIVE_ARRAY, DEPLOYED_MINER,
+                    SHELL_SESSION -> RESERVATION;
             // ACTIVE_TOOL covers the scans of docs/design/04 §3.2; RELAY_HOP is paid per session and
             // then recovers. Both are the discrete-action charges §1.3 is written about.
             case ACTIVE_TOOL, RELAY_HOP -> PER_USE;

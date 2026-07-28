@@ -225,6 +225,13 @@ public final class NoiseRules {
         }
         return switch (kind) {
             case CONTROL_CHANNEL, RELAY_HOP, BOT_FRAME -> true;
+            // ⚠ SHELL_SESSION is OUTWARD, and it has to be. A shell held open on somebody else's
+            // machine is a live connection to it — the single most visible thing an operator can be
+            // doing short of a sweep. If sitting on eight machines were silent, the quietest way to
+            // play would be to hold footholds indefinitely and never sweep again, which turns the
+            // whole noise model off. It is the cheapest outward thing in the game per cycle; it is
+            // not free.
+            case SHELL_SESSION -> true;
             // ⚠ SELF_MINING stays false. The held CYCLES are local grinding in both modes; what is
             // outward about a pooled rig is its share submissions, which are counted separately in
             // MiningRules.poolNoiseCycles because they are a fixed trickle rather than a share of the

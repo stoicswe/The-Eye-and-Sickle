@@ -155,7 +155,46 @@ public final class NetMapView {
      * chooses a target and the click that commits to one must not be the same click — least of all
      * on a graph, where the cells move whenever a sweep lands.
      */
+    /**
+     * What the map's right-click menu can do besides selecting.
+     *
+     * <p>An interface rather than two {@code Consumer}s because the two actions are the same
+     * decision — "act on this machine" — and a view that took them separately would let a caller
+     * wire one and forget the other, producing a menu with a dead entry.
+     */
+    public interface NodeActions {
+
+        /** Open a shell on the machine. The rules refuse without a foothold. */
+        void openShell(String address);
+
+        /** Aim the breach window at it and raise it. Arms; never attacks. */
+        void breach(String address);
+
+        /** A no-op set, so a caller that has no desk still gets a working panel. */
+        static NodeActions none() {
+            return new NodeActions() {
+                @Override
+                public void openShell(String address) {}
+
+                @Override
+                public void breach(String address) {}
+            };
+        }
+    }
+
     public static Region create(GameSession session, BreachArming arming) {
+        return create(session, arming, NodeActions.none());
+    }
+
+    /**
+     * Builds the window with a right-click menu on every machine.
+     *
+     * <p>The menu is where CONNECT and BREACH live now. Both were already reachable from the
+     * selection row, and both stay there — this is a second route, not a replacement, because a
+     * context menu is discoverable only by people who try right-clicking and a control strip is
+     * discoverable by everybody.
+     */
+    public static Region create(GameSession session, BreachArming arming, NodeActions actions) {
         VBox root = new VBox(UiTokens.SPACE_5);
         root.getStyleClass().addAll("es-netmap", "es-body-pad");
 
@@ -180,6 +219,25 @@ public final class NetMapView {
         NetHostList list = new NetHostList();
         list.setOnNode(select);
         NetGraph graph = new NetGraph(select);
+
+        // ---------------------------------------------------------------- the node menu
+        //
+        // ⚠ Right-clicking SELECTS the machine first and then opens the menu. Without that the two
+        // gestures disagree: the menu would act on whatever was selected before, while the pointer
+        // is plainly over something else. Every entry then reads as being about the row under the
+        // cursor, which is what a context menu means.
+        javafx.scene.control.ContextMenu nodeMenu = new javafx.scene.control.ContextMenu();
+        String[] menuTarget = {""};
+        java.util.function.BiConsumer<String, javafx.scene.input.ContextMenuEvent> openMenu =
+                (address, event) -> {
+                    menuTarget[0] = address;
+                    select.accept(address);
+                    rebuildNodeMenu(nodeMenu, session, menuTarget[0], actions, arming, select);
+                    nodeMenu.show((javafx.scene.Node) event.getSource(),
+                            event.getScreenX(), event.getScreenY());
+                };
+        graph.setOnNodeMenu(openMenu);
+        list.setOnNodeMenu(openMenu);
         NetLegend legend = new NetLegend();
         NetFolderList folders = new NetFolderList();
         folders.setOnNode(select);
@@ -551,6 +609,71 @@ public final class NetMapView {
         AutoCloseable subscription = session.onChange(s -> repaint[0].run());
         closeOnDetach(root, subscription, graph);
         return root;
+    }
+
+    /**
+     * Rebuilds the node menu for one machine.
+     *
+     * <p>Rebuilt per open rather than kept and re-enabled, because what a machine offers depends on
+     * its state — a machine you hold offers a shell, one you do not offers a breach — and a menu of
+     * permanently-present greyed entries is a list of things the player cannot do. It is cheap: five
+     * items, once per right-click.
+     *
+     * <p>⚠ The entries reflect the <b>rules'</b> view of the machine, taken from the map the rules
+     * published, and none of them is hidden on a guess. {@code CONNECT} in particular is offered on
+     * anything with a foothold and refused by the rules otherwise; the panel does not pre-empt the
+     * refusal (C4), because the refusal names what is missing and an absent entry does not.
+     */
+    private static void rebuildNodeMenu(
+            javafx.scene.control.ContextMenu menu,
+            GameSession session,
+            String address,
+            NodeActions actions,
+            BreachArming arming,
+            java.util.function.Consumer<String> select) {
+        menu.getItems().clear();
+        Optional<Sighting> sighting = session.net().at(address);
+        boolean self = sighting.map(Sighting::vantage).orElse(false);
+        boolean held = sighting.map(Sighting::foothold).orElse(false);
+        boolean open = session.sessions().stream().anyMatch(s -> s.address().equals(address));
+
+        javafx.scene.control.MenuItem header = new javafx.scene.control.MenuItem(
+                Ui.upper(sighting.map(Sighting::address).orElse(address)));
+        header.setDisable(true);
+        menu.getItems().add(header);
+        menu.getItems().add(new javafx.scene.control.SeparatorMenuItem());
+
+        javafx.scene.control.MenuItem shell = new javafx.scene.control.MenuItem(
+                open ? "Raise the shell" : "Open a shell");
+        shell.setOnAction(event -> actions.openShell(address));
+        menu.getItems().add(shell);
+
+        if (!self) {
+            javafx.scene.control.MenuItem breach = new javafx.scene.control.MenuItem(
+                    held ? "Breach again" : "Breach");
+            breach.setOnAction(event -> actions.breach(address));
+            menu.getItems().add(breach);
+        }
+
+        javafx.scene.control.MenuItem vantage = new javafx.scene.control.MenuItem(
+                "Move vantage here");
+        // ⚠ Named for what it does, not "Connect". Moving the vantage changes where every future
+        // sweep measures from (I2's ceiling), and calling it the same word as opening a shell is how
+        // a player comes to believe that opening eight shells gave them eight vantages.
+        vantage.setOnAction(event -> session.connectTo(address));
+        vantage.setDisable(!held || self);
+        menu.getItems().add(vantage);
+
+        if (sighting.map(Sighting::documentAvailable).orElse(false)) {
+            javafx.scene.control.MenuItem download = new javafx.scene.control.MenuItem("Download");
+            download.setOnAction(event -> session.download(address));
+            menu.getItems().add(download);
+        }
+
+        menu.getItems().add(new javafx.scene.control.SeparatorMenuItem());
+        javafx.scene.control.MenuItem selectItem = new javafx.scene.control.MenuItem("Select only");
+        selectItem.setOnAction(event -> select.accept(address));
+        menu.getItems().add(selectItem);
     }
 
     // ------------------------------------------------------------------ the sweep ladder

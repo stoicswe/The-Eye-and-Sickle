@@ -40,6 +40,17 @@ public final class WrapStrip extends Region {
     private Node spacer;
     private Node pinned;
 
+    /**
+     * Which end the pinned child sits at.
+     *
+     * <p>⚠ Exists for exactly one reason: <b>macOS puts window controls on the left</b> and every
+     * other platform puts them on the right. This deck draws its own controls (§0), so it also
+     * inherits the obligation to put them where the player's OS would — a close button on the wrong
+     * side is the kind of thing that is not merely unfamiliar but actively mis-clicked, because the
+     * hand goes where it has gone ten thousand times before.
+     */
+    private boolean pinnedLeft;
+
     /** Adds a child that participates in the flow and may wrap. */
     public void add(Node node) {
         flow.add(node);
@@ -63,7 +74,13 @@ public final class WrapStrip extends Region {
 
     /** The child held at the top-right corner, out of the flow. See the class comment. */
     public void setPinned(Node node) {
+        setPinned(node, false);
+    }
+
+    /** @param onLeft true to hold it at the top-LEFT instead — macOS's side. See {@link #pinnedLeft}. */
+    public void setPinned(Node node, boolean onLeft) {
         this.pinned = node;
+        this.pinnedLeft = onLeft;
         getChildren().add(node);
     }
 
@@ -129,8 +146,12 @@ public final class WrapStrip extends Region {
         double row = rowHeight();
 
         if (pinned != null) {
-            pinned.resizeRelocate(left + full - pinnedWidth, top, pinnedWidth, row);
+            pinned.resizeRelocate(
+                    pinnedLeft ? left : left + full - pinnedWidth, top, pinnedWidth, row);
         }
+        // Everything else starts after the controls when they are on the left, so the flow never
+        // runs underneath them.
+        double flowLeft = pinnedLeft ? left + pinnedWidth : left;
 
         // ⚠ The pinned width is reserved on EVERY row, not just the first. Rows below it could use
         // the full width, and doing so would be a hundred pixels better — but then rowsNeeded() and
@@ -145,7 +166,7 @@ public final class WrapStrip extends Region {
         if (total <= usable) {
             // The HBox case, reproduced exactly: one row, and the spacer eats the difference so the
             // trailing cells finish flush against the pinned controls.
-            double x = left;
+            double x = flowLeft;
             double slack = usable - total;
             for (Node node : flow) {
                 if (node == spacer) {
@@ -165,7 +186,7 @@ public final class WrapStrip extends Region {
         // Wrapped. The spacer is taken out of the layout entirely rather than given zero width — a
         // zero-width spacer still paints its 1px right border, which reads as an extra cell divider
         // sitting in the middle of a row for no reason.
-        double x = left;
+        double x = flowLeft;
         double y = top;
         for (Node node : flow) {
             if (node == spacer) {
@@ -175,8 +196,8 @@ public final class WrapStrip extends Region {
             }
             node.setVisible(true);
             double w = Math.min(widthOf(node), usable);
-            if (x > left && x + w > left + usable) {
-                x = left;
+            if (x > flowLeft && x + w > flowLeft + usable) {
+                x = flowLeft;
                 y += row;
             }
             node.resizeRelocate(x, y, w, row);

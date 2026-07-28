@@ -60,6 +60,12 @@ class ComputeBudgetTest {
                             "BOT_FRAME",
                             "SELF_MINING",
                             "CONTROL_CHANNEL",
+                            // Added 2026-07-28 with shell sessions. ⚠ Its OWN consumer and not part
+                            // of CONTROL_CHANNEL: that one's size is the self-correcting cap on how
+                            // many deployed miners a player can run (docs/design/04 §2.2), and it
+                            // works only because the number means exactly one thing. Folding shells
+                            // in would tighten the miner cap every time somebody opened a window.
+                            "SHELL_SESSION",
                             "DEPLOYED_MINER",
                             "DEFENSIVE_ARRAY",
                             "RELAY_HOP");

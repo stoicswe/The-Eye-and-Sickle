@@ -41,6 +41,34 @@ public final class UiTokens {
     /** The 45° corner cut, top-right of every major panel. Fixed at 18px at every window size. */
     public static final double NOTCH = 18;
 
+    /**
+     * Window corner radius, when the rounded-corners setting is on (§9.3).
+     *
+     * <h2>⚠ THE FIGURE IS UNVERIFIED — it is an approximation of macOS Tahoe, not a measurement</h2>
+     *
+     * The brief was "match macOS Tahoe's window curvature". Tahoe's windows are visibly rounder than
+     * the ~10pt that Big Sur through Sequoia used, and this is set to reflect that — but
+     * <b>the exact value has not been checked against the real thing</b>, and {@code CLAUDE.md} is
+     * explicit that a real-world fact nobody verified must not be stated as one. It lives here, as a
+     * single constant, precisely so confirming it is a one-line change rather than an archaeology
+     * expedition through a stylesheet and two view classes.
+     *
+     * <h2>⚠ It will not match exactly however the number is tuned</h2>
+     *
+     * macOS corners are a <b>continuous curve</b> — a squircle — and {@link javafx.scene.shape.Rectangle}'s
+     * {@code arcWidth}/{@code arcHeight} produce a <b>circular arc</b>. A circular corner reads
+     * slightly "tighter" at the same nominal radius because the curvature changes abruptly where the
+     * arc meets the straight edge, which is the whole thing a squircle exists to avoid. Matching
+     * properly would mean building the clip from a Bézier path rather than a rounded rectangle;
+     * that is a real option and is deliberately not taken yet, because a wrong <em>radius</em> is
+     * one number and a wrong <em>curve family</em> is a shape nobody can adjust.
+     *
+     * <p>⚠ Not part of §2.3's spacing scale, and must not be added to it. That scale is
+     * {@code 1, 5, 7, 9, 12, 14} and is closed — this is a geometry constant like {@link #NOTCH},
+     * which is also outside it and for the same reason.
+     */
+    public static final double WINDOW_RADIUS = 16;
+
     /** Base cell for meters and the cycle grid. */
     public static final double CELL = 11;
 

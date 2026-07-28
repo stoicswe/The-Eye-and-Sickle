@@ -24,12 +24,24 @@ import javafx.util.Duration;
  * {@link io.github.stoicswe.eyeandsickle.client.ui.widgets.SweepPanel}, which §5 specifies as a
  * linear loop.
  *
+ * <p>⚠ There is now a second family of continuous motion, and it is deliberately <em>not</em> here:
+ * {@link Fade} and {@link PowerOn} ramp per frame off an {@code AnimationTimer}. §5.1 permits that
+ * on the power-on splash and nowhere else, and {@code UiContractTest} rations {@code AnimationTimer}
+ * by filename for the same reason it rations {@code Interpolator.LINEAR}. Nothing in this class
+ * changed; what changed is that "the client has no continuous animation" is no longer true, so do
+ * not read the paragraph below as one.
+ *
  * <h2>Why the reveal is a clip and not an opacity fade</h2>
  *
  * §5 gives the panel reveal as "horizontal clip wipe, ~0.34s, 9 discrete steps". A fade would be a
- * continuous interpolation of a continuous property — the exact thing the section bans — and it
- * would also read as a web page loading. A wipe in nine jumps reads as a raster being drawn by
- * something with a fixed refresh, which is the intended illusion.
+ * continuous interpolation of a continuous property — and it would also read as a web page loading.
+ * A wipe in nine jumps reads as a raster being drawn by something with a fixed refresh, which is the
+ * intended illusion.
+ *
+ * <p>That argument is about a <b>panel</b>, and it still holds: a panel that fades in makes the
+ * player wait to read it. §5.1's carve-out is for the splash, where nothing is readable, nothing is
+ * interactive and nothing is being measured. The line is <em>motion the player works inside</em>
+ * versus <em>motion they only watch</em>, not the property being animated.
  */
 public final class Motion {
 

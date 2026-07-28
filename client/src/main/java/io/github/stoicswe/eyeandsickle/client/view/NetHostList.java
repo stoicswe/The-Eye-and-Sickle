@@ -56,6 +56,10 @@ public final class NetHostList extends VBox {
     private List<String> rendered = List.of();
     private NetMap map = NetMap.empty();
     private Consumer<String> onNode = address -> {};
+
+    /** Right-click on a row. Separate from {@link #onNode} — see {@code NetGraph} for why. */
+    private java.util.function.BiConsumer<String, javafx.scene.input.ContextMenuEvent> onNodeMenu =
+            (address, event) -> {};
     private boolean verbose;
     private String selected = "";
     private String paintedFor = "";
@@ -110,6 +114,11 @@ public final class NetHostList extends VBox {
     }
 
     /** Called with a row's address when it is clicked or activated from the keyboard. */
+    public void setOnNodeMenu(
+            java.util.function.BiConsumer<String, javafx.scene.input.ContextMenuEvent> handler) {
+        this.onNodeMenu = handler == null ? (address, event) -> {} : handler;
+    }
+
     public void setOnNode(Consumer<String> onNode) {
         this.onNode = onNode == null ? address -> {} : onNode;
     }
@@ -186,6 +195,10 @@ public final class NetHostList extends VBox {
         label.setAccessibleText(describe(sighting));
         label.setFocusTraversable(true);
         Cursors.shared().clickable(label);
+        label.setOnContextMenuRequested(event -> {
+            onNodeMenu.accept(sighting.address(), event);
+            event.consume();
+        });
         label.setOnMouseClicked(event -> {
             event.consume();
             onNode.accept(sighting.address());

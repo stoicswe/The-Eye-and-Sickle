@@ -24,6 +24,7 @@ Almost everything here is **Established** — the full stack was decided end-to-
 | 07 | [`07-transport-security.md`](07-transport-security.md) | ⚠️ **[PROPOSAL]** | DID-authenticated encrypted channels between servers and between client and server |
 | 08 | [`08-discovery-and-sync.md`](08-discovery-and-sync.md) | ⚠️ **[PROPOSAL]** | Automatic peer discovery; why shared state converges on validity, never recency |
 | 09 | [`09-player-state-portability.md`](09-player-state-portability.md) | ⚠️ **[PROPOSAL]** | 3-slot character model (online-only); finding, backing up, and migrating a character across machines and servers |
+| 10 | [`10-oauth-and-did-resolution.md`](10-oauth-and-did-resolution.md) | ⚠️ **[PROPOSAL]** | **Working document, not a decision record.** What shipping AT Proto sign-in actually takes: the blocking who-is-the-client decision, PAR/DPoP/PKCE, bidirectional handle verification, and three places `02` is wrong or silent |
 
 The **client's** visual design — the two theme families, the UI token contract, terminology and accessibility — lives in [`../client/`](../client/README.md), not here. This folder covers the stack; that one covers the surface.
 

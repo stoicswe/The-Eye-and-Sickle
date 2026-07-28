@@ -58,6 +58,22 @@ public enum ComputeConsumer {
     CONTROL_CHANNEL,
 
     /**
+     * One open shell session on a machine the player holds.
+     *
+     * <p>⚠ <b>Its own consumer, and it must not be folded into {@link #CONTROL_CHANNEL}.</b> That one
+     * is the deployer's half of Invariant <b>I6</b> and its size is the self-correcting cap on how
+     * many miners a player can run ({@code docs/design/04-mining.md} §2.2) — a cap that works only
+     * because the number means exactly one thing. Adding shells to the same line would make the rig
+     * monitor read as though the player were running miners they are not, and would make the miner
+     * cap tighten every time somebody opened a window.
+     *
+     * <p>A session costing anything at all is the point: compute is the master scarcity, so how many
+     * machines you can sit on at once has to be a decision the rig answers rather than an arbitrary
+     * cap in a view.
+     */
+    SHELL_SESSION,
+
+    /**
      * A foreign deployed miner running on <em>this</em> rig and stealing its cycles.
      *
      * <p><strong>[PROPOSAL] — needs a design ruling.</strong> §1.1's table lists the consumers on a
