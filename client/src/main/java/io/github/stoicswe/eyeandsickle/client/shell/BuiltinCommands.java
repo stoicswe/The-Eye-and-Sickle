@@ -372,12 +372,15 @@ public final class BuiltinCommands {
                     out.add(String.format(Locale.ROOT,
                             "%d of yours waiting · cheapest slot %.0f · top of the queue %.0f",
                             pool.yoursPending(), pool.lowFeeRate(), pool.highFeeRate()));
-                    // ⚠ "on average", never a countdown. Blocks arrive on a Poisson schedule, so
-                    // there is no moment to count down to; the elapsed figure beside it is a fact.
+                    // The mean stays published beside the estimate: the ETA is derived from it, and
+                    // a countdown with no stated average is a deadline. The elapsed figure is a fact.
                     out.add(String.format(Locale.ROOT,
                             "a block every ~%d min on average · last one %s ago",
                             Math.round(pool.expectedNextBlockSeconds() / 60),
-                            duration(pool.secondsSinceLastBlock())));
+                            // ⚠ duration() answers "never" at zero — correct for an infinite wait,
+                            // nonsense for an elapsed one ("last one never ago").
+                            pool.secondsSinceLastBlock() <= 0
+                                    ? "0s" : duration(pool.secondsSinceLastBlock())));
                     out.add("");
                     out.add(pad("", 8) + pad("TXS", 6) + pad("YOURS", 7) + pad("FULL", 7)
                             + pad("FEES", 10) + "~WHEN");
@@ -387,20 +390,33 @@ public final class BuiltinCommands {
                                 + pad(String.valueOf(p.yours()), 7)
                                 + pad(String.format(Locale.ROOT, "%.0f%%", p.fullness() * 100), 7)
                                 + pad(money(p.feesMinorUnits()), 10)
-                                + duration(p.expectedSeconds(pool.expectedNextBlockSeconds())));
+                                + eta(p, pool.expectedNextBlockSeconds()));
                     }
-                    if (!pool.pending().isEmpty()) {
+                    if (!pool.queued().isEmpty()) {
                         out.add("");
                         out.add("YOUR PENDING");
-                        for (var tx : pool.pending()) {
-                            out.add("  " + tx.shortHash() + "  " + money(tx.valueMinorUnits())
-                                    + "  fee " + money(tx.feeMinorUnits())
-                                    + "  " + tx.description());
+                        for (ChainMempool.Queued q : pool.queued()) {
+                            // Padded, because the row gained two columns and an unpadded amount put
+                            // every fee at a different indent — a table the eye cannot scan down.
+                            out.add("  " + pad(q.tx().shortHash(), 16)
+                                    + pad(money(q.tx().valueMinorUnits()), 12)
+                                    + pad("fee " + money(q.tx().feeMinorUnits()), 14)
+                                    + pad(q.beyondProjection()
+                                            ? "past +3"
+                                            : q.projectedIndex() == 0
+                                                    ? "next block" : "block +" + (q.projectedIndex() + 1), 12)
+                                    + pad(q.beyondProjection()
+                                            ? "no estimate"
+                                            : eta(pool.projected().get(q.projectedIndex()),
+                                                    pool.expectedNextBlockSeconds()), 16)
+                                    + q.tx().description());
                         }
                     }
                     out.add("");
                     out.add("Projections are what the next blocks would hold if mined now. Blocks arrive");
                     out.add("at random intervals and more transactions arrive meanwhile — not a schedule.");
+                    out.add("~WHEN is an estimate the chain is free to overtake; past it the figure is");
+                    out.add("how far into the distribution the wait has got, not how late a block is.");
                     return Command.Output.ok(out);
                 }));
 
@@ -768,4 +784,44 @@ public final class BuiltinCommands {
         return String.format(Locale.ROOT, "%d.%02d EC", minorUnits / 100, Math.abs(minorUnits % 100));
     }
 
+    /**
+     * A projection's ETA: the countdown while it holds, the distribution once it does not.
+     *
+     * <p>Same rule the LEDGER panel's strip draws, and same reason it does not say "overdue" — an
+     * exponential wait runs past its own mean about 37% of the time, so being past the estimate is
+     * the ordinary case. {@code ChainMempool} carries the argument at the type level.
+     *
+     * <p>⚠ Elapsed is reconstructed from the ETA rather than taken from
+     * {@code secondsSinceLastBlock}, so the percentile is computed against the same instant the
+     * countdown is — the shell renders one snapshot, but the two figures still have to agree.
+     */
+    private static String eta(ChainMempool.ProjectedBlock p, double meanBlockSeconds) {
+        long left = p.etaAt() == null
+                ? 0L
+                : java.time.Duration.between(java.time.Instant.now(), p.etaAt()).toSeconds();
+        if (left > 0) {
+            return "~" + clock(left);
+        }
+        double elapsed = p.expectedSeconds(meanBlockSeconds) - left;
+        return "long, >" + Math.round(p.waitPercentile(elapsed, meanBlockSeconds) * 100) + "%";
+    }
+
+    /**
+     * {@code M:SS}, or {@code H:MM:SS} past an hour — the same format {@code Ui.clock} draws.
+     *
+     * <p>⚠ Deliberately a second copy rather than a call into {@code client.ui}. This package holds
+     * no JavaFX import at all, which is what lets every command be exercised without starting the
+     * toolkit; {@code Ui} builds {@code Label}s, so importing it for a time format would trade that
+     * away. {@link #money} and {@link #duration} are duplicated across the same boundary for the
+     * same reason.
+     */
+    private static String clock(long seconds) {
+        long total = Math.max(0, seconds);
+        long hours = total / 3600;
+        long minutes = (total % 3600) / 60;
+        long rest = total % 60;
+        return hours > 0
+                ? String.format(Locale.ROOT, "%d:%02d:%02d", hours, minutes, rest)
+                : String.format(Locale.ROOT, "%d:%02d", minutes, rest);
+    }
 }

@@ -252,6 +252,18 @@ public final class ClientProfile {
         public String wallpaper = "drift";
 
         /**
+         * The drawn casing around the deck: a {@code ui/BezelStyle} id.
+         *
+         * <p>⚠ <b>A bezel, which {@code ui-design-language.md} §9 cut twice and §9.1 pointedly kept
+         * cut when four other artefacts were permitted.</b> Allowed since 2026-07-27 on explicit
+         * direction, under §9.1's same four conditions — and this default is the first of them.
+         * {@code off} is the shipped look, and an effect the player switches on is a costume where
+         * one welded to the interface is a claim about fidelity the interface has to keep making
+         * while they are trying to read a number.
+         */
+        public String bezel = "off";
+
+        /**
          * CRT scanlines over the whole deck.
          *
          * <p><b>Opt-in, and the default is not laziness.</b> Scanlines lay a repeating dark band
@@ -287,6 +299,40 @@ public final class ClientProfile {
          * <p>Zero by default, like every other artefact.
          */
         public int crtCurvature = 0;
+
+        /**
+         * How big the deck window is, as a {@code ui/WindowSize} id.
+         *
+         * <p>⚠ There is no OS chrome on the deck (§0), so there is no OS resize handle either. Until
+         * this existed the window was created at a hard-coded 1280×800 on every launch and the only
+         * other size reachable was maximised. Stored by id rather than as a width/height pair so a
+         * preset can be re-tuned without every profile carrying the old number.
+         */
+        public String windowSize = "1280x800";
+
+        /**
+         * How large the interface is drawn, as a percentage. 100 is the shipped look.
+         *
+         * <p>An {@code int} rather than a double for the same reason {@link #crtCurvature} is: it is
+         * a percentage a player picks off a list, and a float in a settings file invites a value
+         * like {@code 1.2500000000000002} that no control can ever show as selected.
+         *
+         * <p>⚠ Not independent of {@link #windowSize} — the deck is laid out at
+         * {@code physical / scale}, so a large scale in a small window falls under the supported
+         * minimum. {@code WindowSize.usableAt} is the rule and Settings disables what fails it.
+         */
+        public int uiScalePercent = 100;
+
+        /**
+         * Whether the deck takes the whole screen.
+         *
+         * <p><b>Off by default, and deliberately.</b> Full screen on macOS moves the window to its
+         * own Space and hides the menu bar; a client that did that uninvited on first launch would
+         * have taken over the display before the player had seen it once. It is also the one window
+         * state that cannot be undone with the mouse alone here, because the deck draws its own
+         * chrome and a hidden menu bar leaves nothing else to click.
+         */
+        public boolean fullScreen = false;
 
         /**
          * Window id → OS-window geometry, from the {@code Stage}-per-tool era.

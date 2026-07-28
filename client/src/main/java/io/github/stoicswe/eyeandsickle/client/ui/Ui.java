@@ -124,4 +124,26 @@ public final class Ui {
     public static String upper(String text) {
         return text == null ? "" : text.toUpperCase(Locale.ROOT);
     }
+
+    /**
+     * {@code M:SS}, or {@code H:MM:SS} past an hour — the deck's one countdown format.
+     *
+     * <p>Not a humanised "about 4 minutes". §6 of the design language wants operational readouts with
+     * units, and a countdown a player is timing an action against has to be exact: "about 4 minutes"
+     * is unusable for deciding whether there is room to start something else.
+     *
+     * <p>⚠ Lives here rather than beside its first caller because three surfaces now draw a countdown
+     * — the activity list, the ledger's projection strip and the shell's {@code mempool} — and three
+     * private copies of a time format is how two of them end up disagreeing about whether 90 seconds
+     * is {@code 1:30} or {@code 2m}.
+     */
+    public static String clock(long seconds) {
+        long total = Math.max(0, seconds);
+        long hours = total / 3600;
+        long minutes = (total % 3600) / 60;
+        long rest = total % 60;
+        return hours > 0
+                ? String.format(Locale.ROOT, "%d:%02d:%02d", hours, minutes, rest)
+                : String.format(Locale.ROOT, "%d:%02d", minutes, rest);
+    }
 }

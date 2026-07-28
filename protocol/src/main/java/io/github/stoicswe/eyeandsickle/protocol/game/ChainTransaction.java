@@ -50,7 +50,31 @@ public record ChainTransaction(
         String description,
         long feeMinorUnits,
         double gasPriceMinorUnits,
-        boolean yours) {
+        boolean yours,
+        String counterpartyLabel) {
+
+    public ChainTransaction {
+        counterpartyLabel = counterpartyLabel == null ? "" : counterpartyLabel;
+    }
+
+    /**
+     * A readable name for the other end, or empty when there is only an address.
+     *
+     * <h2>⚠ A label, never a substitute for the address</h2>
+     *
+     * A pool payout comes from a pool that has a name, and rendering it as
+     * {@code 0x8f3c…a219} makes the one row a player most needs to recognise the least
+     * recognisable thing in the table. But the address is what is actually on the chain, so this is
+     * carried <em>beside</em> it rather than replacing it — the ledger prints the name and the
+     * explorer still has the address to check it against, which is the whole point of {@code 04}
+     * §3.1's audit.
+     *
+     * <p>⚠ Never populated for a counterparty the client cannot verify. An attacker-supplied name
+     * rendered where an address belongs is how a transfer gets mistaken for a payout.
+     */
+    public String counterpartyLabel() {
+        return counterpartyLabel;
+    }
 
     /** The zero address. A block reward has no sender because the coins did not exist before it. */
     public static final String ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";

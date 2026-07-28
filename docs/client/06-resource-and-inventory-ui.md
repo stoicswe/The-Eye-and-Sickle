@@ -502,7 +502,25 @@ So the window answers one question at the top, in one glance: **what of mine is 
 
 Capacities are the `[PROPOSAL]` first-pass from `../design/01-core-resources.md` §6 — Vault 6 / Standard 20 / High-Hackable 60, Cold Storage Expansion adding +4, +3, +2, +1 to a hard cap of 16. The sub-linear *shape* is Established (Invariant I12); the numbers are for playtest.
 
+#### 5.1a The grid is the default *in this window* (2026-07-27, implemented)
+
+The shipped STORAGE window draws each mount as a **grid of slots** — filled cells for items, dashed empty cells for the rest of the capacity — with a `n / cap` count per mount. Rows remain available on a `[ GRID ] / [ ROWS ]` chip pair, the same bracket-selected control the ledger and rig monitor use.
+
+This looks like it contradicts §7.2 (*"the table is the default; the grid is the option"*) and does not, because §7.2's argument is about a different surface. That rule protects **three-way cost comparison**: the inventory sorts on EC, compute and noise at once, and `01-visual-language.md` §4.6 makes a shared right edge the only arrangement in which a column of numbers can be compared at a glance. The storage window has **no cost columns at all** — it is sorted by exposure and compares nothing — so there is nothing for the alignment rule to protect here.
+
+What the grid buys instead is the thing a list structurally cannot show: **capacity**. `../design/01-core-resources.md` §6 makes storage a strict capacity/exposure trade and **I12** makes vault capacity the scarce half of it, but six items in a six-slot vault and six in a sixty-slot zone render *identically* as a list. Drawing the empty slots makes "two left" legible without reading a number, and it makes the shape of the trade visible at a glance: the safe mount is small and the raidable one is vast.
+
+> **⚠ Over-capacity is drawn, never clamped.** Nothing enforces these numbers yet — `moveItem` does not refuse a move that would overfill a mount — so a vault can read `8 / 6`. The extra items are rendered rather than hidden, because a grid that dropped items to make its own arithmetic work would be lying about what the player owns. Enforcement is a *rules* change and belongs with the Cold Storage Expansion schematic §6 pairs it with; a hard cap of 6 with no way to raise it is a different game from the one that document describes.
+
+**Items drag between mounts.** Press and drag any item — slot or row — onto another mount and drop it anywhere in that section: the heading, a filled slot, an empty one, or the gap below the last row. The whole section is the target, because making the player hit one 104px cell to change an item's exposure would be a dexterity test in front of a risk decision. The target highlights only for a mount the item is **not** already in; a target that lit up for a move that will not happen would be telling the player it will. Underneath it is the same `moveItem` call the buttons and `mv` use, so all three surfaces share one path and one refusal.
+
+> **⚠ Dragging does not reorder within a mount, and cannot yet.** Nothing persists a slot index — items render in save order — so an intra-mount reorder would be cosmetic and lost on reload. It also has no meaning here: slots are uniform and capacity is a count, unlike the Tetris-style grids this pattern is borrowed from. If it is ever wanted, it needs a stored ordinal first.
+
+**Selection replaces the per-row button cluster.** One click selects a slot and the move controls appear once, at the foot of the window, offering only the two mounts the item is not already in. The previous form put three buttons on every row — at the `[PROPOSAL]` capacities that is up to 258 controls to tab through for a decision §5.4 makes about one item at a time.
+
 ### 5.2 The at-risk summary, and the rule for client-computed figures
+
+⚠ **The shipped window omits the EC figure entirely.** The client is not told an item's gate or its market price, and condition 2 below requires the total to count *only* EC-gated items — so the honest options were to omit it or to invent it. It is omitted, and the summary shows counts alone: `AT RISK NOW 7 items · exposed while online 4 · always exposed 3 · safe in vault 3`. A fabricated total on the one screen whose job is to say what a raid would cost is worse than no total. **RI-10** already tracks the figure; this is what it looks like until the data exists.
 
 `est. 1,830 EC to replace` is a **client-computed convenience figure** (R2) and it is allowed under three conditions, all mandatory:
 

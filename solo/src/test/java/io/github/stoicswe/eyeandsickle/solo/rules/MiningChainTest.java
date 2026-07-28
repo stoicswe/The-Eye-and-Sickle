@@ -86,7 +86,7 @@ class MiningChainTest {
     }
 
     /** A tick in which the chain produced nothing — for driving settlement directly. */
-    private static final ChainRules.Minted NOTHING = new ChainRules.Minted(0, 0, 0);
+    private static final ChainRules.Minted NOTHING = new ChainRules.Minted(0, 0, 0, 0L, 0L);
 
     /** Where each save's simulated clock has reached. See {@link #mine}. */
     private static final java.util.Map<SoloSave, Instant> CLOCKS = new java.util.IdentityHashMap<>();
@@ -289,8 +289,8 @@ class MiningChainTest {
         }
 
         @Test
-        @DisplayName("solo pays more in expectation, by exactly the pool's fee")
-        void soloKeepsTheFee() {
+        @DisplayName("solo pays more than the default pool — by its fee AND by fee exposure")
+        void soloKeepsTheFeeAndTheBlockFees() {
             SoloSave pooled = rig(100, MiningMode.POOLED);
             SoloSave solo = rig(100, MiningMode.SOLO);
             long p = MiningRules.expectedMinorUnitsPerHour(pooled.rig, pooled.chain);
@@ -299,7 +299,13 @@ class MiningChainTest {
             // The trade has to be a real one in both directions. A pool that paid the same as solo
             // would be free insurance and nobody sane would ever mine solo.
             assertThat(s).isGreaterThan(p);
-            assertThat(s).isCloseTo(Math.round(p / (1 - Balance.POOL_FEE)), within(1L));
+            // ⚠ Two components since 2026-07-27, and the default pool is PPS so it has neither: the
+            // 2% it keeps, and the block fees a share price cannot include. Together that is about
+            // 12.8%, where it used to be 2.0% — which is a deliberate widening, not a drift.
+            double feeExposure =
+                    (Balance.BLOCK_SUBSIDY_MINOR_UNITS + Balance.expectedBlockFeesMinorUnits())
+                            / Balance.BLOCK_SUBSIDY_MINOR_UNITS;
+            assertThat(s).isCloseTo(Math.round(p / (1 - Balance.POOL_FEE) * feeExposure), within(2L));
         }
 
         @Test
@@ -347,8 +353,15 @@ class MiningChainTest {
         void soloConverges() {
             SoloSave save = rig(100, MiningMode.SOLO);
             long earned = mine(save, 4000, 60);
+            // ⚠ Includes block fees since 2026-07-27 — a won block pays subsidy + fees, which is
+            // 10.55% more than the subsidy alone. This was a deliberate decision to let mining
+            // income rise rather than re-solving chainNetworkHashrate to absorb it; see
+            // Balance.expectedBlockFeesMinorUnits and design/03 §1.1.
+            double withFees =
+                    (Balance.BLOCK_SUBSIDY_MINOR_UNITS + Balance.expectedBlockFeesMinorUnits())
+                            / Balance.BLOCK_SUBSIDY_MINOR_UNITS;
             long expected = Math.round(4000 * 100 * Balance.SELF_MINING_MINOR_UNITS_PER_CYCLE_HOUR
-                    / (1 - Balance.POOL_FEE));
+                    / (1 - Balance.POOL_FEE) * withFees);
             // 4000 hours is about 1020 blocks; standard error ≈ 3.1%, so 12% is ~4 sigma. This is
             // the test that would catch a solo payout that was secretly worth more or less than a
             // block, which is the single easiest thing to get wrong here.
@@ -463,19 +476,66 @@ class MiningChainTest {
         }
 
         @Test
-        @DisplayName("only the fee changes expected income — never the scheme or the pool's size")
-        void onlyTheFeeMovesIncome() {
+        @DisplayName("the fee and the SCHEME move income — pool size still never does")
+        void onlyTheFeeAndSchemeMoveIncome() {
             for (MiningPool pool : Pools.all()) {
                 SoloSave save = onPool(100, pool.id());
+                // ⚠ Two factors since 2026-07-27, where there was one. Blocks now pay their fees to
+                // whoever mined them, and PPLNS divides those among the pool while classic PPS does
+                // not — a PPS pool sells a fixed price per share, which cannot depend on what a
+                // block it may never find happened to carry. So the scheme is a real income axis
+                // now. Pool SIZE is still not one, which is the half of the old identity that has
+                // to survive: it moves the payout interval and cancels out of the rate.
+                double feeShare = pool.scheme() == PoolScheme.PPLNS
+                        ? (Balance.BLOCK_SUBSIDY_MINOR_UNITS + Balance.expectedBlockFeesMinorUnits())
+                                / Balance.BLOCK_SUBSIDY_MINOR_UNITS
+                        : 1.0d;
                 long expected = Math.round(
                         100 * Balance.SELF_MINING_MINOR_UNITS_PER_CYCLE_HOUR
-                                * (1 - pool.fee()) / (1 - Balance.POOL_FEE));
-                // The identity the whole design rests on: payout x rate cancels the fraction out.
-                // If a scheme ever started changing income, the pool list would become a ladder.
+                                * (1 - pool.fee()) / (1 - Balance.POOL_FEE) * feeShare);
                 assertThat(MiningRules.expectedMinorUnitsPerHour(save.rig, save.chain))
                         .as("%s", pool.name())
                         .isCloseTo(expected, within(2L));
             }
+        }
+
+        @Test
+        @DisplayName("⚠ pool SIZE is still not an income axis, only a variance one")
+        void poolSizeStillDoesNotMoveIncome() {
+            // The half of the old identity that had to survive the fee change. Two PPLNS pools of
+            // very different sizes and the same scheme must pay the same rate once their fees are
+            // accounted for — if size ever started moving income the roster would be a ladder and
+            // the choice would collapse to "join the biggest".
+            List<MiningPool> pplns = Pools.all().stream()
+                    .filter(pool -> pool.scheme() == PoolScheme.PPLNS)
+                    .toList();
+            assertThat(pplns).hasSizeGreaterThan(1);
+            for (MiningPool pool : pplns) {
+                SoloSave save = onPool(100, pool.id());
+                double perHourAtZeroFee = MiningRules.expectedMinorUnitsPerHour(save.rig, save.chain)
+                        / (1 - pool.fee());
+                double reference = 100 * Balance.SELF_MINING_MINOR_UNITS_PER_CYCLE_HOUR
+                        / (1 - Balance.POOL_FEE)
+                        * (Balance.BLOCK_SUBSIDY_MINOR_UNITS + Balance.expectedBlockFeesMinorUnits())
+                        / Balance.BLOCK_SUBSIDY_MINOR_UNITS;
+                assertThat(perHourAtZeroFee).as("%s", pool.name()).isCloseTo(reference, within(4.0d));
+            }
+        }
+
+        @Test
+        @DisplayName("the expected fee total is derived, and matches what blocks actually pay")
+        void expectedFeesMatchReality() {
+            SoloSave save = rig(0, MiningMode.POOLED);
+            long total = 0;
+            int blocks = 20_000;
+            for (long height = 1; height <= blocks; height++) {
+                total += MempoolRules.blockFeesMinorUnits(save, height);
+            }
+            // Balance derives this from the two distributions rather than pasting a measured
+            // number, so that a change to the fee ladder or the block limit cannot leave the
+            // published income expectation quietly describing the old economy.
+            assertThat(total / (double) blocks)
+                    .isCloseTo(Balance.expectedBlockFeesMinorUnits(), within(30.0d));
         }
 
         @Test
@@ -700,8 +760,11 @@ class MiningChainTest {
             save.rig.miningMode = MiningMode.SOLO.name();
             assertThat(MiningRules.feeOf(save.rig)).isZero();
             assertThat(MiningRules.payoutFraction(save.rig, save.chain)).isEqualTo(1.0d);
+            // Subsidy AND the block's fees: a solo miner keeps the whole block, which since
+            // 2026-07-27 means both halves of what a block is worth.
             assertThat(MiningRules.payoutMinorUnits(save.rig, save.chain))
-                    .isEqualTo(Balance.BLOCK_SUBSIDY_MINOR_UNITS);
+                    .isEqualTo(Balance.BLOCK_SUBSIDY_MINOR_UNITS
+                            + Balance.expectedBlockFeesMinorUnits());
         }
     }
 

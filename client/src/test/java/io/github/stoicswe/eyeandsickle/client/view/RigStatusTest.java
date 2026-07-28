@@ -33,6 +33,12 @@ class RigStatusTest {
                 new SaveStore(dir.resolve("s.json")), "op", CLOCK));
     }
 
+    /** How much a block's fees add to a reward that includes them. See MiningRules.rewardBase. */
+    private static final double FEE_EXPOSURE =
+            (io.github.stoicswe.eyeandsickle.solo.Balance.BLOCK_SUBSIDY_MINOR_UNITS
+                            + io.github.stoicswe.eyeandsickle.solo.Balance.expectedBlockFeesMinorUnits())
+                    / io.github.stoicswe.eyeandsickle.solo.Balance.BLOCK_SUBSIDY_MINOR_UNITS;
+
     @Nested
     @DisplayName("income projection")
     class Income {
@@ -65,7 +71,10 @@ class RigStatusTest {
             // one by exactly the pool fee they are no longer paying. It reads the engine now.
             assertThat(soloRate).isNotEqualTo(pooledRate);
             assertThat(Double.parseDouble(soloRate)).isGreaterThan(Double.parseDouble(pooledRate));
-            assertThat(Double.parseDouble(soloRate)).isCloseTo(40.0d / 0.98d, within(0.05d));
+            // ⚠ Two factors since 2026-07-27. The default pool is pay-per-share, so it neither
+            // waives its 2% nor passes on block fees; solo gets both. See MiningRules.rewardBase.
+            assertThat(Double.parseDouble(soloRate))
+                    .isCloseTo(40.0d / 0.98d * FEE_EXPOSURE, within(0.05d));
         }
 
         @Test
@@ -79,10 +88,15 @@ class RigStatusTest {
             s.setMiningPool("small-hours");
             double cheap = Double.parseDouble(RigStatus.of(s).incomePerHour());
 
-            // A 3.50% pool and a 0.50% pool are three percent apart, and the strip has to say so —
-            // it is the only place a player sees their rate without opening a panel.
+            // ⚠ These two differ by MORE than their fees now, and deliberately: meridian is
+            // pay-per-share and small-hours is PPLNS, so only the second one is paid any of the
+            // block fees its pool collects. The strip has to show the whole gap — it is the only
+            // place a player sees their rate without opening a panel.
             assertThat(cheap).isGreaterThan(dear);
-            assertThat(cheap - dear).isCloseTo(40.0d * 0.03d / 0.98d, within(0.1d));
+            double dearExpected = 40.0d * (1 - 0.035d) / 0.98d;
+            double cheapExpected = 40.0d * (1 - 0.005d) / 0.98d * FEE_EXPOSURE;
+            assertThat(dear).isCloseTo(dearExpected, within(0.1d));
+            assertThat(cheap).isCloseTo(cheapExpected, within(0.1d));
         }
 
         @Test

@@ -164,8 +164,24 @@ public final class MempoolRules {
      * the contested ones — never the whole block, which would make the queue theatre.
      */
     public static int slotsFor(SoloSave save) {
+        return slotsAgainst(backlog(save));
+    }
+
+    /**
+     * The same rule, against a stated queue depth — what the explorer's projections pack with.
+     *
+     * <h2>⚠ This exists because the projection and the confirmation had drifted apart</h2>
+     *
+     * {@code ChainExplorer.mempool} used to compute its own {@code slots - npc} with no floor, so on
+     * any block where the derived backlog reached the limit it reported <b>zero</b> slots for the
+     * player while {@link #confirmInto} — using {@code slotsFor} — went on giving them one. Rendered:
+     * a 0.30 EC priority transaction whose card read "block +3, ~41:59" and which then confirmed in
+     * the very next block. That is the explorer disagreeing with the engine about the player's own
+     * money, which is exactly the failure {@code docs/design/04-mining.md} §3.1 trains players to
+     * read as evidence of an intruder. One rule, called from both.
+     */
+    public static int slotsAgainst(int waiting) {
         int slots = Balance.BLOCK_TRANSACTION_LIMIT;
-        int waiting = backlog(save);
         int free = Math.max(0, slots - waiting);
         // At least one contested slot, always. A mempool that could shut a paying transaction out
         // entirely for an arbitrary number of blocks turns a purchase into a wait of unbounded
@@ -181,6 +197,80 @@ public final class MempoolRules {
                 return;
             }
         }
+    }
+
+    // ================================================================== what a block carries
+
+    /**
+     * How many transactions a block at this height carries.
+     *
+     * <h2>⚠ This lives in the rules, not in the explorer, since 2026-07-27</h2>
+     *
+     * It used to be {@code ChainExplorer.bodySize} — presentation, deriving a number for a card.
+     * Then {@link #blockFeesMinorUnits} started <b>paying</b> that number's worth of fees to whoever
+     * mined the block, and a figure the payout is computed from cannot live in a class whose own
+     * charter is "everything here is DERIVED, nothing here decides anything". The explorer now asks
+     * for it. Same value, one owner.
+     *
+     * <p>Never a full block and never empty: a chain whose every block was full would have no fee
+     * market, because the clearing price could never fall.
+     */
+    public static int blockTransactionCount(SoloSave save, long height) {
+        if (save.chain == null) {
+            return 0;
+        }
+        long mixed = mix(save.chain.blockSeed ^ (height * 0x9E3779B97F4A7C15L) ^ 0x5BF0_3635L);
+        return 12 + (int) Math.floorMod(mixed, Balance.BLOCK_TRANSACTION_LIMIT - 12L);
+    }
+
+    /**
+     * What the {@code index}-th piece of network traffic in this block paid to be included.
+     *
+     * <p>⚠ Capped at the priority rate, never above it. A network population that routinely outbid
+     * the most a player can pay would break {@code FeeTier}'s promise from the other side: the top
+     * tier would buy nothing and the mechanic would read as broken rather than as competitive.
+     */
+    public static long npcFeeMinorUnits(SoloSave save, long height, int index) {
+        if (save.chain == null) {
+            return 0L;
+        }
+        long mixed = mix(save.chain.blockSeed
+                ^ (height * 0x9E3779B97F4A7C15L)
+                ^ ((index + 1L) * 0xD1B5_4A32_D192_ED03L));
+        long span = Balance.FEE_PRIORITY_MINOR_UNITS - Balance.FEE_ECONOMY_MINOR_UNITS + 1;
+        return Balance.FEE_ECONOMY_MINOR_UNITS + Math.floorMod(mixed, span);
+    }
+
+    /**
+     * Everything the miner of this block collects in fees, on top of the subsidy.
+     *
+     * <h2>⚠ This is income, so read the note in {@code Balance.chainNetworkHashrate} first</h2>
+     *
+     * A real miner is paid {@code subsidy + fees}, and until 2026-07-27 this game paid only the
+     * subsidy — the fees the mempool charged were debited from players and then vanished, which made
+     * the fee market a pure sink and contradicted the block card that had been printing a fee total
+     * all along. Paying it out is what makes that card mean something.
+     *
+     * <p>It averages about <b>1690 minor units</b> — roughly 10.6% of the 16 000 subsidy — because a
+     * block carries ~105 transactions at a mean fee of ~16. That is a real change to mining income
+     * and {@code Balance} absorbs it rather than letting it move the {@code design/03} anchor.
+     *
+     * <h2>⚠ The total is the derived one, even when the player's own rows are in the block</h2>
+     *
+     * A player's transaction <em>displaces</em> a piece of network traffic rather than adding to the
+     * block, so the count — and therefore this total — does not move when they have something in it.
+     * The alternative is a fee total that changes depending on who is looking, and the gain from the
+     * displacement is bounded by one transaction's fee against a fee they had to pay to get in. It
+     * is not a lever: sending yourself transactions to inflate a block you have a 4% chance of
+     * winning costs strictly more than it can return.
+     */
+    public static long blockFeesMinorUnits(SoloSave save, long height) {
+        int count = blockTransactionCount(save, height);
+        long total = 0L;
+        for (int i = 0; i < count; i++) {
+            total += npcFeeMinorUnits(save, height, i);
+        }
+        return total;
     }
 
     /** splitmix64 finalizer. Same mixing the save's own Rng uses, so the two look alike. */

@@ -114,25 +114,125 @@ public class EyeAndSickleClient extends Application {
         // been realised, and the failure is an IllegalStateException at the worst possible moment.
         primaryStage.initStyle(javafx.stage.StageStyle.UNDECORATED);
         primaryStage.setTitle("The Eye and Sickle");
-        primaryStage.setMinWidth(UI_MIN_WIDTH);
-        primaryStage.setMinHeight(UI_MIN_HEIGHT);
         primaryStage.setOnCloseRequest(e -> shutdown());
 
+        // ⚠ Both of these must be set before the Stage is ever shown full screen, and neither can be
+        // set from the Settings panel later without a frame where the default applies.
+        //
+        // (1) JavaFX's built-in full-screen exit key is ESCAPE, and it CONSUMES the event. Escape is
+        // this client's pause menu (`deck.handleEscape`), so leaving the default in place means a
+        // player in full screen presses Escape expecting to pause and instead drops out of full
+        // screen with no menu — and the deck's own scene filter never sees the key at all.
+        // (2) The "Press ESC to exit full screen" toast is OS-drawn chrome laid over a deck whose
+        // entire premise (§0) is that there is none. An empty hint suppresses it.
+        primaryStage.setFullScreenExitKeyCombination(javafx.scene.input.KeyCombination.NO_MATCH);
+        primaryStage.setFullScreenExitHint("");
+
         showMainMenu();
+        applyWindowSettings();
         primaryStage.show();
     }
 
-    /**
-     * The narrowest the deck is supported at.
-     *
-     * <p>{@code ui-design-language.md} §10 criterion 9 asks the layout to hold from 1280 to 2560px.
-     * The floor here is lower because §3 specifies what happens below 900px — the rail hides and the
-     * main area collapses to one column — and a minimum that forbade reaching that breakpoint would
-     * make the responsive behaviour unreachable and therefore untestable.
-     */
-    private static final double UI_MIN_WIDTH = 860;
+    /** The narrowest the deck is supported at. See {@code ui/WindowSize.MIN_DECK_WIDTH}. */
+    private static final double UI_MIN_WIDTH =
+            io.github.stoicswe.eyeandsickle.client.ui.WindowSize.MIN_DECK_WIDTH;
 
-    private static final double UI_MIN_HEIGHT = 560;
+    private static final double UI_MIN_HEIGHT =
+            io.github.stoicswe.eyeandsickle.client.ui.WindowSize.MIN_DECK_HEIGHT;
+
+    /** The live scaler for whichever Scene is showing, so a settings change reaches it. */
+    private io.github.stoicswe.eyeandsickle.client.ui.UiScale uiScale;
+
+    /**
+     * Puts the window size, the UI scale and full screen from the profile onto the Stage.
+     *
+     * <h2>Order matters, twice</h2>
+     *
+     * The scale is applied <b>before</b> the size, because the Stage minimum is derived from it —
+     * setting a 1280px width while the minimum is still 1720 (860 × 200%) silently clamps the width
+     * and the player's chosen preset never takes. And full screen is applied <b>last</b>, because
+     * setting a size on a full-screen Stage is either ignored or takes effect on exit, depending on
+     * the platform; applying it last means the size is what the window returns to.
+     *
+     * <p>⚠ The size is clamped to the screen's <em>visual</em> bounds rather than its total bounds.
+     * An undecorated Stage sized past the usable area has no OS chrome to drag it back with, so a
+     * 4K preset picked on a 1080p display would put the deck's own controls off-screen and there
+     * would be no way to reach them.
+     */
+    private void applyWindowSettings() {
+        if (stage == null) {
+            return;
+        }
+        int percent = io.github.stoicswe.eyeandsickle.client.ui.UiScale
+                .sanitise(profile.settings().uiScalePercent);
+        if (uiScale != null) {
+            uiScale.setPercent(percent);
+        }
+        double factor = percent / 100.0d;
+
+        // ⚠ The chosen resolution is the VIEWPORT's, not the window's (2026-07-27). The casing is a
+        // machine around a screen, so it sits OUTSIDE the picture: choosing 1920 × 1080 has to give
+        // the deck 1920 × 1080 and put the casing beyond it. Before this the casing was subtracted
+        // from the resolution, so a 20px casing turned a 1920-wide choice into an 1880-wide deck and
+        // the number in Settings described something the player never got.
+        io.github.stoicswe.eyeandsickle.client.ui.BezelStyle casing =
+                io.github.stoicswe.eyeandsickle.client.ui.BezelStyle
+                        .byId(profile.settings().bezel)
+                        .orElse(io.github.stoicswe.eyeandsickle.client.ui.BezelStyle.OFF);
+        // Both sides, and scaled with everything else — the casing is drawn inside the scaled deck,
+        // so a bezel that ignored the factor would shrink as the interface grew.
+        double chrome = 2 * casing.margin() * factor;
+
+        stage.setMinWidth(UI_MIN_WIDTH * factor + chrome);
+        stage.setMinHeight(UI_MIN_HEIGHT * factor + chrome);
+
+        javafx.geometry.Rectangle2D usable = javafx.stage.Screen.getPrimary().getVisualBounds();
+        io.github.stoicswe.eyeandsickle.client.ui.WindowSize size =
+                io.github.stoicswe.eyeandsickle.client.ui.WindowSize
+                        .byId(profile.settings().windowSize)
+                        .orElse(io.github.stoicswe.eyeandsickle.client.ui.WindowSize.HD_1280);
+
+        if (!stage.isFullScreen() && !stage.isMaximized()) {
+            double width = Math.max(stage.getMinWidth(),
+                    Math.min(size.width() + chrome, usable.getWidth()));
+            double height = Math.max(stage.getMinHeight(),
+                    Math.min(size.height() + chrome, usable.getHeight()));
+            stage.setWidth(width);
+            stage.setHeight(height);
+            // Re-centred, because a window that grew from its top-left corner can end up mostly off
+            // the bottom-right of the screen — and there is no title bar to drag it back by until
+            // the top strip is on screen.
+            stage.setX(usable.getMinX() + (usable.getWidth() - width) / 2);
+            stage.setY(usable.getMinY() + (usable.getHeight() - height) / 2);
+        }
+
+        stage.setFullScreen(profile.settings().fullScreen);
+    }
+
+    /**
+     * Builds a Scene whose content is drawn through the UI scaler.
+     *
+     * <h2>⚠ Every Scene the client ever sets, without exception</h2>
+     *
+     * The menu, the boot sequence and the deck are three separate Scenes on one Stage, and the
+     * scaler lives on the Scene rather than on the Stage — so one that skipped this would snap back
+     * to 100% when the player walked through it. The boot sequence is the one that makes this
+     * visible: it sits between the menu and the deck for a few seconds, and at 150% it was the only
+     * screen that was not.
+     */
+    private Scene scaled(javafx.scene.Parent content, double width, double height) {
+        // A Parent that is not a Region cannot be given a size, and everything the client roots a
+        // Scene at is a Region. Guarding rather than casting blind, because the failure mode is a
+        // ClassCastException at a screen transition rather than at startup.
+        if (!(content instanceof javafx.scene.layout.Region region)) {
+            uiScale = null;
+            return new Scene(content, width, height);
+        }
+        uiScale = new io.github.stoicswe.eyeandsickle.client.ui.UiScale(region);
+        uiScale.setPercent(io.github.stoicswe.eyeandsickle.client.ui.UiScale
+                .sanitise(profile.settings().uiScalePercent));
+        return new Scene(uiScale.root(), width, height);
+    }
 
     /**
      * The menu, which is where the game starts.
@@ -167,7 +267,7 @@ public class EyeAndSickleClient extends Application {
             }
         };
 
-        Scene scene = new Scene(MainMenuView.create(profile, themes, slots, actions), 980, 760);
+        Scene scene = scaled(MainMenuView.create(profile, themes, slots, actions), 980, 760);
         stage.setScene(scene);
         themes.adopt(scene);
         themes.applyAll();
@@ -182,7 +282,8 @@ public class EyeAndSickleClient extends Application {
         dialog.initStyle(javafx.stage.StageStyle.UNDECORATED);
         dialog.setTitle("Settings");
         dialog.setHeaderText("Settings");
-        dialog.getDialogPane().setContent(Views.settings(profile, themes, this::applyDeskSettings));
+        dialog.getDialogPane().setContent(
+                Views.settings(profile, themes, this::applyDeskSettings, null, this::applyWindowSettings));
         dialog.getDialogPane().getButtonTypes().add(javafx.scene.control.ButtonType.CLOSE);
         themes.adopt(dialog.getDialogPane().getScene());
         dialog.showAndWait();
@@ -318,7 +419,7 @@ public class EyeAndSickleClient extends Application {
         root.getChildren().addAll(boot, boot.hint());
         javafx.scene.layout.StackPane.setAlignment(boot.hint(), javafx.geometry.Pos.BOTTOM_CENTER);
 
-        Scene scene = new Scene(root, stage.getWidth() > 0 ? stage.getWidth() : 1280,
+        Scene scene = scaled(root, stage.getWidth() > 0 ? stage.getWidth() : 1280,
                 stage.getHeight() > 0 ? stage.getHeight() : 800);
         stage.setScene(scene);
         themes.adopt(scene);
@@ -446,7 +547,7 @@ public class EyeAndSickleClient extends Application {
                 session, shell, profile, factories, deckActions());
         deck.attach(stage);
 
-        Scene scene = new Scene(deck.root(), 1280, 800);
+        Scene scene = scaled(deck.root(), 1280, 800);
         stage.setScene(scene);
         themes.adopt(scene);
         themes.applyAll();
@@ -531,7 +632,9 @@ public class EyeAndSickleClient extends Application {
             case DEFENSE -> Views.defense(session);
             case IDENTITY -> Views.identity(session);
             case SWITCHER -> Views.switcher(registry);
-            case SETTINGS -> Views.settings(profile, themes, this::applyDeskSettings, this::renameOperator);
+            case SETTINGS -> Views.settings(
+                    profile, themes, this::applyDeskSettings, this::renameOperator,
+                    this::applyWindowSettings);
             case MAN -> ManView.create(terms);
             case LOG -> LogView.create(session);
             case MARKET -> MoreViews.market(session);

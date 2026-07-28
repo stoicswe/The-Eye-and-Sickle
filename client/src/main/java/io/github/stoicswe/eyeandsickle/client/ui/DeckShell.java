@@ -98,13 +98,31 @@ public final class DeckShell {
     private final BorderPane deckRoot = new BorderPane();
     private final PauseMenu pause;
     private final Notifications notices;
-    private final HBox topStrip = new HBox();
+    /**
+     * The top status strip. Wraps to a second row when the deck is too narrow for one.
+     *
+     * <p>An HBox until 2026-07-27, which squeezed and then clipped its cells rather than wrapping —
+     * at 200% UI scale in a 1280px window the deck is 640 logical pixels wide and most of the strip
+     * was simply gone. See {@code widgets/WrapStrip} for why neither HBox nor FlowPane alone does
+     * what §3 asks for.
+     */
+    private final io.github.stoicswe.eyeandsickle.client.ui.widgets.WrapStrip topStrip =
+            new io.github.stoicswe.eyeandsickle.client.ui.widgets.WrapStrip();
     private final VBox rail = new VBox(UiTokens.SPACE_6);
     private final VBox launcher = new VBox(3);
     private final Greeble commandGreeble = new Greeble(28);
     private final io.github.stoicswe.eyeandsickle.client.ui.widgets.Substrate substrate =
             new io.github.stoicswe.eyeandsickle.client.ui.widgets.Substrate();
     private final CrtOverlay crt = new CrtOverlay();
+
+    /**
+     * The optional drawn casing (§9, amended 2026-07-27). Off by default.
+     *
+     * <p>⚠ Below {@link #crt} in the stack, deliberately. The CRT layer is the screen the interface
+     * is displayed <em>on</em>; a casing is a physical object in front of the screen, so a scanline
+     * that ran across it would put the artefact on the wrong side of the glass.
+     */
+    private final Bezel bezel = new Bezel();
 
     private final KeyValue operator = KeyValue.of("Operator", "—");
 
@@ -220,7 +238,7 @@ public final class DeckShell {
         // deck. That is the whole point of it: it is the screen the interface is being displayed on,
         // and an artefact that stopped at the edge of a dialog would give the dialog away as not
         // being part of the same picture. It is mouse-transparent, or it would eat every click.
-        root.getChildren().addAll(deckRoot, notices, pause, crt);
+        root.getChildren().addAll(deckRoot, notices, pause, bezel, crt);
 
         buildRail();
         applyPlacementSetting();
@@ -303,28 +321,28 @@ public final class DeckShell {
 
     private Region buildTop() {
         topStrip.getStyleClass().add("es-top");
-        topStrip.setAlignment(Pos.CENTER_LEFT);
 
         Region spacer = new Region();
         spacer.getStyleClass().add("es-top-spacer");
-        HBox.setHgrow(spacer, Priority.ALWAYS);
 
         refusal.getStyleClass().addAll("es-label", "es-value-warn");
 
-        topStrip.getChildren().addAll(
-                cell(stacked(operator, operatorHex)),
-                // The thermometer and the band name together. §2.2.4 requires the name; the
-                // thermometer adds "how close to the next band", which the name cannot carry.
-                cell(thermo, heat),
-                cell(noise),
-                cell(load),
-                cell(thermal),
-                cell(refusal),
-                spacer,
-                HazardBand.top(96),
-                cell(stacked(balance, income)),
-                cell(stacked(clock, gameClock)),
-                stageControls());
+        topStrip.add(cell(stacked(operator, operatorHex)));
+        // The thermometer and the band name together. §2.2.4 requires the name; the thermometer
+        // adds "how close to the next band", which the name cannot carry.
+        topStrip.add(cell(thermo, heat));
+        topStrip.add(cell(noise));
+        topStrip.add(cell(load));
+        topStrip.add(cell(thermal));
+        topStrip.add(cell(refusal));
+        topStrip.setSpacer(spacer);
+        topStrip.add(spacer);
+        topStrip.add(HazardBand.top(96));
+        topStrip.add(cell(stacked(balance, income)));
+        topStrip.add(cell(stacked(clock, gameClock)));
+        // ⚠ Pinned, never wrapped. These are the only way to minimise, maximise or close an
+        // undecorated Stage, so they must not migrate to a second row as the window narrows.
+        topStrip.setPinned(stageControls());
 
         // The top strip is the drag handle for the whole undecorated Stage.
         topStrip.setOnMousePressed(e -> {
@@ -846,6 +864,17 @@ public final class DeckShell {
     }
 
     public void applyScreenSettings() {
+        // ⚠ The casing and the INSET are set together and must stay together. The frame is drawn in
+        // a margin and the deck is pushed in by exactly that margin — that pairing is condition 2 of
+        // the §9 amendment (a bezel may not cost legibility), and setting one without the other
+        // either paints the casing over the top strip or leaves a blank band around the deck.
+        BezelStyle casing = BezelStyle.byId(profile.settings().bezel).orElse(BezelStyle.OFF);
+        bezel.setStyle(casing);
+        javafx.scene.layout.StackPane.setMargin(
+                deckRoot, new javafx.geometry.Insets(casing.margin()));
+        javafx.scene.layout.StackPane.setMargin(
+                notices, new javafx.geometry.Insets(casing.margin()));
+
         substrate.setMode(WallpaperMode.byId(profile.settings().wallpaper).orElse(WallpaperMode.DRIFT));
         substrate.setAberration(profile.settings().crtAberration);
         crt.setEdgeSource(this::glitchEdges);

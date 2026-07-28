@@ -33,6 +33,8 @@ Blade Runner / cyberpunk operator's console, **without CRT effects and without a
 
 The named failure mode: **a competent dark-mode developer tool.** If a screen would not look out of place in a JetBrains IDE, it has failed, regardless of how correct the colors are.
 
+> **⚠ Amended twice, and the thesis above still holds.** CRT artefacts were permitted on 2026-07-26 (§9.1) and a drawn casing on 2026-07-27 (§9.2). Both are **off by default**, so the four things above still carry the mood for every player who never opens Settings — which is what this paragraph is actually asserting. What changed is that a player who *wants* the tube and the casing can have them; what did not change is that the interface may never depend on them. Anything that reads as a competent dark-mode developer tool with the artefacts switched off has still failed.
+
 ---
 
 ## 2. Tokens
@@ -247,7 +249,7 @@ Any of these individually undoes the look. Treat as build-blocking.
 - Gradient fills — hazard stripes and the sweep bar are the only gradients, both hard-edged or near-transparent
 - Icon fonts and Material/Lucide icon sets — glyphs are drawn from ASCII and box-drawing characters
 - Removing greeble because it "doesn't do anything"
-- **Bezel** — a drawn monitor casing, screen curvature, or any frame implying the interface sits inside a pictured device. Still cut, without exception.
+- ~~**Bezel**~~ — **amended 2026-07-27, see §9.2.** A drawn casing is now permitted as an opt-in setting under §9.1's four conditions. *Screen curvature* is unchanged and still cut (§9.1 permits only the rim aberration, never a warp).
 - **Vignette** — corner and edge darkening. Still cut: it dims real content by position rather than by meaning, and the corners are where tiled windows go.
 - Any screen artefact that is **not** switchable off by the player (see §9.1)
 
@@ -286,6 +288,42 @@ What the slider does scale is the artefact curved glass actually produces: **rad
 ⚠ **Chromatic aberration is scoped, and the scope is honest.** Full-scene aberration would mean snapshotting and recompositing the whole scene every frame; there are no shaders available. It is applied to the **desk wallpaper**, which is text and can afford three layers, and to the **edges of glitch bands**, which is where a tape artefact bleeds colour anyway. It is not applied to the terminal, the tables or the meters, and the setting's own help text says so.
 
 **The greeble budget now has a second consumer.** §4 budgets "roughly 10–15% of pixels" to meaningless texture. The desk wallpaper is greeble at desk scale and spends from that same budget, which is why it is held near 10% occupancy of cells, drawn in `dim-3` at ~0.34 opacity, and **never in amber** — §2.1's accent reservation matters most on the largest surface in the client.
+
+---
+
+### 9.2 Bezel — permitted as a casing, on the same conditions (amended 2026-07-27)
+
+**§9 cut bezel and §9.1 pointedly kept it cut when four other artefacts were permitted.** It is permitted now on explicit direction, by the same mechanism and under §9.1's identical four conditions. Six styles ship — `Off`, `Hairline`, `Corner brackets`, `Casing`, `Cable loom`, `Ruled edge` — in Settings → Screen → **Casing**.
+
+**`Casing` and `Cable loom` are the machine ones.** Casing carries vent slots, corner fixings, a port block down one flank and a stamped designator plate; the loom is three cable runs dressed at different inset lanes, turning at right angles, with junction clamps at the bends and terminator blocks where each run ends. Everything on both is a flat hard-edged shape in a palette token — vents and ports are the void showing *through* the band rather than marks painted on it, which is what makes them read as holes in a panel.
+
+> **⚠ The detailing is asymmetric on purpose.** Vents along the top, ports down the left, the plate bottom-right. Real equipment has a front, and a border with identical trim on all four sides reads as a *picture frame* — which is precisely what §9 objected to about bezels. Asymmetry is what makes it read as a fabricated object instead of a decoration around a picture.
+
+⚠ The junction clamps are the **one** place the casing takes the accent, and it keeps its meaning: a live connector is the only part of a machine's shell that is actually powered, and §2.1 reserves amber for live. Nothing else on the casing may borrow it.
+
+### The resolution is the viewport's, and the casing is outside it (2026-07-27)
+
+Settings → Window sets the **screen inside the machine**, not the OS window. Choosing 1920 × 1080 gives the deck 1920 × 1080 and the casing is added beyond it, so the window the desktop has to find room for is `(resolution + 2 × casing) × scale`. Measured: a 1280 × 800 viewport with the 26px `Casing` produces a 1332 × 852 window.
+
+Before this the casing was subtracted *from* the resolution — a 20px casing turned a 1920-wide choice into an 1880-wide deck, and the number in Settings described something the player never actually got.
+
+⚠ **This decoupled the UI scale from the viewport, and that is a real simplification.** The window used to be sized *to* the resolution with the deck laid out at `physical / scale`, so 1280 × 800 at 150% gave the deck 853 logical pixels and fell under §3's 860 floor — which is why Settings had to hide size/scale combinations. Now the window is sized *from* the viewport: the deck always gets the full resolution in layout units and the scale only changes how large those pixels are drawn. Every preset clears the floor at every scale, and the single remaining constraint is whether the resulting window fits the display.
+
+What makes this safe rather than a hole in the list is that condition 2 is **structural here, not maintained by hand**:
+
+> **⚠ The casing is drawn in a MARGIN, and the deck is inset by exactly that margin.** It never overlays content. A casing painted over the top strip would hide the compute readout, which is client pillar **C2** — and C2 is the one thing §3's layout was rearranged to make impossible to lose. `BezelStyle.margin()` is both the inset applied to the deck and the entire width the frame has to draw in, so a style that wanted to draw wider than its own margin would have to change the inset too. `BezelStyleTest.everyStyleOwnsAMargin` fails the build on a style with no margin.
+
+The other three conditions carry over unchanged:
+
+1. **Off by default, switchable off permanently.** `Off` is the shipped look. Asserted against a fresh profile, not just against the enum.
+2. **No blur, no glow.** Flat fills and hairlines with hard edges — the same vocabulary the panels already use. Unchanged and still machine-checked.
+3. **Nothing here moves**, so §5 and `prefers-reduced-motion` have nothing to suppress. A casing is a physical object and physical objects do not animate.
+
+**⚠ Vignette is still cut, and this does not reopen it.** The argument against a vignette was never about frames — it is that it *"dims real content by position rather than by meaning, and the corners are where tiled windows go."* A casing in a margin dims nothing, because no content is ever underneath it. The two are not the same request and the reasoning does not transfer.
+
+**⚠ Screen curvature is still cut too.** §9.1 permits the radial rim *aberration* and explicitly not a warp, because a real barrel distortion needs a per-pixel remap and would put every click somewhere other than where the player sees the control. A casing does not bring that back — it is drawn beside the interface, not over it, and it is mouse-transparent besides.
+
+**Corner brackets are open in the middle deliberately.** A frame that closes on all four sides is the thing §9 objected to in the first place: it puts the interface inside a *picture of a device*. The bracket style leaves the middle of each run open so it reads as an overlay on a machine rather than as a photograph of one.
 
 ---
 

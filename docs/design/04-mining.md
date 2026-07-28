@@ -64,17 +64,28 @@ Both are self-mining and both keep **I4** — silent, unseizable, zero heat. Exp
 
 Pooled mining is a choice of **pool**, not just of mode. Five operate on this chain (`solo/Pools.java`):
 
-| Pool | Scheme | Fee | Chain | Pays | EC/hr @ 94 cy |
-|---|---|---|---|---|---|
-| **THE COMMONS** *(default)* | PPS | 2.00% | 22% | every 30s | 37.60 |
-| **MERIDIAN CLEARING** | PPS | 3.50% | 32% | every 15s | 37.02 |
-| **PALE LANTERN** | PPS | 2.50% | 7% | every 45s | 37.41 |
-| **GLASS TEETH** | PPLNS | 1.00% | 18% | every 1.3h | 37.98 |
-| **SMALL HOURS** | PPLNS | 0.50% | 12% | every 1.9h | 38.18 |
+| Pool | Scheme | Fee | Chain | Pays | Block fees | EC/hr @ 100 cy |
+|---|---|---|---|---|---|---|
+| **THE COMMONS** *(default)* | PPS | 2.00% | 22% | every 30s | no | 40.00 |
+| **MERIDIAN CLEARING** | PPS | 3.50% | 32% | every 15s | no | 39.39 |
+| **PALE LANTERN** | PPS | 2.50% | 7% | every 45s | no | 39.80 |
+| **GLASS TEETH** | PPLNS | 1.00% | 18% | every 1.3h | **yes** | 44.67 |
+| **SMALL HOURS** | PPLNS | 0.50% | 12% | every 1.9h | **yes** | 44.90 |
 
 > **⚠ Nothing on this list dominates anything else, and the ordering above is the proof.** As the fee falls, income rises *and the interval lengthens*. The cheapest pool on the chain pays least often — SMALL HOURS is nearly as lumpy as mining alone. A player who reads only the fee column picks the pool that behaves most like the thing they were trying to avoid, which is a true lesson about real pools.
 
-**The two axes are fee and steadiness, and they come from different places.**
+#### The third axis: fee exposure (2026-07-27)
+
+Blocks pay their **transaction fees** to whoever mines them, worth **+10.55%** on top of the subsidy. Only the schemes paid out of real blocks can pass that on, and that is a genuine distinction rather than a tuning choice:
+
+- **PPLNS** pays out of blocks the pool *actually won*, so whatever those blocks carried in fees is part of what there is to divide. It gets them.
+- **Classic PPS** sells a fixed price per accepted share, payable whether or not anybody found a block at all — that is the entire product. A fixed price cannot depend on the fees of a block that may never exist, so it does not get them. Pools that *do* pass fees through under a share model are called **PPS+**, precisely because it is a different product with a different name.
+
+So the roster now trades **income, steadiness, and fee exposure**. A pay-per-share miner takes ~10.5% less expected income for a payout that cannot miss; a PPLNS miner takes the block's luck in both directions; solo takes all of it. `MiningChainTest.onlyTheFeeAndSchemeMoveIncome` pins the arithmetic and `poolSizeStillDoesNotMoveIncome` pins the half of the old identity that had to survive — **pool size is still a variance knob and never an income one**, or the list becomes a ladder and the choice collapses to "join the biggest".
+
+⚠ This is why the table's EC/hr column splits into two clusters ~11.7% apart, and why `03` §1.2 says a playtest run must bucket on the **scheme** rather than on the mode.
+
+**The two original axes are fee and steadiness, and they come from different places.**
 
 - **Fee is the only thing that changes expected income.** Payout × rate cancels the payout fraction out entirely (`MiningRules.payoutFraction`), so scheme and pool size change *nothing* about what you earn.
 - **Steadiness comes from the scheme.** Under **PPS** it comes from the pool's share target (vardiff) and is therefore *independent of pool size* — a one-rack PPS pool smooths as well as the biggest on the chain. Under **PPLNS** you are paid only when the **pool** finds a block, so **pool size is the variance knob**: 5% of the chain is one payout every three hours.
@@ -96,6 +107,12 @@ The LEDGER window is a block explorer: the chain's last two dozen blocks as card
 **Ethereum's shapes, this chain's mechanics.** Addresses are `0x` + 40 hex, hashes `0x` + 64, and the block header carries **pre-Merge Ethereum's** fields — `number`, `hash`, `parentHash`, `nonce`, `miner`, `difficulty`, `gasUsed`/`gasLimit`, `size`, `extraData`. Pre-Merge Ethereum *was* a proof-of-work chain with a miner taking a block reward, so none of those fields is borrowed dishonestly. Deliberately absent: contract addresses, logs, uncles, a fee market. Gas is real arithmetic rather than decoration — every transaction here is a plain value transfer at the 21 000 gas Ethereum charges for one, so a block's `gasUsed` is its transaction count times 21 000 and nothing else. The **gas limit is 200 transfers' worth, not Ethereum's 30 000 000**: a limit is a per-chain figure miners vote on, and borrowing Ethereum's would both claim to be Ethereum and make every fill bar read 2%.
 
 **A block reward comes from the zero address**, which is what explorers really show — the coins did not exist before the block — and a coinbase costs no gas because there was no transaction to execute. A **pool payout gets no block number at all**: the pool paid it out of its own balance, and stamping a height on it would put a transaction on the chain that no miner mined.
+
+**A won block pays `subsidy + fees`** — 160 EC plus that block's transaction fees, averaging 16.88 EC and ranging 1.21–35.08. Before 2026-07-27 it paid the subsidy alone, which meant the fees players paid into the mempool were debited and then ceased to exist: the fee market was a pure sink, and the block card had been printing a `fees` total naming money nobody ever received. The log line names the two halves separately (*"160.00 EC subsidy plus 16.88 EC in fees"*) because they are different things — one is minted, the other was paid by the senders in the block — and `proof-of-work(7)` teaches that split.
+
+> **⚠ The fee total is owned by `MempoolRules`, not by the explorer.** It decides a payout now, and `ChainExplorer`'s charter is that *nothing there decides anything*. The block count and the per-transaction fee moved with it, so the card and the ledger row are computed from one function and cannot disagree.
+
+⚠ **A block's fee total is the derived one even when the player's own transactions are in it.** Their rows *displace* network traffic rather than adding to the block, so the total does not move with who is looking. The alternative is a fee figure that changes per viewer, and the gain from a displacement is bounded by one transaction's fee against a fee they had to pay to get in — sending yourself transactions to inflate a block you have a 4% chance of winning costs strictly more than it can return.
 
 > **⚠ The explorer and `ledger(1)` are two renderings of one list.** Same amounts, same moments, same running balance. §3.1 makes *"add these up and compare against the balance"* the way a player catches a hidden miner, so two surfaces that could disagree would turn the game's central investigation into a false-positive generator.
 
@@ -131,7 +148,30 @@ A block holds **200 transactions** and the queue is usually deeper, so a slot ha
 
 The panel shows the next three blocks as they *would* be if mined right now from the current queue. `ChainMempool` carries that warning at the type level, and the strip draws projected blocks dashed and prefixed `~`, because it is the one thing a player could reasonably misread as a promise.
 
-> **⚠ There is no countdown to the next block, and there must never be one.** Blocks arrive on a Poisson schedule, so there is no moment to count down *to*. The panel prints the mean interval and the elapsed time side by side — one an average, one a fact — and a player comparing them is reading the distribution. A ticking countdown would be the same lie a mining progress bar would be, one step removed.
+#### The confirmation estimate — a countdown that is allowed to be wrong (2026-07-27)
+
+The panel prints an **ETA** for the next block and for each of the player's waiting transactions, and it ticks down every second.
+
+This reverses a rule that stood until 2026-07-27, which read *"there is no countdown to the next block, and there must never be one"* — on the grounds that blocks arrive on a Poisson schedule, so there is no moment to count down *to*, and a ticking countdown would be the same lie a mining progress bar would be, one step removed. **That reasoning is still correct.** What it produced was three cards reading `~14m / ~28m / ~42m` that never moved, which players read as a broken panel rather than as a principled one — the same complaint already filed once against the block ages, and answered there by making them tick.
+
+So the honesty moved out of the omission and into the behaviour. Four rules hold it up:
+
+- **The estimate is anchored, never accumulated.** It is `lastBlockAt + n × 14 min` — the *mean* arrival of the n-th block from the last one. Nothing accrues behind it and there is no progress counter; the anchor jumps forward whole when a block lands. Anchoring on *now* instead would recompute the same fourteen minutes every second and the countdown would sit perfectly still, which is the frozen readout this replaced, reached from the other side.
+- **It is allowed to be overtaken, and that is the ordinary case.** An exponential wait exceeds its own mean about **37%** of the time. Past the estimate the panel says **"running long — longer than 79% of waits"**, computed as the exact Erlang CDF for the n-th block. It must never say *overdue*: being overdue is not a thing, and a readout that claimed otherwise would teach the gambler's fallacy in the one place players reliably hold it.
+- **It never publishes the draw.** The engine genuinely knows when its next block lands — `ChainState.networkWorkTarget` is drawn up front — and deliberately does not say. Publishing it would make being overdue an observable fact and delete the lesson outright. `MempoolTest.doesNotPublishTheDraw` asserts the published figure is the mean and *disagrees* with the real remaining work.
+- **The mean is still printed beside it.** A countdown with no stated average is a deadline.
+
+> **⚠ A transaction's estimate is its projected block's, and the projection must agree with the confirmation rule.** These were two implementations of "how many slots does the player get" and they had drifted: the explorer computed `slots − backlog` with no floor and reported *zero*, while `MempoolRules.slotsFor` gave at least one. Rendered, that was a 0.30 EC priority transaction whose card promised **block +3, ~41:59** and which confirmed in the very next block — the explorer disagreeing with the engine about the player's own money, which is the exact discrepancy §3.1 trains players to read as an intruder. One rule now (`MempoolRules.slotsAgainst`), called from both.
+
+#### Block times jitter, including the ones nobody watched (2026-07-27)
+
+The explorer's block strip used to back-date every card at exactly the target interval: `14.0 14.0 14.0 14.0`, twenty-four times. The old defence was that *"a history with plausible-looking random gaps would be inventing a past the chain never had"* — fair, and it lost to the fact that a perfectly even chain is **also** an invented past and an obviously false one. Real proof-of-work never produces two identical intervals in a row.
+
+Each height is now displaced by up to **±3 minutes**, derived from the height itself, so adjacent gaps land in **8–20 minutes** with the peak at 14. The jitter is applied to a block's *position* rather than to the interval, which buys three things: it stays O(1) (a summed history would need every interval between the tip and the height asked for, and `body()` calls it once per transaction — ~4800 times for one strip); it is monotone by construction, since the smallest possible gap is `mean − 2 × jitter`; and the jitters telescope, so the mean stays exactly the interval printed above the strip. Measured over 815 heights: **min 8.25, max 19.75, mean 14.0002**.
+
+> **⚠ The newest block is not displaced.** Its timestamp is `lastBlockAt`, which is a real measurement, and the mempool panel's *"last one 3m ago"* is read off the same field — jittering it would put two readouts in the same window minutes apart.
+
+⚠ The band is **narrower than the live process**, deliberately. Live intervals are exponential and were measured at 0 → 95 minutes with a median of 10.3 and only 34% inside 8–19. This is a back-dated derivation of a history nobody watched, and its job is to look like a chain; the honest readout of the real distribution is the ETA and its percentile above, which are computed from the live process. If the two are ever asked to agree, the strip is the one that is wrong.
 
 ---
 
@@ -164,7 +204,7 @@ Two behaviours worth not rediscovering: the **first payout of a character's life
 Every hash is an independent trial against an unchanged target, so the wait is exponentially distributed and therefore **memoryless**. Three consequences the design now relies on:
 
 - **Nothing accumulates**, so there is no partial progress. This is why the old *"pulling cycles off mining mid-block forfeits that block's progress"* proposal was **deleted rather than implemented** — it described a thing that does not exist. Switching mode or reallocating costs nothing and forfeits nothing.
-- **Nothing is "due".** A long dry spell does not raise the next block's chance. The UI therefore shows an expected time and **never a progress bar**: a bar would be a lie, and would teach players to hold cycles on mining to protect progress that isn't there. `mine --solo` prints the point in words.
+- **Nothing is "due".** A long dry spell does not raise the next block's chance. The UI therefore shows an expected time and **never a progress bar**: a bar would be a lie, and would teach players to hold cycles on mining to protect progress that isn't there. `mine --solo` prints the point in words. The mempool's confirmation ETA (§1.3b) is an *expected time* in exactly this sense — anchored on the last block, backed by no accumulator, and stating where in the distribution the wait has got once it is overtaken.
 - **The mean misdescribes the typical.** The median of an exponential is ~69% of its mean, so solo mining *feels* unluckier than it is. That is a true fact about the distribution, not a tuning failure.
 
 #### What is simplified, stated plainly

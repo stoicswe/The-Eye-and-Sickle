@@ -131,10 +131,11 @@ public final class ChainExplorer {
         int sizeBytes = 620 + transactions * 226 + Math.floorMod(seed[1] & 0xFF, 200);
 
         String label = yours ? "YOUR RIG" : winnerLabel(derivedWinner(chain, height));
-        long fees = 0L;
-        for (ChainTransaction tx : body(save, height)) {
-            fees += tx.feeMinorUnits();
-        }
+        // ⚠ The rules' total, not a sum of the rendered body. This is the figure the winner is
+        // actually PAID (MempoolRules.blockFeesMinorUnits), and summing the body instead would make
+        // the card disagree with the ledger row the moment the player has a transaction in the
+        // block — their row displaces network traffic rather than adding to it.
+        long fees = MempoolRules.blockFeesMinorUnits(save, height);
         return new ChainBlock(
                 height,
                 blockHash(chain, height),
@@ -161,12 +162,46 @@ public final class ChainExplorer {
     }
 
     /**
-     * When a block was found.
+     * When a block was found — back-dated from the tip, and <b>jittered</b> (2026-07-27).
      *
-     * <p>Back-dated from the current height at the target interval for anything the player was not
-     * present for. Real block times jitter and these do not, which is the one place this derivation
-     * is visibly a derivation — but a history with plausible-looking random gaps would be inventing
-     * a past the chain never had, and an even cadence at least does not claim to be a measurement.
+     * <h2>⚠ This used to be an exactly even cadence, and the strip showed it</h2>
+     *
+     * Every card was 14.0 minutes after the one below it, twenty-four times, forever. Measured, and
+     * reported as the chain looking like a metronome. The old comment defended it — "a history with
+     * plausible-looking random gaps would be inventing a past the chain never had" — which is a fair
+     * argument and lost to the fact that a perfectly even chain is *also* an invented past, and an
+     * obviously false one. Real proof-of-work never produces two identical intervals in a row.
+     *
+     * <h2>The jitter is applied to the position, not to the interval, and that is the whole trick</h2>
+     *
+     * Each height is displaced by up to {@link #TIMESTAMP_JITTER_SECONDS} either way, derived from
+     * its own height. Adjacent gaps therefore come out at
+     * {@code mean + jitter(h) − jitter(h − 1)} — inside {@code 14 ± 6} minutes, so <b>8 to 20</b>
+     * with the peak at 14. Three properties fall out of doing it this way rather than by summing
+     * per-block intervals:
+     *
+     * <ul>
+     *   <li><b>O(1).</b> A summed history would need every interval between the tip and the height
+     *       asked for. {@link #body} calls this once per transaction and a full strip is ~4800 calls,
+     *       so a walk of even a few dozen digests each would be tens of thousands of hashes a frame.
+     *   <li><b>Monotone by construction.</b> The smallest possible gap is
+     *       {@code mean − 2 × jitter}, which stays comfortably positive — no block can ever render
+     *       before its own parent, which a naive per-height random offset would eventually do.
+     *   <li><b>The mean is exactly the published interval.</b> The jitters telescope over any span,
+     *       so the strip cannot drift away from the "a block every ~14 min" printed above it.
+     * </ul>
+     *
+     * <p>⚠ The tip's own jitter is subtracted, so the newest block renders at exactly
+     * {@code lastBlockAt}. That one timestamp is a <b>measurement</b> — the chain really did record
+     * it — and displacing it would put the explorer minutes out of step with the mempool panel's
+     * "last one 3m ago", which is derived from the same field.
+     *
+     * <p>⚠ The band is deliberately <b>narrower than the live process</b>, which is exponential and
+     * measured at 0 → 95 minutes with a median of 10.3. This is a back-dated derivation of a history
+     * nobody watched, and its job is to look like a chain rather than to be a second sampler of the
+     * distribution; the honest readout of the real distribution is the mempool panel's estimate and
+     * its percentile, which are computed from the live process. If the two are ever asked to agree,
+     * this is the one that is wrong.
      */
     public static Instant timestampOf(SoloSave save, long height) {
         ChainState chain = save.chain;
@@ -174,15 +209,37 @@ public final class ChainExplorer {
         Instant last = chain.lastBlockAt == null || chain.lastBlockAt.equals(Instant.EPOCH)
                 ? Instant.now()
                 : chain.lastBlockAt;
-        return last.minusSeconds(behind * Balance.CHAIN_TARGET_BLOCK_SECONDS);
+        return last.minusSeconds(behind * Balance.CHAIN_TARGET_BLOCK_SECONDS)
+                .plusSeconds(jitterOf(chain, height) - jitterOf(chain, chain.height));
     }
 
-    /** How many transactions a block carries, stable per height. */
+    /**
+     * How far a block's rendered timestamp may sit from its even position, in seconds.
+     *
+     * <p>Three minutes, which puts adjacent gaps in 8–20 minutes against the 14-minute target. Any
+     * value at or above half the block interval would let a block render before its parent.
+     */
+    public static final long TIMESTAMP_JITTER_SECONDS = 180L;
+
+    /** This height's displacement, stable and derived — nothing about a block is stored. */
+    private static long jitterOf(ChainState chain, long height) {
+        // A suffix of its own, so the displacement does not correlate with the transaction count,
+        // which is drawn from the unsuffixed digest. Two readouts moving together would look like a
+        // rule ("busy blocks come faster") that does not exist.
+        byte[] seed = digest(chain.blockSeed + ":" + height + ":t");
+        long span = 2 * TIMESTAMP_JITTER_SECONDS + 1;
+        return Math.floorMod(readLong(seed, 0), span) - TIMESTAMP_JITTER_SECONDS;
+    }
+
+    /**
+     * How many transactions a block carries, stable per height.
+     *
+     * <p>⚠ Delegates. This number decides what {@code MempoolRules.blockFeesMinorUnits} pays a
+     * miner, so it stopped being a presentation detail on 2026-07-27 and moved to the rules — see
+     * this class's own charter, which is that nothing here decides anything.
+     */
     public static int bodySize(SoloSave save, long height) {
-        byte[] seed = digest(save.chain.blockSeed + ":" + height);
-        // Up to the block limit, and often well short of it — a chain whose every block was full
-        // would have no fee market, because the clearing price would never fall.
-        return 12 + Math.floorMod(seed[0] & 0xFF, Balance.BLOCK_TRANSACTION_LIMIT - 12);
+        return MempoolRules.blockTransactionCount(save, height);
     }
 
     /**
@@ -212,12 +269,10 @@ public final class ChainExplorer {
         for (int i = 0; i < npc; i++) {
             byte[] seed = digest(save.chain.blockSeed + ":" + height + ":" + i);
             long value = 25L + Math.floorMod(readLong(seed, 0), 250_000L);
-            // ⚠ Capped at the priority rate, not twice it. An NPC population that routinely outbid
-            // the most a player can pay would break FeeTier's promise from the other side: the top
-            // tier would buy nothing and the mechanic would read as broken rather than as competitive.
-            long fee = Balance.FEE_ECONOMY_MINOR_UNITS
-                    + Math.floorMod(readLong(seed, 8),
-                            Balance.FEE_PRIORITY_MINOR_UNITS - Balance.FEE_ECONOMY_MINOR_UNITS + 1);
+            // ⚠ The rules' fee, not a second derivation of one. These are summed and PAID to whoever
+            // mined the block, so a copy here would be a block whose card and whose payout disagreed
+            // — the exact class of bug the mempool projection had until this morning.
+            long fee = MempoolRules.npcFeeMinorUnits(save, height, i);
             out.add(new ChainTransaction(
                     "0x" + hex(seed, 32),
                     height,
@@ -233,7 +288,8 @@ public final class ChainExplorer {
                     "",
                     fee,
                     gasPrice(fee),
-                    false));
+                    false,
+                    ""));
         }
         out.sort(Comparator.comparingDouble(ChainTransaction::gasPriceMinorUnits).reversed());
         return out;
@@ -304,10 +360,17 @@ public final class ChainExplorer {
         // A block reward has no sender: the coins did not exist before the block. Explorers render
         // that as a transfer from the zero address, and a coinbase costs no gas because there was no
         // transaction to execute.
-        boolean coinbase = incoming && isMinted(entry.type);
-        String counterparty = entry.counterparty == null || entry.counterparty.isBlank()
-                ? address("counterparty:" + entry.type)
-                : entry.counterparty;
+        // ⚠ A pool payout is NOT a coinbase, and telling them apart is what the counterparty is
+        // for. Both arrive as SELF_MINING, so keying off the type alone marked every pooled payout
+        // as minted: the row rendered "from: coinbase", the pool address SoloGame had carefully
+        // stamped on it was discarded, and the table contradicted LedgerEntryState's own rule that
+        // the pool paid it out of its own balance. A minted entry has no sender; a pool payout has
+        // one, and that is the test.
+        boolean fromNamedParty = entry.counterparty != null && !entry.counterparty.isBlank();
+        boolean coinbase = incoming && isMinted(entry.type) && !fromNamedParty;
+        String counterparty = fromNamedParty
+                ? entry.counterparty
+                : address("counterparty:" + entry.type);
         long fee = feeOf(save, entry);
         return new ChainTransaction(
                 txHash(save, entry),
@@ -324,7 +387,8 @@ public final class ChainExplorer {
                 entry.description,
                 coinbase ? 0L : fee,
                 coinbase ? 0.0d : gasPrice(fee),
-                true);
+                true,
+                labelFor(counterparty));
     }
 
     /** What this entry paid to be included, from the mempool record if it is still waiting. */
@@ -337,6 +401,27 @@ public final class ChainExplorer {
             }
         }
         return Balance.FEE_STANDARD_MINOR_UNITS;
+    }
+
+    /**
+     * A readable name for an address, when the client can actually verify one.
+     *
+     * <p>Only pools qualify, and only because their addresses are <b>derived from public ids</b> —
+     * every save renders the same address for THE COMMONS, so matching one is a fact rather than a
+     * claim. Anything else gets no label: a name shown where an address belongs is how a transfer
+     * from a stranger gets mistaken for a payout, and the explorer still prints the address either
+     * way so the player can check the two against each other ({@code 04} §3.1).
+     */
+    private static String labelFor(String address) {
+        if (address == null || address.isBlank()) {
+            return "";
+        }
+        for (MiningPool pool : Pools.all()) {
+            if (addressOf(pool).equals(address)) {
+                return pool.name();
+            }
+        }
+        return "";
     }
 
     /** Whether this kind of entry mints coins rather than moving them. */
@@ -363,6 +448,19 @@ public final class ChainExplorer {
      * Blocks arrive on a Poisson schedule and more transactions arrive meanwhile, so a projection is
      * a snapshot of a queue and never a schedule. {@code ChainMempool} carries that warning at the
      * type level because it is the one thing a player could reasonably misread as a promise.
+     *
+     * <h2>⚠ The ETA is anchored on {@code lastBlockAt} and must never be anchored on {@code now}</h2>
+     *
+     * Every projection's {@code etaAt} is {@code lastBlockAt + (index + 1) × the mean interval}. That
+     * is what lets a client tick it down second by second: the instant is fixed until a block lands
+     * and moves it, so a panel polling once a second sees it approach. Anchoring on {@code now}
+     * instead would recompute the same fourteen minutes on every poll and the countdown would sit
+     * perfectly still — which is the bug this replaced, arrived at from the other direction.
+     *
+     * <p>⚠ It is <b>not</b> {@code chain.networkWorkTarget − chain.networkWorkDone}, which is the real
+     * answer and is sitting right there. Publishing the draw would make "overdue" an observable fact
+     * and delete the memorylessness lesson {@code ChainState} exists to teach. See
+     * {@code ChainMempool}'s type comment for the reasoning that survived the change.
      */
     public static ChainMempool mempool(SoloSave save, Instant now) {
         ChainState chain = save.chain;
@@ -387,7 +485,8 @@ public final class ChainExplorer {
                     tx.description,
                     tx.feeMinorUnits,
                     gasPrice(tx.feeMinorUnits),
-                    true));
+                    true,
+                    labelFor(tx.counterparty)));
         }
         pending.sort(Comparator.comparingDouble(ChainTransaction::gasPriceMinorUnits).reversed());
 
@@ -395,14 +494,31 @@ public final class ChainExplorer {
         // projections pack the player's transactions against it rather than instead of it.
         int backlog = MempoolRules.backlog(save);
         double clearing = MempoolRules.clearingFee(save);
+
+        // The anchor. Falls back to now only on a chain that has never recorded a block, which is a
+        // state genesis() does not produce — without the fallback a fresh save would date every ETA
+        // from the epoch and every card would read "running long" on the first frame.
+        Instant anchor = chain.lastBlockAt == null || chain.lastBlockAt.equals(Instant.EPOCH)
+                ? now
+                : chain.lastBlockAt;
+
         List<ChainMempool.ProjectedBlock> projected = new ArrayList<>();
+        // Which projection each waiting transaction lands in, by its position in the fee-sorted
+        // queue. -1 is "further out than the projections reach" and is a real outcome for a floor-fee
+        // transaction behind a deep backlog — the panel says so rather than inventing a fourth block.
+        int[] landsIn = new int[pending.size()];
+        java.util.Arrays.fill(landsIn, -1);
         int placed = 0;
         int remaining = backlog;
         for (int index = 0; index < 3; index++) {
             int slots = Balance.BLOCK_TRANSACTION_LIMIT;
             int npc = Math.min(slots, remaining);
             remaining -= npc;
-            int free = slots - npc;
+            // ⚠ MempoolRules' rule, not a second copy of it. The old local `slots - npc` had no
+            // floor, so a block the backlog filled reported zero slots for the player here while
+            // confirmInto went on giving them one — a 0.30 EC priority transaction whose card
+            // promised block +3 and then confirmed in the very next block.
+            int free = MempoolRules.slotsAgainst(npc);
             int ours = 0;
             while (ours < free && placed < pending.size()) {
                 if (pending.get(placed).feeMinorUnits() < Math.floor(clearing) && index == 0) {
@@ -410,16 +526,30 @@ public final class ChainExplorer {
                     // exactly what an under-priced transaction does rather than vanishing.
                     break;
                 }
+                landsIn[placed] = index;
                 placed++;
                 ours++;
             }
+            // ⚠ The player's transactions DISPLACE network ones in a full block, they do not extend
+            // it. Adding them on top would render a 201-transaction block against a 200 limit, and a
+            // fill bar over 100% — which is what happens if the contested slot is granted without
+            // taking it off somebody.
+            int npcShown = Math.min(npc, slots - ours);
+            int total = npcShown + ours;
             long fees = 0;
             for (int i = placed - ours; i < placed; i++) {
                 fees += pending.get(i).feeMinorUnits();
             }
             projected.add(new ChainMempool.ProjectedBlock(
-                    index, npc + ours, ours, (long) (npc + ours) * GAS_PER_TRANSFER,
-                    BLOCK_GAS_LIMIT, fees, clearing));
+                    index, total, ours, (long) total * GAS_PER_TRANSFER,
+                    BLOCK_GAS_LIMIT, fees, clearing, etaOf(anchor, index)));
+        }
+
+        List<ChainMempool.Queued> queued = new ArrayList<>();
+        for (int i = 0; i < pending.size(); i++) {
+            int index = landsIn[i];
+            queued.add(new ChainMempool.Queued(
+                    pending.get(i), index, index < 0 ? null : etaOf(anchor, index)));
         }
 
         // ⚠ BOTH as gas prices. clearingFee() is in minor units and gasPriceMinorUnits() is per
@@ -431,13 +561,18 @@ public final class ChainExplorer {
                 ? 0L
                 : Math.max(0L, java.time.Duration.between(chain.lastBlockAt, now).toSeconds());
         return new ChainMempool(
-                pending,
-                pending.size(),
+                queued,
+                queued.size(),
                 projected,
                 Balance.CHAIN_TARGET_BLOCK_SECONDS,
                 since,
                 clearingRate,
                 Math.max(top, clearingRate));
+    }
+
+    /** The mean arrival of the {@code (index + 1)}-th block after {@code anchor}. */
+    private static Instant etaOf(Instant anchor, int index) {
+        return anchor.plusSeconds(Balance.CHAIN_TARGET_BLOCK_SECONDS * (index + 1L));
     }
 
     // ================================================================== hex

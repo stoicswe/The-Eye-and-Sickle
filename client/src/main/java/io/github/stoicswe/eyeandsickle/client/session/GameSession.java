@@ -65,6 +65,16 @@ public interface GameSession extends AutoCloseable {
 
     List<InventoryItem> items(StorageTier tier);
 
+    /**
+     * How many slots this tier has — what the STORAGE grid draws its empty cells against.
+     *
+     * <p>⚠ A capacity, not a limit: nothing currently refuses a move that would overfill a tier, so
+     * this can be smaller than {@code items(tier).size()}. The window renders that as over-capacity
+     * rather than clamping it, because a grid that hid items to make its own arithmetic work would
+     * be lying about what the player owns. See {@code solo/Balance.storageCapacity}.
+     */
+    int storageCapacity(StorageTier tier);
+
     List<LedgerRow> ledger(int limit);
 
     List<KnownNode> knownNodes();

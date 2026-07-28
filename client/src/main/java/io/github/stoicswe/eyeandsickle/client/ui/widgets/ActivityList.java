@@ -7,7 +7,6 @@ import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import javafx.geometry.Pos;
 import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
@@ -236,18 +235,12 @@ public final class ActivityList extends VBox {
         /**
          * {@code M:SS}, or {@code H:MM:SS} past an hour.
          *
-         * <p>Not a humanised "about 4 minutes". §6 wants operational readouts with units, and a
-         * countdown a player is timing an action against has to be exact — "about 4 minutes" is
-         * unusable for deciding whether there is room to start something else.
+         * <p>⚠ Delegates to {@link Ui#clock} rather than formatting here. The ledger's projection
+         * strip draws a countdown too, and two private copies of this is how one of them ends up
+         * rounding 90 seconds to {@code 2m} while the other says {@code 1:30}.
          */
         private static String clock(Duration d) {
-            long total = Math.max(0, d.toSeconds());
-            long hours = total / 3600;
-            long minutes = (total % 3600) / 60;
-            long seconds = total % 60;
-            return hours > 0
-                    ? String.format(Locale.ROOT, "%d:%02d:%02d", hours, minutes, seconds)
-                    : String.format(Locale.ROOT, "%d:%02d", minutes, seconds);
+            return Ui.clock(d.toSeconds());
         }
     }
 }

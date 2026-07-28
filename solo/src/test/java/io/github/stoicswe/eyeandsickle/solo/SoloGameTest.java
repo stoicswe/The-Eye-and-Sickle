@@ -262,7 +262,11 @@ class SoloGameTest {
             // Same rig, same cycles, and now a payout worth four hours of the pooled rate arriving
             // about once every four hours. Nothing was bought and nothing was unlocked — Invariants
             // I1 and I2 are untouched, because the only thing that changed is where the cycles point.
-            assertThat(game.mining().payoutMinorUnits()).isEqualTo(Balance.BLOCK_SUBSIDY_MINOR_UNITS);
+            // Subsidy plus the block's fees — a solo miner keeps the whole block, and since
+            // 2026-07-27 a block is worth both halves of what its miner collects.
+            assertThat(game.mining().payoutMinorUnits())
+                    .isEqualTo(Math.round(Balance.BLOCK_SUBSIDY_MINOR_UNITS
+                            + Balance.expectedBlockFeesMinorUnits()));
             assertThat(game.mining().expectedPayoutSeconds()).isBetween(13_000.0d, 15_000.0d);
             assertThat(game.mining().chanceWithin(3600)).isBetween(0.15d, 0.35d);
 

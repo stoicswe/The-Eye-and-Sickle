@@ -106,8 +106,23 @@ public final class ChainRules {
         return Math.max(0L, cycles) * Balance.HASHES_PER_CYCLE_SECOND;
     }
 
-    /** What a stretch of chain produced, and how much of it was the player's. */
-    public record Minted(int blocks, int yours, int yourPool) {}
+    /**
+     * What a stretch of chain produced, and how much of it was the player's.
+     *
+     * @param yoursFeesMinorUnits the fees carried by the blocks in {@link #yours} — paid to the
+     *     miner on top of the subsidy, exactly as on a real chain. Summed here rather than
+     *     recomputed later because {@link #yours} is only a count, and by the time
+     *     {@code MiningRules} sees it the heights that earned it are no longer identifiable.
+     * @param yourPoolFeesMinorUnits the same for the blocks in {@link #yourPool}. Divided among the
+     *     pool under PPLNS and <b>ignored under PPS</b>, which buys a fixed price per share rather
+     *     than a share of what a block happened to carry — see {@code MiningRules.rewardBase}.
+     */
+    public record Minted(
+            int blocks,
+            int yours,
+            int yourPool,
+            long yoursFeesMinorUnits,
+            long yourPoolFeesMinorUnits) {}
 
     /**
      * Runs the chain forward and decides who won each block.
@@ -137,7 +152,7 @@ public final class ChainRules {
         ChainState chain = save.chain;
         double seconds = elapsed.toMillis() / 1000.0d;
         if (chain == null || seconds <= 0 || chain.networkHashrate <= 0) {
-            return new Minted(0, 0, 0);
+            return new Minted(0, 0, 0, 0L, 0L);
         }
         double mean = expectedSeconds(chain.difficulty, chain.networkHashrate);
         chain.networkWorkDone += seconds / mean;
@@ -145,6 +160,8 @@ public final class ChainRules {
         int blocks = 0;
         int yours = 0;
         int yourPool = 0;
+        long yoursFees = 0L;
+        long yourPoolFees = 0L;
         boolean solo = MiningRules.modeOf(save.rig) == MiningMode.SOLO;
         String poolId = MiningRules.poolOf(save.rig).id();
         // Bounded so a machine that slept with the client open cannot spin. Surplus work stays on
@@ -160,18 +177,24 @@ public final class ChainRules {
             boolean mine = solo && "you".equals(winner);
             if (mine) {
                 yours++;
+                // ⚠ Read against the height this block is ABOUT to take — recordBlock has not run
+                // yet, so chain.height is still the parent. The fee total is a function of height,
+                // so reading it a line later would pay the previous block's fees.
+                yoursFees += MempoolRules.blockFeesMinorUnits(save, chain.height + 1);
                 chain.blocksWon.add(chain.height + 1);
                 while (chain.blocksWon.size() > ChainState.WON_INDEX) {
                     chain.blocksWon.removeFirst();
                 }
             } else if (!solo && winner.equals(poolId)) {
                 yourPool++;
+                // Same height caveat as above: recordBlock has not run yet.
+                yourPoolFees += MempoolRules.blockFeesMinorUnits(save, chain.height + 1);
             }
             recordBlock(chain, now);
             confirm(save, chain.height, now);
             blocks++;
         }
-        return new Minted(blocks, yours, yourPool);
+        return new Minted(blocks, yours, yourPool, yoursFees, yourPoolFees);
     }
 
     /**

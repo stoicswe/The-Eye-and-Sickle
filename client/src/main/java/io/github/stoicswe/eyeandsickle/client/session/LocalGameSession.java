@@ -67,6 +67,11 @@ public final class LocalGameSession implements GameSession {
     }
 
     @Override
+    public int storageCapacity(StorageTier tier) {
+        return io.github.stoicswe.eyeandsickle.solo.Balance.storageCapacity(tier);
+    }
+
+    @Override
     public List<InventoryItem> items(StorageTier tier) {
         List<InventoryItem> out = new ArrayList<>();
         for (ItemState i : game.state().items) {

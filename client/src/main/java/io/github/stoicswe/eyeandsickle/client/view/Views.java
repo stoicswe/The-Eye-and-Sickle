@@ -482,76 +482,386 @@ public final class Views {
         Label result = new Label();
         result.setWrapText(true);
 
-        VBox tiers = new VBox(12);
-        Runnable refresh = () -> {
+        Label atRisk = new Label();
+        atRisk.getStyleClass().addAll("es-mono", "es-text-secondary");
+        atRisk.setWrapText(true);
+
+        // Which slot is selected, by item id. Selection replaces the per-row button cluster: three
+        // buttons on every one of up to 86 rows is 258 controls to tab through, and §5.4's decision
+        // is about one item at a time.
+        String[] selected = {null};
+
+        VBox tiers = new VBox(UiTokens.SPACE_5);
+        boolean[] grid = {true};
+
+        HBox moves = Ui.row(UiTokens.SPACE_3);
+        moves.setAlignment(Pos.CENTER_LEFT);
+
+        Runnable[] refresh = new Runnable[1];
+        refresh[0] = () -> {
             tiers.getChildren().clear();
-            addTier(tiers, session, StorageTier.VAULT, "/rig/storage/vault",
-                    "Safe. Encrypted; not reachable even while you are online.", result);
-            addTier(tiers, session, StorageTier.STANDARD_STORAGE, "/rig/storage/standard",
-                    "Exposed while you are online. Fine for things you are using.", result);
-            addTier(tiers, session, StorageTier.HIGH_HACKABLE_ZONE, "/rig/storage/high",
-                    "Always exposed, online or not. Anything left here can be taken.", result);
+            int exposedOnline = session.items(StorageTier.STANDARD_STORAGE).size();
+            int exposedAlways = session.items(StorageTier.HIGH_HACKABLE_ZONE).size();
+            int safe = session.items(StorageTier.VAULT).size();
+
+            // ⚠ Counts only. `docs/client/06` §5.2 permits an `est. N EC to replace` figure under
+            // three conditions, one of which is that it counts only EC-gated items — and the client
+            // is not told an item's gate or its price. A fabricated total on the one screen whose
+            // job is to say what a raid would cost is worse than no total, so it is absent rather
+            // than approximated. Tracked with RI-10.
+            atRisk.setText("AT RISK NOW   " + (exposedOnline + exposedAlways) + " items"
+                    + "   ·   exposed while online " + exposedOnline
+                    + "   ·   always exposed " + exposedAlways
+                    + "   ·   safe in vault " + safe);
+
+            for (StorageTier tier : StorageTier.values()) {
+                tiers.getChildren().add(
+                        tierSection(session, tier, grid[0], selected, refresh[0], result));
+            }
+
+            moves.getChildren().clear();
+            GameSession.InventoryItem picked = findItem(session, selected[0]);
+            if (picked == null) {
+                moves.getChildren().add(secondary("Select a slot to move what is in it."));
+            } else {
+                moves.getChildren().add(Ui.small(picked.displayName() + "  →"));
+                for (StorageTier target : StorageTier.values()) {
+                    if (target == picked.tier()) {
+                        continue;
+                    }
+                    Button move = new Button(Ui.upper(shortTier(target)));
+                    move.setMinHeight(26);
+                    move.setTooltip(new javafx.scene.control.Tooltip(
+                            "mv \"" + picked.displayName() + "\" " + shortTier(target)
+                                    + "\n\n" + exposureOf(target)));
+                    move.setAccessibleText("Move " + picked.displayName() + " to "
+                            + shortTier(target) + ". " + exposureOf(target));
+                    move.setOnAction(e -> {
+                        GameSession.Outcome outcome = session.moveItem(picked.itemId(), target);
+                        result.setText(outcome.message());
+                        styleByOutcome(result, outcome);
+                        refresh[0].run();
+                    });
+                    moves.getChildren().add(move);
+                }
+            }
         };
-        refresh.run();
-        session.onChange(s -> refresh.run());
+
+        HBox modes = Ui.row(UiTokens.SPACE_3);
+        modes.getStyleClass().add("es-breach-picker");
+        BreachView.Chip gridChip = new BreachView.Chip("[ GRID ]", "es-breach-chip-quiet");
+        BreachView.Chip rowChip = new BreachView.Chip("  ROWS  ", "es-breach-chip-quiet");
+        Runnable applyMode = () -> {
+            gridChip.setText(grid[0] ? "[ GRID ]" : "  GRID  ");
+            rowChip.setText(grid[0] ? "  ROWS  " : "[ ROWS ]");
+            gridChip.getStyleClass().remove("es-breach-chip-loud");
+            rowChip.getStyleClass().remove("es-breach-chip-loud");
+            (grid[0] ? gridChip : rowChip).getStyleClass().add("es-breach-chip-loud");
+            refresh[0].run();
+        };
+        gridChip.onInvoke(() -> {
+            grid[0] = true;
+            applyMode.run();
+        });
+        rowChip.onInvoke(() -> {
+            grid[0] = false;
+            applyMode.run();
+        });
+        gridChip.setAccessibleText("Show storage as a grid of slots.");
+        rowChip.setAccessibleText("Show storage as rows, one item per line.");
+        modes.getChildren().addAll(gridChip, rowChip);
+
+        applyMode.run();
+        session.onChange(s -> refresh[0].run());
 
         ScrollPane scroll = new ScrollPane(tiers);
         scroll.setFitToWidth(true);
         VBox.setVgrow(scroll, Priority.ALWAYS);
         root.getChildren().addAll(
+                atRisk,
+                new Separator(),
                 wrapped("Moving something changes what can happen to it. That risk change is the "
-                        + "decision — the buttons say what each tier means, and `mv <item> <tier>` "
-                        + "does the same thing from the terminal."),
+                        + "decision — each mount says what it means, and `mv <item> <tier>` does the "
+                        + "same thing from the terminal."),
+                modes,
                 scroll,
+                moves,
                 result);
         return root;
     }
 
-    private static void addTier(
-            VBox parent, GameSession session, StorageTier tier, String mount, String exposure, Label result) {
-        VBox box = new VBox(4);
-        box.getStyleClass().add("es-panel");
-        Label heading = new Label(mount);
-        heading.getStyleClass().addAll("es-mono", "es-panel-title");
-        Label note = wrapped(exposure);
-        box.getChildren().addAll(heading, note);
-
+    /**
+     * One mount, as a grid of slots or as rows.
+     *
+     * <h2>Why the grid draws EMPTY slots, and why that is the whole point</h2>
+     *
+     * {@code docs/design/01-core-resources.md} §6 makes storage a strict capacity/exposure trade and
+     * Invariant I12 makes vault capacity the scarce half of it. A list of what you own cannot show
+     * scarcity — six items in a six-slot vault and six in a sixty-slot zone render identically. A
+     * grid of {@code n} filled cells against {@code capacity} cells shows "two slots left" without
+     * anyone having to read a number, which is the question the vault actually poses.
+     *
+     * <p>⚠ Over-capacity is drawn, never clamped. Nothing enforces these numbers yet
+     * ({@code Balance.storageCapacity}), so a tier can hold more than it has slots for; the extra
+     * cells are marked rather than hidden, because a grid that dropped items to make its own
+     * arithmetic work would be lying about what the player owns.
+     *
+     * <p>Rows remain available because {@code docs/client/06} §7.2 is right that a grid puts every
+     * value at a different x-coordinate — that argument governs the <em>inventory</em>, which is
+     * sorted and compared on three costs at once. This window is sorted by exposure and compares
+     * nothing, so the grid is the better default here and the toggle keeps §7.2's case reachable.
+     */
+    private static Region tierSection(
+            GameSession session,
+            StorageTier tier,
+            boolean grid,
+            String[] selected,
+            Runnable refresh,
+            Label result) {
         var items = session.items(tier);
-        if (items.isEmpty()) {
-            box.getChildren().add(secondary("(empty)"));
-        }
-        for (GameSession.InventoryItem item : items) {
-            HBox row = new HBox(8);
-            row.setAlignment(Pos.CENTER_LEFT);
-            Label name = new Label(item.displayName() + (item.equipped() ? "  [equipped]" : ""));
-            name.getStyleClass().add("es-mono");
-            Region spacer = new Region();
-            HBox.setHgrow(spacer, Priority.ALWAYS);
-            row.getChildren().addAll(name, spacer);
+        int capacity = session.storageCapacity(tier);
 
-            // One button per OTHER tier. `mv` was terminal-only, which made the risk decision the
-            // storage window exists to present unreachable from the window itself (pillar C1).
-            for (StorageTier target : StorageTier.values()) {
-                if (target == tier) {
-                    continue;
-                }
-                Button move = new Button("→ " + shortTier(target));
-                move.setMinHeight(26);
-                move.setTooltip(new javafx.scene.control.Tooltip(
-                        "mv \"" + item.displayName() + "\" " + shortTier(target)
-                                + "\n\n" + exposureOf(target)));
-                move.setAccessibleText("Move " + item.displayName() + " to " + shortTier(target)
-                        + ". " + exposureOf(target));
-                move.setOnAction(e -> {
-                    GameSession.Outcome outcome = session.moveItem(item.itemId(), target);
-                    result.setText(outcome.message());
-                    styleByOutcome(result, outcome);
-                });
-                row.getChildren().add(move);
+        VBox box = new VBox(UiTokens.SPACE_3);
+        box.getStyleClass().add("es-panel");
+        // ⚠ The whole mount is the drop target, not each empty slot. Drag events bubble, so a drop
+        // anywhere in the section lands — including on a filled slot, on the heading, or on the gap
+        // below the last row. Making the player hit one 104px cell to change an item's exposure
+        // would be a dexterity test in front of a risk decision.
+        itemDropTarget(box, tier, session, result, refresh);
+
+        Label heading = new Label(mountOf(tier) + "   " + items.size() + " / " + capacity);
+        heading.getStyleClass().addAll("es-mono", "es-panel-title");
+        // ⚠ §5.3: the state that matters is the one the window can never be showing, because the
+        // player is online whenever they are looking at it. So it is stated in words instead.
+        Label offline = Ui.micro("when you log off: " + offlineFateOf(tier));
+        box.getChildren().addAll(heading, secondary(exposureOf(tier)), offline);
+
+        if (grid) {
+            FlowPane slots = new FlowPane(UiTokens.SPACE_1, UiTokens.SPACE_1);
+            for (GameSession.InventoryItem item : items) {
+                slots.getChildren().add(slot(item, selected, refresh));
             }
-            box.getChildren().add(row);
+            for (int i = items.size(); i < capacity; i++) {
+                slots.getChildren().add(slot(null, selected, refresh));
+            }
+            if (items.isEmpty() && capacity == 0) {
+                slots.getChildren().add(secondary("(no capacity reported)"));
+            }
+            box.getChildren().add(slots);
+        } else {
+            if (items.isEmpty()) {
+                box.getChildren().add(secondary("(empty)"));
+            }
+            for (GameSession.InventoryItem item : items) {
+                Label row = new Label(item.displayName() + (item.equipped() ? "  [equipped]" : ""));
+                row.getStyleClass().add("es-mono");
+                if (item.itemId().equals(selected[0])) {
+                    row.getStyleClass().add("es-slot-selected");
+                }
+                row.setOnMouseClicked(e -> {
+                    selected[0] = item.itemId();
+                    refresh.run();
+                });
+                // Rows drag too. The mechanic belongs to the item, not to the presentation, and a
+                // player who switched to ROWS has not asked to give up dragging.
+                draggableItem(row, item);
+                box.getChildren().add(row);
+            }
         }
-        parent.getChildren().add(box);
+        return box;
+    }
+
+    /**
+     * The clipboard type an in-flight item drag carries.
+     *
+     * <h2>⚠ A {@link javafx.scene.input.DataFormat} is a process-wide singleton and constructing one
+     * twice throws</h2>
+     *
+     * {@code new DataFormat(mime)} registers the mime type globally and raises
+     * {@code IllegalArgumentException} if that type already exists — so a naive {@code static final
+     * DataFormat} in a class that is loaded once is fine, and the same line inside a method, or in a
+     * class reloaded by a test harness, is a crash on the second call. Looking it up first makes it
+     * idempotent.
+     *
+     * <p>A custom type rather than {@code DataFormat.PLAIN_TEXT}, so an item drag cannot be
+     * satisfied by any text dragged in from another application — a drop handler that accepted a
+     * stray string would move whatever item id it happened to parse.
+     */
+    private static final javafx.scene.input.DataFormat STORAGE_ITEM =
+            javafx.scene.input.DataFormat.lookupMimeType("application/x-eyeandsickle-item") != null
+                    ? javafx.scene.input.DataFormat.lookupMimeType("application/x-eyeandsickle-item")
+                    : new javafx.scene.input.DataFormat("application/x-eyeandsickle-item");
+
+    /**
+     * Makes a node draggable as an item.
+     *
+     * <p>The dragboard carries the item <b>id</b> and nothing else. The destination looks the item
+     * up through the session to find out what tier it is in — carrying the tier on the clipboard
+     * would be a second copy of a fact the session already owns, and a stale one the moment anything
+     * else moved the item.
+     */
+    private static void draggableItem(Region node, GameSession.InventoryItem item) {
+        node.setOnDragDetected(e -> {
+            javafx.scene.input.Dragboard board =
+                    node.startDragAndDrop(javafx.scene.input.TransferMode.MOVE);
+            javafx.scene.input.ClipboardContent content = new javafx.scene.input.ClipboardContent();
+            content.put(STORAGE_ITEM, item.itemId());
+            board.setContent(content);
+            // The cell itself as the drag image, so the thing under the cursor is the thing being
+            // moved. A default drag view is the OS's generic document icon, which on a deck that
+            // draws its own pointer is the one place the host would show through.
+            board.setDragView(node.snapshot(null, null));
+            e.consume();
+        });
+    }
+
+    /**
+     * Makes a node accept an item drop into {@code tier}.
+     *
+     * <h2>⚠ The refresh is deferred, and it has to be</h2>
+     *
+     * A successful drop rebuilds the whole storage panel — {@code refresh} clears the tier boxes and
+     * builds new ones — which destroys the node the drag gesture is still running on. Doing that
+     * inside the drop handler detaches the source before {@code DRAG_DONE} is delivered, and the
+     * gesture ends on a node that is no longer in a scene. {@code runLater} lets the gesture finish
+     * first and then repaints.
+     *
+     * <p>⚠ The same-tier case is <b>refused rather than accepted-and-ignored</b>. A target that
+     * accepts a transfer mode gets the drop cursor, so accepting a move that will not happen tells
+     * the player it will. Dropping an item on the mount it is already in is a no-op that should look
+     * like one.
+     */
+    private static void itemDropTarget(
+            Region node,
+            StorageTier tier,
+            GameSession session,
+            Label result,
+            Runnable refresh) {
+        node.setPickOnBounds(true);
+        node.setOnDragOver(e -> {
+            if (acceptsDrop(e, tier, session)) {
+                e.acceptTransferModes(javafx.scene.input.TransferMode.MOVE);
+            }
+            e.consume();
+        });
+        node.setOnDragEntered(e -> {
+            if (acceptsDrop(e, tier, session) && !node.getStyleClass().contains("es-slot-drop")) {
+                node.getStyleClass().add("es-slot-drop");
+            }
+            e.consume();
+        });
+        node.setOnDragExited(e -> {
+            node.getStyleClass().remove("es-slot-drop");
+            e.consume();
+        });
+        node.setOnDragDropped(e -> {
+            node.getStyleClass().remove("es-slot-drop");
+            String itemId = (String) e.getDragboard().getContent(STORAGE_ITEM);
+            if (itemId == null) {
+                e.setDropCompleted(false);
+                e.consume();
+                return;
+            }
+            GameSession.Outcome outcome = session.moveItem(itemId, tier);
+            result.setText(outcome.message());
+            styleByOutcome(result, outcome);
+            // ⚠ Reports the ENGINE's answer, not "a drop happened". A refused move — a full mount,
+            // once capacity is enforced — must end the gesture as a failure, or the drag animates
+            // home while the message says it did not move and the two surfaces disagree.
+            e.setDropCompleted(outcome.succeeded());
+            e.consume();
+            javafx.application.Platform.runLater(refresh);
+        });
+    }
+
+    /** Whether this drag is an item that is not already in {@code tier}. */
+    private static boolean acceptsDrop(
+            javafx.scene.input.DragEvent e, StorageTier tier, GameSession session) {
+        if (!e.getDragboard().hasContent(STORAGE_ITEM)) {
+            return false;
+        }
+        GameSession.InventoryItem dragged = findItem(session, (String) e.getDragboard().getContent(STORAGE_ITEM));
+        return dragged != null && dragged.tier() != tier;
+    }
+
+    /** One slot. Filled slots carry a name and are selectable; empty ones are drawn and inert. */
+    private static Region slot(
+            GameSession.InventoryItem item, String[] selected, Runnable refresh) {
+        VBox cell = new VBox(1);
+        cell.getStyleClass().add("es-slot");
+        cell.setMinSize(104, 46);
+        cell.setPrefSize(104, 46);
+        cell.setMaxSize(104, 46);
+
+        if (item == null) {
+            cell.getStyleClass().add("es-slot-empty");
+            cell.setAccessibleText("Empty slot.");
+            return cell;
+        }
+
+        Label name = new Label(item.displayName());
+        name.getStyleClass().add("es-slot-name");
+        name.setWrapText(true);
+        // Clipped rather than ellipsised: a cell is 104px of mono and an ellipsis costs a character
+        // of a name that is already short. Two lines is what fits.
+        name.setMaxHeight(30);
+        cell.getChildren().add(name);
+        if (item.equipped()) {
+            // A marker, not a colour — §4.4 wants state to survive greyscale and a screen reader.
+            cell.getChildren().add(Ui.micro("[eq]"));
+        }
+        cell.getStyleClass().add("es-slot-filled");
+        if (item.itemId().equals(selected[0])) {
+            cell.getStyleClass().add("es-slot-selected");
+        }
+        cell.setPickOnBounds(true);
+        cell.setOnMouseClicked(e -> {
+            // ⚠ isStillSincePress, or a drag ALSO toggles the selection. A press-move-release that
+            // started a drag still delivers MOUSE_CLICKED to the source on release, so without this
+            // every successful drag left the panel with a stale selection pointing at an item that
+            // had just moved somewhere else.
+            if (!e.isStillSincePress()) {
+                return;
+            }
+            selected[0] = item.itemId().equals(selected[0]) ? null : item.itemId();
+            refresh.run();
+        });
+        draggableItem(cell, item);
+        cell.setAccessibleText(item.displayName()
+                + (item.equipped() ? ", equipped" : "")
+                + ". Select to move it, or drag it to another mount.");
+        return cell;
+    }
+
+    private static GameSession.InventoryItem findItem(GameSession session, String itemId) {
+        if (itemId == null) {
+            return null;
+        }
+        for (StorageTier tier : StorageTier.values()) {
+            for (GameSession.InventoryItem item : session.items(tier)) {
+                if (item.itemId().equals(itemId)) {
+                    return item;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static String mountOf(StorageTier tier) {
+        return switch (tier) {
+            case VAULT -> "/rig/storage/vault";
+            case STANDARD_STORAGE -> "/rig/storage/standard";
+            case HIGH_HACKABLE_ZONE -> "/rig/storage/high";
+        };
+    }
+
+    /** {@code docs/client/06} §5.3 — the consequence the player cannot be looking at. */
+    private static String offlineFateOf(StorageTier tier) {
+        return switch (tier) {
+            case VAULT -> "safe";
+            case STANDARD_STORAGE -> "safe";
+            case HIGH_HACKABLE_ZONE -> "raidable";
+        };
     }
 
     private static String shortTier(StorageTier tier) {
@@ -640,6 +950,9 @@ public final class Views {
         mempoolLine.getStyleClass().addAll("es-mono", "es-text-secondary");
         mempoolLine.setWrapText(true);
 
+        Label queueHeading = new Label("YOUR PENDING");
+        VBox queue = new VBox(UiTokens.SPACE_1);
+
         HBox blocks = new HBox(UiTokens.SPACE_3);
         blocks.setAlignment(Pos.CENTER_LEFT);
         ScrollPane blockStrip = new ScrollPane(blocks);
@@ -673,14 +986,20 @@ public final class Views {
         when.setCellValueFactory(c -> text(age(c.getValue().at())));
         when.setPrefWidth(80);
 
+        // ⚠ The pool's NAME where there is one. A pooled payout is the row a player most needs to
+        // recognise, and rendering its sender as 0x8f3c…a219 made it the least recognisable thing in
+        // the table. The address is still what is on the chain and the explorer still shows it — the
+        // name is carried beside it, never instead of it, which is what keeps §3.1's audit possible.
         TableColumn<ChainTransaction, String> from = new TableColumn<>("From");
         from.setCellValueFactory(c -> text(c.getValue().coinbase()
-                ? "coinbase" : ChainBlock.shorten(c.getValue().from())));
-        from.setPrefWidth(130);
+                ? "coinbase" : party(c.getValue().from(), c.getValue().counterpartyLabel(),
+                        c.getValue().incoming())));
+        from.setPrefWidth(150);
 
         TableColumn<ChainTransaction, String> to = new TableColumn<>("To");
-        to.setCellValueFactory(c -> text(ChainBlock.shorten(c.getValue().to())));
-        to.setPrefWidth(130);
+        to.setCellValueFactory(c -> text(party(c.getValue().to(),
+                c.getValue().counterpartyLabel(), !c.getValue().incoming())));
+        to.setPrefWidth(150);
 
         TableColumn<ChainTransaction, String> value = new TableColumn<>("Value");
         value.setCellValueFactory(c -> text((c.getValue().incoming() ? "+" : "−")
@@ -743,6 +1062,12 @@ public final class Views {
         };
 
         Runnable refreshData = () -> {
+            // ⚠ Cleared FIRST. The projection cards and the pending rows register countdowns into
+            // this list as they are built, so a clear() further down — where it used to sit, when
+            // only the block cards ticked — would silently unsubscribe everything built above it and
+            // leave a strip of frozen ETAs beside correctly-ticking block ages.
+            ticking.clear();
+
             MiningSnapshot m = session.miningChain();
             address.setText(session.chainAddress());
             balance.setText(String.format(
@@ -755,11 +1080,21 @@ public final class Views {
             ChainMempool pool = session.mempool();
             upcoming.getChildren().clear();
             for (ChainMempool.ProjectedBlock p : pool.projected()) {
-                upcoming.getChildren().add(projectedCard(p, pool));
+                upcoming.getChildren().add(projectedCard(p, pool, ticking));
             }
 
+            queue.getChildren().clear();
+            for (ChainMempool.Queued q : pool.queued()) {
+                queue.getChildren().add(queuedRow(q, pool, ticking));
+            }
+            // Hidden AND unmanaged when empty, or the heading and an empty box would claim a row's
+            // worth of the strip's height on the overwhelming majority of frames, where a player has
+            // nothing waiting at all.
+            boolean anyQueued = !queue.getChildren().isEmpty();
+            tabVisible(queueHeading, anyQueued);
+            tabVisible(queue, anyQueued);
+
             blocks.getChildren().clear();
-            ticking.clear();
             for (ChainBlock b : session.chainBlocks()) {
                 blocks.getChildren().add(blockCard(session, b, detail, ticking));
             }
@@ -774,6 +1109,7 @@ public final class Views {
         chainPane.getChildren().addAll(
                 new Label("CHAIN"), chainLine,
                 new Label("MEMPOOL — NEXT BLOCKS"), mempoolLine, upcoming,
+                queueHeading, queue,
                 new Label("RECENT BLOCKS"), blockStrip, detail);
 
         ledgerPane.getChildren().addAll(
@@ -784,17 +1120,24 @@ public final class Views {
 
         Runnable refreshClock = () -> {
             ChainMempool pool = session.mempool();
-            // ⚠ "on average", never a countdown. Blocks arrive on a Poisson schedule, so there is no
-            // moment to count down to — printing one would be the same lie a mining progress bar is,
-            // one step removed. The elapsed figure beside it is a fact, and a player comparing the two
-            // is reading the distribution rather than a timer. Both move every second now, which is
-            // what makes the comparison legible at all.
+            // The mean interval is still published as a mean — it is what the ETA beside it is
+            // derived from, and dropping it would leave a countdown with nothing to be an estimate
+            // *of*. What changed on 2026-07-27 is that the estimate is now stated as well as the
+            // average, and states plainly when it has been overtaken rather than saying "overdue".
+            String next = pool.projected().isEmpty()
+                    ? "—"
+                    : etaPhrase(pool.projected().getFirst(), pool.expectedNextBlockSeconds());
             mempoolLine.setText(String.format(Locale.ROOT,
-                    "%d waiting from you · a block every ~%d min on average · last one %s ago · "
-                            + "cheapest slot going for %.0f",
+                    "%d waiting from you · next block %s · a block every ~%d min on average · "
+                            + "last one %s ago · cheapest slot going for %.0f",
                     pool.yoursPending(),
+                    next,
                     Math.round(pool.expectedNextBlockSeconds() / 60),
-                    humanSeconds(pool.secondsSinceLastBlock()),
+                    // ⚠ Not humanSeconds() bare. It answers "never" at or below zero, which is right
+                    // for an expected *wait* of infinity and nonsense for an elapsed time — a block
+                    // found this very second printed "last one never ago". Caught by rendering it.
+                    pool.secondsSinceLastBlock() <= 0
+                            ? "0s" : humanSeconds(pool.secondsSinceLastBlock()),
                     pool.lowFeeRate()));
             for (Runnable age : ticking) {
                 age.run();
@@ -821,6 +1164,242 @@ public final class Views {
         Region scrolled = scrollable(root);
         releaseOnDetach(root, onSession, clock);
         return scrolled;
+    }
+
+    /**
+     * WINDOW — how big the deck is, how large it is drawn, and whether it takes the screen.
+     *
+     * <h2>Why this section exists</h2>
+     *
+     * The deck is one undecorated Stage (§0), so there is no OS chrome and therefore no OS resize
+     * handle. Drawing our own window controls bought the look and quietly took away a thing every
+     * other window on the machine can do; these three settings are the half of that trade that had
+     * not been paid.
+     *
+     * <h2>⚠ Size and scale are not independent, and the panel has to say so</h2>
+     *
+     * The deck is laid out at {@code physical / scale}, so raising the scale shrinks the room. At
+     * 200% a 1280×800 window gives the deck 640×400 — under the supported floor, with the rail and
+     * half the strip clipped. Rather than let a player select that and discover it, the size list is
+     * <b>rebuilt</b> whenever the scale changes and offers only what still holds. What was dropped
+     * is named, because a list that silently got shorter reads as a bug.
+     *
+     * @param onWindowChanged null when there is no Stage (the snapshot harness), in which case the
+     *     whole section is omitted rather than shown saving values nothing applies
+     */
+    private static VBox windowSection(
+            ClientProfile profile, Runnable onWindowChanged, Runnable[] publishRebuild) {
+        VBox section = new VBox(UiTokens.SPACE_3);
+        if (onWindowChanged == null) {
+            section.setVisible(false);
+            section.setManaged(false);
+            return section;
+        }
+
+        ChoiceBox<io.github.stoicswe.eyeandsickle.client.ui.WindowSize> size = new ChoiceBox<>();
+        size.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(io.github.stoicswe.eyeandsickle.client.ui.WindowSize value) {
+                return value == null ? "" : value.label();
+            }
+
+            @Override
+            public io.github.stoicswe.eyeandsickle.client.ui.WindowSize fromString(String s) {
+                return io.github.stoicswe.eyeandsickle.client.ui.WindowSize.HD_1280;
+            }
+        });
+
+        javafx.geometry.Rectangle2D usable = javafx.stage.Screen.getPrimary().getVisualBounds();
+
+        ChoiceBox<Integer> scale = new ChoiceBox<>();
+        // ⚠ Filtered by the DISPLAY, not by the preset list. The Stage minimum is
+        // `floor × factor`, so on a 1080p panel 200% needs a 1720 × 1120 window that the screen
+        // cannot give — and every preset then fails too, which is how the size list ended up
+        // offering 1280 × 800 at a scale where 1280 × 800 is unusable. Removing the scale removes
+        // the whole degenerate branch instead of papering over it downstream.
+        int casingMargin = io.github.stoicswe.eyeandsickle.client.ui.BezelStyle
+                .byId(profile.settings().bezel)
+                .orElse(io.github.stoicswe.eyeandsickle.client.ui.BezelStyle.OFF)
+                .margin();
+        for (int percent : io.github.stoicswe.eyeandsickle.client.ui.UiScale.PERCENTAGES) {
+            double factor = percent / 100.0d;
+            // Offerable if the SMALLEST viewport, plus its casing, still fits the display at this
+            // scale. Anything stricter would hide a scale that some preset could have used.
+            boolean roomOnScreen = io.github.stoicswe.eyeandsickle.client.ui.WindowSize.HD_1280
+                    .fitsOnScreen(usable.getWidth(), usable.getHeight(), factor, casingMargin);
+            if (roomOnScreen
+                    || percent == io.github.stoicswe.eyeandsickle.client.ui.UiScale.DEFAULT_PERCENT) {
+                // 100% is always offered. A display too small for even that is below the supported
+                // floor outright, and an empty control would leave the player nothing to change.
+                scale.getItems().add(percent);
+            }
+        }
+        scale.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(Integer percent) {
+                if (percent == null) {
+                    return "";
+                }
+                return percent + "%"
+                        + (percent == io.github.stoicswe.eyeandsickle.client.ui.UiScale.DEFAULT_PERCENT
+                                ? "  (default)" : "");
+            }
+
+            @Override
+            public Integer fromString(String s) {
+                return io.github.stoicswe.eyeandsickle.client.ui.UiScale.DEFAULT_PERCENT;
+            }
+        });
+        int wantedScale = io.github.stoicswe.eyeandsickle.client.ui.UiScale
+                .sanitise(profile.settings().uiScalePercent);
+        // A profile carried over from a larger display can name a scale this screen cannot hold.
+        scale.setValue(scale.getItems().contains(wantedScale)
+                ? wantedScale
+                : io.github.stoicswe.eyeandsickle.client.ui.UiScale.DEFAULT_PERCENT);
+
+        CheckBox fullScreen = new CheckBox("Full screen");
+        fullScreen.setSelected(profile.settings().fullScreen);
+
+        Label note = new Label();
+        note.setWrapText(true);
+        note.getStyleClass().add("es-text-secondary");
+
+        // ⚠ A latch, not a flag on the listener. Rebuilding the item list fires valueProperty twice
+        // — once to null on clear, once on re-selection — and without this the second fire persists
+        // the value the rebuild just chose as though the player had picked it, and calls back into
+        // the Stage mid-layout.
+        boolean[] rebuilding = {false};
+
+        Runnable refill = () -> {
+            rebuilding[0] = true;
+            try {
+                double factor = scale.getValue() / 100.0d;
+
+                var offered = new ArrayList<io.github.stoicswe.eyeandsickle.client.ui.WindowSize>();
+                var fitsScreen = new ArrayList<io.github.stoicswe.eyeandsickle.client.ui.WindowSize>();
+                var tooBig = new ArrayList<String>();
+                var tooScaled = new ArrayList<String>();
+                int margin = io.github.stoicswe.eyeandsickle.client.ui.BezelStyle
+                        .byId(profile.settings().bezel)
+                        .orElse(io.github.stoicswe.eyeandsickle.client.ui.BezelStyle.OFF)
+                        .margin();
+                for (var candidate : io.github.stoicswe.eyeandsickle.client.ui.WindowSize.selectable()) {
+                    // ⚠ One rule now, where there were two. The viewport always gets the full
+                    // resolution in layout units, so nothing is "too small once divided" any more —
+                    // the only question is whether viewport + casing, scaled, fits the display.
+                    if (!candidate.fitsOnScreen(
+                            usable.getWidth(), usable.getHeight(), factor, margin)) {
+                        if (candidate.fitsOnScreen(usable.getWidth(), usable.getHeight(), 1.0d, 0)) {
+                            tooScaled.add(candidate.label());
+                        } else {
+                            tooBig.add(candidate.label());
+                        }
+                        continue;
+                    }
+                    fitsScreen.add(candidate);
+                    offered.add(candidate);
+                }
+                // Never an empty list — the player is looking at this control and has to be able to
+                // move it. Falling back to what FITS rather than to a fixed preset, because the
+                // Stage clamps a too-small window up to `floor × factor` anyway; offering the
+                // largest thing the screen holds is the closest the machine can actually get.
+                if (offered.isEmpty()) {
+                    offered.addAll(fitsScreen.isEmpty()
+                            ? java.util.List.of(io.github.stoicswe.eyeandsickle.client.ui.WindowSize.HD_1280)
+                            : java.util.List.of(fitsScreen.getLast()));
+                }
+
+                var wanted = io.github.stoicswe.eyeandsickle.client.ui.WindowSize
+                        .byId(profile.settings().windowSize)
+                        .filter(offered::contains)
+                        .orElse(offered.getLast());
+                size.getItems().setAll(offered);
+                size.setValue(wanted);
+                profile.settings().windowSize = wanted.id();
+
+                StringBuilder text = new StringBuilder();
+                text.append("The viewport is ").append(wanted.label())
+                        .append("; the window it needs is ")
+                        .append(Math.round((wanted.width() + 2 * margin) * factor))
+                        .append(" × ")
+                        .append(Math.round((wanted.height() + 2 * margin) * factor))
+                        .append(margin > 0 ? " with the casing." : ".");
+                if (!tooScaled.isEmpty()) {
+                    text.append("  Hidden at this scale and casing, the window would not fit: ")
+                            .append(String.join(", ", tooScaled)).append('.');
+                }
+                if (!tooBig.isEmpty()) {
+                    text.append("  Larger than your screen: ")
+                            .append(String.join(", ", tooBig)).append('.');
+                }
+                note.setText(text.toString());
+            } finally {
+                rebuilding[0] = false;
+            }
+        };
+
+        size.valueProperty().addListener((o, was, now) -> {
+            if (rebuilding[0] || now == null) {
+                return;
+            }
+            profile.settings().windowSize = now.id();
+            profile.save();
+            onWindowChanged.run();
+            refill.run();
+        });
+
+        scale.valueProperty().addListener((o, was, now) -> {
+            if (now == null) {
+                return;
+            }
+            profile.settings().uiScalePercent = now;
+            profile.save();
+            // Refill BEFORE applying: raising the scale can invalidate the selected size, and
+            // applying first would put the Stage at a size the list is about to stop offering.
+            refill.run();
+            onWindowChanged.run();
+        });
+
+        fullScreen.selectedProperty().addListener((o, was, now) -> {
+            profile.settings().fullScreen = now;
+            profile.save();
+            onWindowChanged.run();
+            // The size control does nothing while the screen is full, so it says so by being
+            // disabled rather than by accepting a change that has no visible effect.
+            size.setDisable(now);
+        });
+        size.setDisable(fullScreen.isSelected());
+
+        refill.run();
+        // ⚠ Refill AND re-apply. A casing change resizes the window, so the Stage has to be told;
+        // refilling alone would leave the list correct and the window the wrong size.
+        publishRebuild[0] = () -> {
+            refill.run();
+            onWindowChanged.run();
+        };
+
+        section.getChildren().addAll(
+                new Label("WINDOW"),
+                size,
+                wrapped("The deck draws its own window chrome, so your desktop gives it no resize "
+                        + "handle — this is where the size lives. Dragging the top strip still moves "
+                        + "it, double-clicking the strip still maximises it, and neither is affected "
+                        + "by what is set here."),
+                new Label("UI SCALE"),
+                scale,
+                note,
+                wrapped("Scales the whole interface, not the font: every hairline, cell meter and "
+                            + "character grid keeps its exact proportions, because the deck is drawn "
+                            + "through one transform rather than restyled. Larger scale means less "
+                            + "room, so sizes that would take the layout under its supported minimum "
+                            + "stop being offered."),
+                fullScreen,
+                wrapped("Off by default. Escape still opens the pause menu in full screen — the "
+                        + "usual \"press Escape to leave full screen\" behaviour is turned off here, "
+                        + "because it would swallow the key the game already uses. Turn this off "
+                        + "again to get the window back."),
+                new Separator());
+        return section;
     }
 
     /**
@@ -866,18 +1445,27 @@ public final class Views {
      * <p>⚠ Styled apart from a mined block and labelled with a {@code ~}, because it has not happened.
      * A projection that looked like a block would be a promise the chain cannot make — more
      * transactions arrive meanwhile and a miner includes whatever it likes.
+     *
+     * <p>The countdown is registered into {@code ticking} and redrawn on the panel's one-second
+     * clock. It is an <em>estimate</em>, not a deadline: past its instant the card says how far into
+     * the distribution the wait has got instead of claiming the block is overdue. See
+     * {@link #etaPhrase} and {@code ChainMempool}'s type comment.
      */
-    private static Region projectedCard(ChainMempool.ProjectedBlock p, ChainMempool pool) {
+    private static Region projectedCard(
+            ChainMempool.ProjectedBlock p, ChainMempool pool, List<Runnable> ticking) {
         Label head = Ui.value(p.index() == 0 ? "next" : "+" + (p.index() + 1));
         Label fill = new Label(cells(p.fullness(), 10));
         fill.getStyleClass().add("es-block-fill");
+
+        Label eta = Ui.micro("");
+        double mean = pool.expectedNextBlockSeconds();
 
         VBox card = new VBox(UiTokens.SPACE_1,
                 head,
                 Ui.small(p.transactions() + " txs"),
                 fill,
                 Ui.micro(p.yours() == 0 ? "none yours" : p.yours() + " yours"),
-                Ui.micro("~" + humanSeconds(p.expectedSeconds(pool.expectedNextBlockSeconds()))),
+                eta,
                 Ui.micro("fees " + money(p.feesMinorUnits())));
         card.getStyleClass().addAll("es-block", "es-block-projected");
         if (p.yours() > 0) {
@@ -885,11 +1473,114 @@ public final class Views {
         }
         card.setMinWidth(112);
         card.setPickOnBounds(true);
-        card.setAccessibleText("Projected block " + (p.index() + 1) + ": " + p.transactions()
-                + " transactions, " + p.yours() + " of them yours, roughly "
-                + humanSeconds(p.expectedSeconds(pool.expectedNextBlockSeconds()))
-                + " away on average. Not a schedule — blocks arrive at random intervals.");
+
+        Runnable retime = () -> {
+            long left = remaining(p.etaAt());
+            eta.setText(left > 0 ? "~" + Ui.clock(left) : "running long");
+            // ⚠ Two classes, not one. theme.css has a late `.label { -fx-text-fill: -es-text; }` that
+            // a single-class selector cannot beat at equal specificity — the trap CLAUDE.md records,
+            // where every property except the text fill applies and the miss is invisible.
+            eta.getStyleClass().remove("es-block-late");
+            if (left <= 0) {
+                eta.getStyleClass().add("es-block-late");
+            }
+            card.setAccessibleText("Projected block " + (p.index() + 1) + ": " + p.transactions()
+                    + " transactions, " + p.yours() + " of them yours, "
+                    + etaPhrase(p, mean)
+                    + ". An estimate, not a schedule — blocks arrive at random intervals.");
+        };
+        retime.run();
+        ticking.add(retime);
         return card;
+    }
+
+    /**
+     * One of the player's own transactions, waiting, with the block it currently projects into.
+     *
+     * <p>Its ETA is its projected block's, because that is what it is actually waiting for. A
+     * transaction the queue pushes past the third projection says so rather than borrowing the last
+     * card's instant — an under-priced transaction behind a deep backlog genuinely has no estimate
+     * the three-block window can give, and inventing one is the failure mode {@code FeeTier}'s
+     * "every tier gets in eventually" is most likely to be misread as.
+     */
+    private static Region queuedRow(
+            ChainMempool.Queued q, ChainMempool pool, List<Runnable> ticking) {
+        Label eta = Ui.small("");
+        double mean = pool.expectedNextBlockSeconds();
+
+        Label where = Ui.micro(q.beyondProjection()
+                ? "past +3"
+                : q.projectedIndex() == 0 ? "next block" : "block +" + (q.projectedIndex() + 1));
+
+        HBox row = Ui.row(UiTokens.SPACE_3,
+                Ui.small(q.tx().shortHash()),
+                Ui.small(money(q.tx().valueMinorUnits())),
+                where,
+                eta,
+                Ui.micro("fee " + money(q.tx().feeMinorUnits())),
+                Ui.micro(q.tx().description()));
+        row.setAlignment(Pos.CENTER_LEFT);
+
+        Runnable retime = () -> {
+            if (q.beyondProjection()) {
+                eta.setText("no estimate — outbid by the queue");
+                row.setAccessibleText("Transaction " + q.tx().shortHash() + ", " + money(q.tx()
+                        .valueMinorUnits()) + ", waiting further out than the projections reach. "
+                        + "It is being outbid; it will confirm, but not in the next three blocks.");
+                return;
+            }
+            long left = remaining(q.etaAt());
+            eta.setText(left > 0 ? "~" + Ui.clock(left) : "running long");
+            eta.getStyleClass().remove("es-block-late");
+            if (left <= 0) {
+                eta.getStyleClass().add("es-block-late");
+            }
+            // Safe by construction: a projectedIndex of 0..n-1 is only ever assigned by walking the
+            // projection list, and anything the queue could not place is -1 and returned above.
+            ChainMempool.ProjectedBlock into = pool.projected().get(q.projectedIndex());
+            row.setAccessibleText("Transaction " + q.tx().shortHash() + ", "
+                    + money(q.tx().valueMinorUnits()) + ", projected into "
+                    + (q.projectedIndex() == 0 ? "the next block" : "block plus "
+                            + (q.projectedIndex() + 1))
+                    + ", " + etaPhrase(into, mean) + ".");
+        };
+        retime.run();
+        ticking.add(retime);
+        row.getStyleClass().add("es-queued-row");
+        return row;
+    }
+
+    /** Whole seconds from now until {@code at}; zero or negative once the estimate is overtaken. */
+    private static long remaining(java.time.Instant at) {
+        return at == null ? 0L : java.time.Duration.between(java.time.Instant.now(), at).toSeconds();
+    }
+
+    /**
+     * A projection's ETA in words — the countdown while it holds, the distribution once it does not.
+     *
+     * <h2>⚠ "running long" is a fact about the wait, and "overdue" would be a lie about the chain</h2>
+     *
+     * A block's arrival is memoryless: a chain that has gone an hour without one is not owed one, and
+     * an exponential wait exceeds its own mean about 37% of the time. So an estimate being overtaken
+     * is the <em>ordinary</em> case rather than a fault, and what a player should read off it is
+     * where in the distribution they have landed — which is what
+     * {@link ChainMempool.ProjectedBlock#waitPercentile} answers exactly, being the Erlang CDF and
+     * not an approximation.
+     *
+     * <p>⚠ Elapsed is reconstructed from the ETA rather than read from
+     * {@code pool.secondsSinceLastBlock()}, deliberately. That field is stamped when the snapshot is
+     * built and would not advance between rebuilds, so a card past its estimate would freeze its
+     * percentile at whatever it was when the strip was last constructed — the same class of bug as
+     * the frozen block ages, one field along. The ETA instant plus the wall clock gives it live.
+     */
+    private static String etaPhrase(ChainMempool.ProjectedBlock p, double meanBlockSeconds) {
+        long left = remaining(p.etaAt());
+        if (left > 0) {
+            return "~" + Ui.clock(left) + " away";
+        }
+        double elapsed = p.expectedSeconds(meanBlockSeconds) - left;
+        long percentile = Math.round(p.waitPercentile(elapsed, meanBlockSeconds) * 100);
+        return "running long — longer than " + percentile + "% of waits";
     }
 
     /**
@@ -999,6 +1690,20 @@ public final class Views {
     private static String cells(double fraction, int width) {
         int on = (int) Math.round(Math.max(0, Math.min(1, fraction)) * width);
         return "\u2588".repeat(on) + "\u2591".repeat(Math.max(0, width - on));
+    }
+
+    /**
+     * One end of a transfer: the counterparty's name if it has a verified one, else its address.
+     *
+     * <p>⚠ The label belongs to the <b>counterparty</b>, so it applies to whichever end that is —
+     * the sender of an incoming transfer and the recipient of an outgoing one. Applying it to both
+     * columns would put the pool's name on the player's own address on every payout row.
+     */
+    private static String party(String address, String label, boolean isCounterparty) {
+        if (isCounterparty && label != null && !label.isBlank()) {
+            return label;
+        }
+        return ChainBlock.shorten(address);
     }
 
     /** How long ago, in the units an explorer uses. */
@@ -1149,19 +1854,31 @@ public final class Views {
      *     appears is worse than one that cannot be opened there.
      */
     public static Region settings(ClientProfile profile, ThemeManager themes, Runnable onDeskSettingsChanged) {
-        return settings(profile, themes, onDeskSettingsChanged, null);
+        return settings(profile, themes, onDeskSettingsChanged, null, null);
+    }
+
+    public static Region settings(
+            ClientProfile profile,
+            ThemeManager themes,
+            Runnable onDeskSettingsChanged,
+            java.util.function.Consumer<String> onRename) {
+        return settings(profile, themes, onDeskSettingsChanged, onRename, null);
     }
 
     /**
      * @param onRename applies a new operator name, or null when there is no live character —
      *     the menu opens this panel before a session exists, and a rename control that silently
      *     did nothing would be worse than one that says what it will affect
+     * @param onWindowChanged re-applies window size, UI scale and full screen to the Stage, or null
+     *     where there is no Stage to apply them to (the snapshot harness). Null hides those
+     *     controls rather than showing three that save a value nothing reads.
      */
     public static Region settings(
             ClientProfile profile,
             ThemeManager themes,
             Runnable onDeskSettingsChanged,
-            java.util.function.Consumer<String> onRename) {
+            java.util.function.Consumer<String> onRename,
+            Runnable onWindowChanged) {
         VBox root = panel("SETTINGS");
 
         TextField handle = new TextField(profile.settings().soloHandle);
@@ -1261,6 +1978,46 @@ public final class Views {
                 profile.settings().wallpaper = now.id();
                 profile.save();
                 onDeskSettingsChanged.run();
+            }
+        });
+
+        // Published by the WINDOW section below, so the CASING control can make it rebuild: the
+        // casing sits outside the viewport, so choosing one changes which resolutions still fit.
+        Runnable[] onWindowSizingChanged = {null};
+
+        // §9 cut bezel twice and §9.1 kept it cut when four other artefacts were permitted.
+        // Permitted since 2026-07-27 on explicit direction, under the same four conditions — and
+        // "off by default, switchable off permanently" is the first of them.
+        ChoiceBox<io.github.stoicswe.eyeandsickle.client.ui.BezelStyle> bezel = new ChoiceBox<>();
+        bezel.getItems().addAll(io.github.stoicswe.eyeandsickle.client.ui.BezelStyle.selectable());
+        bezel.setValue(io.github.stoicswe.eyeandsickle.client.ui.BezelStyle
+                .byId(profile.settings().bezel)
+                .orElse(io.github.stoicswe.eyeandsickle.client.ui.BezelStyle.OFF));
+        Label bezelNote = wrapped(bezel.getValue().note());
+        bezelNote.getStyleClass().add("es-text-secondary");
+        bezel.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(io.github.stoicswe.eyeandsickle.client.ui.BezelStyle style) {
+                return style == null ? "" : style.label();
+            }
+
+            @Override
+            public io.github.stoicswe.eyeandsickle.client.ui.BezelStyle fromString(String s) {
+                return io.github.stoicswe.eyeandsickle.client.ui.BezelStyle.OFF;
+            }
+        });
+        bezel.valueProperty().addListener((o, was, now) -> {
+            if (now != null) {
+                profile.settings().bezel = now.id();
+                bezelNote.setText(now.note());
+                profile.save();
+                onDeskSettingsChanged.run();
+                // ⚠ The casing sits OUTSIDE the viewport, so changing it changes the window size and
+                // therefore which resolutions still fit. The WINDOW section rebuilds and re-applies,
+                // or picking a chunky casing silently clamps the resolution the player chose.
+                if (onWindowSizingChanged[0] != null) {
+                    onWindowSizingChanged[0].run();
+                }
             }
         });
 
@@ -1392,6 +2149,8 @@ public final class Views {
             profile.save();
         });
 
+        VBox window = windowSection(profile, onWindowChanged, onWindowSizingChanged);
+
         root.getChildren()
                 .addAll(
                         new Label("OPERATOR"),
@@ -1432,7 +2191,18 @@ public final class Views {
                                 + "monitor, terminal, log, manual, settings and switcher — to it. That "
                                 + "arithmetic is invented, which is why this is opt-in."),
                         new Separator(),
+                        window,
                         new Label("SCREEN"),
+                        new Label("CASING"),
+                        bezel,
+                        bezelNote,
+                        wrapped("The machine around the screen. Off by default. It is drawn "
+                                + "OUTSIDE the viewport \u2014 the resolution you pick under WINDOW "
+                                + "is the screen's, and the casing is added beyond it, so the "
+                                + "window grows rather than the deck shrinking. It never covers "
+                                + "anything you have to read, and nothing about it moves, so it "
+                                + "costs no frames and is unaffected by Reduce motion. Pairs with "
+                                + "the Cyberdeck palette above, but every theme draws it."),
                         new Label("WALLPAPER"),
                         wallpaper,
                         wrapped("Machine texture behind every window — the same alphabet as the greeble "

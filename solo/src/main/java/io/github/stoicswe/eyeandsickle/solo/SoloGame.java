@@ -379,11 +379,15 @@ public final class SoloGame {
         // Finding a block after four hours of nothing is the entire point of the mode and is exactly
         // the event the log exists for.
         if (MiningRules.modeOf(save.rig) == MiningMode.SOLO && save.rig.miningPayouts > payoutsBefore) {
+            long won = save.rig.miningPayouts - payoutsBefore;
+            // Subsidy and fees named separately. They are one credit in the ledger, but they are two
+            // different things — one is minted, the other was paid by the senders in the block —
+            // and `proof-of-work(7)` teaches that split. A single total would hide it.
             EventLog.notice(save, "mining",
                     "block " + save.chain.height + " is yours — "
-                            + money(Balance.BLOCK_SUBSIDY_MINOR_UNITS
-                                    * (save.rig.miningPayouts - payoutsBefore))
-                            + ", whole and unshared.",
+                            + money(Balance.BLOCK_SUBSIDY_MINOR_UNITS * won)
+                            + " subsidy plus " + money(minted.yoursFeesMinorUnits())
+                            + " in fees, whole and unshared.",
                     now);
         }
         changed |= save.chain != null && save.chain.height != heightBefore;

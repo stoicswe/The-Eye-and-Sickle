@@ -13,18 +13,35 @@ All figures assume a **~1 hour session** and a **100-cycle starting rig**. These
 | Income source | Gross/hr | Risk | Effective/hr |
 |---|---|---|---|
 | Active hacking | 70 EC | Loot loss, heat gain | ~70 |
-| Self-mining (full rig) | 40 EC | None | 40 |
+| Self-mining (full rig) | 39.4–45.1 EC | None | 39.4–45.1 |
 | Deployed network (5× T2) | 95 EC | Detection, hijack, sabotage | ~55–65 |
+
+⚠ **Self-mining is a band, not a number, as of 2026-07-27.** Blocks now pay their **transaction fees** to whoever mines them, on top of the subsidy — worth **+10.55%** — and only the modes paid out of real blocks receive them. Measured at a full 100-cycle rig:
+
+| Mode | Scheme | Fee | EC/hr | vs the 40.00 anchor | Paid block fees |
+|---|---|---|---|---|---|
+| **Solo** | block | 0.00% | **45.12** | +12.80% | yes |
+| THE COMMONS *(default)* | PPS | 2.00% | 40.00 | +0.00% | no |
+| MERIDIAN CLEARING | PPS | 3.50% | 39.39 | −1.52% | no |
+| PALE LANTERN | PPS | 2.50% | 39.80 | −0.50% | no |
+| GLASS TEETH | PPLNS | 1.00% | 44.67 | +11.67% | yes |
+| SMALL HOURS | PPLNS | 0.50% | 44.90 | +12.25% | yes |
+
+**The 40.00 anchor now describes a pay-per-share pool**, which is the default and therefore still the floor this document prices. `Balance.chainNetworkHashrate()` was deliberately **not** re-solved to absorb the fees — that was the alternative and it was rejected, because the point of paying fees out is that mining income actually reflects them.
+
+⚠ **What that re-check found: the ordering of income sources is unchanged**, which is the structural property §5 depends on. Active hacking (70) still leads, deployed networks (55–65) still sit second, and self-mining is still last at 39.4–45.1 even in its best mode. Faucet rule 1 (nothing above 70 effective) holds with 25 EC of headroom. What narrowed is the *gap* — self-mining at its best is now 64% of active income rather than 57%.
 
 ### 1.1 Why these ratios are what they are
 
-- **Self-mining at ~57% of active income.** ⚠ Since 2026-07-27 the 40 EC/hr is the **pooled** figure and is exact; solo mining is the same number divided by (1 − the pool's 2% fee), so ~40.8 EC/hr in expectation with roughly twenty times the variance (`04-mining.md` §1.3). Nothing in this table was re-tuned: the chain's network hashrate is *derived* from this anchor precisely so it cannot drift from it. It is a floor, not a strategy — worth doing when heat is too high to operate, never worth doing *instead of* playing. The 57% figure is the tuning target: high enough that a hot player isn't punished twice, low enough that a cold player never idles by choice. (Its safety is structural — Invariant I4.)
+- **Self-mining at 57–64% of active income.** ⚠ The lower figure is pooled pay-per-share and the upper is solo; see the band above. It is a floor, not a strategy — worth doing when heat is too high to operate, never worth doing *instead of* playing. That property survives the fee change with room to spare: 45.12 against 70 is still a decision nobody makes on the numbers alone. (Its safety is structural — Invariant I4.)
 - **Deployed mining reads as the best option on the sheet (95 gross) and lands below active income once losses are priced in (~55–65).** A variance play that feels smart and isn't dominant. Players who audit diligently (Provenance Tracer) and site miners well can push effective yield **above** active income — that's a deliberate skill reward, and it's self-limiting because auditing consumes the session time they'd otherwise spend earning.
 - **Active hacking is the ceiling on EC/hr** and it's the activity that *is the game* (Pillar 1). Nothing passive may beat it in expectation. Any new income source must be slotted under 70 effective or given costs that pull it under.
 
 ### 1.2 Variance warning (established, restated)
 
-⚠ **Self-mining now has variance too, and it is opt-in.** `04-mining.md` §1.3 makes solo mining a Poisson process paying whole blocks at ~4-hour intervals. Pooled — the default — has none of it and is what this table's 40 EC/hr means. A player who has chosen solo is not on the floor this document prices, and playtest instrumentation (§6) should bucket the two apart or the mining figures will read as noise.
+⚠ **Self-mining now has variance too, and it is opt-in.** `04-mining.md` §1.3 makes solo mining a Poisson process paying whole blocks at ~4-hour intervals. Pooled pay-per-share — the default — has none of it and is what this table's 40 EC/hr means. A player who has chosen solo is not on the floor this document prices, and playtest instrumentation (§6) should bucket the two apart or the mining figures will read as noise.
+
+⚠ **Since 2026-07-27 the split to bucket on is the *scheme*, not the mode.** Block fees are paid to whoever mined the block, so PPLNS pools pass them on and pay like solo (+12%) while pay-per-share pools cannot and sit on the anchor. A run that mixes GLASS TEETH with THE COMMONS mixes two income rates 11.7% apart, and the mining figures will read as noise for that reason rather than for variance.
 
 The deployed-network effective figure hides **correlated loss**: sweeps roll against the deployer's single global heat value, so networks die in wipes, not smooth decay (`04-mining.md` §4). Budget play experience around occasional catastrophic loss, not a steady bleed. OQ-3 tracks whether wipes feel dramatic or unfair.
 

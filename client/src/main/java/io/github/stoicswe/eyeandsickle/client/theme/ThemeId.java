@@ -58,7 +58,18 @@ public enum ThemeId {
     AMBER_TUBE("amber", "Amber tube", "theme-amber.css", false),
 
     /** uOS Classic: a light field, black hairlines. The most legible non-accessibility skin. */
-    CLASSIC("classic", "uOS Classic", "theme-classic.css", false);
+    CLASSIC("classic", "uOS Classic", "theme-classic.css", false),
+
+    /**
+     * Cyberdeck: rain-lit teal glass under a sodium-vapour accent.
+     *
+     * <p>⚠ The accent stays <b>single</b> and keeps its meaning. The obvious cyberpunk move is hot
+     * magenta for one thing and cyan for another, which is precisely the "second accent hue, or a
+     * semantic color system" §9 rejects — so the sodium orange means exactly what amber means on
+     * every other skin: money you have, and live work. A palette is the sanctioned place to vary
+     * colour here; a second meaning for a colour is not.
+     */
+    CYBERDECK("cyberdeck", "Cyberdeck", "theme-cyberdeck.css", false);
 
     /** The component sheet. Every theme loads this first; the overlay only redefines colours. */
     public static final String BASE_STYLESHEET = "/io/github/stoicswe/eyeandsickle/client/ui/theme.css";

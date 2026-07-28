@@ -1,0 +1,47 @@
+/*
+ * theme-cyberdeck.css — rain-lit teal and a sodium accent. The cyberdeck palette.
+ *
+ * A palette overlay. Loaded after theme.css, redefines colours and nothing else — see ThemeId's
+ * class comment for why variants are not allowed to touch component rules.
+ *
+ * The reference is the wet-street cyberpunk look: a cold, slightly blue-green dark that reads as
+ * unlit glass, against a warm sodium-vapour accent. Two temperatures, and the whole palette is
+ * built from the tension between them — which is also, conveniently, the shape the deck already
+ * had. It needs no new tokens and adds no second accent.
+ *
+ * ⚠ The accent stays SINGLE and keeps its meaning. §9 bans "a second accent hue, or a semantic
+ * color system", and the obvious cyberpunk move — hot magenta for one thing, cyan for another — is
+ * exactly that ban. So the sodium orange means what amber means everywhere else on the deck: money
+ * you actually have, and live-and-earning. Nothing else is allowed to borrow it.
+ *
+ * ⚠ The greys are a hue ramp, not a neutral one: every tier below is the same teal at a different
+ * brightness, so §2.1's "depth comes from brightness, never from shadow" holds by construction.
+ * A neutral grey mixed into this would read as a second, colder light source and flatten the base.
+ */
+
+.root {
+    /* Unlit glass, then the panel faces catching a little of the street. */
+    -es-void:      #05090C;
+    -es-panel:     #0A1218;
+    -es-panel-hi:  #0F1A22;
+
+    -es-rule:      #16262F;
+    -es-rule-hi:   #233D4A;
+
+    -es-dim-3:     #2C4A57;
+    -es-dim-2:     #416B79;
+    -es-dim-1:     #6796A3;
+    -es-text:      #9EC4CE;
+    -es-text-hi:   #DCEEF2;
+
+    /* Sodium vapour. Same single meaning as -es-amber everywhere else: money, and live work. */
+    -es-amber:     #FF9B3D;
+    -es-amber-mid: #C06A1E;
+    -es-amber-low: #6B3A0F;
+
+    /* Kept hot and kept distinct from the accent — a loss that reads as income is the one
+       confusion this palette is most at risk of, given how close sodium and alarm can sit. */
+    -es-alarm:     #FF4A55;
+
+    -es-tool:      #142932;
+}

@@ -144,12 +144,41 @@ public final class MiningRules {
     }
 
     /**
+     * The block reward this mode is paid out of — and the one place PPS differs from PPLNS.
+     *
+     * <h2>⚠ PPLNS passes fees on; classic PPS does not. That is not an oversight.</h2>
+     *
+     * PPLNS pays out of blocks the pool <em>actually won</em>, so whatever those blocks carried in
+     * fees is part of what there is to divide. Classic <b>pay-per-share</b> buys something different:
+     * the pool pays a fixed price per accepted share whether or not anybody found a block at all,
+     * which is the entire product — and a fixed price cannot depend on the fees of a block that may
+     * not exist. Pools that <em>do</em> pass fees through under a share model are called <b>PPS+</b>
+     * precisely because it is a different product with a different name.
+     *
+     * <p>So this is a real axis rather than a tuning knob: since 2026-07-27 the roster trades
+     * <b>fee exposure</b> as well as fee percentage and variance. A PPS miner takes 10.55% less
+     * expected income for a payout that cannot miss; a PPLNS miner takes the block's luck in both
+     * directions. Solo takes all of it.
+     */
+    public static double rewardBaseMinorUnits(RigState rig) {
+        boolean passesFeesOn = modeOf(rig) == MiningMode.SOLO
+                || poolOf(rig).scheme() == PoolScheme.PPLNS;
+        return Balance.BLOCK_SUBSIDY_MINOR_UNITS
+                + (passesFeesOn ? Balance.expectedBlockFeesMinorUnits() : 0.0d);
+    }
+
+    /**
      * What one payout is worth, in exact (possibly fractional) minor units.
      *
      * <p>See {@link #payoutFraction}: a share, a PPLNS cut and a whole block are one expression.
+     *
+     * <p>⚠ Uses the <b>expected</b> fee total, so this is the long-run rate the UI publishes and the
+     * price of a PPS share. The actual credit for a solo or PPLNS block uses that block's real fees,
+     * which {@code ChainRules.Minted} carries — a published expectation and a realised payout are
+     * different questions and only the second one can know which block it was.
      */
     public static double payoutMinorUnits(RigState rig, ChainState chain) {
-        return Balance.BLOCK_SUBSIDY_MINOR_UNITS * payoutFraction(rig, chain) * (1.0d - feeOf(rig));
+        return rewardBaseMinorUnits(rig) * payoutFraction(rig, chain) * (1.0d - feeOf(rig));
     }
 
     /** The long-run rate, in minor units per hour. Equal in both modes but for the pool's fee. */
@@ -240,11 +269,23 @@ public final class MiningRules {
 
         if (solo) {
             payouts = minted.yours();
-            earned = payouts * (double) Balance.BLOCK_SUBSIDY_MINOR_UNITS;
+            // ⚠ Subsidy PLUS the block's fees, which is what a real miner is paid. Until 2026-07-27
+            // the fees players paid into the mempool were debited and then vanished, so the fee
+            // market was a pure sink and the block card's "fees 0.38 EC" named money nobody ever
+            // received. See MempoolRules.blockFeesMinorUnits for the ~10.6% this adds and where the
+            // economy absorbs it.
+            earned = payouts * (double) Balance.BLOCK_SUBSIDY_MINOR_UNITS
+                    + minted.yoursFeesMinorUnits();
         } else if (poolOf(rig).scheme() == PoolScheme.PPLNS) {
-            // Paid out of blocks the POOL won, in proportion to what this rig contributed to it.
+            // Paid out of blocks the POOL won, in proportion to what this rig contributed to it —
+            // including their fees, because a block's fees are part of what the pool has to divide.
+            // ⚠ The REAL fees of the blocks that were won, not payoutMinorUnits' expectation: this
+            // is a realised payout, and a PPLNS miner's exposure to what a block happened to carry
+            // is the thing that distinguishes it from PPS.
             payouts = minted.yourPool();
-            earned = payouts * payoutMinorUnits(rig, chain);
+            earned = (payouts * (double) Balance.BLOCK_SUBSIDY_MINOR_UNITS
+                            + minted.yourPoolFeesMinorUnits())
+                    * payoutFraction(rig, chain) * (1.0d - feeOf(rig));
         } else {
             // PPS: a share clock, independent of the chain. Progress in units of "expected shares",
             // so the pool retuning this rig's target — or the player reallocating mid-flight —

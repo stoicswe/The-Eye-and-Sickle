@@ -212,7 +212,19 @@ public final class RemoteGameSession implements GameSession {
     }
 
     @Override
+    public int storageCapacity(
+            io.github.stoicswe.eyeandsickle.protocol.game.StorageTier tier) {
+        // Zero, not a guessed default. A disconnected session knows nothing about the server's
+        // capacities, and a grid drawn against an invented six would tell the player their vault
+        // was full when the client simply has not been told anything.
+        return 0;
+    }
+
+    @Override
     public io.github.stoicswe.eyeandsickle.protocol.game.ChainMempool mempool() {
+        // ⚠ An empty projection list, not three zero-filled cards. The ledger's countdowns are
+        // rendered from a projection's etaAt, and a placeholder card would give the panel an instant
+        // to count down to on a session that has no chain behind it at all.
         return new io.github.stoicswe.eyeandsickle.protocol.game.ChainMempool(
                 java.util.List.of(), 0, java.util.List.of(), 0, 0, 0, 0);
     }

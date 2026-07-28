@@ -1452,6 +1452,124 @@
 .es-block-yours > .es-value {
     -fx-text-fill: -es-amber-mid;
 }
+/* An estimate that has been overtaken. Deliberately NOT the alarm colour: an exponential wait runs
+   past its own mean about 37% of the time, so "running long" is the ordinary case, and painting the
+   ordinary case red would teach a player to read normal variance as a fault. It steps up from micro
+   grey to body text — enough to be the thing you look at, not enough to be a warning. Two classes,
+   because of the late `.label` fill rule further down. */
+.es-block-projected > .es-block-late,
+.es-queued-row > .es-block-late {
+    -fx-text-fill: -es-text;
+}
+/* One waiting transaction. A row, not a card: it belongs to the queue above it and a bordered box
+   per transaction would read as a fourth projected block. */
+.es-queued-row {
+    -fx-padding: 2 0 2 0;
+}
+
+/* ── The bezel ──────────────────────────────────────────────────────────────────────────────
+ * §9 cut bezel twice and §9.1 kept it cut when four other artefacts were permitted; permitted
+ * since 2026-07-27 on explicit direction, under §9.1's same four conditions. Off by default.
+ *
+ * It draws in a MARGIN — the deck is inset by exactly the style's margin, so no content is ever
+ * underneath it. That is the condition that matters: a casing painted over the top strip would
+ * hide the compute readout, which is pillar C2. Flat fills and hairlines only; §9's ban on blur
+ * and glow is unchanged, and nothing here moves, so reduced-motion has nothing to suppress. */
+.es-bezel-rule {
+    -fx-stroke: -es-rule-hi;
+    -fx-stroke-width: 1;
+    -fx-fill: transparent;
+}
+.es-bezel-rule-inner {
+    -fx-stroke: -es-rule;
+    -fx-stroke-width: 1;
+    -fx-fill: transparent;
+}
+/* The casing face. The tool colour, because that is what the deck already uses for a physical
+   surface as opposed to a panel you read. */
+.es-bezel-band {
+    -fx-fill: -es-tool;
+}
+/* The 45° corner cut. Painted in the void rather than clipped out: a notch cut with a Shape
+   subtract has to be rebuilt on every resize, and this is one triangle that does not. */
+.es-bezel-notch {
+    -fx-fill: -es-void;
+}
+/* Vent slots — cut INTO the casing, so they are the void showing through, not marks painted on.
+   That is what makes them read as holes in a panel rather than as a stripe pattern. */
+.es-bezel-vent {
+    -fx-fill: -es-void;
+}
+/* Fixings: the screws holding the panel on. Brighter than the band, because a fastener catches
+   light where the face around it does not. */
+.es-bezel-fixing {
+    -fx-fill: -es-rule-hi;
+}
+/* Sockets down the flank. Recessed, so the same void as the vents. */
+.es-bezel-port {
+    -fx-fill: -es-void;
+    -fx-stroke: -es-rule-hi;
+    -fx-stroke-width: 1;
+}
+/* The part-number plate. Dim — it is stamped metal, not a readout, and anything brighter would
+   compete with the interface it is standing next to. */
+.es-bezel-plate {
+    -fx-fill: -es-dim-3;
+}
+/* Cable. Two pixels, so a loom reads as wiring rather than as a second border hairline. */
+.es-bezel-cable {
+    -fx-stroke: -es-dim-3;
+    -fx-stroke-width: 2;
+}
+/* Junction clamps and cable terminators. The one place the casing takes the accent — a live
+   connector is the only thing on a machine's shell that is actually powered, and §2.1's rule is
+   that amber means live. Nothing else on the casing may borrow it. */
+.es-bezel-junction {
+    -fx-fill: -es-amber-low;
+}
+
+/* ── Storage slots ──────────────────────────────────────────────────────────────────────────
+ * A vault is a capacity, and a list of what you own cannot show one — six items in a six-slot
+ * vault and six in a sixty-slot zone read identically. The grid draws the empty slots too, so
+ * "two left" is legible without reading a number. Square corners and hairlines like everything
+ * else; §9 bans a rounded corner and this is not the exception. */
+.es-slot {
+    -fx-background-color: -es-panel;
+    -fx-border-color: -es-rule;
+    -fx-border-width: 1;
+    -fx-padding: 4;
+}
+/* An empty slot is drawn, not omitted: it is the thing that makes the grid mean anything. Dashed
+   and unfilled so a glance separates "space here" from "something here" without counting. */
+.es-slot-empty {
+    -fx-background-color: transparent;
+    -fx-border-style: dashed;
+    -fx-border-color: -es-dim-3;
+}
+.es-slot-filled:hover {
+    -fx-border-color: -es-rule-hi;
+}
+/* Selection is a border, not a fill: a filled cell would compete with the amber that means money
+   everywhere else on the deck, and §2.1 keeps that hue for one meaning. */
+.es-slot-selected {
+    -fx-border-color: -es-text-hi;
+    -fx-border-width: 1;
+}
+/* A mount that will accept the item currently being dragged. Only ever applied to a mount the
+   item is NOT already in — a target that lights up for a move that will not happen is telling the
+   player it will. The whole section highlights, because the whole section is the target. */
+.es-slot-drop {
+    -fx-border-color: -es-amber-mid;
+    -fx-border-width: 1;
+    -fx-background-color: -es-panel-hi;
+}
+/* Two classes, because of the late `.label { -fx-text-fill: -es-text; }` a one-class selector
+   cannot beat at equal specificity — the documented trap in CLAUDE.md. */
+.es-slot > .es-slot-name {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 9.5px;
+    -fx-text-fill: -es-text;
+}
 
 /* ── The attention meter ────────────────────────────────────────────────────────────────────
  * Cells, never a continuous bar — §4 of the design language forbids one, for the same reason the

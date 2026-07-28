@@ -1,6 +1,7 @@
 package io.github.stoicswe.eyeandsickle.solo;
 
 import io.github.stoicswe.eyeandsickle.protocol.game.FeeTier;
+import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
 
 /**
  * Every tunable number the solo runtime uses, in one place, each cited to the design document that
@@ -304,6 +305,37 @@ public final class Balance {
     public static final int MEMPOOL_BASELINE_DEPTH = 300;
 
     /**
+     * What a block's fees are worth to whoever mines it, on average — <b>derived, never chosen</b>.
+     *
+     * <h2>⚠ This is mining income, and since 2026-07-27 it is real income</h2>
+     *
+     * A block pays its miner {@code subsidy + fees}, as on any real chain. Before that date the fees
+     * players paid into the mempool were debited and then ceased to exist, which made the fee market
+     * a pure sink and left the explorer's "fees 0.38 EC" naming money nobody ever received.
+     *
+     * <h2>Derived from the two distributions rather than measured and pasted</h2>
+     *
+     * A block carries {@code 12 + U[0, LIMIT − 12)} transactions and each pays
+     * {@code FEE_ECONOMY + U[0, FEE_PRIORITY − FEE_ECONOMY]}, so the expectation is the product of
+     * the two means: {@code 105.5 × 16 = 1688}. Writing the number here instead would be a fourth
+     * copy of the fee ladder, silently wrong the first time a tier moved —
+     * {@code MiningChainTest} asserts this against 20 000 simulated blocks for exactly that reason.
+     *
+     * <p>⚠ It is <b>10.55% of the subsidy</b>, so it moves mining income by that much. That was a
+     * deliberate call on 2026-07-27: {@code chainNetworkHashrate()} was <em>not</em> re-solved to
+     * absorb it, so self-mining now pays about a tenth more than {@code design/03} §1's
+     * 0.40 EC/cycle-hour anchor. See `03` §1.1 for what that re-rated and what it did not.
+     */
+    public static double expectedBlockFeesMinorUnits() {
+        // Both means are of a floorMod over a half-open range, so each is (span − 1) / 2 above its
+        // floor — 93.5 transactions above 12, and 14 minor units above the economy rate.
+        double meanTransactions = 12 + (BLOCK_TRANSACTION_LIMIT - 12 - 1) / 2.0d;
+        double meanFee = FEE_ECONOMY_MINOR_UNITS
+                + (FEE_PRIORITY_MINOR_UNITS - FEE_ECONOMY_MINOR_UNITS) / 2.0d;
+        return meanTransactions * meanFee;
+    }
+
+    /**
      * The rest of the chain's hashrate, in hashes per second — <b>derived, never chosen</b>.
      *
      * <h2>Why this is a derivation</h2>
@@ -513,6 +545,37 @@ public final class Balance {
 
     /** The Encrypted Vault's starting capacity, in items — {@code docs/design/01-core-resources.md} §6. */
     public static final int STARTING_VAULT_CAPACITY = 6;
+
+    /** Standard Storage — exposed while online. {@code design/01} §6 [PROPOSAL]. */
+    public static final int STANDARD_STORAGE_CAPACITY = 20;
+
+    /** The High-Hackable Zone — always exposed, and large because that is the trade. */
+    public static final int HIGH_HACKABLE_CAPACITY = 60;
+
+    /**
+     * How many slots a tier has, where a slot holds one tool or one stack.
+     *
+     * <h2>⚠ Published, not yet enforced — and the gap is deliberate rather than forgotten</h2>
+     *
+     * {@link #STARTING_VAULT_CAPACITY} was declared on the day storage was written and read by
+     * nothing for as long as it existed. The STORAGE window now draws a grid against these numbers,
+     * so they are finally visible — but {@code moveItem} still does not refuse a move that would
+     * overfill a tier, which means a vault can read {@code 8 / 6}. That is rendered honestly as
+     * over-capacity rather than hidden, because the alternative is a readout that quietly disagrees
+     * with what the player owns.
+     *
+     * <p>Enforcing it is a <b>rules</b> change — it makes a move fail — and belongs with the
+     * Cold Storage Expansion schematic that {@code design/01} §6 pairs it with, since a hard cap of
+     * 6 with no way to raise it is a different game from the one that document describes.
+     * Invariant I12 constrains how capacity <em>scales</em>, and nothing here sells it.
+     */
+    public static int storageCapacity(StorageTier tier) {
+        return switch (tier) {
+            case VAULT -> STARTING_VAULT_CAPACITY;
+            case STANDARD_STORAGE -> STANDARD_STORAGE_CAPACITY;
+            case HIGH_HACKABLE_ZONE -> HIGH_HACKABLE_CAPACITY;
+        };
+    }
 
     // ------------------------------------------------------------------ scan precision
 

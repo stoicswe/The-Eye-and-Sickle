@@ -1,12 +1,14 @@
 package io.github.stoicswe.eyeandsickle.solo.rules;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainBlock;
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainMempool;
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainTransaction;
 import io.github.stoicswe.eyeandsickle.protocol.game.FeeTier;
 import io.github.stoicswe.eyeandsickle.solo.Balance;
+import io.github.stoicswe.eyeandsickle.solo.Pools;
 import io.github.stoicswe.eyeandsickle.solo.SoloGame;
 import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
@@ -120,6 +122,55 @@ class MempoolTest {
             // heights, and the chain would read as a shared fixture rather than each character's world.
             assertThat(new Rig(a).game.chainBlock(50).hash())
                     .isNotEqualTo(new Rig(b).game.chainBlock(50).hash());
+        }
+
+        @Test
+        @DisplayName("⚠ block times jitter — no two gaps in the strip are the same 14.0 minutes")
+        void blockTimesJitter(@TempDir Path dir) {
+            Rig rig = new Rig(dir);
+            SoloSave save = rig.save();
+            long tip = save.chain.height;
+
+            double lo = Double.MAX_VALUE;
+            double hi = -Double.MAX_VALUE;
+            double total = 0;
+            int gaps = 0;
+            Instant previous = ChainExplorer.timestampOf(save, 0);
+            for (long height = 1; height <= tip; height++) {
+                Instant at = ChainExplorer.timestampOf(save, height);
+                double minutes = Duration.between(previous, at).toSeconds() / 60.0d;
+                lo = Math.min(lo, minutes);
+                hi = Math.max(hi, minutes);
+                total += minutes;
+                gaps++;
+                previous = at;
+            }
+
+            double target = Balance.CHAIN_TARGET_BLOCK_SECONDS / 60.0d;
+            double band = ChainExplorer.TIMESTAMP_JITTER_SECONDS * 2 / 60.0d;
+            // The band the strip actually draws in: 14 ± 6 minutes, so 8 to 20.
+            assertThat(lo).isGreaterThanOrEqualTo(target - band);
+            assertThat(hi).isLessThanOrEqualTo(target + band);
+            // ⚠ Strictly positive, always. A block rendering before its own parent is what a naive
+            // per-height offset produces the moment the jitter reaches half the interval.
+            assertThat(lo).as("monotone").isPositive();
+            // ⚠ And it really does vary. The whole point: this was 14.0 exactly, every gap, and the
+            // strip read as a metronome.
+            assertThat(hi - lo).as("spread").isGreaterThan(4.0d);
+            // The jitters telescope, so the mean cannot drift from the interval printed above the
+            // strip — a history that averaged 15 minutes under a "~14 min" heading is a readout
+            // disagreeing with itself.
+            assertThat(total / gaps).isCloseTo(target, within(0.05d));
+        }
+
+        @Test
+        @DisplayName("⚠ the newest block renders at exactly lastBlockAt, which is a measurement")
+        void theTipIsNotDisplaced(@TempDir Path dir) {
+            Rig rig = new Rig(dir);
+            // The one timestamp the chain genuinely recorded. Jittering it would put the explorer
+            // out of step with the mempool panel's "last one 3m ago", read off the same field.
+            assertThat(ChainExplorer.timestampOf(rig.save(), rig.save().chain.height))
+                    .isEqualTo(rig.save().chain.lastBlockAt);
         }
     }
 
@@ -281,19 +332,76 @@ class MempoolTest {
         @DisplayName("a mining payout is a coinbase: no sender, no fee, no gas")
         void coinbaseHasNoSender(@TempDir Path dir) {
             Rig rig = new Rig(dir);
+            // ⚠ SOLO explicitly. This used to pass on the default (pooled) rig, which was the bug:
+            // both modes credit SELF_MINING, so keying "is this minted?" off the type alone marked
+            // every POOL payout as a coinbase — from the zero address, discarding the pool address
+            // the engine had stamped on it. Only a block you won yourself mints anything.
+            rig.game.setMiningMode(io.github.stoicswe.eyeandsickle.protocol.game.MiningMode.SOLO);
             rig.game.allocateSelfMining(90);
-            for (int i = 0; i < 60; i++) {
+
+            // ⚠ Mine UNTIL a block is won, rather than for a fixed stretch. A solo rig at 90 cycles
+            // expects a block about every 4.3 hours and the wait is exponential, so a fixed 5-hour
+            // run finds nothing roughly 30% of the time — this test was flaky for exactly one run
+            // between being switched to SOLO and this comment. The early break keeps it fast (~50
+            // steps typically) and 50 simulated hours puts P(never) around one in a hundred
+            // thousand. It cannot be made exact: the character's RNG seed is derived per character,
+            // which is the bug fix that stopped every save generating an identical world.
+            ChainTransaction payout = null;
+            for (int i = 0; i < 600 && payout == null; i++) {
                 rig.advance(Duration.ofMinutes(5));
+                payout = rig.game.chainTransactions(50).stream()
+                        .filter(ChainTransaction::coinbase)
+                        .findFirst()
+                        .orElse(null);
             }
-            ChainTransaction payout = rig.game.chainTransactions(50).stream()
-                    .filter(ChainTransaction::coinbase)
-                    .findFirst()
-                    .orElseThrow();
+            assertThat(payout).as("a solo rig eventually wins a block").isNotNull();
             // The coins did not exist before the block, so there is nobody to have sent them and no
             // transaction to have executed. Explorers really do render it this way.
             assertThat(payout.from()).isEqualTo(ChainTransaction.ZERO_ADDRESS);
             assertThat(payout.gasUsed()).isZero();
             assertThat(payout.feeMinorUnits()).isZero();
+        }
+
+        @Test
+        @DisplayName("⚠ a pool payout is NOT a coinbase, and it names the pool that sent it")
+        void poolPayoutNamesThePool(@TempDir Path dir) {
+            Rig rig = new Rig(dir);
+            rig.game.allocateSelfMining(90);
+            for (int i = 0; i < 60; i++) {
+                rig.advance(Duration.ofMinutes(5));
+            }
+            ChainTransaction payout = rig.game.chainTransactions(50).stream()
+                    .filter(tx -> "SELF_MINING".equals(tx.kind()))
+                    .findFirst()
+                    .orElseThrow();
+
+            // The pool paid this out of its own balance, so it has a sender — which is exactly why
+            // LedgerEntryState refuses to stamp a block number on it either.
+            assertThat(payout.coinbase()).isFalse();
+            assertThat(payout.from()).isNotEqualTo(ChainTransaction.ZERO_ADDRESS);
+            assertThat(payout.from())
+                    .isEqualTo(ChainExplorer.addressOf(Pools.byId(Pools.DEFAULT_ID)));
+            // And the ledger prints the name rather than the hex, because this is the row a player
+            // most needs to recognise. The address is still carried, so §3.1's audit still works.
+            assertThat(payout.counterpartyLabel())
+                    .isEqualTo(Pools.byId(Pools.DEFAULT_ID).name());
+        }
+
+        @Test
+        @DisplayName("a label is only ever attached to an address the client can verify")
+        void strangersGetNoLabel(@TempDir Path dir) {
+            Rig rig = new Rig(dir);
+            rig.game.credit(50_000L, "TEST", "seed");
+            rig.game.debit(100L, "TRANSFER", "to a stranger", FeeTier.STANDARD,
+                    "0x" + "ab".repeat(20));
+            ChainTransaction sent = rig.game.chainTransactions(10).stream()
+                    .filter(tx -> "TRANSFER".equals(tx.kind()))
+                    .findFirst()
+                    .orElseThrow();
+            // A pool address is derived from a public id, so matching one is a fact. Anything else
+            // gets no name: a label rendered where an address belongs is how a transfer from a
+            // stranger gets mistaken for a payout.
+            assertThat(sent.counterpartyLabel()).isEmpty();
         }
 
         @Test
@@ -361,14 +469,117 @@ class MempoolTest {
 
         @Test
         @DisplayName("the expected interval is an average and the elapsed time is a fact")
-        void neverACountdown(@TempDir Path dir) {
+        void theIntervalIsStillAnAverage(@TempDir Path dir) {
             Rig rig = new Rig(dir);
             ChainMempool pool = rig.game.mempool();
-            // ⚠ There is deliberately no "seconds until the next block" on this type. Blocks arrive
-            // on a Poisson schedule, so there is no moment to count down to — a countdown would be
-            // the same lie a mining progress bar would be, one step removed.
+            // The ETA added on 2026-07-27 is derived from this and does not replace it. A countdown
+            // published without the average it estimates would read as a deadline.
             assertThat(pool.expectedNextBlockSeconds()).isEqualTo(Balance.CHAIN_TARGET_BLOCK_SECONDS);
             assertThat(pool.secondsSinceLastBlock()).isNotNegative();
+        }
+    }
+
+    /**
+     * The estimate a player counts down against, and the four properties that keep it honest.
+     *
+     * <p>See {@code ChainMempool}'s type comment: an ETA is published, but it is anchored rather than
+     * accumulated, it is allowed to be overtaken, and it must never be the engine's own draw.
+     */
+    @Nested
+    @DisplayName("the confirmation estimate")
+    class Estimate {
+
+        @Test
+        @DisplayName("every projection is anchored on the last block at the mean interval")
+        void anchoredOnTheLastBlock(@TempDir Path dir) {
+            Rig rig = new Rig(dir);
+            ChainMempool pool = rig.game.mempool();
+            Instant last = rig.save().chain.lastBlockAt;
+            for (ChainMempool.ProjectedBlock p : pool.projected()) {
+                assertThat(p.etaAt())
+                        .as("projection %d", p.index())
+                        .isEqualTo(last.plusSeconds(
+                                Balance.CHAIN_TARGET_BLOCK_SECONDS * (p.index() + 1L)));
+            }
+        }
+
+        @Test
+        @DisplayName("it holds still while the chain does, which is what lets a client tick it down")
+        void holdsStillBetweenBlocks(@TempDir Path dir) {
+            Rig rig = new Rig(dir);
+            Instant before = rig.game.mempool().projected().getFirst().etaAt();
+
+            // A minute of wall clock with no block found. An ETA recomputed from `now` would slide
+            // forward by exactly this minute and the countdown would sit still forever — which is
+            // the frozen readout this whole change exists to fix, arrived at from the other side.
+            long height = rig.save().chain.height;
+            rig.advance(Duration.ofSeconds(60));
+            if (rig.save().chain.height != height) {
+                return; // A block landed; the anchor is supposed to move. Tested below.
+            }
+            assertThat(rig.game.mempool().projected().getFirst().etaAt()).isEqualTo(before);
+        }
+
+        @Test
+        @DisplayName("a landed block moves the anchor forward whole")
+        void aBlockMovesTheAnchor(@TempDir Path dir) {
+            Rig rig = new Rig(dir);
+            Instant before = rig.game.mempool().projected().getFirst().etaAt();
+            long height = rig.save().chain.height;
+            for (int i = 0; i < 240 && rig.save().chain.height == height; i++) {
+                rig.advance(Duration.ofSeconds(60));
+            }
+            assertThat(rig.save().chain.height).as("a block eventually lands").isGreaterThan(height);
+            assertThat(rig.game.mempool().projected().getFirst().etaAt()).isAfter(before);
+        }
+
+        @Test
+        @DisplayName("⚠ it is never the engine's own draw — being overdue must stay unobservable")
+        void doesNotPublishTheDraw(@TempDir Path dir) {
+            Rig rig = new Rig(dir);
+            // The engine really does know: networkWorkTarget is drawn up front, so the true seconds
+            // to the next block are (target − done) × mean and sitting right there. Publishing it
+            // would make "overdue" a fact a player could read, which is precisely the gambler's
+            // fallacy ChainState exists to refuse to teach.
+            double mean = ChainRules.expectedSeconds(
+                    rig.save().chain.difficulty, rig.save().chain.networkHashrate);
+            double trueRemaining =
+                    (rig.save().chain.networkWorkTarget - rig.save().chain.networkWorkDone) * mean;
+            long published = Duration.between(
+                    rig.now, rig.game.mempool().projected().getFirst().etaAt()).toSeconds();
+
+            assertThat(published).isEqualTo(Balance.CHAIN_TARGET_BLOCK_SECONDS);
+            // The draw is exponential, so agreeing with the mean to the second would be a one-in-a-
+            // million coincidence — and would mean the published figure had been derived from it.
+            assertThat(Math.abs(trueRemaining - published)).isGreaterThan(1.0d);
+        }
+
+        @Test
+        @DisplayName("the percentile is the Erlang CDF, so past the estimate is the ordinary case")
+        void thePercentileIsExact() {
+            // Shape 1 at exactly the mean: 1 − e⁻¹. The number the UI shows the instant an estimate
+            // is overtaken, and the reason it says "running long" rather than "overdue".
+            assertThat(ChainMempool.erlangCdf(1, 1.0d)).isCloseTo(0.6321d, within(1e-4));
+            // Shape 2 at twice the mean: 1 − e⁻²(1 + 2).
+            assertThat(ChainMempool.erlangCdf(2, 2.0d)).isCloseTo(0.5940d, within(1e-4));
+            assertThat(ChainMempool.erlangCdf(1, 0.0d)).isZero();
+            assertThat(ChainMempool.erlangCdf(3, 100.0d)).isCloseTo(1.0d, within(1e-9));
+        }
+
+        @Test
+        @DisplayName("a waiting transaction carries the block it projects into, and that block's ETA")
+        void queuedCarriesItsProjection(@TempDir Path dir) {
+            Rig rig = new Rig(dir);
+            rig.game.credit(50_000L, "TEST", "seed");
+            rig.game.debit(100L, "TRANSFER", "urgent", FeeTier.PRIORITY, "0x" + "ef".repeat(20));
+
+            ChainMempool pool = rig.game.mempool();
+            assertThat(pool.queued()).hasSize(1);
+            ChainMempool.Queued q = pool.queued().getFirst();
+            assertThat(q.beyondProjection()).isFalse();
+            // Its estimate is its projected block's, because that is what it is actually waiting for.
+            assertThat(q.etaAt()).isEqualTo(pool.projected().get(q.projectedIndex()).etaAt());
+            assertThat(pool.pending().getFirst()).isSameAs(q.tx());
         }
     }
 }
