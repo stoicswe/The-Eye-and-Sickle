@@ -45,8 +45,11 @@ class BezelStyleTest {
             // had to stay small against the 860px floor. Now the resolution is the viewport's and
             // the casing is added OUTSIDE it, so it costs window room instead — the bound is about
             // not demanding a window far larger than the screen the player picked a size to fit.
-            // 40px a side is 80 on each axis, under 7% of the smallest preset's width.
-            assertThat(style.margin()).as("%s", style).isLessThanOrEqualTo(40);
+            // 56px a side is 112 on each axis, under 9% of the smallest preset's width. Raised
+            // from 40 when the deliberately extreme styles landed — a gothic plate or a front panel
+            // needs room for rivets and lamps, and it is buying that room from the desktop rather
+            // than from the deck.
+            assertThat(style.margin()).as("%s", style).isLessThanOrEqualTo(56);
         }
     }
 

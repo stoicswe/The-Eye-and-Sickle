@@ -1093,6 +1093,7 @@ public final class DeckShell {
         // leave a wallpaper ticking behind the main menu forever.
         substrate.dispose();
         crt.dispose();
+        bezel.dispose();
         notices.detach();
         pause.dispose();
         desk.closeAll();

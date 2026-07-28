@@ -293,7 +293,26 @@ What the slider does scale is the artefact curved glass actually produces: **rad
 
 ### 9.2 Bezel — permitted as a casing, on the same conditions (amended 2026-07-27)
 
-**§9 cut bezel and §9.1 pointedly kept it cut when four other artefacts were permitted.** It is permitted now on explicit direction, by the same mechanism and under §9.1's identical four conditions. Six styles ship — `Off`, `Hairline`, `Corner brackets`, `Casing`, `Cable loom`, `Ruled edge` — in Settings → Screen → **Casing**.
+**§9 cut bezel and §9.1 pointedly kept it cut when four other artefacts were permitted.** It is permitted now on explicit direction, by the same mechanism and under §9.1's identical four conditions. Ten styles ship, in Settings → Screen → **Casing**:
+
+| Style | Margin | What it is |
+|---|---|---|
+| `Off` *(default)* | 0 | The shipped look, unchanged |
+| `Hairline` | 10 | Two thin rules — the quietest |
+| `Corner brackets` | 14 | Brackets and ticks, open in the middle |
+| `Ruled edge` | 12 | A tick scale, heavier every fifth |
+| `Casing` | 26 | Vents, fixings, a port block, a designator plate |
+| `Cable loom` | 30 | Three dressed cable runs, junctions, terminators |
+| **`Gothic plate`** | 46 | Riveted plate, corner buttresses, hazard chevrons |
+| **`Terminal panel`** | 40 | Blinking status lamps, toggle switches, a grille |
+| **`Chrome 3.1`** | 30 | Raised bevel, title bar, drawn control boxes |
+| **`Motif`** | 34 | Double bevel, corner grips, square buttons |
+
+**Two of these deliberately imitate window chrome, and §9 bans "native window chrome of any kind".** That ban protects §0's premise — *the player never sees their own operating system*. A thirty-year-old window manager is nobody's operating system: `Chrome 3.1` and `Motif` read as a retro **machine**, not as the host showing through, which is the thing the rule exists to prevent. They are also opt-in and off by default, like everything else here.
+
+**The bevel on those two is legal on its own terms.** §2.1 says depth comes from **brightness, never from shadow or blur**, and a bevel is exactly a light top-left edge against a dark bottom-right one. No `DropShadow`, no blur — §9's ban on both is untouched and still machine-checked.
+
+⚠ **`Gothic plate` is genre, not iconography.** Rivets, plate, buttresses and hazard chevrons — deliberately none of the protected emblems the obvious reference is known for. Construction is free to borrow; insignia are not.
 
 **`Casing` and `Cable loom` are the machine ones.** Casing carries vent slots, corner fixings, a port block down one flank and a stamped designator plate; the loom is three cable runs dressed at different inset lanes, turning at right angles, with junction clamps at the bends and terminator blocks where each run ends. Everything on both is a flat hard-edged shape in a palette token — vents and ports are the void showing *through* the band rather than marks painted on it, which is what makes them read as holes in a panel.
 
@@ -317,7 +336,8 @@ The other three conditions carry over unchanged:
 
 1. **Off by default, switchable off permanently.** `Off` is the shipped look. Asserted against a fresh profile, not just against the enum.
 2. **No blur, no glow.** Flat fills and hairlines with hard edges — the same vocabulary the panels already use. Unchanged and still machine-checked.
-3. **Nothing here moves**, so §5 and `prefers-reduced-motion` have nothing to suppress. A casing is a physical object and physical objects do not animate.
+3. **What moves obeys §5.** ⚠ This read *"nothing here moves"* until `Terminal panel` landed with blinking status lamps. The rule was never "a casing must be still" — §9.1's actual condition is that motion steps rather than tweens and that `prefers-reduced-motion` stops it. The lamps run on `Pulse.animate`, the decorative channel, which is exactly that. Every other style is inert.
+   > **⚠ Reduced motion freezes the lamps LIT, not dark.** A panel whose indicators all went out would read as *powered off* — a wrong statement about the machine, where a still lamp is merely a less lively one.
 
 **⚠ Vignette is still cut, and this does not reopen it.** The argument against a vignette was never about frames — it is that it *"dims real content by position rather than by meaning, and the corners are where tiled windows go."* A casing in a margin dims nothing, because no content is ever underneath it. The two are not the same request and the reasoning does not transfer.
 

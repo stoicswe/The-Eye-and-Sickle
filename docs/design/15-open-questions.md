@@ -697,6 +697,14 @@ Record resolutions here when they land (date — question — outcome — where 
 
   ⚠ **A flaky test was introduced and caught within the same session.** `MempoolTest.coinbaseHasNoSender` was switched to SOLO (correctly — it had been asserting on a *pooled* payout, which is the bug it now guards). But a solo rig at 90 cycles expects a block every ~4.3 hours against an exponential wait, so the fixed five-hour run it inherited found nothing about 30% of the time. It mines **until** a block is won now, with an early break and a 50-hour bound. It cannot be made exact: the RNG seed is derived per character, which is itself the fix that stopped every save generating an identical world.
 
+- 2026-07-27 — **Four extreme casing styles, and §9.2's motion condition amended** — `ui-design-language.md` §9.2. `Gothic plate` (riveted plate, corner buttresses, hazard chevrons), `Terminal panel` (blinking status lamps, toggle switches, a grille), `Chrome 3.1` (raised bevel, title bar, drawn control boxes) and `Motif` (double bevel, corner grips, square buttons). Ten styles total, still off by default.
+
+  ⚠ **§9.2's third condition was written as "nothing here moves" and that is no longer true.** `Terminal panel`'s lamps blink. The condition has been corrected to §9.1's actual rule — *what moves obeys §5* — and the lamps run on `Pulse.animate`, the decorative channel that `prefers-reduced-motion` freezes. ⚠ Frozen **lit**, not dark: a panel whose indicators all went out reads as powered off, which is a wrong statement about the machine where a still lamp is only a less lively one. The ticker is stopped in `Bezel.dispose()`, wired from `DeckShell.dispose` beside the CRT layer's.
+
+  ⚠ **Two styles imitate window chrome, which §9 bans outright.** That ban protects §0's premise that the player never sees their own operating system — and a thirty-year-old window manager is nobody's operating system, so `Chrome 3.1` and `Motif` read as a retro machine rather than as the host showing through. Their bevels are legal on their own terms: §2.1 says depth comes from **brightness, never shadow**, and a bevel is a light edge against a dark one. No blur, no drop shadow, both still banned and machine-checked.
+
+  ⚠ **`Gothic plate` is genre, not iconography** — rivets, plate and chevrons, deliberately none of the protected emblems the obvious reference is known for. ⚠ Control-box glyphs are **drawn as shapes, never as text**, so no character the bundled fonts might not carry can reach the casing (`GlyphCoverageTest`).
+
 ## 4. How to use this doc
 
 - Before starting design work on any system, check here for its open questions.

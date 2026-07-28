@@ -27,8 +27,14 @@ import java.util.Optional;
  *       readout, which is client pillar C2 and structural.
  *   <li><b>No blur, no glow.</b> §9's ban is unchanged and machine-checked. Every style here is
  *       flat fills and hairlines with hard edges — the same vocabulary the panels already use.
- *   <li><b>Nothing here moves.</b> A casing is a physical object; a physical object does not
- *       animate. That also means §5 and {@code prefers-reduced-motion} have nothing to suppress.
+ *   <li><b>What moves obeys §5.</b> ⚠ This condition read "nothing here moves" until
+ *       {@link #TERMINAL} landed with blinking status lamps. The rule was never "a casing must be
+ *       still" — §9.1's actual condition is that motion artefacts step rather than tween and that
+ *       {@code prefers-reduced-motion} stops them. The lamps run on {@code Pulse.animate}, the
+ *       decorative channel, which is exactly that. Every other style is still inert.
+ *       <p>⚠ Reduced motion freezes the lamps <b>lit</b>, not dark. A panel whose indicators all
+ *       went out would read as powered off — a wrong statement about the machine, where a still
+ *       lamp is merely a less lively one.
  * </ol>
  *
  * <p>⚠ <b>Vignette is still cut, and this does not reopen it.</b> §9's argument against it is not
@@ -86,6 +92,56 @@ public enum BezelStyle {
      * §9 has no vocabulary for one and a dressed loom does not have any either.
      */
     LOOM("loom", "Cable loom", 30, "Cable runs, junctions and terminators, dressed around the screen."),
+
+    /**
+     * Gothic industrial: heavy plate, buttressed corners, rivet rows and warning chevrons.
+     *
+     * <p>The grimdark-machinery register — a screen bolted into something enormous and badly
+     * maintained. Deep plate, a rivet line following every edge, corner buttresses that step inward,
+     * and hazard chevrons on the flanks.
+     *
+     * <p>⚠ <b>Genre, not iconography.</b> This is heavy-industrial gothic drawn from rivets, plate
+     * and chevrons — deliberately none of the protected emblems the obvious reference is known for.
+     * The look comes from the construction, which is free to borrow; the insignia are not.
+     */
+    GOTHIC("gothic", "Gothic plate", 46,
+            "Heavy riveted plate, buttressed corners and hazard chevrons. The loudest option."),
+
+    /**
+     * A hardware front panel: status LEDs that actually blink, switches, a grille and labels.
+     *
+     * <p>⚠ The <b>only</b> style that moves, which is why §9.2's third condition had to be amended
+     * from "nothing here moves" to "what moves obeys §5". The LEDs run on {@code Pulse.animate} —
+     * the decorative channel — so {@code prefers-reduced-motion} freezes them lit rather than
+     * dark. A panel whose lamps all went out under reduced motion would read as powered off, which
+     * is a worse answer than a still one.
+     */
+    TERMINAL("terminal", "Terminal panel", 40,
+            "A front panel with blinking status lamps, switches and a grille."),
+
+    /**
+     * Beveled chrome in the 3.1 idiom: raised outer frame, title bar, drawn control boxes.
+     *
+     * <p>⚠ §9 bans "native window chrome of any kind" and this deliberately imitates some. The ban
+     * protects §0's premise that <em>the player never sees their own operating system</em> — and a
+     * thirty-year-old window manager is nobody's operating system. It reads as a retro machine
+     * rather than as the host showing through, which is the thing the rule exists to prevent.
+     *
+     * <p>The bevel is legal on its own terms: §2.1 says depth comes from <b>brightness, never from
+     * shadow</b>, and a bevel is exactly a light edge against a dark one. No blur, no drop shadow.
+     */
+    CHROME_31("chrome31", "Chrome 3.1", 30,
+            "Raised bevel, title bar and drawn control boxes. A retro window manager."),
+
+    /**
+     * The old Unix frame: thick double bevel, segmented border with corner grips, square buttons.
+     *
+     * <p>The Motif/{@code mwm} look — the border split into runs by short perpendicular rules, with
+     * the corner segments reading as resize grips, and a title bar carrying a menu box on the left
+     * and two square buttons on the right. Squarer, heavier and greyer than {@link #CHROME_31}.
+     */
+    MOTIF("motif", "Motif", 34,
+            "Thick double bevel with corner grips and square buttons. The old Unix frame."),
 
     /**
      * A ruled measure along all four edges.

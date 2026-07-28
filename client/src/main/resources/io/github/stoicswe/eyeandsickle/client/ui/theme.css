@@ -1521,6 +1521,35 @@
     -fx-stroke: -es-dim-3;
     -fx-stroke-width: 2;
 }
+/* ── Gothic plate ───────────────────────────────────────────────────────────────────────── */
+.es-bezel-buttress { -fx-fill: -es-panel-hi; }
+.es-bezel-rivet    { -fx-fill: -es-rule-hi; }
+/* Hazard chevrons. The one diagonal §2.3 allows on this surface — the deck's own hazard band is
+   inside the viewport, which is a different screen. Dim, because a casing that competed with the
+   interface for attention would be exactly the legibility cost §9.2's condition 2 forbids. */
+.es-bezel-chevron  { -fx-fill: -es-amber-low; }
+
+/* ── Terminal front panel ───────────────────────────────────────────────────────────────────
+ * The only style that moves. Lamps blink on Pulse.animate, so reduced motion freezes them LIT —
+ * a panel whose indicators all went out would read as powered off, which is a wrong statement
+ * about the machine where a still lamp is only a less lively one. */
+.es-bezel-bay          { -fx-fill: -es-void; }
+.es-bezel-lamp         { -fx-fill: -es-amber; }
+.es-bezel-lamp-off     { -fx-fill: -es-amber-low; }
+.es-bezel-switch-well  { -fx-fill: -es-void; }
+.es-bezel-switch       { -fx-fill: -es-dim-1; }
+
+/* ── Beveled chrome (3.1) and Motif ─────────────────────────────────────────────────────────
+ * ⚠ The bevel is BRIGHTNESS, never shadow. §2.1: "depth comes from brightness, never from shadow
+ * or blur" — a light top-left edge against a dark bottom-right one is depth done the way the
+ * design language already permits, which is what makes these two styles legal at all. */
+.es-bezel-lit   { -fx-stroke: -es-dim-2; -fx-stroke-width: 2; }
+.es-bezel-shade { -fx-stroke: -es-void;  -fx-stroke-width: 2; }
+.es-bezel-titlebar   { -fx-fill: -es-rule-hi; }
+.es-bezel-button     { -fx-fill: -es-panel-hi; }
+.es-bezel-glyph      { -fx-fill: -es-text; }
+.es-bezel-glyph-line { -fx-stroke: -es-text; -fx-stroke-width: 1; -fx-fill: transparent; }
+
 /* Junction clamps and cable terminators. The one place the casing takes the accent — a live
    connector is the only thing on a machine's shell that is actually powered, and §2.1's rule is
    that amber means live. Nothing else on the casing may borrow it. */
