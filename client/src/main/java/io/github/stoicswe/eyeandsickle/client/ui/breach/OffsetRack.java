@@ -219,6 +219,12 @@ public final class OffsetRack extends VBox {
             if (next.wrong().contains(i)) {
                 // The engine said this one was wrong. It never says what it should have been.
                 cell.getStyleClass().add("es-cipher-wrong");
+            } else if (next.isGiven(i)) {
+                // ⚠ Ahead of `filled`, because a given column IS filled and the two must not read
+                // alike. The whole value of a give is knowing which columns you do not have to
+                // check — a cell that looked like your own answer would still have to be verified,
+                // and the favour would have bought nothing but keystrokes.
+                cell.getStyleClass().add("es-cipher-given");
             } else if (value(next, i) != null) {
                 cell.getStyleClass().add("es-cipher-filled");
             }
@@ -229,7 +235,11 @@ public final class OffsetRack extends VBox {
                     + ", observed " + OffsetBoard.hex(next.observed().get(i))
                     + ", target " + OffsetBoard.hex(next.target().get(i))
                     + ", offset " + OffsetBoard.offsetText(value(next, i))
-                    + (next.wrong().contains(i) ? ", rejected by the last commit" : ""));
+                    + (next.wrong().contains(i) ? ", rejected by the last commit" : "")
+                    // Said in words as well as in colour — §4.4. A locked column a screen reader
+                    // announced identically to an editable one would be a cell the player kept
+                    // trying to type into.
+                    + (next.isGiven(i) ? ", came already solved and is locked" : ""));
 
             int index = i;
             cell.setPickOnBounds(true);

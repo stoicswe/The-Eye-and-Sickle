@@ -67,6 +67,23 @@ Ground is cold blue-black. Grayscale is cold. The single accent is warm sodium a
 - **No semantic color system.** No blue-info / green-success / red-danger. Introducing one kills the look in a single commit.
 - **Depth comes from brightness, never from shadow or blur.** No `DropShadow` on panels.
 
+### 2.1a Two state hues — a bounded exception (amended 2026-07-27)
+
+§2.1 says **"No semantic color system. No blue-info / green-success / red-danger. Introducing one kills the look in a single commit."** §9 makes it build-blocking. That stands, with one carve-out, taken on explicit direction and deliberately fenced:
+
+| Token | Hex | Permitted in |
+|---|---|---|
+| `gain` | `#4FBF6A` | The transient balance delta; a breached network node |
+| `warn` | `#E08A2E` | A patched network node — breached once, locked out now |
+
+**Three fences, and they are what make this an exception rather than the start of a system:**
+
+1. **Two places, named exhaustively.** The balance delta and the network node states. Nowhere else. A third site needs another amendment, not a precedent.
+2. **The negative case reuses `alarm`.** A debit and a hostile state are the same red, because `alarm` already means loss — so exactly **one** new hue enters the palette, not three.
+3. **Never a persistent readout.** The balance delta is on screen for about two seconds; the node states also carry a bracket marker (`[/]`, `[!]`, `[#]`) and a sentence in the tooltip, so §4.4 holds — neither state is colour alone, and both survive greyscale and a screen reader.
+
+The steady balance keeps its amber. §2.1's "amber means money" is untouched.
+
 ### 2.2 Type
 
 Two faces, both monospace, both OFL — bundle the TTFs in `resources/fonts/`, do not rely on system installs.

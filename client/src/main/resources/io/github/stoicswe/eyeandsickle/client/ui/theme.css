@@ -54,6 +54,14 @@
     /* loss and hostile state. at most twice per screen. */
     -es-alarm:     #C4423A;
 
+    /* ⚠ TWO STATE HUES, and they are a documented exception to §2.1's ban on a semantic colour
+       system — see ui-design-language.md §2.1a. They are permitted in exactly two places: the
+       transient balance delta, and the network node states. They may never colour a persistent
+       readout, and a third one needs the same amendment this pair got.
+       `alarm` covers the negative case in both, so only ONE new hue enters the palette. */
+    -es-gain:      #4FBF6A;
+    -es-warn:      #E08A2E;
+
     /* equipped-tool cells: the one grey the palette table does not name, from the reference grid */
     -es-tool:      #242E2F;
 
@@ -1202,7 +1210,13 @@
 /* Identified: a Passive Sniffer told you its type. */
 .es-netmap .es-netmap-identified { -fx-text-fill: -es-dim-1; }
 /* A host you hold — the brightest ordinary state, because it is the one you can act from. */
-.es-netmap .es-netmap-foothold   { -fx-text-fill: -es-text-hi; }
+/* ⚠ Breached is GREEN and patched is amber-orange, under §2.1a's carve-out — the same pair the
+   balance delta uses, and the only two places either hue is permitted. Both states also carry a
+   bracket marker and a sentence in the tooltip, so §4.4 holds: neither is colour alone.
+   ⚠ Descendant selectors, matching every other rule in this block. A bare `.es-netmap-foothold`
+   would be a WEAKER selector than the `.es-netmap .es-netmap-*` rules around it and lose to them. */
+.es-netmap .es-netmap-foothold   { -fx-text-fill: -es-gain; }
+.es-netmap .es-netmap-patched    { -fx-text-fill: -es-warn; }
 /* Where you are sweeping FROM. Hops are counted from here, so it has to be unmissable. */
 .es-netmap .es-netmap-vantage    { -fx-text-fill: -es-text-hi; }
 /* A bridge to another server: the thing that makes the world bigger. */
@@ -1399,6 +1413,11 @@
 .es-cipher .es-cipher-target   { -fx-text-fill: -es-dim-1; }
 .es-cipher .es-cipher-cell     { -fx-text-fill: -es-dim-2; }
 .es-cipher .es-cipher-filled   { -fx-text-fill: -es-text; }
+/* A column the board solved for you. Dimmer than your own answers, not brighter: it is settled
+   work, and the eye should skip it. That is the whole value of the give — knowing which columns
+   need no checking — so it must never read like something you typed. The screen reader says
+   "came already solved and is locked" too, which is §4.4's second channel. */
+.es-cipher-given    { -fx-text-fill: -es-dim-2; }
 /* Rejected by the last commit. Alarm, because it cost a strike — and the board says WHICH cells
    were wrong and never what they should have been. */
 .es-cipher .es-cipher-wrong    { -fx-text-fill: -es-alarm; }
@@ -1465,6 +1484,21 @@
    per transaction would read as a fourth projected block. */
 .es-queued-row {
     -fx-padding: 2 0 2 0;
+}
+
+/* ── The balance readout ────────────────────────────────────────────────────────────────────
+ * The steady figure keeps the amber it has always had — §2.1 reserves it for money, and this IS
+ * money. Only the transient delta beside it takes a state hue, and only while it is on screen. */
+.es-balance-value { -fx-text-fill: -es-amber; }
+.es-balance-delta { -fx-font-size: 10px; }
+.es-balance-delta.es-balance-gain { -fx-text-fill: -es-gain; }
+.es-balance-delta.es-balance-loss { -fx-text-fill: -es-alarm; }
+
+/* The ground behind everything. Exists so the Scene never shows its own default fill — which is
+   WHITE — in the frame between the Stage taking a new Scene and CSS resolving on it. That frame is
+   the flash when the boot log hands over to the deck. */
+.es-scene-ground {
+    -fx-background-color: -es-void;
 }
 
 /* ── The bezel ──────────────────────────────────────────────────────────────────────────────

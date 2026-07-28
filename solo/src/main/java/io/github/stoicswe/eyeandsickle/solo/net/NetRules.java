@@ -262,6 +262,10 @@ public final class NetRules {
                 distance,
                 host.address.equals(vantage),
                 host.foothold,
+                // ⚠ A patched host is one that WAS breached and is not any more, so it can never be
+                // true while the foothold still stands. Reporting both would let the map draw a
+                // node as simultaneously open and shut.
+                host.patched && !host.foothold,
                 host.looted,
                 node != null && node.honeypotSuspected,
                 hostsMiner,

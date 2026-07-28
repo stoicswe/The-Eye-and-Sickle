@@ -36,5 +36,10 @@
 
     -es-alarm:     #FF4A3D;
 
+    /* The two state hues (§2.1a), in this palette's register. Green has to stay distinguishable
+       from the accent and from body text here, which is why it is not the base sheet's value. */
+    -es-gain:      #8FD98A;
+    -es-warn:      #FFC552;
+
     -es-tool:      #2A1E0D;
 }

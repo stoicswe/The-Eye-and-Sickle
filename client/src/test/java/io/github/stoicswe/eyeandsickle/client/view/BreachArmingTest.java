@@ -69,6 +69,38 @@ class BreachArmingTest {
     }
 
     @Test
+    @DisplayName("⚠ rearm notifies even when the target has not changed")
+    void rearmAlwaysNotifies() {
+        BreachArming arming = new BreachArming();
+        int[] calls = {0};
+        arming.onChange(() -> calls[0]++);
+
+        arming.arm("node:10.0.0.4");
+        assertThat(calls[0]).isEqualTo(1);
+
+        // arm() no-ops here, on purpose — it is called from inside the breach panel's own refresh.
+        arming.arm("node:10.0.0.4");
+        assertThat(calls[0]).as("arm on an unchanged id stays silent").isEqualTo(1);
+
+        // rearm is the map's BREACH button: "start fresh on this machine", meant every time it is
+        // pressed. Under the no-op the second press was inaudible, and a resolved outcome from the
+        // previous attempt stayed on screen with no control but Dismiss.
+        arming.rearm("node:10.0.0.4");
+        assertThat(calls[0]).as("rearm on the same id is still heard").isEqualTo(2);
+        assertThat(arming.armed()).isEqualTo("node:10.0.0.4");
+    }
+
+    @Test
+    @DisplayName("rearm treats null as a clear, like arm does")
+    void rearmHandlesNull() {
+        BreachArming arming = new BreachArming();
+        arming.arm("node:10.0.0.4");
+        arming.rearm(null);
+        assertThat(arming.armed()).isEmpty();
+        assertThat(arming.isArmed()).isFalse();
+    }
+
+    @Test
     @DisplayName("a closed subscription stops being called")
     void unsubscribes() throws Exception {
         BreachArming arming = new BreachArming();

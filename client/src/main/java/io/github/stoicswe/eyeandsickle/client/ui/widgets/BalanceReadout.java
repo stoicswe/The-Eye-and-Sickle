@@ -1,0 +1,192 @@
+package io.github.stoicswe.eyeandsickle.client.ui.widgets;
+
+import io.github.stoicswe.eyeandsickle.client.ui.Pulse;
+import io.github.stoicswe.eyeandsickle.client.ui.Ui;
+import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
+import java.util.Locale;
+import javafx.geometry.Pos;
+import javafx.scene.control.Label;
+import javafx.scene.layout.HBox;
+
+/**
+ * The balance, counting to its new value, with the movement that caused it flashed beside it.
+ *
+ * <h2>Why the number counts instead of jumping</h2>
+ *
+ * A balance that snaps from 195.01 to 355.89 tells the player it changed and not by how much — they
+ * would have had to be holding the old figure in their head. Counting names the size of the movement
+ * with the movement itself, which is the one thing a single number cannot do. It is also how a
+ * mechanical register behaves, which is the right register for a machine that draws its own chrome.
+ *
+ * <h2>⚠ Stepped, not tweened — §5 permits nothing else</h2>
+ *
+ * {@code UiContractTest} fails the build on any {@code Interpolator.EASE_*} and on {@code LINEAR}
+ * outside the sweep bar, so the count runs on {@link Pulse} and advances by whole steps. That suits
+ * it: a counter that interpolated would render fractional minor units the ledger never contained.
+ *
+ * <p>⚠ Under reduced motion the value <b>snaps and the flash is still shown</b>, held rather than
+ * faded. §5 wants the static final state, and the delta is <em>information</em> — which way the
+ * money went — not decoration. Dropping it would take a fact away from the player who asked for
+ * less movement, which §5 explicitly does not license.
+ *
+ * <h2>⚠ Two colours, and they are a documented exception to §2.1</h2>
+ *
+ * §2.1 bans a semantic colour system and §9 makes it build-blocking. The delta uses {@code -es-gain}
+ * for a credit and {@code -es-alarm} for a debit under the narrow carve-out logged in
+ * {@code ui-design-language.md} §2.1a: it is <b>transient</b>, it is confined to the money delta and
+ * the network node states, and it never colours a persistent readout. The steady balance keeps the
+ * amber it has always had. Note the debit reuses {@code alarm} rather than adding a red — alarm
+ * already means loss, so only one new hue enters the palette rather than two.
+ */
+public final class BalanceReadout extends HBox {
+
+    /** How long the count takes, whatever the distance. A fixed duration reads as one gesture. */
+    private static final double COUNT_MS = 520;
+
+    /** How long the delta sits before it starts stepping away. */
+    private static final double FLASH_HOLD_MS = 1400;
+
+    private final Label value = Ui.value("—");
+    private final Label delta = Ui.micro("");
+
+    private long shownMinorUnits;
+    private long targetMinorUnits;
+    private boolean seeded;
+
+    private AutoCloseable counter;
+    private AutoCloseable flash;
+
+    public BalanceReadout() {
+        super(UiTokens.SPACE_3);
+        setAlignment(Pos.BASELINE_LEFT);
+        Label key = Ui.label("Balance");
+        key.getStyleClass().add("es-kv-key");
+        value.getStyleClass().add("es-balance-value");
+        delta.getStyleClass().add("es-balance-delta");
+        delta.setVisible(false);
+        getChildren().addAll(key, value, delta);
+    }
+
+    /** The label the strip marks live when income is flowing. */
+    public Label valueNode() {
+        return value;
+    }
+
+    /**
+     * Points the readout at a new balance.
+     *
+     * <p>⚠ The first call <b>seeds</b> rather than animating. Opening the deck on a 4 000 EC save
+     * would otherwise count up from zero and announce four thousand ethecoin of income that did not
+     * happen — the flash is for movement, and arriving is not movement.
+     */
+    public void setMinorUnits(long minorUnits) {
+        if (!seeded) {
+            seeded = true;
+            shownMinorUnits = minorUnits;
+            targetMinorUnits = minorUnits;
+            value.setText(money(minorUnits));
+            return;
+        }
+        if (minorUnits == targetMinorUnits) {
+            return;
+        }
+        long change = minorUnits - targetMinorUnits;
+        targetMinorUnits = minorUnits;
+        showDelta(change);
+
+        if (Pulse.shared().reducedMotion()) {
+            shownMinorUnits = targetMinorUnits;
+            value.setText(money(shownMinorUnits));
+            return;
+        }
+        startCount();
+    }
+
+    /**
+     * Steps the shown figure toward the target on the shared driver.
+     *
+     * <p>⚠ The step is recomputed from the <b>remaining</b> distance every frame rather than fixed
+     * at the start, so a second movement landing mid-count is absorbed instead of fighting it. A
+     * fixed step would overshoot the moment two payouts arrived a frame apart, and mining pays in
+     * bursts — this is not a rare case.
+     */
+    private void startCount() {
+        stop(counter);
+        long startedFrom = shownMinorUnits;
+        int[] frame = {0};
+        int frames = Math.max(1, (int) Math.round(COUNT_MS / UiTokens.FRAME_MS));
+        counter = Pulse.shared().animate(UiTokens.FRAME_MS, () -> {
+            frame[0]++;
+            double progress = Math.min(1.0d, frame[0] / (double) frames);
+            long span = targetMinorUnits - startedFrom;
+            shownMinorUnits = startedFrom + Math.round(span * progress);
+            value.setText(money(shownMinorUnits));
+            if (progress >= 1.0d) {
+                // Pinned to the target rather than left on the rounded step. A readout a minor unit
+                // off the ledger is the exact disagreement docs/design/04 §3.1 teaches players to
+                // read as evidence of an intruder.
+                shownMinorUnits = targetMinorUnits;
+                value.setText(money(shownMinorUnits));
+                stop(counter);
+                counter = null;
+            }
+        });
+    }
+
+    /** Shows the movement beside the balance, then steps it away. */
+    private void showDelta(long change) {
+        stop(flash);
+        delta.setVisible(true);
+        delta.setOpacity(1);
+        delta.setText((change >= 0 ? "+" : "−") + money(Math.abs(change)));
+        delta.getStyleClass().removeAll("es-balance-gain", "es-balance-loss");
+        delta.getStyleClass().add(change >= 0 ? "es-balance-gain" : "es-balance-loss");
+
+        if (Pulse.shared().reducedMotion()) {
+            // Held, not faded. See the class comment: which way the money went is information.
+            return;
+        }
+        int[] frame = {0};
+        int hold = (int) Math.round(FLASH_HOLD_MS / UiTokens.FRAME_MS);
+        flash = Pulse.shared().animate(UiTokens.FRAME_MS, () -> {
+            frame[0]++;
+            if (frame[0] <= hold) {
+                return;
+            }
+            int step = frame[0] - hold;
+            // Nine steps down, the same ladder Motion uses. Whole steps, never a tween.
+            double opacity = 1 - step / (double) UiTokens.REVEAL_STEPS;
+            if (opacity <= 0) {
+                delta.setVisible(false);
+                stop(flash);
+                flash = null;
+                return;
+            }
+            delta.setOpacity(opacity);
+        });
+    }
+
+    private static void stop(AutoCloseable handle) {
+        if (handle == null) {
+            return;
+        }
+        try {
+            handle.close();
+        } catch (Exception ignored) {
+            // Nothing to recover: the subscription is going away and a failed unsubscribe is not
+            // something a player can act on.
+        }
+    }
+
+    /** Stops both drivers. Called by {@code DeckShell.dispose}. */
+    public void dispose() {
+        stop(counter);
+        stop(flash);
+        counter = null;
+        flash = null;
+    }
+
+    private static String money(long minorUnits) {
+        return String.format(Locale.ROOT, "%.2f EC", minorUnits / 100.0d);
+    }
+}

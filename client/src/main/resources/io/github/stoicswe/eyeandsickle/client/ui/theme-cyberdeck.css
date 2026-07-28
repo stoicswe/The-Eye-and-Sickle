@@ -43,5 +43,10 @@
        confusion this palette is most at risk of, given how close sodium and alarm can sit. */
     -es-alarm:     #FF4A55;
 
+    /* The two state hues (§2.1a), in this palette's register. Green has to stay distinguishable
+       from the accent and from body text here, which is why it is not the base sheet's value. */
+    -es-gain:      #3FD08A;
+    -es-warn:      #FFB03A;
+
     -es-tool:      #142932;
 }

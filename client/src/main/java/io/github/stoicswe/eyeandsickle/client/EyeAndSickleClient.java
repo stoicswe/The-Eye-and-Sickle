@@ -229,6 +229,12 @@ public class EyeAndSickleClient extends Application {
             return new Scene(content, width, height);
         }
         uiScale = new io.github.stoicswe.eyeandsickle.client.ui.UiScale(region);
+        // ⚠ The holder paints the deck's own ground. Without it the Scene's default fill — WHITE —
+        // shows for the frame between the Stage taking a new Scene and CSS resolving on it, which is
+        // the flash a player sees when the boot log hands over to the deck. Painting it here rather
+        // than calling scene.setFill keeps the colour in the stylesheet, where §10 criterion 2
+        // requires every colour in this client to live.
+        uiScale.root().getStyleClass().add("es-scene-ground");
         uiScale.setPercent(io.github.stoicswe.eyeandsickle.client.ui.UiScale
                 .sanitise(profile.settings().uiScalePercent));
         return new Scene(uiScale.root(), width, height);
@@ -549,6 +555,11 @@ public class EyeAndSickleClient extends Application {
 
         Scene scene = scaled(deck.root(), 1280, 800);
         stage.setScene(scene);
+        // The deck comes up out of the dark rather than appearing whole. §5 allows step timing only,
+        // so this is the same nine-step DISCRETE ladder the panel reveal uses — which is also the
+        // truer effect, since a tube coming up to brightness rises through visible levels.
+        io.github.stoicswe.eyeandsickle.client.ui.Motion.fadeIn(
+                deck.root(), io.github.stoicswe.eyeandsickle.client.ui.UiTokens.WAKE_MS);
         themes.adopt(scene);
         themes.applyAll();
         // Accelerators open a window ON THE DESK. Routing them through the registry's Stage path

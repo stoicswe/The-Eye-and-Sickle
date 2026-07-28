@@ -67,6 +67,11 @@ public final class LocalGameSession implements GameSession {
     }
 
     @Override
+    public long uptimeSeconds() {
+        return game.state().playedSeconds;
+    }
+
+    @Override
     public int storageCapacity(StorageTier tier) {
         return io.github.stoicswe.eyeandsickle.solo.Balance.storageCapacity(tier);
     }

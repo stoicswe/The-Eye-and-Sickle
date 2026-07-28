@@ -69,7 +69,16 @@ public final class NetCanvas {
     private static final int PITCH = LAYER_COLS + UiTokens.NET_GAP_COLS;
 
     /** The kind field inside a node cell. Every {@code HostKind} name fits; {@code UNKNOWN} does not print. */
-    private static final int KIND_COLS = 8;
+    /**
+     * ⚠ Eight until 2026-07-27, when the lock marker took three columns and a separator.
+     *
+     * <p>The interior line is {@code blank + marker(2) + blank + kind(KIND_COLS) + blank + lock(3)}
+     * and must total {@link UiTokens#NET_NODE_COLS} minus the two box rules. The kind field gave up
+     * the room because it is the only piece on the line that degrades gracefully — a clipped type
+     * name is still readable and the tooltip carries it in full, where a clipped lock marker is a
+     * different symbol.
+     */
+    private static final int KIND_COLS = 4;
 
     /** What an un-typed machine's kind field reads. Eight of them, so the field never changes width. */
     private static final String UNTYPED = "-".repeat(KIND_COLS);
@@ -667,7 +676,10 @@ public final class NetCanvas {
         char vertical = vantage ? AsciiCanvas.HEAVY_V : doubled ? AsciiCanvas.BOX_V : AsciiCanvas.LIGHT_V;
 
         String rule = String.valueOf(horizontal).repeat(UiTokens.NET_NODE_COLS - 2);
-        String interior = blank(1) + glyphFor(sighting, vantage) + blank(1) + padRight(kindOf(sighting), KIND_COLS);
+        // ⚠ The widths here sum to NET_NODE_COLS - 2 exactly. Anything that does not shears every
+        // column to its right, which is the failure NET_NODE_COLS exists to make impossible.
+        String interior = blank(1) + glyphFor(sighting, vantage) + blank(1)
+                + padRight(kindOf(sighting), KIND_COLS) + blank(1) + lockFor(sighting, vantage);
         // ⚠ The bar takes the address line's existing leading blank rather than being prepended.
         // Prepending would push the line one column wide and shear everything to its right — the
         // failure NET_NODE_COLS exists to make impossible, arriving through the one line nobody
@@ -732,6 +744,30 @@ public final class NetCanvas {
         return sighting.kind() == HostKind.UNKNOWN ? NetGlyphs.NODE_CONTACT : NetGlyphs.NODE_IDENTIFIED;
     }
 
+    /**
+     * The lock marker: whether the player is inside this machine, was, or never has been.
+     *
+     * <h2>⚠ It answers a different question from the state marker, which is why it is separate</h2>
+     *
+     * {@link #glyphFor}'s ink level says <em>how much is known</em> about a host — contact,
+     * identified, foothold. The lock says <em>whether the way in is open</em>. Those came apart the
+     * moment a host could be breached and then patched: such a host is fully identified, richly
+     * known, and shut. One glyph cannot carry both, and overloading the ink level would have made
+     * "patched" read as "less well known", which is the opposite of true.
+     *
+     * <p>The vantage is the machine the player is operating from, so it is open by definition and
+     * says so rather than being left blank.
+     */
+    static String lockFor(Sighting sighting, boolean vantage) {
+        if (vantage || sighting.foothold()) {
+            return NetGlyphs.LOCK_OPEN;
+        }
+        if (sighting.patched()) {
+            return NetGlyphs.LOCK_PATCHED;
+        }
+        return NetGlyphs.LOCK_SHUT;
+    }
+
     /** The style class for a cell. Paired one-to-one with {@link #glyphFor}, in the same order. */
     static String styleFor(Sighting sighting, boolean vantage) {
         if (vantage) {
@@ -742,6 +778,12 @@ public final class NetCanvas {
         }
         if (sighting.foothold()) {
             return "es-netmap-foothold";
+        }
+        // ⚠ Above bridge and identified, below trap. A patched host is a warning about a route the
+        // player is relying on and has lost; a suspected honeypot is still the more urgent thing,
+        // because one is a closed door and the other is a trap standing open.
+        if (sighting.patched()) {
+            return "es-netmap-patched";
         }
         if (sighting.kind() == HostKind.BRIDGE) {
             return "es-netmap-bridge";

@@ -71,6 +71,27 @@ public final class NetGlyphs {
     /** An identified cross-server link. It advertises the server on its far side and nothing else. */
     public static final String NODE_BRIDGE = "╪╪";
 
+    // ── Lock markers. Three cells each, in the deck's bracket idiom. ─────────────────────────────
+    //
+    // ⚠ ASCII, and that is a constraint rather than a style choice. §9 bans icon fonts outright —
+    // "glyphs are drawn from ASCII and box-drawing characters" — and GlyphCoverageTest fails the
+    // build on any literal outside the two bundled faces, which have no padlock and no emoji. A
+    // bracketed character is also what every control on this deck already looks like ([ GRAPH ],
+    // [−] [+] [×]), so the map borrows an idiom instead of inventing one.
+    //
+    // ⚠ They carry the state a SECOND time, after colour. §4.4: a state that is only a hue is
+    // invisible in greyscale and silent to a screen reader. The tooltip says it in words as well,
+    // which makes three.
+
+    /** Never breached, or breached and the way back in is unknown. The shut case. */
+    public static final String LOCK_SHUT = "[#]";
+
+    /** A live foothold: the player may connect here. */
+    public static final String LOCK_OPEN = "[/]";
+
+    /** Breached once and shut out since — the host was patched. */
+    public static final String LOCK_PATCHED = "[!]";
+
     /** A suspected honeypot — the one and only {@code -es-alarm} on the whole panel. */
     public static final String NODE_TRAP = "‡‡";
 

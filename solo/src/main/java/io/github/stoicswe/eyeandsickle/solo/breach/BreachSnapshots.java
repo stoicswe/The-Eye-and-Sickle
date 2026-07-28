@@ -183,7 +183,8 @@ public final class BreachSnapshots {
                 List.copyOf(layer.cipherWrong),
                 layer.cipherCursor,
                 "",
-                layer.cipherCommits);
+                layer.cipherCommits,
+                layer.cipherGiven == null ? java.util.List.of() : List.copyOf(layer.cipherGiven));
     }
 
     /**

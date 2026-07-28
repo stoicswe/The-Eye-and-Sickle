@@ -1293,6 +1293,39 @@ public final class Balance {
     public static final long BREACH_NOISE_CEILING = 26L;
 
     /**
+     * The burst of noise left behind by <b>abandoning</b> a breach, in cycles.
+     *
+     * <h2>Why walking away is not free, and why the cost is noise rather than anything else</h2>
+     *
+     * Aborting is a sanctioned outcome ({@code docs/design/05} §4) and it stays one — the attention
+     * already spent stays spent and nothing else is taken. But dropping a live connection mid-session
+     * is a conspicuous thing to do on somebody else's machine, and until 2026-07-27 it was the
+     * quietest possible exit: the breach's noise contribution simply stopped. That made "open a
+     * breach, look at the board, leave if it is ugly" a free reroll on difficulty.
+     *
+     * <p>So an abandonment radiates for a few seconds afterwards, and being loud is exactly what
+     * makes a rig worth a sweep. The penalty is a window in which the player is easier to find,
+     * which is a consequence they can play around rather than a number taken off them.
+     *
+     * <p>⚠ <b>30, which keeps the documented ordering intact.</b> Above
+     * {@link #BREACH_NOISE_CEILING} — the exit is louder than the attempt was, which is the point —
+     * and still below {@link #NET_SWEEP_BASE_NOISE}, so "the cheapest sweep is still louder than
+     * anything a breach can do" survives.
+     */
+    public static final long BREACH_ABANDON_SPIKE_CYCLES = 30L;
+
+    /** The shortest an abandonment keeps radiating. */
+    public static final long BREACH_ABANDON_SPIKE_MIN_SECONDS = 5L;
+
+    /**
+     * The longest it does.
+     *
+     * <p>Drawn per abandonment rather than fixed, so a player cannot learn one number and wait it
+     * out precisely. The band is narrow enough to stay a nuisance rather than a punishment.
+     */
+    public static final long BREACH_ABANDON_SPIKE_MAX_SECONDS = 20L;
+
+    /**
      * How much of a breach's accumulated in-puzzle noise reaches the meter.
      *
      * <p>{@code BreachState.noise} is a puzzle-scale figure — a bypass is 12, an alarm is 4 — and the
@@ -1391,6 +1424,50 @@ public final class Balance {
      * <p>The full published range. Sixteen bytes of hex subtraction with borrows is a real piece of
      * work and is meant to be — it is the top of a five-tier scale, not the ordinary case.
      */
+    /**
+     * The chance an offset board arrives with some columns already solved.
+     *
+     * <h2>Why a board would come part-done at all</h2>
+     *
+     * The cipher's difficulty is arithmetic care, and its <em>cost</em> is time — sixteen columns of
+     * subtraction is a lot of keystrokes for a layer a player may be doing for the fourth time
+     * tonight. Giving a few columns away removes tedium without removing the test: the ones left
+     * are the same arithmetic, and a wrong commit still costs a strike.
+     *
+     * <p>⚠ It does not touch {@code I7}. Proof-of-skill gates are <b>tier-gated, never
+     * count-gated</b>, and a partly-filled board is the same tier it always was. What changes is how
+     * long a layer takes, not what clearing one proves.
+     */
+    public static final double CIPHER_PREFILL_CHANCE = 0.55d;
+
+    /** On top of the base give, a rare second helping. See {@link #CIPHER_PREFILL_CHANCE}. */
+    public static final double CIPHER_PREFILL_BONUS_CHANCE = 0.12d;
+
+    /** The base give: 1–3 columns when it happens at all. */
+    public static final int CIPHER_PREFILL_BASE_MAX = 3;
+
+    /** The bonus give: a further 1–2. */
+    public static final int CIPHER_PREFILL_BONUS_MAX = 2;
+
+    /** The most cells the generator will ever hand over, before the per-board cap. */
+    public static final int CIPHER_PREFILL_CEILING =
+            CIPHER_PREFILL_BASE_MAX + CIPHER_PREFILL_BONUS_MAX;
+
+    /**
+     * How many columns a board of this length may have given away.
+     *
+     * <h2>⚠ A third, and the cap is the part that matters</h2>
+     *
+     * Without it a 6-byte tier-1 board could arrive with 5 of its 6 columns done, which is not a
+     * shorter puzzle but an absent one. A third scales the relief with the thing it is relieving:
+     * the tedium is proportional to length, so the give should be too. In practice that is 2 columns
+     * at tier 1 and 5 at tier 5 — so the full 1–3 plus 1–2 only ever lands on the long boards, which
+     * are the only ones anybody complained about.
+     */
+    public static int cipherPrefillCap(int length) {
+        return Math.min(CIPHER_PREFILL_CEILING, length / 3);
+    }
+
     public static int breachCipherLength(int tier) {
         return switch (Math.max(1, Math.min(5, tier))) {
             case 1 -> 6;

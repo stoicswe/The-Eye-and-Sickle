@@ -37,6 +37,11 @@ public final class KeyValue extends HBox {
         getChildren().addAll(keyLabel, valueLabel);
     }
 
+    /** What the value currently reads. For a caller composing several readouts into one string. */
+    public String value() {
+        return valueLabel.getText();
+    }
+
     public static KeyValue of(String key, String value) {
         return new KeyValue(key, value);
     }

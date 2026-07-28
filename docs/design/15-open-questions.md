@@ -717,6 +717,44 @@ Record resolutions here when they land (date — question — outcome — where 
 
   ⚠ **Worth keeping as a rule: `scan` is not `sweep`.** `scan` audits your own rig for parasites; `sweep` probes a network you do not own. `SoloGame` §724 says so in a comment and the log lines differ, but a player who runs `scan` and watches the map stay empty has been told nothing useful. An empty-state hint on both windows is the obvious follow-up and is **not** built.
 
+- 2026-07-27 — **Five interface refinements, and a CSS parse error that had been silently killing half the stylesheet** — `ui-design-language.md` §2.1a.
+
+  **(1) The deck fades up instead of flashing.** The flash was the Scene's default fill — **white** — showing for the frame between the Stage taking a new Scene and CSS resolving on it. The scaler's holder now paints `-es-void` (`.es-scene-ground`), so the colour stays in the stylesheet where §10 criterion 2 requires it, and `Motion.fadeIn` brings the deck up over 900ms. ⚠ **`Interpolator.DISCRETE`, nine steps** — a `FadeTransition` is a linear tween and `UiContractTest` fails the build on `LINEAR` outside the sweep bar. Stepping is also the truer effect: a tube coming up to brightness rises through visible levels.
+
+  **(2) The balance counts, and the movement flashes beside it.** Green for a credit, `alarm` for a debit, on the stepped `Pulse` driver. ⚠ The first call **seeds** rather than animating — opening a 4 000 EC save would otherwise count from zero and announce four thousand ethecoin of income that never happened. ⚠ The step is recomputed from the **remaining** distance each frame so a second payout landing mid-count is absorbed; mining pays in bursts, so that is not a rare case. ⚠ Under reduced motion the value snaps and the delta is **held rather than dropped** — which way the money went is information, not decoration.
+
+  **(3) The heat thermometer is horizontal, under its label.** A tall widget in a strip of wide short cells forced the whole strip taller for one readout. It is now label-over-meter, which is the anatomy every other cell already has. ⚠ Cold stays at the origin, so the bulb is on the **left**; a scale filling right-to-left would be read backwards by everyone.
+
+  **(4) Network nodes carry a lock.** `[/]` breached (green), `[!]` patched — locked out (warn), `[#]` never breached. ⚠ ASCII, because §9 bans icon fonts and `GlyphCoverageTest` fails on any literal outside the bundled faces, which have no padlock. ⚠ The lock answers a **different question** from the ink-level marker beside it: the ink says how much is *known*, the lock says whether the way in is *open*. Those came apart the moment a host could be breached and then patched — such a host is richly known and shut, and overloading the ink level would have made "patched" read as "less well known". ⚠ **Nothing sets `patched` true yet** — no rule patches a host. The field, its wire type and its rendering exist so the state has one meaning the day a mechanic lands; **the mechanic itself is unproposed and needs designing.**
+
+  **(5) The clock shows SESSION and LOCAL, with UPTIME and SERVER in a tooltip.** ⚠ UTC is labelled **SERVER** on purpose: a federated home server is authoritative for when things happened (I14) and every timestamp on the wire is UTC, so the clock a player checks a server log against has to be the same one the log is written in. "UTC" alone would be true and would not say why anyone should care.
+
+  ⚠⚠ **The real find: a CSS syntax error silently disables every rule after it, and JavaFX only whispers it to the log.** A comment inserted mid-selector produced `Expected LBRACE at [1216,0]`, and **everything past line 1216 of `theme.css` stopped applying** — the thermometer among it, which is how it was caught (`bg=null` on nodes with correct classes and bounds). The cause was a replacement matching `.es-netmap-foothold` when the real rule was the **descendant** selector `.es-netmap .es-netmap-foothold`. Two lessons worth keeping: a stylesheet edit needs `CssParser` warnings checked, not just a green build; and a bare class selector in that block is also *weaker* than its neighbours and loses to them even when it parses.
+
+- 2026-07-27 — **BREACH on a node clears a finished attempt instead of reopening it** — `BreachView`, `BreachArming.rearm`. Reported as the breach window showing the previous breach after an abandon or a success.
+
+  Two faults, and they compounded. **(1)** A resolved breach deliberately stays on the save until it is dismissed, so an outcome slate survives closing the window — but `open = session.breach().isPresent()` is true for a resolved one, which hides *both* the target list and the launch panel. Arming a node from the map therefore raised the window onto the previous attempt's obituary with no control on screen but Dismiss. **(2)** `BreachArming.arm` no-ops on an unchanged id, so pressing BREACH twice on the same node was inaudible to the panel — which is why the report says "regardless if it is the same node or not".
+
+  The fix is `rearm` for the map's control, which always notifies, plus a clear in the panel's refresh.
+
+  ⚠ **RESOLVED ONLY, and this must stay that way.** A live attempt holds reserved compute that aborting does not refund (`05` §4), so clearing one because the player brushed a node on the map would spend their cycles for them. The check is on `resolved()`, never on `isPresent()`. Verified both ways: after an abort the slate clears on arming, and a live breach survives it.
+
+  ⚠ It cannot loop — `dismissBreach` fires `onChange`, which re-enters the refresh, and by then `session.breach()` is empty so the branch is not taken again.
+
+- 2026-07-27 — **Offset ciphers can arrive part-solved, and abandoning a breach costs noise** — `05` §3.1's cipher is `[PROPOSAL]`, so both are changes to a proposal rather than to settled design.
+
+  **Part-solved boards.** A cipher board has a **55%** chance of arriving with 1–3 columns already correct, and a **12%** chance of a further 1–2 on top. ⚠ Capped at **a third of the board**, which is the part that matters: without it a 6-byte tier-1 board could arrive with 5 of its 6 columns done, which is not a shorter puzzle but an absent one. A third scales the relief with the thing it relieves, so the full give only ever lands on the long boards — 2 columns at tier 1, 5 at tier 5. Measured over 4 000 boards per tier: ~45% get nothing, and the 4–5 cases are 2% and 0.4%.
+
+  ⚠ **Given columns are LOCKED, not merely pre-typed.** A given cell the player could overwrite is a trap dressed as a favour — a stray keystroke on a correct column is only discovered by the commit that costs a strike. Locking is also what makes the give worth more than the keystrokes it saves: a given column does not need *checking*, which is most of the tedium. It renders dimmer than the player's own answers and says "came already solved and is locked" to a screen reader (§4.4's second channel).
+
+  ⚠ **It does not touch I7.** Proof-of-skill gates are tier-gated, never count-gated; a part-solved board is the same tier it always was. What changed is how long a layer takes, not what clearing one proves.
+
+  ⚠ **The generator draws a constant number of values whatever it rolls.** `Rng`'s contract is that consumption must not depend on what was produced — it is why `nextInt` has no rejection loop. The obvious `if (roll < chance) { draw more }` breaks it and would desynchronise every later draw in the breach. All five decisions are drawn every time and only then read; surplus cell picks are drawn and discarded.
+
+  **Abandonment radiates.** Aborting a live breach now leaves **30 cycles of noise for a drawn 5–20 seconds**, making the rig briefly easier to find. Until now abandoning was the *quietest* possible exit — the breach's noise simply stopped — which made "open a breach, read the board, leave if it looks ugly" a free reroll on difficulty. It stays a sanctioned outcome: nothing is taken, and the penalty is a window the player can play around.
+
+  ⚠ **30 keeps the documented ordering intact**: above `BREACH_NOISE_CEILING` (26), so the exit is louder than the attempt was, and below `NET_SWEEP_BASE_NOISE` (35), so "the cheapest sweep is still louder than anything a breach can do" survives. ⚠ **A miner crack never spikes** — Invariant **I9**, the same reason `resolve` zeroes a crack's heat: it is the player's own rig, and a spike there would punish backing out of a fight on their own hardware, which is the tutorial breach (`04` §5.1). ⚠ The window is stored as an **instant, not a countdown**, so it settles correctly across a quit instead of waiting to be served on the next launch.
+
 ## 4. How to use this doc
 
 - Before starting design work on any system, check here for its open questions.

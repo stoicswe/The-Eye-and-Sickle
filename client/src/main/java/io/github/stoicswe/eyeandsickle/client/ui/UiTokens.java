@@ -109,7 +109,26 @@ public final class UiTokens {
     /** Panel reveal: a horizontal clip wipe in exactly {@link #REVEAL_STEPS} discrete jumps. */
     public static final double REVEAL_MS = 340;
 
+    /**
+     * How long the deck takes to come up out of the dark after the boot log.
+     *
+     * <p>Longer than a panel reveal because it is a different event: a panel wiping in is the
+     * interface responding, and this is the machine turning on. Short enough that it never feels
+     * like a wait for someone who has seen it a hundred times.
+     */
+    public static final double WAKE_MS = 900;
+
     public static final int REVEAL_STEPS = 9;
+
+    /**
+     * One frame of a stepped readout animation, in milliseconds.
+     *
+     * <p>Not a frame rate — a <b>step</b> rate. §5 permits step timing only, so anything animated
+     * here advances in whole jumps at this cadence rather than tweening between them. 40ms is fast
+     * enough that a counting balance reads as continuous motion and slow enough that it is visibly
+     * a sequence of values rather than a blur.
+     */
+    public static final double FRAME_MS = 40;
 
     /** Stagger between panes, so the deck wakes up in sequence rather than all at once. */
     public static final double REVEAL_STAGGER_MS = 170;

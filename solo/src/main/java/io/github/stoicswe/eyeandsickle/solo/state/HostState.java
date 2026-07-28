@@ -207,4 +207,13 @@ public final class HostState {
 
     /** Whether the player holds a foothold here, and may therefore {@code connect} to it. */
     public boolean foothold = false;
+
+    /**
+     * Breached once, and shut out since.
+     *
+     * <p>⚠ Nothing sets this true yet — no rule patches a host. It is persisted and rendered so the
+     * state has one meaning the day a patch mechanic lands; see {@code docs/design/15} for the
+     * proposal. A save written today will always read false, which is correct rather than missing.
+     */
+    public boolean patched = false;
 }

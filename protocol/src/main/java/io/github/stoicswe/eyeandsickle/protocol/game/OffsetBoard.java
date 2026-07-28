@@ -43,6 +43,10 @@ import java.util.Objects;
  * @param typing the digits typed into the cursor cell so far, before they are accepted — so a
  *     half-typed {@code -1} does not read as {@code -1} until the player moves on
  * @param commits how many times the row has been submitted; each one that failed cost a strike
+ * @param given which cells arrived already solved. ⚠ Locked, not merely pre-typed — a given cell the
+ *     player could overwrite is a trap dressed as a favour, since a stray keystroke on a correct
+ *     column is only discovered by the commit that costs a strike. It is also what makes the give
+ *     worth more than the keystrokes it saves: a given column does not need CHECKING
  */
 public record OffsetBoard(
         List<Integer> observed,
@@ -51,13 +55,38 @@ public record OffsetBoard(
         List<Integer> wrong,
         int cursor,
         String typing,
-        int commits)
+        int commits,
+        List<Boolean> given)
         implements BreachBoard {
+
+    /**
+     * A board with nothing given — every column the player's own.
+     *
+     * <p>⚠ Kept so a breach persisted before pre-filling existed still renders. "Nothing was given"
+     * is the true reading of a board from a save that had no such concept, not a default standing in
+     * for a missing value.
+     */
+    public OffsetBoard(
+            List<Integer> observed,
+            List<Integer> target,
+            List<Integer> entered,
+            List<Integer> wrong,
+            int cursor,
+            String typing,
+            int commits) {
+        this(observed, target, entered, wrong, cursor, typing, commits, List.of());
+    }
+
+    /** Whether this column arrived solved. Safe on a board that predates the concept. */
+    public boolean isGiven(int index) {
+        return index >= 0 && index < given.size() && Boolean.TRUE.equals(given.get(index));
+    }
 
     /** The widest a cell can be off by, in either direction — one byte's worth of distance. */
     public static final int MAX_OFFSET = 255;
 
     public OffsetBoard {
+        given = given == null ? List.of() : List.copyOf(given);
         Objects.requireNonNull(observed, "observed");
         Objects.requireNonNull(target, "target");
         observed = List.copyOf(observed);

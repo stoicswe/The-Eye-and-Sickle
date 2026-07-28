@@ -57,6 +57,27 @@ public final class BreachArming {
         }
     }
 
+    /**
+     * Points at a target and <b>always notifies</b>, even if it was already the armed one.
+     *
+     * <h2>⚠ Why {@link #arm} cannot just do this</h2>
+     *
+     * {@code arm} deliberately no-ops on an unchanged id, because it is called from inside the breach
+     * panel's own refresh — {@code arm("")} runs there whenever an armed target stops being
+     * available — and a notification on every refresh would re-enter the refresh that sent it.
+     *
+     * <p>But the network map's BREACH control is a different statement. It means <em>start fresh on
+     * this machine</em>, and a player who presses it twice on the same node means it twice. Under
+     * the no-op the second press changed nothing and the breach panel never heard about it, so a
+     * resolved outcome from a previous attempt stayed on screen with no way past it but Dismiss.
+     */
+    public void rearm(String targetId) {
+        this.targetId = targetId == null ? "" : targetId;
+        for (Runnable listener : listeners) {
+            listener.run();
+        }
+    }
+
     /** The armed id, or {@code ""}. Never null. */
     public String armed() {
         return targetId;

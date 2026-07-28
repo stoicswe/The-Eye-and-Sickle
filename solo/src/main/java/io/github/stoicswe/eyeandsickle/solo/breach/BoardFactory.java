@@ -187,6 +187,76 @@ public final class BoardFactory {
             layer.cipherObserved.add(observed);
             layer.cipherTarget.add((observed + step) % 256);
             layer.cipherEntered.add(null);
+            layer.cipherGiven.add(false);
+        }
+
+        prefill(layer, length, rng);
+    }
+
+    /**
+     * Hands the player a few solved columns, so a long board is shorter work than it looks.
+     *
+     * <h2>⚠ EVERY draw here is unconditional, and that is the whole shape of this method</h2>
+     *
+     * {@code Rng}'s contract is that the number of values consumed must not depend on the values
+     * produced — it is why {@code nextInt} has no rejection loop, and it is what makes a stored seed
+     * a faithful replay rather than a replay of one code path. The obvious spelling of this method,
+     * {@code if (roll < chance) { draw more }}, breaks it: two boards that differed only in the
+     * first roll would consume different amounts of stream and every later draw in the breach would
+     * diverge.
+     *
+     * <p>So all five decisions are drawn every time and only then read. The cost is four wasted
+     * longs per board; the alternative is a generator whose stream shape depends on its own output.
+     *
+     * <p>See {@code Balance.CIPHER_PREFILL_CHANCE} for the odds and
+     * {@code Balance.cipherPrefillCap} for why a sixth of a short board is not the same gift as a
+     * third of a long one.
+     */
+    private static void prefill(LayerState layer, int length, Rng rng) {
+        double baseRoll = rng.nextDouble();
+        int baseCount = 1 + rng.nextInt(Balance.CIPHER_PREFILL_BASE_MAX);
+        double bonusRoll = rng.nextDouble();
+        int bonusCount = 1 + rng.nextInt(Balance.CIPHER_PREFILL_BONUS_MAX);
+
+        // ⚠ Drawn to the CEILING, not to `given`. Picking only as many cells as were wanted would
+        // make the consumption depend on the rolls above, which is the thing this method exists to
+        // avoid. Surplus picks are drawn and discarded.
+        int[] picks = new int[Balance.CIPHER_PREFILL_CEILING];
+        for (int i = 0; i < picks.length; i++) {
+            picks[i] = rng.nextInt(Math.max(1, length));
+        }
+
+        int given = 0;
+        if (baseRoll < Balance.CIPHER_PREFILL_CHANCE) {
+            given = baseCount;
+            if (bonusRoll < Balance.CIPHER_PREFILL_BONUS_CHANCE) {
+                given += bonusCount;
+            }
+        }
+        given = Math.min(given, Balance.cipherPrefillCap(length));
+
+        // ⚠ Distinct cells, and the loop counts what it FILLED rather than what it tried. Picks
+        // collide — five draws over a six-cell board very often name the same column twice — and
+        // counting attempts would quietly hand out fewer columns than the odds above promise.
+        int filled = 0;
+        for (int pick : picks) {
+            if (filled >= given) {
+                break;
+            }
+            if (!layer.cipherGiven.get(pick)) {
+                layer.cipherGiven.set(pick, true);
+                layer.cipherEntered.set(pick, layer.cipherTarget.get(pick) - layer.cipherObserved.get(pick));
+                filled++;
+            }
+        }
+
+        // The cursor starts on something the player can actually type into. Landing it on a locked
+        // column would make the first keystroke do nothing, which reads as a broken board.
+        for (int cell = 0; cell < length; cell++) {
+            if (!layer.cipherGiven.get(cell)) {
+                layer.cipherCursor = cell;
+                break;
+            }
         }
     }
 }

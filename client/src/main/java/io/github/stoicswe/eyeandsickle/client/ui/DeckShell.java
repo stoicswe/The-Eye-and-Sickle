@@ -142,11 +142,22 @@ public final class DeckShell {
     private final NoiseMeter noise = new NoiseMeter();
     private final Sparkline load = new Sparkline("Load");
     private final Sparkline thermal = new Sparkline("Thermal recovery");
-    private final KeyValue balance = KeyValue.of("Balance", "—");
+    private final io.github.stoicswe.eyeandsickle.client.ui.widgets.BalanceReadout balance =
+            new io.github.stoicswe.eyeandsickle.client.ui.widgets.BalanceReadout();
     private final KeyValue clock = KeyValue.of("Session", "00:00:00");
 
-    /** In-world time, from the engine's clock. See GameSession#now. */
-    private final Label gameClock = Ui.micro("--:--:--");
+    /** The four times, only two of which are on the strip. Rebuilt on the one-second tick. */
+    private final Tooltip clockTip = new Tooltip();
+
+    /**
+     * Local wall-clock time, 24-hour, from the engine's clock. See GameSession#now.
+     *
+     * <p>⚠ A KeyValue rather than a bare label since 2026-07-27, because it needed naming. Two
+     * unlabelled times stacked in one cell is a readout that makes the player work out which is
+     * which, and they answer completely different questions — one is how long this sitting has run,
+     * the other is what time it is.
+     */
+    private final KeyValue localClock = KeyValue.of("Local", "--:--");
 
     /** What the balance is growing by, so the rate is readable without opening the mining window. */
     private final Label income = Ui.micro("+0.00 EC/HR");
@@ -330,7 +341,11 @@ public final class DeckShell {
         topStrip.add(cell(stacked(operator, operatorHex)));
         // The thermometer and the band name together. §2.2.4 requires the name; the thermometer
         // adds "how close to the next band", which the name cannot carry.
-        topStrip.add(cell(thermo, heat));
+        // ⚠ Stacked, not side by side, since the meter turned horizontal on 2026-07-27. `heat` is
+        // KeyValue.keyOnly — the label with no value — so this is label over meter, which is the
+        // anatomy every other cell in the strip already has (KeyValue is a key over a value). Beside
+        // each other, heat was the one cell built differently from its neighbours.
+        topStrip.add(cell(stacked(heat, thermo)));
         topStrip.add(cell(noise));
         topStrip.add(cell(load));
         topStrip.add(cell(thermal));
@@ -339,7 +354,12 @@ public final class DeckShell {
         topStrip.add(spacer);
         topStrip.add(HazardBand.top(96));
         topStrip.add(cell(stacked(balance, income)));
-        topStrip.add(cell(stacked(clock, gameClock)));
+        // ⚠ The two figures a player glances at, and the two they occasionally want, split by how
+        // often they are wanted. Session and local time are always on; uptime and UTC live in the
+        // tooltip, because a cell with four times in it is a cell nobody reads.
+        Region clockCell = cell(stacked(clock, localClock));
+        Tooltip.install(clockCell, clockTip);
+        topStrip.add(clockCell);
         // ⚠ Pinned, never wrapped. These are the only way to minimise, maximise or close an
         // undecorated Stage, so they must not migrate to a second row as the window narrows.
         topStrip.setPinned(stageControls());
@@ -490,7 +510,8 @@ public final class DeckShell {
         // history on the strip shares a beat. refreshTop also runs on the 1.9s twitch, which would
         // double-sample and compress the window — so the push lives in the clock tick, not here.
 
-        balance.set(String.format(Locale.ROOT, "%.2f EC", session.balance().minorUnits() / 100.0d));
+        // Counts to the new figure and flashes the movement that caused it. See BalanceReadout.
+        balance.setMinorUnits(session.balance().minorUnits());
         balance.valueNode().getStyleClass().removeAll("es-value-live");
         income.getStyleClass().removeAll("es-income-live");
         if (status.incomeMinorUnitsPerHour() > 0) {
@@ -526,10 +547,34 @@ public final class DeckShell {
                 elapsed.toMinutesPart(),
                 elapsed.toSecondsPart()));
 
-        // In-world time, from the ENGINE's clock — see GameSession#now. Local zone, because it is a
-        // wall clock on the operator's own desk rather than a timestamp for anyone else to read.
-        gameClock.setText(java.time.LocalTime.ofInstant(session.now(), java.time.ZoneId.systemDefault())
-                .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss", Locale.ROOT)));
+        // Local wall-clock time from the ENGINE's clock — see GameSession#now. Local zone, because
+        // it is a clock on the operator's own desk rather than a timestamp for anyone else to read.
+        // 24-hour: this deck has no room for an am/pm and no reason to prefer one.
+        java.time.Instant at = session.now();
+        localClock.set(java.time.LocalTime.ofInstant(at, java.time.ZoneId.systemDefault())
+                .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm", Locale.ROOT)));
+
+        // ⚠ UTC is labelled SERVER time deliberately. A federated home server is authoritative for
+        // when things happened (I14), and every timestamp that ever crosses the wire is UTC — so the
+        // clock a player checks against a server log has to be the same one the log is written in.
+        // Naming it "UTC" alone would be true and would not say why anyone should care.
+        long up = session.uptimeSeconds();
+        clockTip.setText(
+                "SESSION  " + clock.value() + "   this sitting\n"
+                + "LOCAL    " + localClock.value() + "   your timezone\n"
+                + "UPTIME   " + (up <= 0 ? "—" : uptime(up)) + "   this character, all sessions\n"
+                + "SERVER   " + java.time.LocalTime.ofInstant(at, java.time.ZoneOffset.UTC)
+                        .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss", Locale.ROOT))
+                + "   UTC, which is what every timestamp on the wire uses");
+    }
+
+    /** Total play time as {@code 12d 04h 31m} — days only once there are any. */
+    private static String uptime(long seconds) {
+        long days = seconds / 86_400;
+        long hours = (seconds % 86_400) / 3_600;
+        long minutes = (seconds % 3_600) / 60;
+        return (days > 0 ? days + "d " : "")
+                + String.format(Locale.ROOT, "%02dh %02dm", hours, minutes);
     }
 
     // ── Rail ─────────────────────────────────────────────────────────────────────────────────
@@ -1094,6 +1139,7 @@ public final class DeckShell {
         substrate.dispose();
         crt.dispose();
         bezel.dispose();
+        balance.dispose();
         notices.detach();
         pause.dispose();
         desk.closeAll();

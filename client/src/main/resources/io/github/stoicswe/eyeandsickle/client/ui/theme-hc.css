@@ -56,5 +56,10 @@
        near 3:1, below the body minimum. Lightened to 7.6:1 while staying unmistakably red. */
     -es-alarm:     #FF6B60;
 
+    /* The two state hues (§2.1a), in this palette's register. Green has to stay distinguishable
+       from the accent and from body text here, which is why it is not the base sheet's value. */
+    -es-gain:      #5BE07E;
+    -es-warn:      #FFA83A;
+
     -es-tool:      #4A5A5A;
 }

@@ -185,6 +185,18 @@ public final class SoloSave {
      * <p>⚠ It is by far the largest thing in this file — up to 350 hosts, rewritten on every
      * autosave. See {@link TopologyState}'s note on why nothing derived is cached inside it.
      */
+    /**
+     * Cycles of transient noise, and when they stop counting.
+     *
+     * <p>A short burst the rig radiates after an event that was conspicuous but is over — currently
+     * only abandoning a breach. ⚠ Held as an <b>instant</b> rather than a countdown so it settles
+     * correctly across a quit: a remaining-seconds field would pause with the game and leave a spike
+     * waiting to be served the next time the player opened the client.
+     */
+    public long noiseSpikeCycles = 0L;
+
+    public Instant noiseSpikeUntil = Instant.EPOCH;
+
     public TopologyState topology;
 
     /**

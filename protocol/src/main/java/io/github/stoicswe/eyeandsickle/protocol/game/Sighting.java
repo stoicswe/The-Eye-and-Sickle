@@ -87,11 +87,59 @@ public record Sighting(
         int hopsFromVantage,
         boolean vantage,
         boolean foothold,
+        /**
+         * Breached once, and shut out since — the host has been patched.
+         *
+         * <p>⚠ Distinct from {@code !foothold}, which is "never breached". A patched host is one the
+         * player <em>did</em> get into and cannot any more, which is a different fact and a
+         * different decision: the route it opened is closed, the intelligence it gave is stale, and
+         * breaching it again is a known quantity rather than a gamble.
+         *
+         * <p>⚠ <b>Nothing sets this true yet.</b> No rule patches a host — see
+         * {@code docs/design/15-open-questions.md}, where the mechanic is proposed rather than
+         * decided. The field and its rendering exist so the state has one meaning the day it does,
+         * rather than being invented twice in two places.
+         */
+        boolean patched,
         boolean looted,
         boolean honeypotSuspected,
         boolean hostsDeployedMiner,
         boolean documentAvailable,
         String bridgePeerServerName) {
+
+    /**
+     * The reading without a patch state — every producer that has one today.
+     *
+     * <h2>⚠ A convenience constructor, and a deliberate one</h2>
+     *
+     * {@link #patched} was added on 2026-07-27 for a mechanic that <b>does not exist yet</b>: nothing
+     * in the engine patches a host. Threading a literal {@code false} through every producer and
+     * every fixture to say "no rule has run" would be noise at fourteen call sites, and the reader
+     * of each one would have to work out which boolean it was.
+     *
+     * <p>⚠ It defaults to {@code false}, which is not merely the safe value — it is the <b>true</b>
+     * one. A host nobody has locked the player out of is not patched, and the day something can
+     * patch one, that producer uses the canonical constructor and this keeps meaning what it says.
+     */
+    public Sighting(
+            String address,
+            String label,
+            String serverId,
+            HostKind kind,
+            DifficultyTier tier,
+            SignalStrength signal,
+            int hopsFromVantage,
+            boolean vantage,
+            boolean foothold,
+            boolean looted,
+            boolean honeypotSuspected,
+            boolean hostsDeployedMiner,
+            boolean documentAvailable,
+            String bridgePeerServerName) {
+        this(address, label, serverId, kind, tier, signal, hopsFromVantage, vantage, foothold,
+                false, looted, honeypotSuspected, hostsDeployedMiner, documentAvailable,
+                bridgePeerServerName);
+    }
 
     public Sighting {
         address = address == null ? "" : address;

@@ -72,6 +72,46 @@ public final class Motion {
     }
 
     /**
+     * Brings a node up from dark in discrete steps — the deck waking, not a cross-fade.
+     *
+     * <h2>⚠ DISCRETE, like every other motion in the client</h2>
+     *
+     * §5 permits step timing and nothing else, and {@code UiContractTest} fails the build on any
+     * {@code Interpolator.EASE_*} and on {@code LINEAR} anywhere but the sweep bar. A
+     * {@code FadeTransition} is a linear tween by default and would be exactly that violation, so
+     * this is the same nine-step {@code DISCRETE} ladder {@link #reveal} uses, applied to opacity.
+     *
+     * <p>Stepping is also the truer effect. A phosphor coming up to brightness is not smooth — it
+     * is a fast rise through a few visible levels, which is what a discrete ramp draws for free.
+     *
+     * <p>⚠ Under reduced motion the node is simply shown at full opacity. §5 requires the "static
+     * final state", and a node left at zero opacity because the animation was suppressed is an
+     * interface that never appears.
+     *
+     * @param totalMs how long the whole ramp takes
+     */
+    public static void fadeIn(Node node, double totalMs) {
+        if (Pulse.shared().reducedMotion()) {
+            node.setOpacity(1);
+            return;
+        }
+        node.setOpacity(0);
+        Timeline timeline = new Timeline();
+        double step = totalMs / UiTokens.REVEAL_STEPS;
+        for (int i = 1; i <= UiTokens.REVEAL_STEPS; i++) {
+            double fraction = i / (double) UiTokens.REVEAL_STEPS;
+            timeline.getKeyFrames().add(new KeyFrame(
+                    Duration.millis(step * i),
+                    new KeyValue(node.opacityProperty(), fraction, Interpolator.DISCRETE)));
+        }
+        // ⚠ Pinned to exactly 1 at the end rather than left on the last computed fraction. Nine
+        // steps of 1/9 sums to 0.9999999999999999 in double arithmetic, and a deck sitting at
+        // 99.99999% opacity is a compositing layer that never goes away.
+        timeline.setOnFinished(e -> node.setOpacity(1));
+        timeline.play();
+    }
+
+    /**
      * A blinking block caret, on the shared driver.
      *
      * <p>{@code steps(1,end)} in the reference — a hard on/off, never a fade. Under reduced motion

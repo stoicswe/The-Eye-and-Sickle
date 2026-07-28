@@ -105,17 +105,37 @@ class BreachRulesTest {
             SoloSave save = BreachTestKit.attemptWith("OFFSET_CIPHER", 3);
             LayerState layer = focus(save, "OFFSET_CIPHER");
 
+            // ⚠ Editable columns, chosen rather than assumed. Since 2026-07-27 a cipher can arrive
+            // with a few columns already solved and LOCKED, so cells 0 and 1 are not reliably the
+            // player's to type into — a TYPE aimed at a given column is refused and ledgers nothing,
+            // which made this test fail on the boards that got a give.
+            int first = -1;
+            int second = -1;
+            for (int c = 0; c < layer.cipherObserved.size(); c++) {
+                if (!OffsetRules.isGiven(layer, c)) {
+                    if (first < 0) {
+                        first = c;
+                    } else if (second < 0) {
+                        second = c;
+                    }
+                }
+            }
+
             // One correct byte, one carried, and the rest left blank — the two paid moves that do not
             // strike. Typing is composition and ledgers nothing (see bookkeepingIsFree).
-            BreachRules.act(save, OffsetRules.TYPE, "0:" + OffsetRules.expected(layer, 0), T0);
-            BreachRules.act(save, OffsetRules.CARRY, "1", T0);
+            BreachRules.act(save, OffsetRules.TYPE, first + ":" + OffsetRules.expected(layer, first), T0);
+            BreachRules.act(save, OffsetRules.CARRY, String.valueOf(second), T0);
             assertThat(save.activeBreach.ledger).hasSize(1);
             assertThat(save.activeBreach.ledger.getLast().spentAfter).isEqualTo(layer.spent);
 
             // A row of zeroes is wrong in every column, so committing it strikes. Two rows: the move
             // and the alarm.
+            // Zero into every column the player owns. A given column keeps its correct answer, so
+            // the row is still wrong overall — which is what this test needs.
             for (int i = 0; i < layer.cipherObserved.size(); i++) {
-                BreachRules.act(save, OffsetRules.TYPE, i + ":0", T0);
+                if (!OffsetRules.isGiven(layer, i)) {
+                    BreachRules.act(save, OffsetRules.TYPE, i + ":0", T0);
+                }
             }
             BreachRules.act(save, OffsetRules.COMMIT, "", T0);
             assertThat(save.activeBreach.ledger).hasSize(3);

@@ -118,6 +118,16 @@ public final class LayerState {
      */
     public List<Integer> cipherEntered = new ArrayList<>();
 
+    /**
+     * Which cells arrived already solved, and are therefore not the player's to edit.
+     *
+     * <p>⚠ Locked rather than merely pre-typed. A given cell the player could overwrite is a trap
+     * dressed as a favour: they would have no way to tell their own answer from the board's, and a
+     * stray keystroke on a correct column would cost a strike on commit. Locking also makes the give
+     * worth more than the keystrokes it saves — it is a column that does not need CHECKING.
+     */
+    public List<Boolean> cipherGiven = new ArrayList<>();
+
     /** Cells the last commit rejected. Cleared whenever the player edits. */
     public List<Integer> cipherWrong = new ArrayList<>();
 

@@ -204,7 +204,18 @@ class BreachBoardsTest {
             for (LayerState layer : allLayers("OFFSET_CIPHER")) {
                 assertThat(layer.cipherTarget).hasSameSizeAs(layer.cipherObserved);
                 assertThat(layer.cipherEntered).hasSameSizeAs(layer.cipherObserved);
-                assertThat(layer.cipherEntered).allMatch(java.util.Objects::isNull);
+                assertThat(layer.cipherGiven).hasSameSizeAs(layer.cipherObserved);
+                // ⚠ Since 2026-07-27 a board can arrive part-solved, so "every cell is null" is no
+                // longer the contract. The one that replaced it: a cell holds a value if and only if
+                // it was GIVEN, and a given cell holds the right answer. See CipherPrefillTest.
+                for (int c = 0; c < layer.cipherObserved.size(); c++) {
+                    if (layer.cipherGiven.get(c)) {
+                        assertThat(layer.cipherEntered.get(c))
+                                .isEqualTo(OffsetRules.expected(layer, c));
+                    } else {
+                        assertThat(layer.cipherEntered.get(c)).isNull();
+                    }
+                }
                 assertThat(layer.cipherObserved).allMatch(value -> value >= 0 && value <= 255);
                 assertThat(layer.cipherTarget).allMatch(value -> value >= 0 && value <= 255);
             }
@@ -283,8 +294,21 @@ class BreachBoardsTest {
             // out what to subtract. The answer row is empty, and stays the player's to fill.
             assertThat(board.observed()).isNotEmpty();
             assertThat(board.target()).hasSameSizeAs(board.observed());
-            assertThat(board.entered()).allMatch(java.util.Objects::isNull);
-            assertThat(board.filled()).isZero();
+            // ⚠ "Blank" became "blank except what the board gave you" on 2026-07-27. A cipher can
+            // arrive with a few columns solved so a sixteen-byte layer is shorter work than it
+            // looks; what has NOT changed is that the rest is the player's, and that no board ever
+            // arrives finished.
+            int given = 0;
+            for (int c = 0; c < board.length(); c++) {
+                if (board.isGiven(c)) {
+                    given++;
+                    assertThat(board.entered().get(c)).isNotNull();
+                } else {
+                    assertThat(board.entered().get(c)).isNull();
+                }
+            }
+            assertThat(board.filled()).isEqualTo(given);
+            assertThat(given).isLessThan(board.length());
             assertThat(board.complete()).isFalse();
             assertThat(board.wrong()).isEmpty();
         }

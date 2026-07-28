@@ -85,6 +85,14 @@ public final class OffsetRules {
         if (index < 0 || index >= layer.cipherObserved.size()) {
             return Move.refunded("no such cell");
         }
+        // ⚠ A given column is not the player's to change, and refusing costs them nothing —
+        // Move.refunded does not spend attention. A board arrives with some columns already solved
+        // (Balance.CIPHER_PREFILL_CHANCE); letting a stray keystroke overwrite one would turn the
+        // favour into a trap, because the wrong value would not be found until the commit that
+        // costs a strike.
+        if (isGiven(layer, index)) {
+            return Move.refunded("cell " + index + " came already solved - it is not yours to change");
+        }
 
         String raw = parts[1].trim();
         if (raw.isEmpty()) {
@@ -192,6 +200,20 @@ public final class OffsetRules {
      */
     public static int expected(LayerState layer, int index) {
         return layer.cipherTarget.get(index) - layer.cipherObserved.get(index);
+    }
+
+    /**
+     * Whether this column arrived already solved.
+     *
+     * <p>⚠ Tolerates a short or absent list rather than indexing blind. {@code cipherGiven} was
+     * added on 2026-07-27 and a breach saved before that has none — an in-flight board on an older
+     * save must keep working, and "nothing was given" is the true answer for one.
+     */
+    public static boolean isGiven(LayerState layer, int index) {
+        return layer.cipherGiven != null
+                && index >= 0
+                && index < layer.cipherGiven.size()
+                && Boolean.TRUE.equals(layer.cipherGiven.get(index));
     }
 
     /** {@code 03, 07 and 11} — positions, in the player's own one-based counting. */

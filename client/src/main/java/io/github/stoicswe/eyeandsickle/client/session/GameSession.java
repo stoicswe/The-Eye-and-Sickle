@@ -75,6 +75,16 @@ public interface GameSession extends AutoCloseable {
      */
     int storageCapacity(StorageTier tier);
 
+    /**
+     * Total time this character has been played, across every session, in seconds.
+     *
+     * <p>⚠ Distinct from the session clock the strip shows, and that is the point of having both.
+     * The session clock answers "how long have I been at this sitting"; this answers "how much of
+     * my life is in this character". They are different questions and a player asks the second one
+     * far less often, which is why it lives in a tooltip.
+     */
+    long uptimeSeconds();
+
     List<LedgerRow> ledger(int limit);
 
     List<KnownNode> knownNodes();

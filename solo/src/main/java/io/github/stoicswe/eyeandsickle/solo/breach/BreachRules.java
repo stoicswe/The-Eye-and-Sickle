@@ -249,8 +249,48 @@ public final class BreachRules {
         if (!breach.outcome.isEmpty()) {
             return BreachResult.refused("this breach has already resolved; dismiss it to continue");
         }
+        boolean crack = breach.minerCrack;
+        String label = breach.targetLabel;
         resolve(save, breach, BreachOutcome.ABORTED, now);
-        return BreachResult.applied("disengaged from " + breach.targetLabel);
+        spikeOnAbandon(save, crack, now);
+        return BreachResult.applied("disengaged from " + label);
+    }
+
+    /**
+     * Leaves a short burst of noise behind after an abandonment.
+     *
+     * <h2>⚠ Abandonment only, and never a crack on your own rig</h2>
+     *
+     * Failing out of strikes or budget is not this: the player stayed and lost, and the attempt's
+     * own noise already priced that. Abandoning is walking away from a live connection, which is the
+     * conspicuous act — and until this existed it was also the <em>quietest</em> possible exit, which
+     * made "open a breach, read the board, leave if it looks ugly" a free reroll on difficulty.
+     *
+     * <p>⚠ A miner crack is excluded, for the same reason {@code resolve} zeroes its heat: it is the
+     * player's <b>own rig</b>, and Invariant <b>I9</b> is that defending your own machine never makes
+     * you more findable. A spike there would make the tutorial breach ({@code 04} §5.1) punish the
+     * player for backing out of a fight on their own hardware.
+     *
+     * <p>⚠ The duration is drawn <b>unconditionally</b>, before the crack test — {@code Rng}'s
+     * contract is that consumption must not depend on what was produced, so a crack consumes the
+     * same stream an offensive breach does and discards it.
+     */
+    private static void spikeOnAbandon(SoloSave save, boolean minerCrack, Instant now) {
+        Rng rng = Rng.of(save);
+        long span = Balance.BREACH_ABANDON_SPIKE_MAX_SECONDS
+                - Balance.BREACH_ABANDON_SPIKE_MIN_SECONDS + 1;
+        long seconds = Balance.BREACH_ABANDON_SPIKE_MIN_SECONDS + rng.nextInt((int) span);
+        rng.commit(save);
+
+        if (minerCrack) {
+            return;
+        }
+        save.noiseSpikeCycles = Balance.BREACH_ABANDON_SPIKE_CYCLES;
+        save.noiseSpikeUntil = now.plusSeconds(seconds);
+        EventLog.notice(save, "breach",
+                "disengaged mid-session — the dropped connection is radiating for about "
+                        + seconds + "s. You are easier to find until it settles.",
+                now);
     }
 
     /**

@@ -333,7 +333,9 @@ public final class NetMapView {
             // rather than looked up because the map holds an address and the breach window holds
             // ids, and one of the two has to translate — but the SHAPE is the rules', which is why
             // the armed id is handed straight to beginBreach without a second translation.
-            arming.arm("node:" + selected[0]);
+            // ⚠ rearm, not arm. Pressing BREACH on the node already armed has to be heard, or the
+            // breach panel never learns it should clear a finished attempt — see BreachArming.
+            arming.rearm("node:" + selected[0]);
             arming.open();
         });
 

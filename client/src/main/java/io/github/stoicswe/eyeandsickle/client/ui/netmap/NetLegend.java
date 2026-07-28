@@ -46,6 +46,11 @@ public final class NetLegend extends HBox {
         ENTRIES.put(NetGlyphs.NODE_VANTAGE, "vantage");
         ENTRIES.put(NetGlyphs.NODE_TRAP, "trap?");
         ENTRIES.put(NetGlyphs.NODE_FOOTHOLD, "foothold");
+        // The lock marks whether the way IN is open; the ink level above marks how much is known.
+        // They came apart when a host could be breached and then patched — see NetCanvas.lockFor.
+        ENTRIES.put(NetGlyphs.LOCK_OPEN, "breached");
+        ENTRIES.put(NetGlyphs.LOCK_PATCHED, "patched — locked out");
+        ENTRIES.put(NetGlyphs.LOCK_SHUT, "locked");
         ENTRIES.put(NetGlyphs.NODE_BRIDGE, "bridge");
         ENTRIES.put(NetGlyphs.NODE_IDENTIFIED, "identified");
         ENTRIES.put(NetGlyphs.NODE_CONTACT, "contact");

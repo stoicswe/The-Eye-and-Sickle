@@ -373,7 +373,11 @@ public final class NetGraph extends VBox {
         if (sighting.vantage()) {
             out.append(". You are operating from here");
         } else if (sighting.foothold()) {
-            out.append(". Foothold — you may connect here");
+            out.append(". Breached — unlocked, and you may connect here");
+        } else if (sighting.patched()) {
+            out.append(". Patched — you were inside this once and are locked out now");
+        } else {
+            out.append(". Locked — never breached");
         }
         if (sighting.honeypotSuspected()) {
             out.append(". Suspected honeypot");

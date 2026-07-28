@@ -340,6 +340,27 @@ public final class BreachView {
 
         Runnable refresh = () -> {
             Optional<BreachSnapshot> found = session.breach();
+
+            // ⚠ A finished attempt yields to a newly armed one, and this is the whole fix for
+            // "BREACH shows the previous breach".
+            //
+            // A resolved breach stays on the save until it is dismissed — that is deliberate, so an
+            // outcome slate survives closing the window and can be read later. But `open` is true
+            // for it, which hides both the target list and the launch panel: arming a node from the
+            // map raised this window onto somebody else's obituary with no control but Dismiss.
+            //
+            // ⚠ RESOLVED ONLY. A live attempt is never touched. It holds reserved compute that
+            // aborting does not refund (docs/design/05 §4), so clearing one because the player
+            // brushed a node on the map would spend their cycles for them. The check is on
+            // `resolved()`, not on `isPresent()`, and it must stay that way.
+            //
+            // ⚠ This cannot loop. `dismissBreach` fires onChange, which re-enters here — and by then
+            // session.breach() is empty, so the branch is not taken a second time.
+            if (arming.isArmed() && found.map(BreachSnapshot::resolved).orElse(false)) {
+                session.dismissBreach();
+                found = session.breach();
+            }
+
             boolean open = found.isPresent();
             boolean resolved = open && found.get().resolved();
 

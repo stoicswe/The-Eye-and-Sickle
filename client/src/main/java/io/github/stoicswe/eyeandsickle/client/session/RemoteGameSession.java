@@ -212,6 +212,13 @@ public final class RemoteGameSession implements GameSession {
     }
 
     @Override
+    public long uptimeSeconds() {
+        // The server owns how long a character has been played (I14). Zero until it says otherwise,
+        // which the readout renders as "—" rather than claiming a brand-new character.
+        return 0L;
+    }
+
+    @Override
     public int storageCapacity(
             io.github.stoicswe.eyeandsickle.protocol.game.StorageTier tier) {
         // Zero, not a guessed default. A disconnected session knows nothing about the server's

@@ -117,6 +117,7 @@ public final class NoiseRules {
         }
         sum += taskNoise(save, now);
         sum += breachNoise(save);
+        sum += spikeNoise(save, now);
         sum += MiningRules.poolNoiseCycles(save.rig);
         return sum;
     }
@@ -178,6 +179,21 @@ public final class NoiseRules {
      * make the meter hold a moment past the countdown reaching zero, which is precisely the
      * "contributes after it has finished" behaviour this model exists to rule out.
      */
+    /**
+     * A transient burst that has not expired yet — currently only an abandoned breach.
+     *
+     * <p>⚠ Measured against the session clock like everything else here. A spike compared against
+     * {@code Instant.now()} would expire while the game was closed <em>and</em> report a test
+     * clock's spikes as long over, which is the bug {@link #level}'s own parameter comment exists
+     * to prevent.
+     */
+    private static long spikeNoise(SoloSave save, Instant now) {
+        if (save.noiseSpikeCycles <= 0 || save.noiseSpikeUntil == null || now == null) {
+            return 0L;
+        }
+        return now.isBefore(save.noiseSpikeUntil) ? save.noiseSpikeCycles : 0L;
+    }
+
     private static long taskNoise(SoloSave save, Instant now) {
         if (save.tasks == null || now == null) {
             return 0L;

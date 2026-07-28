@@ -195,6 +195,14 @@ class NetTypesTest {
                             "hopsFromVantage",
                             "vantage",
                             "foothold",
+                            // ⚠ Added 2026-07-27, and it clears the bar this list guards. The rule
+                            // is that a field must name something a tool was sold to the player to
+                            // learn — but `patched` is not an OBSERVATION of a machine, it is the
+                            // player's own relationship to one, exactly like `foothold` and
+                            // `looted` beside it. You know you are locked out of a host because you
+                            // were inside it; no recon sells that. Nothing sets it true yet: the
+                            // patch mechanic is proposed in docs/design/15, not decided.
+                            "patched",
                             "looted",
                             "honeypotSuspected",
                             "hostsDeployedMiner",

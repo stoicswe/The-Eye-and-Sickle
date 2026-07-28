@@ -37,7 +37,7 @@ import javafx.scene.layout.VBox;
  * <h2>Where the band name went (UI-8, decided 2026-07-26)</h2>
  *
  * <b>The band name is not printed on the strip.</b> §2.2.4 requires the chip to "carry the band
- * name" and the strip cell is {@code KeyValue.keyOnly("Personal heat")} — label, thermometer, no
+ * name" and the strip cell is {@code KeyValue.keyOnly("Personal heat")} — label over thermometer, no
  * name. That was a deliberate call, confirmed when UI-8 was decided: the strip stays visually quiet
  * and the name lives in this widget's tooltip.
  *
@@ -57,54 +57,80 @@ import javafx.scene.layout.VBox;
  * answer to "which band am I in" readable without counting cells — which is the question §2.2.4 says
  * the player is actually asking.
  */
-public final class ThermoMeter extends HBox {
+public final class ThermoMeter extends VBox {
 
     /** Cell counts per band, proportional to each band's heat range. Eleven cells in total. */
     private static final int[] ZONE_CELLS = {1, 2, 3, 3, 2};
 
-    private static final double CELL_W = 6;
-    private static final double CELL_H = 2;
-    private static final double TICK_W = 3;
+    /**
+     * ⚠ Cell geometry, and it TRANSPOSED on 2026-07-27 when the meter turned horizontal.
+     *
+     * <p>{@code CELL_LONG} runs along the stem and {@code CELL_THICK} across it, so the names no
+     * longer say "width" and "height" — in a vertical stem the long axis was the height and in a
+     * horizontal one it is the width. Naming them by orientation rather than by axis is what stops
+     * the next person swapping them back by reading the identifiers literally.
+     */
+    private static final double CELL_LONG = 6;
+
+    private static final double CELL_THICK = 3;
+
+    private static final double TICK_THICK = 3;
 
     private final List<Region> cells = new ArrayList<>();
     private final List<Integer> cellBand = new ArrayList<>();
     private final Region bulb;
 
+    /**
+     * A horizontal stem, with the graduations under it.
+     *
+     * <h2>⚠ It was vertical until 2026-07-27</h2>
+     *
+     * A vertical thermometer is the more literal instrument, and in the top strip it was the wrong
+     * shape for its slot: the strip is a row of wide, short cells, so a tall widget forced the whole
+     * strip taller for one readout and left the label stranded beside it rather than above it. The
+     * meter now lies under its own label, which is how every other cell in the strip is built —
+     * {@code KeyValue} is a key over a value — so heat stopped being the one cell with a different
+     * anatomy.
+     *
+     * <p>⚠ <b>Cold is still at the origin and hot is still away from it.</b> That was the whole
+     * reason the vertical build read top-down; horizontally it means cold on the LEFT and the bulb
+     * on the left with it, because a scale that filled right-to-left would be read backwards by
+     * everyone. The bulb is the reservoir and it belongs at the cold end.
+     */
     public ThermoMeter() {
         super(UiTokens.HAIR);
-        setAlignment(Pos.BOTTOM_LEFT);
+        setAlignment(Pos.CENTER_LEFT);
 
-        VBox ticks = new VBox(UiTokens.HAIR);
-        ticks.setAlignment(Pos.BOTTOM_CENTER);
-        VBox stem = new VBox();
-        stem.setAlignment(Pos.BOTTOM_CENTER);
+        HBox ticks = new HBox(UiTokens.HAIR);
+        ticks.setAlignment(Pos.CENTER_LEFT);
+        HBox stem = new HBox();
+        stem.setAlignment(Pos.CENTER_LEFT);
 
-        // Built top-down: the hottest band is at the top of the stem, as on a real thermometer.
-        for (int band = ZONE_CELLS.length - 1; band >= 0; band--) {
+        // Built cold-to-hot, left to right — the direction the scale is read in.
+        for (int band = 0; band < ZONE_CELLS.length; band++) {
             for (int i = 0; i < ZONE_CELLS[band]; i++) {
-                Region cell = Ui.block(CELL_W, CELL_H, "es-thermo-cell");
+                Region cell = Ui.block(CELL_LONG, CELL_THICK, "es-thermo-cell");
                 cells.add(cell);
                 cellBand.add(band);
                 stem.getChildren().add(cell);
-                ticks.getChildren().add(Ui.block(TICK_W, CELL_H, "es-thermo-gap"));
+                ticks.getChildren().add(Ui.block(CELL_LONG, TICK_THICK, "es-thermo-gap"));
             }
-            if (band > 0) {
-                // The threshold. A 1px gap in the stem and a visible graduation beside it — this is
+            if (band < ZONE_CELLS.length - 1) {
+                // The threshold. A 1px gap in the stem and a visible graduation under it — this is
                 // what makes the meter banded rather than continuous, and it is load-bearing.
-                stem.getChildren().add(Ui.block(CELL_W, UiTokens.HAIR, "es-thermo-gap"));
-                ticks.getChildren().add(Ui.block(TICK_W, UiTokens.HAIR, "es-thermo-tick"));
+                stem.getChildren().add(Ui.block(UiTokens.HAIR, CELL_THICK, "es-thermo-gap"));
+                ticks.getChildren().add(Ui.block(UiTokens.HAIR, TICK_THICK, "es-thermo-tick"));
             }
         }
 
-        // cells was filled hottest-first; reverse so index 0 is the bottom of the stem.
-        java.util.Collections.reverse(cells);
-        java.util.Collections.reverse(cellBand);
+        // ⚠ No reverse() any more. The vertical build filled hottest-first because it stacked
+        // top-down, then reversed so index 0 was the cold end; this one is built cold-first and
+        // reversing it would put the hot end at index 0 and light the meter from the wrong side.
+        bulb = Ui.block(CELL_THICK + 2, CELL_THICK + 2, "es-thermo-bulb");
+        HBox row = new HBox(UiTokens.HAIR, bulb, stem);
+        row.setAlignment(Pos.CENTER_LEFT);
 
-        bulb = Ui.block(CELL_W + 2, CELL_W, "es-thermo-bulb");
-        VBox column = new VBox(UiTokens.HAIR, stem, bulb);
-        column.setAlignment(Pos.BOTTOM_CENTER);
-
-        getChildren().addAll(ticks, column);
+        getChildren().addAll(row, ticks);
     }
 
     /**
