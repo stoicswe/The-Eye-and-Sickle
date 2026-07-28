@@ -10,6 +10,7 @@ import io.github.stoicswe.eyeandsickle.client.shell.Shell;
 import io.github.stoicswe.eyeandsickle.client.teaching.ManCommands;
 import io.github.stoicswe.eyeandsickle.client.teaching.TermDatabase;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeManager;
+import io.github.stoicswe.eyeandsickle.client.view.CalcView;
 import io.github.stoicswe.eyeandsickle.client.view.CommandPalette;
 import io.github.stoicswe.eyeandsickle.client.view.MainMenuView;
 import io.github.stoicswe.eyeandsickle.client.view.BreachView;
@@ -325,6 +326,11 @@ public class EyeAndSickleClient extends Application {
             local.game().rename(handle);
             session.persist();
             profile.save();
+            // The handle is the left half of the command-strip prompt, which is built once. Without
+            // this the strip keeps the old name until the client is restarted.
+            if (deck != null) {
+                deck.applyPrompt();
+            }
         }
     }
 
@@ -334,6 +340,9 @@ public class EyeAndSickleClient extends Application {
             deck.applyPlacementSetting();
             deck.applyWindowCapSetting();
             deck.applyScreenSettings();
+            // The command strip's prompt is built from a setting too, and a prompt still showing the
+            // old hostname after the field said it had saved reads as the setting not having worked.
+            deck.applyPrompt();
         }
     }
 
@@ -646,6 +655,7 @@ public class EyeAndSickleClient extends Application {
             case SETTINGS -> Views.settings(
                     profile, themes, this::applyDeskSettings, this::renameOperator,
                     this::applyWindowSettings);
+            case CALC -> CalcView.create();
             case MAN -> ManView.create(terms);
             case LOG -> LogView.create(session);
             case MARKET -> MoreViews.market(session);

@@ -1,6 +1,7 @@
 package io.github.stoicswe.eyeandsickle.client.ui;
 
 import io.github.stoicswe.eyeandsickle.client.profile.ClientProfile;
+import io.github.stoicswe.eyeandsickle.client.profile.Hostname;
 import io.github.stoicswe.eyeandsickle.client.session.GameSession;
 import io.github.stoicswe.eyeandsickle.client.shell.Shell;
 import io.github.stoicswe.eyeandsickle.client.ui.chrome.DeskManager;
@@ -164,6 +165,16 @@ public final class DeckShell {
     private final Label refusal = new Label("");
 
     private final TextField commandInput = new TextField();
+
+    /**
+     * {@code operator@rig.local:~$}.
+     *
+     * <p>Held as a field so {@link #applyPrompt()} can rebuild it. Both halves are settings a player
+     * can change from inside the game — the handle from Settings or {@code rename}, the hostname
+     * from Settings or {@code hostname(1)} — and a prompt built once at startup would keep showing
+     * the old name until the client was restarted, which reads as the change not having worked.
+     */
+    private final Label prompt = new Label("");
     private final Instant startedAt = Instant.now();
     private AutoCloseable sessionSubscription;
     private Stage stage;
@@ -709,8 +720,8 @@ public final class DeckShell {
         strip.getStyleClass().add("es-cmd");
         strip.setAlignment(Pos.CENTER_LEFT);
 
-        Label prompt = new Label("rig@" + session.handle() + ":~$");
         prompt.getStyleClass().add("es-prompt");
+        applyPrompt();
 
         commandInput.getStyleClass().add("es-command-input");
         commandInput.setPromptText("alloc --release mine 12");
@@ -815,6 +826,24 @@ public final class DeckShell {
     }
 
     // ── Settings-driven behaviour ────────────────────────────────────────────────────────────
+
+    /**
+     * Rebuilds the command-strip prompt from the live handle and the saved hostname.
+     *
+     * <p>{@code who@where}, in that order — {@link Hostname} has the argument for why, and it is not
+     * a cosmetic one. The prompt is one of the most-seen strings in computing and the strip used to
+     * print it backwards.
+     *
+     * <p>Called at build, after a rename, and after the hostname setting changes. The accessible
+     * text spells the two apart, because {@code operator at rig dot local} read aloud is a string of
+     * words with no structure in it.
+     */
+    public void applyPrompt() {
+        String hostname = profile.settings().rigHostname;
+        prompt.setText(Hostname.prompt(session.handle(), hostname));
+        prompt.setAccessibleText("Signed in as " + session.handle()
+                + " on " + Hostname.qualified(hostname) + ". Type a command here.");
+    }
 
     /** Applies the free-drag / snap-to-grid choice from Settings (§11 question 1). */
     public void applyPlacementSetting() {

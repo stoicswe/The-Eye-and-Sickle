@@ -141,9 +141,17 @@ mvn -Pquality spotless:apply        # format
 ```
 
 The client **runs offline out of the box**: `mvn install -DskipTests && mvn -pl client javafx:run` opens a
-playable solo game with no network, account or database. Seventeen tool windows, five themes, a shell
-with real pipelines and globs, and a 21-page offline manual parsed from `client/src/main/resources/
+playable solo game with no network, account or database. Nineteen tool windows, five themes, a shell
+with real pipelines and globs, and a 22-page offline manual parsed from `client/src/main/resources/
 .../terms/`.
+
+⚠ **`calc` is the one tool window that takes no `GameSession`,** and keeping it that way is the point.
+It spends nothing, is gated by nothing and cannot be lost, so adding it required checking no invariant —
+I14 is about state a cheater would forge, and the answer to `0xFF + 1` is not the server's opinion. It
+earns its place on pillar C6: `docs/education/01-foundations.md` is a whole domain about bases, bit
+width, two's complement, byte order and overflow, and every *other* window hands the player numbers in
+the machine's notation without any surface that makes them legible. `client/ui/calc/` is the engine and
+is pure — the shell's `calc(1)` drives the same one, so the two cannot come to different answers.
 
 **The deck is the client, as of 2026-07-26.** One `StageStyle.UNDECORATED` Stage — no OS chrome on any
 platform — laid out as `docs/design/ui-design-language.md` §3 specifies: top status strip, 34px rail,

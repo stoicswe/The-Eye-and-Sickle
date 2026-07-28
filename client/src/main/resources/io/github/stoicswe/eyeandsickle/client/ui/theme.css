@@ -1247,7 +1247,20 @@
 .es-netmap .es-netmap-lateral  { -fx-text-fill: -es-rule; }
 .es-netmap .es-netmap-server   { -fx-text-fill: -es-dim-2; }
 .es-netmap .es-netmap-layer    { -fx-text-fill: -es-dim-2; }
-.es-netmap .es-netmap-legend   { -fx-text-fill: -es-dim-2; }
+/* The key. A COLUMN on the left of the data area rather than a strip under it — ten entries did not
+   fit across the panel and the tail was unreachable, because the horizontal scroll belongs to the
+   data area and not to the panel. See NetLegend.
+   ⚠ Pinned to IBM Plex, like every other glyph texture on this panel. Martian has NONE of the
+   block-element range these markers are drawn from, and a substituted face brings its own advance
+   width — which is exactly what the fixed marker cell the words line up against depends on. */
+.es-netmap .es-netmap-legend {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 11px;
+    -fx-text-fill: -es-dim-2;
+}
+/* Two classes, deliberately: `.es-label` is one, and the late `.label { -fx-text-fill: -es-text; }`
+   beats a one-class rule at equal specificity — the trap this stylesheet's header names. */
+.es-netmap .es-netmap-legend-head { -fx-text-fill: -es-dim-2; }
 
 /* ── controls ────────────────────────────────────────────────────────────────────────────────
  *
@@ -1288,6 +1301,23 @@
     -fx-border-color: -es-text-hi;
 }
 
+/* ⚠ A THIRD state, and not the toggle's off state coming back through a side door. The two are
+   distinguishable in every way that matters: this one is asserted by the RULES rather than by which
+   control was clicked last, it is permanent until the tool is bought rather than flipping on the
+   next click, and it never appears without the word LOCKED in the control's own label and a tooltip
+   naming what it needs. §4.4's rule holds — nothing here is carried by the fill alone.
+
+   Declared AFTER `:hover` and `:pressed` deliberately. Equal specificity means the later rule wins,
+   and a locked control that brightened under the pointer would be promising a press that the rules
+   are going to refuse. It stays dim under the pointer; the tooltip is what answers the hover. */
+.es-netmap .es-netmap-action-locked,
+.es-netmap .es-netmap-action-locked:hover,
+.es-netmap .es-netmap-action-locked:pressed {
+    -fx-text-fill: -es-dim-2;
+    -fx-background-color: transparent;
+    -fx-border-color: -es-rule;
+}
+
 /* ── the filing tree ─────────────────────────────────────────────────────────────────────────
  *
  * The grey ramp here encodes STRUCTURE rather than certainty: a folder is the player's own word and
@@ -1310,6 +1340,90 @@
    background it also sets applied, which is the exact half-applied failure this stylesheet's header
    warns about. Same fill as the graph's mark, because it is the same selection. */
 .es-netlist .es-netlist-selected { -fx-text-fill: -es-text-hi; -fx-background-color: -es-panel-hi; }
+
+/* ══ THE CALCULATOR (client/ui/calc + view/CalcView) ═════════════════════════════════════════
+ *
+ * The one window with no game state in it, and the palette says so: NOTHING here takes the amber
+ * accent. §2.1 reserves it for data that is live or earning, and a register holding 0xFF is neither
+ * — it is arithmetic. A calculator painted in the colour the compute readout uses would be claiming
+ * a status it does not have, and would dilute the one signal the deck actually rations.
+ *
+ * The ramp instead encodes STRUCTURE: the register at full strength, the four base rows one step
+ * down because each is a view of it, the keys at body strength, and a set bit brighter than a clear
+ * one. That last pair is the only place here where a difference has to be readable at a glance
+ * across sixty-four cells, so it is the widest gap in the block.
+ *
+ * ⚠ Every text fill is a TWO-CLASS descendant selector. The late `.label { -fx-text-fill: -es-text; }`
+ * beats a one-class rule at equal specificity, so a bare `.es-calc-bit` would paint in body grey
+ * while its background and border applied — the half-applied failure this stylesheet's header warns
+ * about, and the one that is hardest to see because everything else in the block works. */
+.es-calc {
+    -fx-background-color: -es-void;
+    -fx-border-color: -es-rule;
+    -fx-border-width: 1;
+}
+
+/* The register. Plex, not Martian: it is a glyph run to be read digit by digit, and it is the one
+   figure in this window a player will compare against something on another screen. */
+.es-calc .es-calc-display {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 22px;
+    -fx-text-fill: -es-text-hi;
+}
+
+.es-calc .es-calc-status       { -fx-font-size: 11px; -fx-text-fill: -es-dim-2; }
+/* A refusal — divide by zero — and the only place in this window with any warning colour at all. */
+.es-calc .es-calc-status-error { -fx-text-fill: -es-alarm; }
+
+.es-calc .es-calc-rowkey { -fx-text-fill: -es-dim-2; }
+.es-calc .es-calc-row {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 12px;
+    -fx-text-fill: -es-text;
+}
+
+/* A key. One-class for the box, because geometry does not lose to `.label`. */
+.es-calc-key {
+    -fx-padding: 2 7 2 7;
+    -fx-border-color: -es-rule;
+    -fx-border-width: 1;
+    -fx-min-width: 26;
+    -fx-alignment: center;
+}
+.es-calc .es-calc-key    { -fx-text-fill: -es-text; }
+.es-calc .es-calc-key:hover {
+    -fx-text-fill: -es-text-hi;
+    -fx-border-color: -es-text-hi;
+}
+.es-calc .es-calc-key:pressed {
+    -fx-text-fill: -es-void;
+    -fx-background-color: -es-text-hi;
+    -fx-border-color: -es-text-hi;
+}
+/* A mode toggle in force. Paired with the key's own text — UNSIGNED/SIGNED changes wording as well
+   as fill — so nothing here is carried by colour alone (docs/client/07 §5.2). */
+.es-calc .es-calc-key-on {
+    -fx-text-fill: -es-text-hi;
+    -fx-background-color: -es-panel-hi;
+    -fx-border-color: -es-text-hi;
+}
+.es-calc .es-calc-digit {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 12px;
+}
+
+/* The bit grid. A clear bit is DIM but present — never hidden — because the zeros are half of what
+   a bit pattern says and a grid that only drew the ones would be a list, not a register. */
+.es-calc .es-calc-bit,
+.es-calc .es-calc-bit-on {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 12px;
+}
+.es-calc .es-calc-bit          { -fx-text-fill: -es-dim-3; }
+.es-calc .es-calc-bit-on       { -fx-text-fill: -es-text-hi; -fx-background-color: -es-panel-hi; }
+.es-calc .es-calc-bit:hover,
+.es-calc .es-calc-bit-on:hover { -fx-text-fill: -es-text-hi; -fx-background-color: -es-panel; }
+.es-calc .es-calc-bitindex     { -fx-text-fill: -es-dim-2; }
 
 /* ══ THE PROCESS TABLE (docs/design/04 §3.1 — the manual audit) ══════════════════════════════
  *

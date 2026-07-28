@@ -32,6 +32,7 @@
 1/df.md
 1/man.md
 1/apropos.md
+1/calc.md
 
 # Section 8 — maintaining your own rig. Offence is section 1, defending
 # yourself is section 8, exactly as user commands and system administration

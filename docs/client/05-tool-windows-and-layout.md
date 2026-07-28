@@ -120,18 +120,20 @@ The thirteen ids below marked **(00 §6.1)** come from `00-client-overview.md` �
 | — | `identity` | Identity | `whoami` / `id` | 560×640 | 420×440 | `Shortcut+Shift+I` | yes | no |
 | — | `comms` ✚ | Comms | `mail` / `who` | 720×620 | 480×400 | `Shortcut+Shift+P` | yes | no |
 | — | `settings` ✚ | Settings | `~/.config` | 760×620 | 560×440 | `Shortcut+,` | yes | no |
+| — | `calc` ✚ | Calculator | `bc` / `printf %x` | 820×700 | 560×460 | `Shortcut+Shift+C` | yes | no |
 | — | `switcher` | Windows | `jobs` | 280×520 | 240×320 | `Shortcut+Shift+J` | yes | **yes** |
 
 `dock` is reserved as the id of the docked shell's single `Stage` (§5.2). It is not a tool and never appears in the switcher.
 
 **Minimum sizes obey one rule:** no window's minimum may exceed **720×480**, so that any two tools fit side by side on a 1366×768 laptop with room for the rig strip. `netmap` and `breach` sit exactly on it (720×480); a graph below that is a list pretending to be a graph.
 
-### 2.2 Two windows this document adds — and one it does not
+### 2.2 Three windows this document adds — and one it does not
 
-`00-client-overview.md` §6.1 lists thirteen. This document adds **`comms`** and **`settings`**, and says so rather than quietly extending a table another doc owns.
+`00-client-overview.md` §6.1 lists thirteen. This document adds **`comms`**, **`settings`** and **`calc`**, and says so rather than quietly extending a table another doc owns.
 
 - **`comms`** — `identity` is `whoami`: *your* handle, DID, heat bands, faction standing, burners. The social layer is a different subject entirely — other operators, recovered messages, compiled dossiers, the evidence threshold and the mass-vote override (`../design/12-identity-and-social.md` §2–§3). Folding "who might be informing on me" into "who am I" would bury a whole system inside a status panel. The Unix pairing makes the split legible: `id` versus `who`/`mail`.
 - **`settings`** — `00-client-overview.md` §4.2 already routes theme selection through "Settings → Appearance" and §5.2 makes the teaching level a persistent choice, so the surface is presupposed; it simply had no id. It also has to hold the layout escape hatch (§3.8).
+- **`calc`** *(added 2026-07-28)* — one value in hex, decimal, octal and binary at once, with its bits as a clickable grid, a register width, a two's-complement reading, the bitwise and shift operations, and a byte-order swap. It earns its slot on pillar **C6**, not on a game system: `../education/01-foundations.md` is a whole domain about bases, bit width, two's complement, byte order and overflow, and every other window in this catalogue hands the player numbers in the machine's notation without any surface that makes them legible. It is also **the only window that takes no `GameSession`** — it spends nothing, is gated by nothing and cannot be lost, so it is the one addition that required checking no invariant. Terminal half: `calc(1)`, aliased `bc`, driving the same engine (**C1**).
 
 Tracked as **WL-1**. If the catalogue owner would rather have thirteen, `comms` folds into `identity` as a second section and `settings` becomes a `ModalPane` over whichever window invoked it — both are cheaper than the reverse.
 
@@ -225,6 +227,10 @@ Rendering is entirely `es-node` (`01-visual-language.md` §8.8) — shape for no
 Deterministic traversal order is what lets a screen-reader user walk the graph at all, and it is what makes "the third node at two hops" a sentence two players can exchange.
 
 **One rule from the source:** `../design/07-recon-tools.md` §3 makes recon optional and expensive, so **the map must render usefully with most nodes unknown** (`01-visual-language.md` §8.8). A map that only looks right fully scanned punishes the intended play pattern.
+
+**The glyph key is a column beside the graph, not a strip beneath it** *(2026-07-28)*. Ten glyph/word pairs do not fit across the panel, and the horizontal scroll belongs to the *data area* rather than to the panel — so the tail of the strip ran off the right edge with no way to reach it, and the entries that vanished were `░░` (contact) and `··` (beyond), the two dimmest states and the two most in need of naming. A column has a bounded width and an unbounded run of entries, which is the shape this data has.
+
+**The sweep ladder shows the rules' verdict** *(2026-07-28)*. All three rungs are always *offered* and always pressable; the two the player has not bought read as `LOCKED`, dimmed, with a tooltip naming the tool, its price, and what the tier buys over the base — §5's rule that a gate is never a generic "locked", applied to the one panel that had been showing a gate as nothing at all. ⚠ The verdict arrives through `GameSession.sweepOptions()` and is **never computed in the view** (C4); an *absent* verdict — a session that cannot reach the rules — is rendered as offered, not as locked, because asserting a gate nobody asserted is the same violation arriving by the back door. It is deliberately not `setDisable(true)`: a disabled JavaFX node is skipped by picking and shows no tooltip, which would remove the explanation at the moment it is wanted. The tooltip's first sentence is Invariant **I2** — same reach, no tier buys reach at any price.
 
 **Initial focus:** the last focused node, else the entry node.
 **Fed by:** `../design/07-recon-tools.md` (all six overlays); `../design/09-defense-and-hardening.md` §1 (ring weight); `../design/05-hacking-minigame.md` §3.1 (Traversal); `../design/01-core-resources.md` §3.1 (hop distance).
@@ -434,6 +440,9 @@ Faction abandonment (reputation reset, heat spike, forfeiture of faction-specifi
 | Layout | mode (multi ↔ docked), workspaces, per-window density, **reset window layout** | §3–§5 |
 | Input | shortcut remapping — with `Shortcut+0` fixed and unremappable | §3.5 |
 | Profile | server, session, sign-out | `../architecture/02-identity-and-auth.md` |
+| Operator | handle, and **the rig's hostname** — the two halves of the shell prompt | this doc |
+
+**The hostname is a client setting and lives beside the handle** *(2026-07-28)*, because the two are the two halves of one string: the command strip reads `handle@hostname.local:~$` — who you are, then where you are, which is the order every terminal and every SSH session uses. Nothing in the rules reads it, no gate depends on it and no ledger entry records it, which is why it belongs in the profile next to the theme rather than anywhere near a save file. Validation is **RFC 1123's** and not this game's — letters, digits and hyphens, no leading or trailing hyphen, 63 characters — so an underscore is refused even though nothing here would break on one, and the refusal says whose rule that is. `.local` is mDNS and is appended rather than stored; a typed `.local` is stripped. Terminal half: `hostname(1)`, behaving like the real one — no argument prints the short name, an argument sets it (**C1**).
 
 **Reset window layout** is a required escape hatch, not a convenience: it discards saved geometry for the current display signature and re-places every open window at its default. It is also reachable as `layout reset` in the command palette from any window, and as a `--reset-layout` launch flag. The flag exists because the palette needs a focused window to be invoked from, and the startup repair pass (§3.8) is what guarantees one always exists — the flag is the belt to that pair of braces.
 
@@ -573,6 +582,7 @@ All bindings use JavaFX's `KeyCombination.SHORTCUT_DOWN`, which resolves to ⌘ 
 | `Shortcut+Shift+M` | `market` | " |
 | `Shortcut+Shift+I` | `identity` | " |
 | `Shortcut+Shift+P` | `comms` (mnemonic: people) | " |
+| `Shortcut+Shift+C` | `calc` | " |
 | `Shortcut+Shift+J` | `switcher` (mnemonic: `jobs`) | " |
 | `Shortcut+,` | `settings` — the macOS Preferences convention, honoured on all three | " |
 | `Shortcut+\`` | Cycle open tool windows | `00-client-overview.md` §6.3 |

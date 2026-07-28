@@ -390,6 +390,20 @@ public final class RemoteGameSession implements GameSession {
         return unavailable();
     }
 
+    /**
+     * Empty — this session has no verdict to render, and inventing one either way would be wrong.
+     *
+     * <p>⚠ Empty means <b>no verdict</b>, not "everything is locked". Claiming a gate the server has
+     * not asserted would be the client evaluating one, which is exactly what {@code docs/client/05}
+     * §5 forbids; claiming everything is open would be a promise this transport cannot keep. The
+     * map window renders an absent rung as it always did — offered, with the rules free to refuse
+     * it — which is the same last-known-good rule every read in this class follows.
+     */
+    @Override
+    public java.util.List<SweepOption> sweepOptions() {
+        return java.util.List.of();
+    }
+
     @Override
     public Outcome connectTo(String address) {
         return unavailable();

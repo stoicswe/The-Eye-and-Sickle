@@ -109,6 +109,106 @@ class NetMapViewTest {
     }
 
     @Nested
+    @DisplayName("the sweep ladder — a verdict rendered, never computed")
+    class SweepLadder {
+
+        /**
+         * The rules' answer for a player who owns only the base sweep.
+         *
+         * <p>Built by hand rather than through a {@code LocalGameSession} because what is under test
+         * is the <em>rendering</em> of a verdict, and a fixture that produced the verdict too would
+         * be testing {@code NetRules.owns} in a view test.
+         */
+        private static List<io.github.stoicswe.eyeandsickle.client.session.GameSession.SweepOption>
+                ladder(boolean wideOwned, boolean deepOwned) {
+            return List.of(
+                    option("", "Net Sweep", true, "", 1, 2, 20),
+                    option("--wide", "Net Sweep (Wide)", wideOwned,
+                            "the Net Sweep (Wide) tool, 25.00 EC in the market", 2, 5, 45),
+                    option("--deep", "Net Sweep (Deep)", deepOwned,
+                            "the Net Sweep (Deep) tool, 55.00 EC in the market", 3, 9, 90));
+        }
+
+        private static io.github.stoicswe.eyeandsickle.client.session.GameSession.SweepOption option(
+                String flag, String name, boolean available, String requirement,
+                int sensitivity, long cycles, long seconds) {
+            return new io.github.stoicswe.eyeandsickle.client.session.GameSession.SweepOption(
+                    flag, name, available, requirement, 0, sensitivity, cycles, seconds, cycles);
+        }
+
+        @Test
+        @DisplayName("a locked rung says LOCKED in its own label, not only in a colour")
+        void lockedIsWorded() {
+            // docs/client/07 §5.2: meaning may not rest on appearance. A control whose only signal
+            // is a dimmer fill says nothing in a greyscale capture and nothing to a screen reader.
+            var rendered = NetMapView.renderLadder(ladder(false, false));
+
+            assertThat(rendered.get("").label()).doesNotContain(NetMapView.LOCKED);
+            assertThat(rendered.get("").locked()).isFalse();
+            assertThat(rendered.get("--wide").label()).contains(NetMapView.LOCKED);
+            assertThat(rendered.get("--wide").locked()).isTrue();
+            assertThat(rendered.get("--deep").locked()).isTrue();
+        }
+
+        @Test
+        @DisplayName("buying the tool unlocks the rung on the next repaint, marker and flag both")
+        void unlockingIsComplete() {
+            // The purchase happens in the market window, so this panel learns about it through a
+            // repaint. A control that kept the marker after the verdict changed would read as a
+            // purchase that did not work.
+            var rendered = NetMapView.renderLadder(ladder(true, false));
+
+            assertThat(rendered.get("--wide").label()).doesNotContain(NetMapView.LOCKED);
+            assertThat(rendered.get("--wide").locked()).isFalse();
+            assertThat(rendered.get("--deep").locked()).isTrue();
+        }
+
+        @Test
+        @DisplayName("⚠ an EMPTY option list renders NOTHING — absent is not locked")
+        void noVerdictIsNotALock() {
+            // A session that cannot reach the rules returns an empty list. Rendering that as locked
+            // would be the client asserting a gate nobody asserted, which docs/client/05 §5 forbids
+            // in as many words. An empty render leaves the controls exactly as they were: offered,
+            // with the rules still free to refuse them.
+            assertThat(NetMapView.renderLadder(List.of())).isEmpty();
+        }
+
+        @Test
+        @DisplayName("the tooltip names the requirement, and never says only 'locked'")
+        void tooltipNamesTheRequirement() {
+            String wide = NetMapView.renderLadder(ladder(false, false)).get("--wide").tooltip();
+
+            assertThat(wide).contains("Net Sweep (Wide)").contains("25.00 EC");
+            // ⚠ Invariant I2 in the first sentence a player reads. Someone who believes a better
+            // sweep reaches further buys it for the wrong reason and concludes the game lied.
+            assertThat(wide).contains("one hop").contains("No tier buys reach");
+            // And what it actually buys, in the rules' own figures rather than in prose here.
+            assertThat(wide).contains("5 cycles").contains("2 cycles").contains("sensitivity");
+        }
+
+        @Test
+        @DisplayName("an owned rung's tooltip has no requirement line at all")
+        void ownedHasNoRequirement() {
+            var rendered = NetMapView.renderLadder(ladder(true, true));
+
+            assertThat(rendered.get("--wide").tooltip()).doesNotContain("Needs");
+            assertThat(rendered.get("--wide").tooltip()).doesNotContain(NetMapView.LOCKED);
+            assertThat(rendered.get("").tooltip()).contains("starting instrument");
+        }
+
+        @Test
+        @DisplayName("the cycle figures come from the rules, so retuning Balance cannot leave a lie here")
+        void figuresAreNotHardCoded() {
+            // CLAUDE.md: the economy numbers are calibrated as a set. A label that spelled its own
+            // cycle cost would keep quoting the old one after a retune, on the one control whose
+            // whole job is to state a cost before it is paid.
+            var rendered = NetMapView.renderLadder(
+                    List.of(option("--wide", "Net Sweep (Wide)", true, "", 2, 7, 60)));
+            assertThat(rendered.get("--wide").label()).contains("7C");
+        }
+    }
+
+    @Nested
     @DisplayName("one map, two surfaces")
     class OneMap {
 

@@ -6,7 +6,9 @@ import io.github.stoicswe.eyeandsickle.client.shell.BuiltinCommands;
 import io.github.stoicswe.eyeandsickle.client.shell.Shell;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeId;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeManager;
+import io.github.stoicswe.eyeandsickle.client.view.CalcView;
 import io.github.stoicswe.eyeandsickle.client.view.LogView;
+import io.github.stoicswe.eyeandsickle.client.view.NetMapView;
 import io.github.stoicswe.eyeandsickle.client.view.MoreViews;
 import io.github.stoicswe.eyeandsickle.client.view.RigMonitorView;
 import io.github.stoicswe.eyeandsickle.client.view.TerminalView;
@@ -126,6 +128,11 @@ public final class DeckSnapshot {
                 case SETTINGS -> (Region) Views.settings(profile, themes, () -> {});
                 case DEFENSE -> (Region) Views.defense(session);
                 case LEDGER -> (Region) Views.ledger(session);
+                // Real views rather than the recon stand-in, because both are visual checks that no
+                // text assertion can make: the map's legend is a column whose alignment depends on a
+                // fixed-width font resolving, and the calculator is a grid of sixty-four cells.
+                case NETMAP -> NetMapView.create(session);
+                case CALC -> CalcView.create();
                 default -> (Region) MoreViews.recon(session);
             });
         }

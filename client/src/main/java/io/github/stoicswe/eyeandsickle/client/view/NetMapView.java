@@ -11,13 +11,17 @@ import io.github.stoicswe.eyeandsickle.protocol.game.NetDocument;
 import io.github.stoicswe.eyeandsickle.protocol.game.NetFolder;
 import io.github.stoicswe.eyeandsickle.protocol.game.NetMap;
 import io.github.stoicswe.eyeandsickle.protocol.game.Sighting;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -58,6 +62,20 @@ import javafx.scene.layout.VBox;
  * refusal printed is the one the rules gave. That is Invariant <b>I14</b> at the panel where it
  * would be easiest to break, and the consequence worth stating is the same one the breach window
  * has: this window works unchanged against a home server, because it cannot tell the difference.
+ *
+ * <h2>The sweep ladder shows the rules' verdict, and does not compute one</h2>
+ *
+ * All three rungs are always <b>offered</b>. The two the player has not bought read as
+ * {@code LOCKED}, dimmed, with a tooltip naming the tool and its price and stating what the tier
+ * buys over the base — {@code docs/client/05} §5's rule that a gate is never a generic "locked".
+ *
+ * <p>⚠ That verdict arrives through {@link GameSession#sweepOptions()} and is <b>never</b> worked
+ * out here. A panel that decided a sweep was locked by looking for an item id in the inventory would
+ * be a second implementation of {@code NetRules.owns} living in a view, and the day the rule grows a
+ * second condition the window is the one that lies. A rung the port does not mention is drawn as it
+ * always was — offered, with the rules free to refuse it — because an absent verdict is not a locked
+ * one. See {@link #paintSweepLadder}, which also records why the control is marked rather than
+ * {@code setDisable}d.
  *
  * <h2>The subscription is closed</h2>
  *
@@ -181,9 +199,11 @@ public final class NetMapView {
         folderControl.setAccessibleText("Show how you have filed what you have found.");
 
         // One sweep control: a key and its three sensitivities, in ascending order. All three are
-        // always offered. Hiding the two the player has not bought would be the client evaluating a
-        // gate (docs/client/04 §3.4, I14) — and the refusal the rules give when an unowned tool is
-        // run is a better teacher than an absent control, because it names what is missing.
+        // always OFFERED. What changed on 2026-07-28 is that the two the player has not bought now
+        // read as locked and say what they need — see the header note. What did not change is where
+        // that answer comes from: `session.sweepOptions()` is the rules' verdict rendered as
+        // received (C4), never a check this panel performs, and a rung the port does not mention is
+        // drawn exactly as it was before rather than as locked.
         //
         // ⚠ These carry `es-netmap-action`, NOT the `es-netmap-control` the two view toggles use,
         // and the distinction is a bug fix rather than a flourish. A toggle has two states and paints
@@ -192,22 +212,34 @@ public final class NetMapView {
         // never brighten, in a row next to two that do, read as disabled — and were reported as
         // disabled. An action is not a toggle and must not borrow a toggle's off state.
         //
+        // ⚠ `es-netmap-action-locked` is a THIRD state and not that same off state coming back. It
+        // is asserted by the rules rather than by which control was clicked last, it always arrives
+        // with the word LOCKED in the label and a tooltip naming the requirement, and it goes away
+        // permanently the moment the tool is bought.
+        //
         // Each names its price, for the same reason `sweep -n` prints one: a control whose cost is
         // invisible until you press it is a control a cautious player does not press.
-        BreachView.Chip sweepBase = action("BASE 2C");
-        BreachView.Chip sweepWide = action("WIDE 5C");
-        BreachView.Chip sweepDeep = action("DEEP 9C");
-        sweepBase.setAccessibleText(
-                "Run the base network sweep from the current vantage. Two cycles, about twenty "
-                        + "seconds, and loud while it runs. It costs no ethecoin.");
-        sweepWide.setAccessibleText(
-                "Run the wide network sweep — the same reach, more sensitivity. Five cycles, about "
-                        + "forty-five seconds, and louder. It costs no ethecoin.");
-        sweepDeep.setAccessibleText(
-                "Run the deep network sweep — the same reach, most sensitivity. Nine cycles, about "
-                        + "ninety seconds, and loudest. It costs no ethecoin.");
-        HBox sweepGroup = Ui.row(UiTokens.SPACE_2,
-                Ui.label("Sweep"), sweepBase, sweepWide, sweepDeep);
+        Map<String, BreachView.Chip> sweepChips = new LinkedHashMap<>();
+        Map<String, Tooltip> sweepTips = new LinkedHashMap<>();
+        HBox sweepGroup = Ui.row(UiTokens.SPACE_2, Ui.label("Sweep"));
+        for (String[] rung : new String[][] {{"", "BASE 2C"}, {"--wide", "WIDE 5C"}, {"--deep", "DEEP 9C"}}) {
+            BreachView.Chip chip = action(rung[1]);
+            // One Tooltip per chip, created once and re-texted on every repaint. Installing a fresh
+            // one each time would stack them: Tooltip.install adds, it does not replace, and the
+            // panel repaints on every session change.
+            Tooltip tip = new Tooltip("");
+            tip.setWrapText(true);
+            tip.setMaxWidth(340);
+            tip.setShowDelay(javafx.util.Duration.millis(220));
+            tip.setShowDuration(javafx.util.Duration.seconds(30));
+            Tooltip.install(chip, tip);
+            sweepChips.put(rung[0], chip);
+            sweepTips.put(rung[0], tip);
+            sweepGroup.getChildren().add(chip);
+        }
+        BreachView.Chip sweepBase = sweepChips.get("");
+        BreachView.Chip sweepWide = sweepChips.get("--wide");
+        BreachView.Chip sweepDeep = sweepChips.get("--deep");
 
         HBox controls = Ui.row(UiTokens.SPACE_3,
                 graphControl, listControl, folderControl, Ui.spacer(), sweepGroup);
@@ -272,10 +304,22 @@ public final class NetMapView {
         ScrollPane listScroll = scroller(list);
         ScrollPane folderScroll = scroller(folders);
         StackPane area = new StackPane(graphScroll, listScroll, folderScroll);
-        VBox.setVgrow(area, Priority.ALWAYS);
+
+        // ⚠ The legend is a COLUMN BESIDE the data area, not a strip under it, and that is a bug
+        // fix rather than a rearrangement. Ten entries laid across the bottom of the panel did not
+        // fit: the tail ran off the right edge, and because the horizontal scroll belongs to the
+        // data area rather than to the panel, there was no way to reach what had been pushed out.
+        // The entries that vanished were the dimmest states — the ones a player most needs named.
+        //
+        // A column has a bounded width and an unbounded run of entries, so an eleventh state now
+        // costs vertical space this panel has instead of horizontal space it does not.
+        HBox data = new HBox(UiTokens.SPACE_5, legend, area);
+        data.setAlignment(Pos.TOP_LEFT);
+        HBox.setHgrow(area, Priority.ALWAYS);
+        VBox.setVgrow(data, Priority.ALWAYS);
 
         root.getChildren().addAll(
-                strip, controls, selectionRow, folderRow, detail, activity, area, legend, reader);
+                strip, controls, selectionRow, folderRow, detail, activity, data, reader);
 
         // ---------------------------------------------------------------- wiring
         Runnable applyDisplay = () -> {
@@ -478,6 +522,14 @@ public final class NetMapView {
             visible(removeFolder, !selectedFolder[0].isBlank());
             visible(toTop, !selectedFolder[0].isBlank());
 
+            // ---- the sweep ladder
+            //
+            // Re-read every repaint rather than once at construction, because buying the tool is
+            // what changes the answer and the purchase happens in a different window. A control that
+            // only learned its own state at open would stay locked until the map was closed and
+            // reopened, which reads as the purchase not having worked.
+            paintSweepLadder(session.sweepOptions(), sweepChips, sweepTips);
+
             String work = sweepInProgress(session);
             activity.setText(work);
             visible(activity, !work.isEmpty());
@@ -499,6 +551,147 @@ public final class NetMapView {
         AutoCloseable subscription = session.onChange(s -> repaint[0].run());
         closeOnDetach(root, subscription, graph);
         return root;
+    }
+
+    // ------------------------------------------------------------------ the sweep ladder
+
+    /** The marker a locked rung carries in its own label. Words, never colour alone (§4.4). */
+    static final String LOCKED = "LOCKED";
+
+    /** The style class a locked rung wears. See the block in {@code theme.css} for why it is third. */
+    static final String LOCKED_CLASS = "es-netmap-action-locked";
+
+    /**
+     * What one sweep control should say and wear.
+     *
+     * <p>⚠ A record rather than three {@code setText} calls, and the split is what makes any of this
+     * checkable: <b>no test in this module starts the JavaFX toolkit</b>, and a decision expressed
+     * only as mutations of a {@code Label} cannot be asserted without one. Constructing a single
+     * {@link Tooltip} is enough to fail — it is a {@code PopupControl}, so it needs a Window. So the
+     * decision is pure and lives here, and {@link #paintSweepLadder} is the three lines that apply
+     * it.
+     */
+    record RungRender(String label, boolean locked, String tooltip) {}
+
+    /**
+     * Turns the rules' verdict into what each control should show, keyed by sweep flag.
+     *
+     * <h2>⚠ A flag that is absent from the result is NOT locked</h2>
+     *
+     * {@link GameSession#sweepOptions()} returns an empty list when the rules cannot be reached, and
+     * this returns an empty map for it. The caller leaves an unmentioned control exactly as it was —
+     * offered, with the rules free to refuse it — because rendering "no verdict" as "locked" would
+     * be the client asserting a gate nobody asserted, which {@code docs/client/05} §5 forbids in as
+     * many words.
+     */
+    static Map<String, RungRender> renderLadder(List<GameSession.SweepOption> options) {
+        GameSession.SweepOption base = options.stream()
+                .filter(o -> o.flag().isBlank())
+                .findFirst()
+                .orElse(null);
+        Map<String, RungRender> rendered = new LinkedHashMap<>();
+        for (GameSession.SweepOption option : options) {
+            String label = Ui.upper(rungName(option.flag())) + " " + option.cycles() + "C";
+            rendered.put(option.flag(), new RungRender(
+                    option.available() ? label : label + " " + LOCKED,
+                    !option.available(),
+                    sweepTooltip(option, base)));
+        }
+        return rendered;
+    }
+
+    /**
+     * Paints the rules' verdict onto the sweep controls.
+     *
+     * <h2>Why the control is not {@code setDisable(true)}</h2>
+     *
+     * A disabled JavaFX node is skipped by picking, so it receives no hover and shows no tooltip —
+     * which would remove the explanation at exactly the moment it is wanted, and the explanation is
+     * the point. The rung is therefore marked, worded and tooltipped as locked, and pressing it
+     * still asks the rules, which refuse in words and write that refusal to the log. Nothing is
+     * spent by trying; a sweep reserves its compute inside {@code beginSweep}, which never runs.
+     */
+    private static void paintSweepLadder(
+            List<GameSession.SweepOption> options,
+            Map<String, BreachView.Chip> chips,
+            Map<String, Tooltip> tips) {
+        renderLadder(options).forEach((flag, rung) -> {
+            BreachView.Chip chip = chips.get(flag);
+            Tooltip tip = tips.get(flag);
+            if (chip == null || tip == null) {
+                return;
+            }
+            chip.setText(rung.label());
+            chip.getStyleClass().remove(LOCKED_CLASS);
+            if (rung.locked()) {
+                chip.getStyleClass().add(LOCKED_CLASS);
+            }
+            tip.setText(rung.tooltip());
+            chip.setAccessibleText(rung.tooltip().replace("\n\n", ". ").replace('\n', ' '));
+        });
+    }
+
+    private static String rungName(String flag) {
+        return flag == null || flag.isBlank() ? "base" : flag.replace("-", "");
+    }
+
+    /**
+     * What a sweep control says when you hover it: what it needs, and what it buys over the base.
+     *
+     * <h2>This is not a hiding place for information</h2>
+     *
+     * {@code docs/design/ui-design-language.md} §3 bans "tooltips carrying information not shown
+     * elsewhere", and every line here is somewhere else: the requirement and the price are the
+     * market window's own card for the same offering, the cycle cost is printed on the control
+     * itself, and the refusal the rules give if you press it anyway names the same tool. It is a
+     * shortcut to information, exactly as the deck rail's tooltip is.
+     *
+     * <h2>The comparison is against the BASE rung, computed, not written</h2>
+     *
+     * The figures come out of the option the rules published rather than out of prose here, so
+     * retuning {@code Balance.NET_SWEEP_*} cannot leave this window quietly quoting the old numbers
+     * — which is the failure {@code CLAUDE.md} warns about when it says the economy values are
+     * calibrated as a set.
+     */
+    private static String sweepTooltip(
+            GameSession.SweepOption option, GameSession.SweepOption base) {
+        StringBuilder out = new StringBuilder();
+        out.append(Ui.upper(option.name()));
+        if (!option.available()) {
+            out.append(" — ").append(LOCKED);
+        }
+        out.append("\n\n");
+
+        if (!option.available() && !option.requirement().isBlank()) {
+            out.append("Needs ").append(option.requirement()).append(".\n\n");
+        }
+
+        if (base != null && option.flag().isBlank()) {
+            out.append("The starting instrument. Everyone has it, and it is the floor every other "
+                    + "sweep is measured against — it finds the loud machines within reach.\n\n");
+        } else {
+            // ⚠ The first sentence, every time, and it is the one that has to survive editing.
+            // Invariant I2: ethecoin never buys a ceiling, and hop range IS the ceiling here. A
+            // player who believes a better sweep reaches further will buy it for the wrong reason
+            // and conclude the game lied to them.
+            out.append("Same reach as the base sweep — one hop. No tier buys reach at any price; "
+                    + "reach is the Topology Mapper's, and it is schematic-gated for that reason. "
+                    + "What this buys is sensitivity: the chance of hearing a machine that is "
+                    + "already within reach but too quiet for the base sweep.\n\n");
+        }
+
+        out.append(option.cycles()).append(" cycles held, about ").append(option.seconds())
+                .append("s, and loud while it runs.");
+        if (base != null && !option.flag().isBlank()) {
+            out.append("\n\nAgainst BASE: ").append(base.cycles()).append(" cycles and about ")
+                    .append(base.seconds()).append("s at sensitivity ").append(base.sensitivity())
+                    .append(", against ").append(option.cycles()).append(" cycles and about ")
+                    .append(option.seconds()).append("s at sensitivity ")
+                    .append(option.sensitivity()).append(" here. Louder, too — the ladder is "
+                            + "loudness as well as sensitivity.");
+        }
+        out.append("\n\nA sweep never costs ethecoin. The tool does, once.");
+        return out.toString();
     }
 
     // ------------------------------------------------------------------ helpers

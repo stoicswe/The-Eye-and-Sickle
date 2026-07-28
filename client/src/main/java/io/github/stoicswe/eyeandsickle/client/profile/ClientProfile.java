@@ -366,6 +366,20 @@ public final class ClientProfile {
         /** Handle used for the solo character, so a returning player is not asked twice. */
         public String soloHandle = "";
 
+        /**
+         * What the rig calls itself on the network — the {@code host} half of the shell prompt.
+         *
+         * <p>A client setting rather than game state, and it belongs here for the same reason the
+         * theme does: it changes what the player sees and nothing a cheater would want. There is no
+         * rule anywhere that reads it, no gate that depends on it and no ledger entry that records
+         * it, which is why editing this file to say {@code eye-central} costs a player exactly the
+         * novelty of having done so.
+         *
+         * <p>Stored bare, without the {@code .local} suffix the prompt appends — see
+         * {@link Hostname#sanitise}.
+         */
+        public String rigHostname = Hostname.DEFAULT;
+
         /** Which solo slot was last played, so the menu can pre-select it. 1-based; 0 means none. */
         public int lastSoloSlot = 0;
 

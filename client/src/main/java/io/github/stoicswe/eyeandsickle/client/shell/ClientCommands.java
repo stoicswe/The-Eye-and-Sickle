@@ -1,6 +1,7 @@
 package io.github.stoicswe.eyeandsickle.client.shell;
 
 import io.github.stoicswe.eyeandsickle.client.profile.ClientProfile;
+import io.github.stoicswe.eyeandsickle.client.profile.Hostname;
 import io.github.stoicswe.eyeandsickle.client.session.GameSession;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeId;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeManager;
@@ -196,6 +197,37 @@ public final class ClientCommands {
                             ? "free-drag on — windows go exactly where you put them"
                             : "snap-to-grid on — windows align to the grid, and tile when dragged "
                                     + "against an edge of the desk");
+                }));
+
+        // A real command, doing the real thing it does: `hostname` with no argument prints the name,
+        // and with one sets it. That is `hostname(1)` on every Unix, and it is the cheapest kind of
+        // teaching in this client — a habit that transfers with no explanation attached.
+        registry.add(new Simple(
+                "hostname",
+                List.of(),
+                "Print the rig's network name, or set it.",
+                true,
+                inv -> {
+                    Optional<String> arg = inv.stage().argument(0);
+                    if (arg.isEmpty()) {
+                        // ⚠ The bare name, not the qualified one. Real `hostname` prints the short
+                        // form unless you ask for `-f`, and printing `rig.local` here would teach a
+                        // player to expect something their own machine will not print back.
+                        return Command.Output.ok(Hostname.sanitise(profile.settings().rigHostname));
+                    }
+                    String problem = Hostname.problem(arg.get());
+                    if (problem != null) {
+                        // 64 EX_USAGE with the reason, never a bare "invalid" — and the reason is
+                        // DNS's rule rather than this game's, which is worth the player knowing.
+                        return Command.Output.usage("hostname: " + problem);
+                    }
+                    profile.settings().rigHostname = Hostname.sanitise(arg.get());
+                    profile.save();
+                    onDeskChanged.run();
+                    return Command.Output.ok(
+                            "hostname set — the prompt now reads "
+                                    + Hostname.prompt(
+                                            inv.session().handle(), profile.settings().rigHostname));
                 }));
 
         // Pillar C1: everything Settings can do, the terminal can do. Both go through the same

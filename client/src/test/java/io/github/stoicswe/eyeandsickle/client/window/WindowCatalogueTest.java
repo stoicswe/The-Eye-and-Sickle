@@ -21,28 +21,35 @@ import org.junit.jupiter.api.Test;
 class WindowCatalogueTest {
 
     @Test
-    @DisplayName("the catalogue is 05 §2.1's fifteen, less `map`, plus `man`, `log`, `breach`, `netmap`")
+    @DisplayName("the catalogue is 05 §2.1's fifteen, less `map`, plus `man`, `log`, `breach`, `netmap`, `calc`")
     void catalogueMatchesTheDocuments() {
         // ⚠ The two documents disagree about the size of a table both call closed: docs/client/05
         // §2.1 lists fifteen and never absorbed the `man` window that docs/client/04 §4.6 adds and
         // flags as T-1. Building it and reporting the discrepancy beats silently dropping the way a
         // player reaches the teaching layer — which is client pillar C6.
         //
-        // Eighteen: §2.1's fifteen MINUS `map`, plus `man` (T-1), `log`, `breach` — the core loop
+        // Nineteen: §2.1's fifteen MINUS `map`, plus `man` (T-1), `log`, `breach` — the core loop
         // (docs/design/05), which §2.1 could not list because the minigame had no rules when that
-        // table was written — and `netmap`, the network tool.
+        // table was written — `netmap`, the network tool, and `calc`.
+        //
+        // `calc` was ADDED on 2026-07-28 and earns its slot on pillar C6 rather than on a game
+        // system: docs/education/01-foundations.md's whole first domain is bases, bit width, two's
+        // complement, byte order and overflow, and until this window existed the client had no
+        // surface that made any of them touchable. It is also the only window that takes no session,
+        // which is why it can be added without checking a single invariant — there is no game state
+        // in a calculator to get wrong.
         //
         // ⚠ `map` was REMOVED on 2026-07-27 and this is the assertion that says so. It was a
         // second network window holding a read-only node table, on the same Shortcut+2 `netmap`
         // now owns. It had no sweep control, so it was permanently empty for anyone who had not
         // swept elsewhere, and it carried a stale note reading "Breach targeting is not built".
         // `netmap` has had a LIST view on a chip the whole time, so nothing was lost with it.
-        assertThat(WindowSpec.values()).hasSize(18);
+        assertThat(WindowSpec.values()).hasSize(19);
         assertThat(java.util.Arrays.stream(WindowSpec.values()).map(WindowSpec::id).toList())
                 .containsExactlyInAnyOrder(
                         "rig-monitor", "terminal", "recon", "audit", "mining", "storage",
                         "ledger", "botnet", "defense", "market", "identity", "comms", "settings",
-                        "switcher", "man", "log", "breach", "netmap");
+                        "switcher", "man", "log", "breach", "netmap", "calc");
     }
 
     @Test

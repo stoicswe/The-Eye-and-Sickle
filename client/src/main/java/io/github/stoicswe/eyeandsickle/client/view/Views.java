@@ -1907,6 +1907,45 @@ public final class Views {
         applyHandle.setOnAction(e -> rename.run());
         handle.setOnAction(e -> rename.run());
 
+        // ---- the rig's own name
+        //
+        // A CLIENT setting, not game state: nothing in the rules reads it, no gate depends on it,
+        // and no ledger entry records it. It sits beside the handle because the two are the two
+        // halves of the same string — the prompt reads `handle@hostname.local:~$` — and separating
+        // them into different sections would make the pairing something a player has to discover.
+        TextField hostname = new TextField(
+                io.github.stoicswe.eyeandsickle.client.profile.Hostname
+                        .sanitise(profile.settings().rigHostname));
+        hostname.setPromptText(io.github.stoicswe.eyeandsickle.client.profile.Hostname.DEFAULT);
+        Label hostnameResult = new Label();
+        hostnameResult.setWrapText(true);
+        Button applyHostname = new Button("Set hostname");
+        Runnable setHostname = () -> {
+            String wanted = hostname.getText() == null ? "" : hostname.getText().trim();
+            String problem = io.github.stoicswe.eyeandsickle.client.profile.Hostname.problem(wanted);
+            if (problem != null) {
+                hostnameResult.setText(problem);
+                styleByOutcome(hostnameResult, GameSession.Outcome.refused(problem));
+                return;
+            }
+            String normalised =
+                    io.github.stoicswe.eyeandsickle.client.profile.Hostname.sanitise(wanted);
+            profile.settings().rigHostname = normalised;
+            profile.save();
+            // Written back into the field, so a player who typed `RIG.local` sees what was actually
+            // stored rather than being left to assume their capitals survived.
+            hostname.setText(normalised);
+            hostnameResult.setText("The prompt now reads "
+                    + io.github.stoicswe.eyeandsickle.client.profile.Hostname
+                            .prompt(profile.settings().soloHandle, normalised));
+            styleByOutcome(hostnameResult, GameSession.Outcome.ok());
+            if (onDeskSettingsChanged != null) {
+                onDeskSettingsChanged.run();
+            }
+        };
+        applyHostname.setOnAction(e -> setHostname.run());
+        hostname.setOnAction(e -> setHostname.run());
+
         ChoiceBox<ThemeId> theme = new ChoiceBox<>();
         theme.getItems().addAll(ThemeId.selectable());
         theme.setValue(themes.current());
@@ -2163,6 +2202,15 @@ public final class Views {
                                         + "character you are already playing is done from inside "
                                         + "the game."),
                         handleResult,
+                        new HBox(8, hostname, applyHostname),
+                        wrapped("What the rig calls itself. The prompt reads "
+                                + "`handle@hostname.local:~$` — who you are, then where you are, "
+                                + "which is the order every terminal and every SSH session uses. "
+                                + "`.local` is mDNS: the name a machine answers to on the network "
+                                + "it is plugged into with nobody having configured DNS, and your "
+                                + "own machine has one. Letters, digits and hyphens only, 63 "
+                                + "characters at most — DNS's rules, not this game's."),
+                        hostnameResult,
                         new Separator(),
                         new Label("APPEARANCE"),
                         theme,

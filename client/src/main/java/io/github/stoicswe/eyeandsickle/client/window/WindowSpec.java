@@ -105,6 +105,25 @@ public enum WindowSpec {
      */
     MAN("man", "Manual", "man / apropos", "The offline manual. Every term the game uses, and what the real thing is called.", 820, 680, 520, 420, KeyCode.SLASH, false, true, false),
 
+    /**
+     * The programmer's calculator.
+     *
+     * <p>⚠ <b>A nineteenth window, and the fourth the catalogue documents did not anticipate.</b>
+     * Logged against <b>WL-1</b> with {@code man}, {@code log} and {@code breach}.
+     *
+     * <p>It earns the slot on the teaching pillar rather than on a game system: <b>C6</b>, and
+     * {@code docs/education/01-foundations.md}'s whole first domain — bases, bit width, two's
+     * complement, byte order, overflow. Every other window in this client hands the player numbers
+     * in the machine's notation and none of them can make those numbers legible; a player who cannot
+     * move between hex, decimal and bits reads an address, a digest and a cycle figure as three
+     * equally opaque strings.
+     *
+     * <p>It is also the <b>only window that takes no session</b>. It spends nothing, is gated by
+     * nothing and cannot be lost — see {@code CalcView}. That is why its presence in the catalogue
+     * costs the design nothing to justify: there is no invariant a calculator can touch.
+     */
+    CALC("calc", "Calculator", "bc / printf %x / a programmer's calculator", "One value in hex, decimal, octal and binary at once, with its bits. Word width, two's complement, masks, shifts and byte order.", 820, 700, 560, 460, KeyCode.C, true, true, false),
+
     /** The answer to losing a window behind another. Opens on first run alongside the rig monitor. */
     SWITCHER("switcher", "Windows", "jobs", "Every tool in the catalogue, open or not. The way back to a window you lost.", 280, 520, 240, 320, KeyCode.J, true, true, true);
 

@@ -638,6 +638,58 @@ public final class LocalGameSession implements GameSession {
                 .orElseGet(() -> notEnoughCycles(tier.get().cycles()));
     }
 
+    /**
+     * The sweep ladder with the rules' own ownership verdict on each rung.
+     *
+     * <p>⚠ The verdict is {@code game.ownsSweep}, which is {@code NetRules.owns} — the <b>same</b>
+     * call {@link #sweepIntent} makes before commissioning a sweep. That is the whole point: a
+     * control that reads locked and a sweep that then succeeds, or the reverse, is worse than no
+     * indication at all, and the only way to guarantee they agree is for there to be one answer.
+     * The wording is assembled here rather than in the view because this is the layer that already
+     * knows how to translate a rules answer into a sentence — {@code sweepIntent} builds the
+     * matching refusal three lines up.
+     */
+    @Override
+    public java.util.List<SweepOption> sweepOptions() {
+        java.util.List<SweepOption> options = new java.util.ArrayList<>();
+        for (var tier : io.github.stoicswe.eyeandsickle.solo.net.SweepTier.values()) {
+            boolean owned = game.ownsSweep(tier);
+            var offering = io.github.stoicswe.eyeandsickle.solo.Catalogue.byId(tier.itemId());
+            String name = offering.map(o -> o.name()).orElse(tier.label());
+            long price = offering.map(o -> o.priceMinorUnits()).orElse(0L);
+            // Words, never a bare price: docs/client/05 §5 forbids a generic "locked" and requires
+            // the requirement itself be stated. A player who is told "25.00 EC" without being told
+            // WHAT costs it has been given a number, not a route.
+            String requirement = owned
+                    ? ""
+                    : price > 0
+                            ? "the " + name + " tool, " + money(price) + " in the market"
+                            : "the " + name + " tool";
+            options.add(new SweepOption(
+                    flagFor(tier),
+                    name,
+                    owned,
+                    requirement,
+                    price,
+                    tier.tier(),
+                    tier.cycles(),
+                    tier.seconds(),
+                    tier.noiseCycles()));
+        }
+        return java.util.List.copyOf(options);
+    }
+
+    /**
+     * The flag {@link #sweep} takes for a tier.
+     *
+     * <p>Derived from the tier's own label rather than switched on, so a fourth tier cannot arrive
+     * with a flag this method has never heard of and silently get the base sweep's empty string.
+     */
+    private static String flagFor(io.github.stoicswe.eyeandsickle.solo.net.SweepTier tier) {
+        int space = tier.label().indexOf(' ');
+        return space < 0 ? "" : tier.label().substring(space + 1);
+    }
+
     @Override
     public double noise() {
         return game.noise();

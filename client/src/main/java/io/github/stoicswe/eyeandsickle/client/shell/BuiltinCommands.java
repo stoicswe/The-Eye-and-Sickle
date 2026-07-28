@@ -511,6 +511,38 @@ public final class BuiltinCommands {
                             ExitStatus.OK);
                 }));
 
+        // ---------------------------------------------------------------- arithmetic
+        //
+        // ⚠ The SAME engine the calculator window drives, deliberately. Pillar C1 says every window
+        // action is reachable from the terminal, and the failure mode C1 is hardest to notice is not
+        // a missing command — it is a command that quietly disagrees with its window. A second
+        // evaluator here would drift on the first edge case somebody fixed in one place.
+        //
+        // It touches no session at all, which makes it the only command in this file that would
+        // behave identically with the game closed. That is correct: the answer to 0xFF + 1 is not
+        // the server's opinion, and a calculator that spent compute would be a tax on understanding
+        // the rest of the game.
+        r.add(new SimpleCommand("calc", List.of("bc"), 1,
+                "Evaluate an expression in hex, decimal, octal or binary. --bits=N, --signed.",
+                false, false,
+                inv -> {
+                    String expression = calcExpression(inv);
+                    if (expression.isBlank()) {
+                        return Command.Output.usage(
+                                "calc <expression>   e.g. calc 0xff xor 0b1010, calc 1 lsh 12");
+                    }
+                    var width = calcWidth(inv);
+                    if (width.isEmpty()) {
+                        return Command.Output.usage("calc: --bits must be 8, 16, 32 or 64");
+                    }
+                    boolean signed = inv.stage().flag("signed").isPresent();
+                    var result = io.github.stoicswe.eyeandsickle.client.ui.calc.Calculator.evaluate(
+                            expression, width.get(), signed);
+                    return result.ok()
+                            ? Command.Output.ok(calcLines(result.calculator()))
+                            : Command.Output.usage("calc: " + result.error());
+                }));
+
         // ---------------------------------------------------------------- information
         r.add(source("id", List.of("whoami"), "Who you are on this rig.",
                 inv -> List.of(
@@ -544,6 +576,59 @@ public final class BuiltinCommands {
                 }));
 
         return r;
+    }
+
+    // ------------------------------------------------------------------ calc
+
+    /**
+     * The expression, taken from the <b>raw</b> line rather than from the parsed arguments.
+     *
+     * <p>⚠ This is not fussiness. The shell's own parser turns {@code -1} into a short-flag cluster
+     * — which is correct for every other command in this file and exactly wrong for one whose
+     * arguments are arithmetic. Reading the raw segment and removing only the flags this command
+     * actually declares is the one way {@code calc 8 - 1} and {@code calc -1 + 2} can both mean what
+     * they say.
+     */
+    private static String calcExpression(Command.Invocation inv) {
+        String raw = inv.stage().raw() == null ? "" : inv.stage().raw().trim();
+        int space = raw.indexOf(' ');
+        String rest = space < 0 ? "" : raw.substring(space + 1);
+        return rest.replaceAll("--bits(=|\\s+)\\S+", " ")
+                .replaceAll("--(signed|unsigned)\\b", " ")
+                .trim();
+    }
+
+    /** {@code --bits=N}, defaulting to 32 — wide enough for an address, narrow enough to read. */
+    private static java.util.Optional<io.github.stoicswe.eyeandsickle.client.ui.calc.WordSize>
+            calcWidth(Command.Invocation inv) {
+        String bits = inv.stage().flag("bits").filter(s -> !s.isBlank()).orElse("32");
+        try {
+            return io.github.stoicswe.eyeandsickle.client.ui.calc.WordSize
+                    .ofBits(Integer.parseInt(bits.trim()));
+        } catch (NumberFormatException e) {
+            return java.util.Optional.empty();
+        }
+    }
+
+    /**
+     * The answer, in every base at once — the same four rows the window shows.
+     *
+     * <p>All four rather than the one the input was written in, because the whole claim the tool
+     * makes is that they are one value. A command that answered in the base you asked in would be a
+     * base converter, and conversion is the part nobody needs help with.
+     */
+    private static List<String> calcLines(
+            io.github.stoicswe.eyeandsickle.client.ui.calc.Calculator calc) {
+        List<String> out = new ArrayList<>();
+        for (var radix : io.github.stoicswe.eyeandsickle.client.ui.calc.Radix.values()) {
+            out.add(pad(radix.label(), 6) + calc.row(radix));
+        }
+        out.add("");
+        out.add(calc.word().bits() + " bits, " + (calc.signed() ? "signed" : "unsigned")
+                + "   set bits " + calc.setBits()
+                + "   bytes BE " + calc.bigEndian()
+                + "   LE " + calc.littleEndian());
+        return out;
     }
 
     // ------------------------------------------------------------------ helpers

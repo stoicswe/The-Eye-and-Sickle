@@ -241,4 +241,62 @@ class NetCommandsTest {
             assertThat(output).contains("nothing in one is required to advance");
         }
     }
+
+    @Nested
+    @DisplayName("the published sweep ladder")
+    class SweepOptions {
+
+        @Test
+        @DisplayName("⚠ every published flag is one `sweep` actually accepts")
+        void flagsRoundTrip(@TempDir Path dir) {
+            // The map window's controls are built from these flags and press `session.sweep(flag)`
+            // with them. A published flag the verb does not recognise would be a control that
+            // reports "unknown sweep tier" on a label the panel itself wrote — which reads as the
+            // game being broken rather than as a typo.
+            GameSession session = shell(dir).session();
+            for (var option : session.sweepOptions()) {
+                assertThat(io.github.stoicswe.eyeandsickle.solo.net.SweepTier.byFlag(option.flag()))
+                        .as("`sweep %s` is a tier the rules know", option.flag())
+                        .isPresent();
+            }
+            assertThat(session.sweepOptions()).extracting(GameSession.SweepOption::flag)
+                    .containsExactly("", "--wide", "--deep");
+        }
+
+        @Test
+        @DisplayName("a new character owns the base rung and neither of the bought ones")
+        void startingKit(@TempDir Path dir) {
+            // docs/design/06 §2: the base sweep is starting kit, not free content — it is the floor
+            // every price is measured from. The other two are ethecoin-gated (I2: sensitivity, never
+            // reach).
+            var options = shell(dir).session().sweepOptions();
+            assertThat(options.getFirst().available()).isTrue();
+            assertThat(options.getFirst().requirement()).isEmpty();
+            assertThat(options.get(1).available()).isFalse();
+            assertThat(options.get(2).available()).isFalse();
+        }
+
+        @Test
+        @DisplayName("a locked rung names the tool and its price — never a bare 'locked'")
+        void requirementIsInWords(@TempDir Path dir) {
+            // docs/client/05 §5: never a generic "locked". A player told only a price has been given
+            // a number, not a route.
+            var wide = shell(dir).session().sweepOptions().get(1);
+            assertThat(wide.requirement()).contains("Net Sweep (Wide)").contains("EC");
+            assertThat(wide.priceMinorUnits()).isPositive();
+        }
+
+        @Test
+        @DisplayName("⚠ the published verdict is the same one `sweep` enforces")
+        void verdictMatchesTheRefusal(@TempDir Path dir) {
+            // The failure this rules out: a control that reads locked and a sweep that then works,
+            // or the reverse. Both paths go through NetRules.owns, and this is the assertion that
+            // says they must keep doing so.
+            Shell shell = shell(dir);
+            var wide = shell.session().sweepOptions().get(1);
+            assertThat(wide.available()).isFalse();
+            assertThat(shell.session().sweep(wide.flag()).status())
+                    .isEqualTo(GameSession.Outcome.NOPERM);
+        }
+    }
 }

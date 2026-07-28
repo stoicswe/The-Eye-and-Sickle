@@ -315,4 +315,59 @@ class ShellTest {
             assertThat(String.join(" ", lines)).doesNotContain("verified to genesis");
         }
     }
+
+    @Nested
+    @DisplayName("calc — the terminal half of the calculator window")
+    class Calc {
+
+        @Test
+        @DisplayName("answers in every base at once, not in the one it was asked in")
+        void everyBase(@TempDir Path dir) {
+            Shell.Result result = shell(dir).run("calc 0xff xor 0b1010");
+            assertThat(result.status()).isEqualTo(ExitStatus.OK);
+            String printed = String.join("\n", result.lines());
+            assertThat(printed).contains("hex").contains("dec").contains("oct").contains("bin");
+            assertThat(printed).contains("245");
+        }
+
+        @Test
+        @DisplayName("⚠ a minus is read as arithmetic, not as a short flag")
+        void minusSurvivesTheParser(@TempDir Path dir) {
+            // The shell's own parser turns `-1` into a short-flag cluster, which is right for every
+            // other command and exactly wrong for this one. `calc` reads the raw segment for that
+            // reason; this is the assertion that says it has to keep doing so.
+            Shell s = shell(dir);
+            assertThat(String.join("\n", s.run("calc 8 - 1").lines())).contains("7");
+            assertThat(String.join("\n", s.run("calc --bits=8 -1").lines())).contains("255");
+        }
+
+        @Test
+        @DisplayName("the width applies, so overflow is reachable from the terminal too")
+        void widthApplies(@TempDir Path dir) {
+            Shell s = shell(dir);
+            assertThat(String.join("\n", s.run("calc --bits=8 0xff + 1").lines()))
+                    .contains("8 bits")
+                    .contains("00");
+            assertThat(s.run("calc --bits=7 1 + 1").status()).isEqualTo(ExitStatus.USAGE);
+        }
+
+        @Test
+        @DisplayName("no arguments is a usage line, and nonsense names what it could not read")
+        void refusals(@TempDir Path dir) {
+            Shell s = shell(dir);
+            assertThat(s.run("calc").status()).isEqualTo(ExitStatus.USAGE);
+            assertThat(String.join(" ", s.run("calc 0xzz").lines())).contains("not a number");
+            assertThat(String.join(" ", s.run("calc 1 / 0").lines())).contains("zero");
+        }
+
+        @Test
+        @DisplayName("it needs no game state at all — the only command in the catalogue that does not")
+        void touchesNothing(@TempDir Path dir) {
+            Shell s = shell(dir);
+            var before = s.session().computeBudget().available().cycles();
+            s.run("calc 1 lsh 12");
+            assertThat(s.session().computeBudget().available().cycles()).isEqualTo(before);
+            assertThat(s.session().balance()).isEqualTo(s.session().balance());
+        }
+    }
 }

@@ -325,6 +325,54 @@ public interface GameSession extends AutoCloseable {
      */
     Outcome sweep(String flag);
 
+    /**
+     * The sweep ladder, as the rules describe it — <b>including whether each rung may be run.</b>
+     *
+     * <h2>⚠ Why this is on the port and not worked out in the view</h2>
+     *
+     * {@code docs/client/05} §5 states the rule this exists to obey: <em>reachability is a server
+     * verdict rendered as received (C4); the client never evaluates a gate.</em> A map window that
+     * decided a sweep was locked by looking for an item id in the player's inventory would be a
+     * second implementation of {@link io.github.stoicswe.eyeandsickle.solo.net.NetRules#owns} living
+     * in a view — and the day the rule grows a second condition, the two disagree and the window is
+     * the one that lies. So the rules answer, and the panel paints the answer.
+     *
+     * <h2>An absent rung is NOT a locked rung</h2>
+     *
+     * A session that cannot reach the rules returns an <b>empty list</b>, and a caller must render
+     * that as "no verdict" rather than as "locked". The two are different claims and collapsing them
+     * would have the client inventing a gate the moment the network hiccups — which is the same
+     * last-known-good rule every other read here follows, applied to a permission instead of a
+     * number.
+     */
+    List<SweepOption> sweepOptions();
+
+    /**
+     * One rung of the sweep ladder.
+     *
+     * @param flag what {@link #sweep} takes: {@code ""}, {@code "--wide"} or {@code "--deep"}
+     * @param name the tool's own name, as the market lists it
+     * @param available the rules' verdict, rendered as received. Never computed by a view
+     * @param requirement what it would take, in words, when it is not available. Empty when it is.
+     *     Words rather than a price, because {@code docs/client/05} §5 forbids a generic "locked"
+     * @param priceMinorUnits what the market charges, or 0 when it is not something you buy
+     * @param sensitivity 1, 2 or 3 — and ⚠ <b>never a reach value.</b> Invariant <b>I2</b>: no tier
+     *     changes the hop ceiling at any price, and this record carries nothing that could
+     * @param cycles compute held for the sweep's whole duration
+     * @param seconds how long it runs
+     * @param noiseCycles how loud it is while it runs, on the noise meter's scale
+     */
+    record SweepOption(
+            String flag,
+            String name,
+            boolean available,
+            String requirement,
+            long priceMinorUnits,
+            int sensitivity,
+            long cycles,
+            long seconds,
+            long noiseCycles) {}
+
     /** Moves the vantage to a host the player holds. Sweeping again measures hops from there. */
     Outcome connectTo(String address);
 
