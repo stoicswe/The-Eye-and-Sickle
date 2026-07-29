@@ -148,6 +148,14 @@ public final class UiTokens {
     /** The network mark beside a credits handle. Sized to the cap height of the line it sits on. */
     public static final double SOCIAL_MARK = 13;
 
+    /**
+     * The drive activity lamp at the head of the command strip.
+     *
+     * <p>Small on purpose: an indicator lamp that competes with the prompt beside it has stopped
+     * being peripheral, and this one is meant to be noticed only when it moves.
+     */
+    public static final double DISK_LAMP = 6;
+
     // ── Type (§2.2) ───────────────────────────────────────────────────────────────────────────
 
     /** Labels, keys, headers, buttons — Martian Mono 500, uppercase. */

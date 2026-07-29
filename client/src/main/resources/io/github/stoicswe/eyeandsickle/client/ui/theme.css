@@ -2553,3 +2553,27 @@
     -fx-font-size: 15px;
     -fx-text-fill: -es-dim-2;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * THE DRIVE LAMP — command strip, left of the prompt. ui/widgets/DiskLamp.
+ *
+ * ⚠ TOKENS, NOT "WHITE", AND THE PAIR IS CHOSEN FOR THE LIGHT THEME. uOS Classic runs the grey
+ * ramp the other way (light ground, black text), so a literal white lamp would be invisible while
+ * lit and a literal dark one would look permanently on. -es-dim-3 → -es-text-hi inverts correctly
+ * in both directions: on the dark palettes that is a near-invisible grey going to near-white, and
+ * on Classic it is a faint grey going to black. In every theme the transition is idle → the most
+ * contrast the palette has, which is what an indicator lamp means.
+ *
+ * dim-3 specifically because theme-classic's own header says it "sits close to the panel" — which
+ * is exactly the job of an unlit lamp, in either direction.
+ *
+ * ⚠ Deliberately NOT -es-amber. §2.1 spends the accent on compute that is earning or doing work,
+ * and disk I/O is neither — CLAUDE.md makes the same call for transfers, which hold no compute
+ * because moving bytes is I/O rather than arithmetic. An amber lamp would also read as a warning.
+ *
+ * There is no transition between the two states, and none is missing: §5 requires values to twitch
+ * rather than tween, and a lamp is the most literal case of that rule there is.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+.es-disk-lamp    { -fx-fill: -es-dim-3; }
+.es-disk-lamp-on { -fx-fill: -es-text-hi; }

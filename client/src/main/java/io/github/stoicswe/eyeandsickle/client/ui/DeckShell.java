@@ -5,6 +5,7 @@ import io.github.stoicswe.eyeandsickle.client.profile.Hostname;
 import io.github.stoicswe.eyeandsickle.client.session.GameSession;
 import io.github.stoicswe.eyeandsickle.client.shell.Shell;
 import io.github.stoicswe.eyeandsickle.client.ui.chrome.DeskManager;
+import io.github.stoicswe.eyeandsickle.client.ui.widgets.DiskLamp;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.NoiseMeter;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.Sparkline;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.ThermoMeter;
@@ -850,7 +851,14 @@ public final class DeckShell {
                 keyHint(SHORTCUT + "/", "man", () -> show(WindowSpec.MAN)),
                 keyHint("ESC", "pause", this::togglePause));
 
-        strip.getChildren().addAll(prompt, commandInput, Motion.caret(), commandGreeble, keys);
+        // ⚠ The lamp sits BEFORE the prompt, where a machine's drive LED sits: left of everything,
+        // outside the text. Putting it after the prompt would read as part of the shell's own
+        // output — the one thing it is not. It is spaced tighter than the strip's own gap so it
+        // reads as belonging to the chassis rather than as the first item in a row of readouts.
+        HBox head = new HBox(UiTokens.SPACE_3, new DiskLamp(), prompt);
+        head.setAlignment(Pos.CENTER_LEFT);
+
+        strip.getChildren().addAll(head, commandInput, Motion.caret(), commandGreeble, keys);
         return strip;
     }
 

@@ -190,6 +190,10 @@ public final class ClientProfile {
             } catch (AtomicMoveNotSupportedException notAtomic) {
                 Files.move(tmp, settingsFile, StandardCopyOption.REPLACE_EXISTING);
             }
+            // ⚠ AFTER the move, not before the write. The command strip's drive lamp reports work
+            // that actually reached the disk; lighting it on entry would make it a statement of
+            // intent, and it would flash on exactly the writes that then threw below.
+            io.github.stoicswe.eyeandsickle.client.DiskActivity.wrote();
         } catch (IOException e) {
             throw new UncheckedIOException("Could not write " + settingsFile, e);
         }

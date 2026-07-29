@@ -1065,6 +1065,16 @@ public final class LocalGameSession implements GameSession {
     @Override
     public void persist() {
         game.persist();
+        // ⚠ Here rather than inside SoloGame, and that is a module boundary rather than taste. The
+        // lamp is a client concern, and `solo` is a plain rules library the client's own enforcer
+        // rules keep free of anything that is not — a UI signal reaching into it would be the first
+        // crack in that. `SoloGame.persist` writes unconditionally, so this fires exactly as often
+        // as the file is rewritten.
+        //
+        // Note RemoteGameSession.persist does NOT light it: the server owns that state and nothing
+        // touches the player's disk. The lamp reporting an online save would be describing somebody
+        // else's hardware.
+        io.github.stoicswe.eyeandsickle.client.DiskActivity.wrote();
     }
 
     @Override

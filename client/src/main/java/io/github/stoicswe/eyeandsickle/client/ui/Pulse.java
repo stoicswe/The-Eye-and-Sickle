@@ -80,6 +80,17 @@ public final class Pulse {
         return reducedMotion;
     }
 
+    /**
+     * The driver's period, for a subscriber that wants every tick rather than a period of its own.
+     *
+     * <p>Exposed so a widget counting <em>ticks</em> (the drive lamp's dwell) does not have to
+     * restate the number and quietly disagree with it. {@link #subscribe} already quantises to a
+     * multiple of this, so asking for anything smaller would silently round up to it anyway.
+     */
+    public static double tickMs() {
+        return TICK_MS;
+    }
+
     /** A repeating <b>data</b> update. Runs under reduced motion too. */
     public AutoCloseable every(double periodMs, Runnable action) {
         return subscribe(periodMs, action, false);
