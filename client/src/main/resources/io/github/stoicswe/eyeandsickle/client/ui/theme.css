@@ -1656,8 +1656,36 @@
 .es-recon-row  { -fx-padding: 4 0 4 0; -fx-border-color: transparent transparent -es-rule transparent;
                  -fx-border-width: 0 0 1 0; }
 .es-recon-row:hover { -fx-background-color: -es-panel-hi; }
-.es-recon-row > .es-recon-name { -fx-text-fill: -es-text-hi; -fx-font-size: 12px; }
-.es-recon-row > .es-recon-tags { -fx-text-fill: -es-dim-1; -fx-font-size: 10px; }
+.es-recon-row .es-recon-name { -fx-text-fill: -es-text-hi; -fx-font-size: 12px; }
+/* ⚠ The machine's OWN name, once the player has given it another one. Labelled "identifier:" in
+   words rather than carried by position or colour, so it survives greyscale and a screen reader
+   (§4.4) — and so nobody reads it as a second name the player chose. */
+.es-recon-row .es-recon-identifier { -fx-text-fill: -es-dim-2; }
+/* The + that opens the tag field. Sized up from micro so it is a target rather than a hint. */
+.es-recon-row .es-recon-add {
+    -fx-text-fill: -es-dim-1;
+    -fx-font-size: 13px;
+    -fx-padding: 0 4 0 4;
+}
+.es-recon-row .es-recon-add:hover { -fx-text-fill: -es-text-hi; }
+/* A tag. Square by default and a pill under `.es-rounded`, from the one radius rule §9 permits —
+   see `.es-rounded .es-pill`. Same treatment the block cards' miner chip gets, because they are the
+   same kind of object: a short label about the thing, not a measurement of it. */
+.es-recon-pill {
+    -fx-background-color: -es-tool;
+    -fx-padding: 1 5 1 5;
+}
+.es-recon-pill > .es-recon-tagtext { -fx-text-fill: -es-dim-1; -fx-font-size: 9.5px; }
+.es-recon-pill > .es-recon-tagx    { -fx-text-fill: -es-dim-2; -fx-font-size: 9.5px; }
+.es-recon-pill > .es-recon-tagx:hover { -fx-text-fill: -es-alarm; }
+/* The two in-place editors. Narrow, flat, and clearly a field rather than a label. */
+.es-recon-rename, .es-recon-tagfield {
+    -fx-background-color: -es-void;
+    -fx-border-color: -es-amber-mid;
+    -fx-border-width: 1;
+    -fx-text-fill: -es-text-hi;
+    -fx-padding: 1 4 1 4;
+}
 
 .es-report > .es-report-target { -fx-text-fill: -es-text-hi; -fx-font-size: 14px; }
 .es-report .es-report-meta     { -fx-text-fill: -es-dim-1; -fx-font-size: 10px; }

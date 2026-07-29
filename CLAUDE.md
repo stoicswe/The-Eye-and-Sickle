@@ -352,6 +352,12 @@ deleted — updating one makes a boosted transaction sort at its new fee and ren
 rewrite a relayed transaction for free, repeatedly. The hash deliberately does *not* change (see
 `submit` — a hash that changed would make the pending row and the mined row two transactions).
 
+⚠ **A panel that pulses cannot host an editable field.** Rebuilding rows on the one-second `Pulse`
+tears down an open `TextField` **mid-keystroke**. Split it: rebuild on *data* change only, keep a
+`ticking` list for the wall-clock text, and suppress data rebuilds while an editor is open
+(`ReconView`). ⚠ This is a workaround — **UI-7** in `design/15` records that the client should be
+event-driven here rather than polling, and that the fix wants its own pass.
+
 ⚠ **`NodeMenuTest` is the ONLY JUnit test that starts the JavaFX toolkit**, and it broke the CI Linux
 job with `UnsupportedOperationException: Unable to open DISPLAY`. Every other FX-touching file here is a
 `*Snapshot` **main class** run by hand — that is the convention. It now `Assumptions.abort`s (skips)

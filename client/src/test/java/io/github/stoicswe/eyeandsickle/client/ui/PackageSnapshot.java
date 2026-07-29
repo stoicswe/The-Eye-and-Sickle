@@ -132,11 +132,26 @@ public final class PackageSnapshot {
                             session, scanTarget),
                     out.resolve("node-report.png"), 700, 520);
             // Named and tagged, so the shot shows what the list is actually for.
+            // A world label, so the shot shows the identifier doing its job rather than the
+            // fallback. A machine nothing has identified genuinely has only an address.
+            // ⚠ The label lives on knownNodes, which a sweep populates — marking a topology host
+            // discovered does not create one. Without this the identifier correctly hides (no world
+            // name to show) and the shot verifies the fallback instead of the feature.
+            var known = game.state().knownNodes.stream()
+                    .filter(n -> scanTarget.equals(n.address))
+                    .findFirst()
+                    .orElseGet(() -> {
+                        var fresh = new io.github.stoicswe.eyeandsickle.solo.state.NodeState();
+                        fresh.address = scanTarget;
+                        game.state().knownNodes.add(fresh);
+                        return fresh;
+                    });
+            known.label = "home-relay";
             session.nameNode(scanTarget, "the bank");
             session.tagNode(scanTarget, java.util.List.of("rich", "defended", "revisit"));
             shootPanel(themes,
                     io.github.stoicswe.eyeandsickle.client.view.ReconView.create(session, a -> {}),
-                    out.resolve("recon.png"), 900, 480);
+                    out.resolve("recon.png"), 900, 300);
         }
         shootPanel(themes,
                 io.github.stoicswe.eyeandsickle.client.view.DefenseGameView.create(
