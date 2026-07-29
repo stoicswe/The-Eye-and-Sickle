@@ -50,6 +50,27 @@ class NodeMenuTest {
 
     private static final Instant T0 = Instant.parse("2026-07-29T09:00:00Z");
 
+    /**
+     * Starts the JavaFX toolkit, or <b>skips this class</b> when there is no display.
+     *
+     * <h2>⚠ This is the only JUnit test in the repo that starts the toolkit, and it broke CI</h2>
+     *
+     * Every other file here that touches JavaFX is a {@code *Snapshot} <b>main class</b>, run by hand.
+     * That is the repo's convention and this test is the exception to it, so it is the one that has to
+     * cope with a headless runner: GitHub Actions' Linux image has no {@code DISPLAY}, and
+     * {@code Platform.startup} there throws {@code UnsupportedOperationException: Unable to open
+     * DISPLAY} — which failed the whole build rather than this one test.
+     *
+     * <p>⚠ <b>Aborted, not caught and passed.</b> {@code Assumptions.abort} marks the class
+     * <em>skipped</em>, so CI reports honestly that this guard did not run. Swallowing the failure and
+     * returning green would be the worst outcome available: a regression test that reports success
+     * without executing is exactly the failure this class's own comment warns about, one level up.
+     *
+     * <p>It still runs on any developer machine, which is where the bug it guards was found and where
+     * a rendering change is made. Making it run in CI needs {@code xvfb-run} on the Linux job or the
+     * Monocle headless platform on the test classpath; neither is wired up, and both are a bigger
+     * decision than this test.
+     */
     @BeforeAll
     static void toolkit() throws Exception {
         CountDownLatch up = new CountDownLatch(1);
@@ -57,8 +78,18 @@ class NodeMenuTest {
             Platform.startup(up::countDown);
         } catch (IllegalStateException alreadyRunning) {
             up.countDown();
+        } catch (UnsupportedOperationException | NoClassDefFoundError
+                | ExceptionInInitializerError headless) {
+            // ⚠ Three types, because a headless toolkit fails in three shapes: the direct refusal
+            // ("Unable to open DISPLAY", which is what CI reported), a graphics class that will not
+            // load at all, and a failure during static initialisation of one that does. Catching only
+            // the first would leave the build red on a runner that failed a different way.
+            org.junit.jupiter.api.Assumptions.abort(
+                    "no display — the JavaFX toolkit cannot start here: " + headless.getMessage());
         }
-        assertThat(up.await(20, TimeUnit.SECONDS)).isTrue();
+        if (!up.await(20, TimeUnit.SECONDS)) {
+            org.junit.jupiter.api.Assumptions.abort("the JavaFX toolkit did not start within 20s");
+        }
     }
 
     /** Runs on the FX thread and rethrows whatever happened there. */

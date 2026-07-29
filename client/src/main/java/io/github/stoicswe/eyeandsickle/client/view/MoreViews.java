@@ -143,52 +143,22 @@ public final class MoreViews {
     // ------------------------------------------------------------------ recon
 
     /**
-     * What recon costs, and every intelligence file collected so far.
+     * <strong>Superseded.</strong> RECON is {@code ReconView} now.
      *
-     * <h2>⚠ The files come FIRST, above the cost model</h2>
+     * <p>This built a page <em>about</em> recon — a cost model and two paragraphs on what a port scan
+     * teaches — because there was nothing collected to show. There is now: scans file reports, and the
+     * window lists them. The reference moved to {@code man port-scan}, which is where a player reads
+     * it once and can find it deliberately, instead of scrolling past it every time they want a file.
      *
-     * This window opened as a page about pricing because there was nothing collected to show. Now
-     * that port scans file reports, the thing a player opens RECON to look at is what they already
-     * know — and the cost model is reference material they read once. Reference above data would make
-     * them scroll past the same paragraph every time.
+     * <p>Kept as a one-line pointer rather than deleted, because {@code DeckSnapshot} and anything
+     * else reaching for a placeholder view should land somewhere that says where the real one went.
      */
     public static Region recon(GameSession session) {
         VBox root = panel("RECON — less");
-        VBox files = new VBox(io.github.stoicswe.eyeandsickle.client.ui.UiTokens.SPACE_1);
-        Runnable repaint = () -> paintReports(files, session);
-        repaint.run();
-        AutoCloseable onSession = session.onChange(s -> repaint.run());
-        // Every row carries an age, which is wall-clock derived — see NodeReportView.
-        AutoCloseable clock = io.github.stoicswe.eyeandsickle.client.ui.Pulse.shared()
-                .every(1_000, repaint);
-        Views.releaseOnDetach(root, onSession, clock);
-
-        root.getChildren()
-                .addAll(
-                        new Label("COLLECTED REPORTS"),
-                        secondary("What a port scan has established about each machine. Open a "
-                                + "machine's report from its right-click menu on the map, or from "
-                                + "the network list — rows marked [i] have a file."),
-                        files,
-                        new Separator(),
-                        wrapped("Recon is a paid service. What you learn about a machine costs compute "
-                                + "and ethecoin, and that price is the reason the network map starts "
-                                + "empty."),
-                        new Separator(),
-                        new Label("THE COST MODEL"),
-                        mono("port sweep         15 – 45 EC   3 – 8 compute"),
-                        secondary("Each tool raises what you know about one node. Knowledge never "
-                                + "decreases, so the spend is permanent progress on that target."),
-                        new Separator(),
-                        new Label("WHAT THIS TEACHES"),
-                        wrapped("A port sweep asks a machine which services are listening. That is a "
-                                + "real thing with a real tool — `nmap` — and the game's version costs "
-                                + "what it costs because scanning is noisy in reality too. See "
-                                + "`man port-sweep` when the page ships."),
-                        openQuestion("Recon tool output is not rendered yet: the individual tools in "
-                                + "docs/design/07 depend on the minigame's target model, which is "
-                                + "still open. The cost model above is decided and is what a player "
-                                + "needs to budget."));
+        root.getChildren().add(wrapped(
+                "This window is now the collected reports — see ReconView. What a port scan costs, "
+                        + "what each depth buys and what the whole thing is a model of is in "
+                        + "`man port-scan`."));
         return scrollable(root);
     }
 

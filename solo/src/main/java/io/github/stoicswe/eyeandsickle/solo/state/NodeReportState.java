@@ -36,6 +36,27 @@ public final class NodeReportState {
 
     public String address = "";
 
+    /**
+     * What the player calls this machine. Empty means "no name given".
+     *
+     * <h2>⚠ The player's name NEVER replaces the address</h2>
+     *
+     * The address is what the machine is; the alias is what the player decided to call it. A list
+     * that showed only the alias would make two rows indistinguishable the moment somebody named two
+     * machines "backup", and would hide the one field every other window keys on. Both are shown, and
+     * both are searched.
+     */
+    public String alias = "";
+
+    /**
+     * The player's own labels — free text, lowercased on the way in.
+     *
+     * <p>Deliberately unconstrained: a tag vocabulary the game defined would be the game deciding
+     * what is worth noticing about a machine, which is exactly the judgement the player is here to
+     * make. What the game supplies is the search.
+     */
+    public java.util.List<String> tags = new java.util.ArrayList<>();
+
     /** When the first scan of this machine came back. */
     public Instant createdAt = Instant.EPOCH;
 

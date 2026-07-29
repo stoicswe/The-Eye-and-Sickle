@@ -1649,6 +1649,16 @@
  * What has been learned about a machine, and how old each part of it is. The ages are the reason
  * the file is worth keeping, so they are body text rather than micro — and a finding nobody has
  * paid for is stated in the dim ramp rather than rendered as a zero. */
+/* ── RECON, the collected reports ───────────────────────────────────────────────────────────
+ * One row per machine on file. The name the player gave it leads; the address is always under it,
+ * because two machines called "backup" are otherwise one row twice — and the address is the field
+ * every other window keys on. */
+.es-recon-row  { -fx-padding: 4 0 4 0; -fx-border-color: transparent transparent -es-rule transparent;
+                 -fx-border-width: 0 0 1 0; }
+.es-recon-row:hover { -fx-background-color: -es-panel-hi; }
+.es-recon-row > .es-recon-name { -fx-text-fill: -es-text-hi; -fx-font-size: 12px; }
+.es-recon-row > .es-recon-tags { -fx-text-fill: -es-dim-1; -fx-font-size: 10px; }
+
 .es-report > .es-report-target { -fx-text-fill: -es-text-hi; -fx-font-size: 14px; }
 .es-report .es-report-meta     { -fx-text-fill: -es-dim-1; -fx-font-size: 10px; }
 .es-report .es-report-finding  { -fx-text-fill: -es-text; -fx-font-size: 11px; }

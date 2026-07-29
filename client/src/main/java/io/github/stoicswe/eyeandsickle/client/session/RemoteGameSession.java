@@ -328,6 +328,16 @@ public final class RemoteGameSession implements GameSession {
     }
 
     @Override
+    public Outcome nameNode(String address, String alias) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome tagNode(String address, java.util.List<String> tags) {
+        return unavailable();
+    }
+
+    @Override
     public PortScanQuote portScanQuote(
             String address, io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget target) {
         return new PortScanQuote(0L, 0L, 0, false);

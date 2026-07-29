@@ -229,4 +229,77 @@ class NodeReportTest {
                 .as("the one scanned last is at the top")
                 .isEqualTo(machines.getLast());
     }
+
+    // ────────────────────────────────────────────────────────────────── names, tags and search
+
+    @Test
+    @DisplayName("naming and tagging need a report, and the search finds one by any of them")
+    void namesAndTagsAreSearchable(@TempDir Path dir) {
+        Winding clock = new Winding(T0);
+        SoloGame game = SoloGame.open(new SaveStore(dir.resolve("s.json")), "operator", clock);
+        String address = someMachine(game);
+
+        // ⚠ Refused before there is a file. A name is a note about intelligence you hold; letting one
+        // attach to a machine nobody has looked at turns RECON into a bookmark folder with the
+        // reports buried in it.
+        assertThat(NodeReports.rename(game.state(), address, "the bank")).isFalse();
+
+        scanned(clock, game, address, PortScanTarget.FIREWALL);
+        assertThat(NodeReports.rename(game.state(), address, "the bank")).isTrue();
+        assertThat(NodeReports.retag(game.state(), address,
+                java.util.List.of("Rich", "  defended  ", "", "rich"))).isTrue();
+
+        var report = NodeReports.at(game.state(), address).orElseThrow();
+        // Lowercased, trimmed, de-duplicated, blanks dropped — a tag nobody can type is a tag nobody
+        // can search, and Rich/rich as two tags is a search the player has to guess between.
+        assertThat(report.tags()).containsExactly("rich", "defended");
+        assertThat(report.displayName()).isEqualTo("the bank");
+        // ⚠ The address survives the naming. Two machines called "backup" are one row twice
+        // otherwise, and the address is what every other window keys on.
+        assertThat(report.address()).isEqualTo(address);
+
+        // Found by whatever the player happens to remember about it.
+        assertThat(report.matches("bank")).isTrue();
+        assertThat(report.matches("BANK")).as("case-insensitive").isTrue();
+        assertThat(report.matches("rich")).as("by tag").isTrue();
+        assertThat(report.matches(address.substring(0, 5))).as("by partial address").isTrue();
+        assertThat(report.matches("")).as("an empty search matches everything").isTrue();
+        assertThat(report.matches("nothing-like-this")).isFalse();
+    }
+
+    @Test
+    @DisplayName("clearing a name falls back to the address, never to blank")
+    void clearingANameFallsBack(@TempDir Path dir) {
+        Winding clock = new Winding(T0);
+        SoloGame game = SoloGame.open(new SaveStore(dir.resolve("s.json")), "operator", clock);
+        String address = someMachine(game);
+        scanned(clock, game, address, PortScanTarget.FIREWALL);
+
+        NodeReports.rename(game.state(), address, "the bank");
+        NodeReports.rename(game.state(), address, "");
+        var report = NodeReports.at(game.state(), address).orElseThrow();
+        assertThat(report.alias()).isEmpty();
+        // A row with no name still has to say what it is.
+        assertThat(report.displayName()).isNotBlank();
+    }
+
+    @Test
+    @DisplayName("names and tags survive a reload")
+    void namesPersist(@TempDir Path dir) {
+        Path file = dir.resolve("s.json");
+        Winding clock = new Winding(T0);
+        SoloGame game = SoloGame.open(new SaveStore(file), "operator", clock);
+        String address = someMachine(game);
+        scanned(clock, game, address, PortScanTarget.FIREWALL);
+        NodeReports.rename(game.state(), address, "the bank");
+        NodeReports.retag(game.state(), address, java.util.List.of("revisit"));
+        game.persist();
+
+        SoloGame reopened = SoloGame.open(
+                new SaveStore(file), "operator", Clock.fixed(clock.instant(), ZoneOffset.UTC));
+        var report = NodeReports.at(reopened.state(), address).orElseThrow();
+        assertThat(report.alias()).isEqualTo("the bank");
+        assertThat(report.tags()).containsExactly("revisit");
+        assertThat(report.matches("bank")).isTrue();
+    }
 }

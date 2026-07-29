@@ -112,6 +112,8 @@ public final class NodeReports {
         return new NodeReport(
                 state.address,
                 label,
+                state.alias == null ? "" : state.alias,
+                List.copyOf(state.tags),
                 state.createdAt,
                 state.updatedAt,
                 state.scans,
@@ -125,6 +127,41 @@ public final class NodeReports {
                 state.vaultMediumEstimate,
                 state.vaultMediumError,
                 java.util.Map.copyOf(state.learnedAt));
+    }
+
+    /**
+     * Names a machine, or clears the name.
+     *
+     * <p>⚠ Only a machine with a file can be named. A name is a note about intelligence you hold, and
+     * letting one be attached to a machine nobody has looked at would make the RECON list a bookmark
+     * folder — a different feature, with the reports buried in it.
+     */
+    public static boolean rename(SoloSave save, String address, String alias) {
+        return find(save, address).map(report -> {
+            report.alias = alias == null ? "" : alias.trim();
+            return true;
+        }).orElse(false);
+    }
+
+    /**
+     * Replaces a machine's tags.
+     *
+     * <p>Lowercased and de-duplicated on the way in, so {@code Bank}, {@code bank} and {@code BANK}
+     * are one tag rather than three that a search has to guess between. Blank entries are dropped
+     * rather than stored, because a tag nobody can type is a tag nobody can search.
+     */
+    public static boolean retag(SoloSave save, String address, List<String> tags) {
+        return find(save, address).map(report -> {
+            java.util.LinkedHashSet<String> clean = new java.util.LinkedHashSet<>();
+            for (String tag : tags == null ? List.<String>of() : tags) {
+                String trimmed = tag == null ? "" : tag.trim().toLowerCase(java.util.Locale.ROOT);
+                if (!trimmed.isEmpty()) {
+                    clean.add(trimmed);
+                }
+            }
+            report.tags = new ArrayList<>(clean);
+            return true;
+        }).orElse(false);
     }
 
     /** Every file, most recently updated first — which is the order a player looks for one in. */

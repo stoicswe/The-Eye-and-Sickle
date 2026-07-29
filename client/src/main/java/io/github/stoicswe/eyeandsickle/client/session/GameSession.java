@@ -324,6 +324,18 @@ public interface GameSession extends AutoCloseable {
     /** Every file on record, most recently updated first. What RECON lists. */
     List<io.github.stoicswe.eyeandsickle.protocol.game.NodeReport> nodeReports();
 
+    /**
+     * Names a machine you hold a report on, or clears the name.
+     *
+     * <p>⚠ Only a machine with a file can be named. A name is a note about intelligence you already
+     * hold; letting one attach to a machine nobody has looked at would turn RECON into a bookmark
+     * folder with the reports buried in it.
+     */
+    Outcome nameNode(String address, String alias);
+
+    /** Replaces a machine's tags. Lowercased and de-duplicated; blanks are dropped. */
+    Outcome tagNode(String address, List<String> tags);
+
     /** What a scan of this depth would cost against this machine, before committing to it. */
     PortScanQuote portScanQuote(
             String address, io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget target);

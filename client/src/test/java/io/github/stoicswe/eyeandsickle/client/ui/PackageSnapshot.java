@@ -131,9 +131,12 @@ public final class PackageSnapshot {
                     io.github.stoicswe.eyeandsickle.client.view.NodeReportView.create(
                             session, scanTarget),
                     out.resolve("node-report.png"), 700, 520);
+            // Named and tagged, so the shot shows what the list is actually for.
+            session.nameNode(scanTarget, "the bank");
+            session.tagNode(scanTarget, java.util.List.of("rich", "defended", "revisit"));
             shootPanel(themes,
-                    io.github.stoicswe.eyeandsickle.client.view.MoreViews.recon(session),
-                    out.resolve("recon.png"), 820, 620);
+                    io.github.stoicswe.eyeandsickle.client.view.ReconView.create(session, a -> {}),
+                    out.resolve("recon.png"), 900, 480);
         }
         shootPanel(themes,
                 io.github.stoicswe.eyeandsickle.client.view.DefenseGameView.create(

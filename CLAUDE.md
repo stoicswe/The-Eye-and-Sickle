@@ -352,6 +352,20 @@ deleted — updating one makes a boosted transaction sort at its new fee and ren
 rewrite a relayed transaction for free, repeatedly. The hash deliberately does *not* change (see
 `submit` — a hash that changed would make the pending row and the mined row two transactions).
 
+⚠ **`NodeMenuTest` is the ONLY JUnit test that starts the JavaFX toolkit**, and it broke the CI Linux
+job with `UnsupportedOperationException: Unable to open DISPLAY`. Every other FX-touching file here is a
+`*Snapshot` **main class** run by hand — that is the convention. It now `Assumptions.abort`s (skips)
+when the toolkit cannot start, rather than swallowing and passing: a regression test reporting success
+without executing is worse than none. ⚠ **It therefore guards nothing in CI** — fixing that needs
+`xvfb-run` on the Linux job or Monocle on the test classpath.
+
+⚠ **RECON is `ReconView` (the collected reports), not `MoreViews.recon`** — that is a one-line pointer
+now. The cost model and the teaching moved to `client/terms/en/1/port-scan.md`. ⚠ Shipped as
+**`port-scan(1)`, not `port-sweep(1)`** as `education/05` specifies: this game already uses "sweep" for
+*finding machines*, so the outward probe of *one* machine is named for what it is. A sweep finds
+machines; a port scan interrogates one. ⚠ A term page's `seeAlso` refs must all **resolve** — the
+spec's list named three pages that do not exist.
+
 **Port scans file persistent node reports (2026-07-29).** `solo/state/NodeReportState` per machine,
 merged by `NodeReports`; Info on the node menu, `[i]` in the network list, and RECON lists every file
 with opened/updated dates.

@@ -455,6 +455,30 @@ public final class LocalGameSession implements GameSession {
     }
 
     @Override
+    public Outcome nameNode(String address, String alias) {
+        if (!io.github.stoicswe.eyeandsickle.solo.net.NodeReports.rename(game.state(), address, alias)) {
+            return Outcome.refused("no report on " + address + " — scan it first, then name it.");
+        }
+        persist();
+        return changed(Outcome.ok(alias == null || alias.isBlank()
+                ? "name cleared on " + address
+                : address + " is now \"" + alias.trim() + "\""));
+    }
+
+    @Override
+    public Outcome tagNode(String address, java.util.List<String> tags) {
+        if (!io.github.stoicswe.eyeandsickle.solo.net.NodeReports.retag(game.state(), address, tags)) {
+            return Outcome.refused("no report on " + address + " — scan it first, then tag it.");
+        }
+        persist();
+        var now = io.github.stoicswe.eyeandsickle.solo.net.NodeReports.at(game.state(), address);
+        return changed(Outcome.ok(now.map(r -> r.tags().isEmpty()
+                        ? "tags cleared on " + address
+                        : address + " tagged " + String.join(", ", r.tags()))
+                .orElse("tags updated")));
+    }
+
+    @Override
     public PortScanQuote portScanQuote(
             String address, io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget target) {
         long cycles = io.github.stoicswe.eyeandsickle.solo.net.PortScanRules.cyclesFor(target);

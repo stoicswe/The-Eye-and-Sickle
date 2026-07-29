@@ -966,7 +966,11 @@ public class EyeAndSickleClient extends Application {
             case MAN -> ManView.create(terms);
             case LOG -> LogView.create(session);
             case MARKET -> MoreViews.market(session);
-            case RECON -> MoreViews.recon(session);
+            // ⚠ RECON is the reports now, not the page about them. The cost model and what a scan
+            // is a model of moved to `man port-scan` — reference a player reads once, in the place
+            // they can find it deliberately, rather than above the data every single time.
+            case RECON -> io.github.stoicswe.eyeandsickle.client.view.ReconView.create(
+                    session, address -> nodeActions().info(address));
             case BOTNET -> MoreViews.botnet(session);
             case COMMS -> MoreViews.comms(session);
         };

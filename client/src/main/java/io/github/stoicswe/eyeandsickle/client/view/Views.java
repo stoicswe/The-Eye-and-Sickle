@@ -3154,7 +3154,7 @@ public final class Views {
         return null;
     }
 
-    private static VBox panel(String title) {
+    static VBox panel(String title) {
         VBox root = new VBox(10);
         root.setPadding(new Insets(14));
         Label heading = new Label(title);
@@ -3169,7 +3169,7 @@ public final class Views {
         return l;
     }
 
-    private static Label secondary(String text) {
+    static Label secondary(String text) {
         Label l = wrapped(text);
         l.getStyleClass().add("es-text-secondary");
         return l;

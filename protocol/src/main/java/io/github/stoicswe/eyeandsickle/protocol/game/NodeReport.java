@@ -21,7 +21,9 @@ import java.util.Map;
  * different answers about a machine somebody is deciding whether to rob.
  *
  * @param address the machine
- * @param label its name, or empty
+ * @param label the name the world gave it, or empty
+ * @param alias the name the PLAYER gave it, or empty — never a replacement for the address
+ * @param tags the player's own labels, lowercased
  * @param createdAt when the first scan of it came back
  * @param updatedAt when the most recent one did
  * @param scans how many have completed against it
@@ -31,6 +33,8 @@ import java.util.Map;
 public record NodeReport(
         String address,
         String label,
+        String alias,
+        java.util.List<String> tags,
         Instant createdAt,
         Instant updatedAt,
         int scans,
@@ -58,6 +62,48 @@ public record NodeReport(
     /** Whether anything at all is on file. */
     public boolean any() {
         return !learnedAt.isEmpty();
+    }
+
+    /** What to call this machine in a list: the player's name if they gave one, else the world's. */
+    public String displayName() {
+        if (alias != null && !alias.isBlank()) {
+            return alias;
+        }
+        return label == null || label.isBlank() ? address : label;
+    }
+
+    /**
+     * Whether this report answers a search.
+     *
+     * <h2>⚠ Every field a player might remember it by</h2>
+     *
+     * Address, the name they gave it, the name the world gave it, and their tags. A search that
+     * matched only the alias would fail the player who named nothing and tagged everything, and one
+     * that matched only tags would fail the reverse — and the whole point of the box is to find a
+     * report from whatever the player happens to remember about it.
+     *
+     * <p>Case-insensitive and substring, because a search that demanded an exact tag would need the
+     * player to already know the answer.
+     */
+    public boolean matches(String query) {
+        if (query == null || query.isBlank()) {
+            return true;
+        }
+        String needle = query.trim().toLowerCase(java.util.Locale.ROOT);
+        if (contains(address, needle) || contains(alias, needle) || contains(label, needle)) {
+            return true;
+        }
+        for (String tag : tags) {
+            if (contains(tag, needle)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean contains(String haystack, String needle) {
+        return haystack != null
+                && haystack.toLowerCase(java.util.Locale.ROOT).contains(needle);
     }
 
     /** Cycles free at the moment the load was sampled, or -1 if it never was. */
