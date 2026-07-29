@@ -118,7 +118,7 @@ What is **stubbed at documented seams** (see `docs/design/15-open-questions.md` 
 
 ### Releasing
 
-`.github/workflows/build.yml` builds and tests every push and PR. **Pushing a `v*` tag additionally publishes a GitHub Release** carrying the five client jars, the server's `-boot` jar, and a `SHA256SUMS` covering all of them:
+`.github/workflows/build.yml` builds and tests every push and PR. **Pushing a `v*` tag additionally publishes a GitHub Release** carrying the five client jars, three native installers, the server's `-boot` jar, and a `SHA256SUMS` covering all of them:
 
 ```bash
 git tag v0.2.0 && git push origin v0.2.0
@@ -129,6 +129,14 @@ Files are renamed from the POM version to the tag (`the-eye-and-sickle-0.2.0-mac
 - **The release is cut with `gh`, not a third-party action.** It is preinstalled on the runner, so a repo that publishes executables adds no supply-chain surface to do it. `permissions:` is `contents: read` for the workflow and widened to `contents: write` on the release job alone.
 - ⚠ **CI re-verifies each client jar's architecture** by running `file` on its `glass` native. JavaFX names natives for the OS but not the arch, so a packaging mistake produces five jars that all look right and half of which cannot start — the check exists because that exact bug has already happened here once. It is negative-tested: planting an x86_64 jar as `mac-aarch64` fails the job.
 - The `actions/*` steps are pinned to major tags; **pinning them to commit SHAs is the remaining hardening step** and is worth doing before the repo has anything to steal.
+
+**The `native` job is a three-way matrix, because jpackage cannot cross-compile** — `ubuntu-latest` → `.deb`, `windows-latest` → `.msi`, `macos-latest` → **Apple Silicon** `.dmg`. No install steps: the runner images already carry WiX 3.14 (jpackage needs 3.0+) and `fakeroot`/`dpkg-dev`. The same `file`-on-`glass` check runs here too, against the shaded jar in `target/jpackage-input/` — jpackage's own output is necessarily the runner's arch, but a mis-resolved JavaFX classifier would still build cleanly and die on launch.
+
+⚠ **Intel Macs and Linux ARM get no installer, by decision, and the jars are their route.** Adding them is one matrix entry each (`macos-15-intel`, `ubuntu-24.04-arm`) — the arch check is already what would keep the two macOS legs apart, since both runners emit an identically named `libglass.dylib`. Note the asymmetry with `client-dist`, which still builds **all five** jars including `-mac.jar` and `-linux-aarch64.jar`; installers are the narrower set, not the same set.
+
+- ⚠ **It runs on TAGS AND `workflow_dispatch` ONLY, and that is billing, not policy.** While the repo is private GitHub bills 2x on Windows and 10x on macOS, and two legs are macOS — every-push would bill ~90 minutes per push. **When the repo goes public, drop the `if:`** so packaging breaks surface on the commit that caused them.
+- ⚠ **The embedded version is normalised and deliberately differs from the tag.** `--app-version` takes one to three integers, so `0.2.0-rc1` is rejected, and on macOS it becomes CFBundleVersion where the first number cannot be zero. CI maps `0.X.Y` → `1.X.Y` for the metadata and keeps the true tag in the **filename**. Known one-time discontinuity: at a real `v1.0.0` the embedded version drops from `1.9.x` to `1.0.0`, so that `.msi` is a fresh install rather than an upgrade.
+- ⚠ **The installers are unsigned**, so first launch needs Gatekeeper's right-click → Open and SmartScreen's "Run anyway". Signing needs an Apple Developer ID and a Windows code-signing certificate — both paid, both secrets in CI, and neither wired up.
 
 ### Commands
 
