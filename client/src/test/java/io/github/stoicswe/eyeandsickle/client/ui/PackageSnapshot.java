@@ -158,6 +158,30 @@ public final class PackageSnapshot {
                         session, "unregistered process  ·  6 cycles", o -> {}),
                 out.resolve("defense-prototype.png"), 620, 420);
 
+        // ── The LOG window, both tabs ──────────────────────────────────────────────────────────
+        //
+        // ⚠ A FRESH panel and a fresh Scene per tab, not one panel snapshotted twice. Scene.snapshot
+        // renders what the scene last laid out, and toggling setVisible between two synchronous
+        // snapshots does not re-run that — so the second shot comes out identical to the first and
+        // the render "verifies" a tab it never drew. Measured here once already.
+        //
+        // The requirement this checks is the user's: everything the LOG window used to be is now
+        // OVERVIEW and must be unchanged, with EVENTS added beside it rather than in place of it.
+        shootPanel(themes,
+                io.github.stoicswe.eyeandsickle.client.view.LogView.create(session),
+                out.resolve("log-overview.png"), 820, 620);
+        Region eventsTab = io.github.stoicswe.eyeandsickle.client.view.LogView.create(session);
+        shootPanel(themes, eventsTab, out.resolve("log-events.png"), 820, 620, panel -> {
+            // The chips are the tab picker; the second one is EVENTS. Fired rather than reached for
+            // by a setter, because the click path is the thing a player has and therefore the thing
+            // worth rendering through.
+            var chips = new java.util.ArrayList<>(panel.lookupAll(".es-breach-chip"));
+            chips.get(1).fireEvent(new javafx.scene.input.MouseEvent(
+                    javafx.scene.input.MouseEvent.MOUSE_CLICKED, 4, 4, 4, 4,
+                    javafx.scene.input.MouseButton.PRIMARY, 1,
+                    false, false, false, false, true, false, false, true, false, false, null));
+        });
+
         // Confirmed and ready to install.
         game.state().chain.networkWorkTarget = 0.001d;
         clock.advance(Duration.ofHours(3));
@@ -169,12 +193,27 @@ public final class PackageSnapshot {
 
     private static void shootPanel(ThemeManager themes, Region panel, Path to, int w, int h)
             throws Exception {
+        shootPanel(themes, panel, to, w, h, p -> {});
+    }
+
+    /**
+     * The same, with a chance to drive the panel once it has been laid out.
+     *
+     * <p>⚠ The hook runs AFTER the first {@code applyCss}/{@code layout} pair and before the second.
+     * {@code lookupAll} finds nothing on a graph that has never had CSS applied — a selector-based
+     * hook placed before that pass silently matches zero nodes and the interaction never happens,
+     * with the render coming out looking merely untouched.
+     */
+    private static void shootPanel(
+            ThemeManager themes, Region panel, Path to, int w, int h, java.util.function.Consumer<Region> drive)
+            throws Exception {
         StackPane host = new StackPane(panel);
         host.getStyleClass().add("es-scene-ground");
         Scene scene = new Scene(host, w, h);
         themes.adopt(scene);
         scene.getRoot().applyCss();
         host.layout();
+        drive.accept(panel);
         scene.getRoot().applyCss();
         host.layout();
         WritableImage image = scene.snapshot(new WritableImage(w, h));

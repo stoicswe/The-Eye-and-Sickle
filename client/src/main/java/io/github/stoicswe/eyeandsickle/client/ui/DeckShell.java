@@ -229,6 +229,10 @@ public final class DeckShell {
         this.profile = profile;
         this.factories = new EnumMap<>(factories);
         this.actions = actions;
+        // The window manager narrates itself onto the session's bus. Handed over here rather than
+        // constructed by the desk, because there is exactly one bus per session and the desk has no
+        // business knowing what a session is.
+        desk.setEventBus(session.events());
 
         root.getStyleClass().add("es-deck");
         deckRoot.getStyleClass().add("es-deck");

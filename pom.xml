@@ -73,6 +73,14 @@
 
     <!-- Dependency versions. Every one verified present on Maven Central. -->
     <spring-boot.version>4.1.0</spring-boot.version>
+    <!--
+      ⚠ Pinned here, NOT inherited from the Boot BOM. The client needs spring-context for its event
+      broker and the root pom deliberately does not import Boot's dependency management (see the
+      README note about spring-boot-starter-parent) — so the one Spring artifact the client is
+      allowed has to carry its own version. Keep it equal to what Boot ${spring-boot.version}
+      resolves for the server, or the two modules link against different Spring cores.
+    -->
+    <spring-framework.version>7.0.8</spring-framework.version>
     <javafx.version>26.0.2</javafx.version>
     <atlantafx.version>2.1.0</atlantafx.version>
     <jackson.version>3.1.4</jackson.version>
@@ -107,6 +115,18 @@
         <groupId>io.github.stoicswe.eyeandsickle</groupId>
         <artifactId>eyeandsickle-solo</artifactId>
         <version>${revision}</version>
+      </dependency>
+
+      <!--
+        ⚠ spring-context is managed here but declared ONLY by the client, and the client's enforcer
+        permits exactly this artifact and its own dependencies. It is the in-process event broker and
+        nothing else — see client/events/EventBus. Boot, spring-web and the jdbc/orm layers stay
+        banned there, because those are what would let the client start deciding outcomes (I14).
+      -->
+      <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-context</artifactId>
+        <version>${spring-framework.version}</version>
       </dependency>
 
       <dependency>

@@ -1,5 +1,7 @@
 package io.github.stoicswe.eyeandsickle.client.ui.chrome;
 
+import io.github.stoicswe.eyeandsickle.client.events.EventBus;
+import io.github.stoicswe.eyeandsickle.client.events.EventTypes;
 import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -71,6 +73,9 @@ public final class DeskManager {
     private int windowCap = Integer.MAX_VALUE;
     private String capName = "Bandwidth";
     private Consumer<String> onRefusal = message -> {};
+
+    /** Where this desk narrates itself. Null until {@link #setEventBus} is called. */
+    private EventBus bus;
     private int cascadeIndex;
 
     public DeskManager() {
@@ -181,6 +186,26 @@ public final class DeskManager {
         this.onRefusal = onRefusal == null ? message -> {} : onRefusal;
     }
 
+    /**
+     * The bus this desk narrates itself onto. Optional — a desk with none still works.
+     *
+     * <p>⚠ Optional on purpose, and it is what keeps the window manager testable. {@code DeskManager}
+     * is exercised by tests and by three snapshot mains that have no session and therefore no bus, and
+     * a required dependency here would mean either wiring an unused broker into all of them or the
+     * window manager knowing what a {@code GameSession} is. Null-checked at three call sites is the
+     * cheaper of those.
+     */
+    public void setEventBus(EventBus bus) {
+        this.bus = bus;
+    }
+
+    /** Publishes one window event, if there is a bus to publish it to. */
+    private void publish(String what, String id) {
+        if (bus != null && id != null) {
+            bus.publish(EventTypes.of(EventTypes.WINDOW + "." + what), "/client/desk", id);
+        }
+    }
+
     /** Called whenever the window set, focus or placement changes — for the switcher and the rail. */
     public void addListener(Runnable listener) {
         listeners.add(listener);
@@ -208,11 +233,17 @@ public final class DeskManager {
         if (existing != null) {
             existing.setMinimized(false);
             focus(existing);
+            // ⚠ `raised`, not `opened`. They are different things and a debugging record that called
+            // them both "opened" would show a tool being opened five times when it was opened once
+            // and brought forward four times — which is exactly the distinction someone chasing a
+            // duplicate-window bug is looking for.
+            publish("raised", spec.id());
             return Optional.of(existing);
         }
         if (openCount() >= windowCap) {
             onRefusal.accept(capName.toUpperCase(java.util.Locale.ROOT)
                     + " EXHAUSTED — " + windowCap + " WINDOWS IS THE LIMIT. CLOSE ONE FIRST.");
+            publish("refused", spec.id());
             return Optional.empty();
         }
 
@@ -235,6 +266,7 @@ public final class DeskManager {
         install(window);
         focus(window);
         notifyListeners();
+        publish("opened", spec.id());
         return Optional.of(window);
     }
 
@@ -273,6 +305,7 @@ public final class DeskManager {
             return;
         }
         desk.getChildren().remove(window.frame);
+        publish("closed", id);
         if (focused == window) {
             focused = null;
             windows.values().stream()
@@ -311,10 +344,20 @@ public final class DeskManager {
     }
 
     public void focus(DeskWindow window) {
+        // ⚠ Published only on a CHANGE of focus, and the test is taken BEFORE anything moves. `focus`
+        // is called on every open, every raise, and every click on the already-focused window, so
+        // publishing unconditionally would bury the stream under the one event carrying the least
+        // information. ⚠ It is a flag and NOT an early return: this method also un-minimises, brings
+        // the frame to the front and notifies the rail, and skipping those for a window that happened
+        // to already hold focus would make un-minimising it silently do nothing.
+        boolean moved = focused != window;
         if (focused != null) {
             focused.frame.focusedFlag().set(false);
         }
         focused = window;
+        if (moved && window != null) {
+            publish("focused", window.id());
+        }
         if (window != null) {
             window.frame.focusedFlag().set(true);
             window.frame.toFront();

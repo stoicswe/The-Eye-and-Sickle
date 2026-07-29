@@ -39,6 +39,17 @@
   </properties>
 
   <dependencies>
+    <!--
+      ⚠ THE ONLY SPRING ARTIFACT THE CLIENT MAY HAVE, and the enforcer above is shaped to keep it
+      that way. It supplies the event broker — ApplicationEventPublisher and the multicaster behind
+      it — and nothing else. See client/events/EventBus for what it is used for and
+      docs/design/15 §3 for the amendment that permitted it.
+    -->
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-context</artifactId>
+    </dependency>
+
     <dependency>
       <groupId>io.github.stoicswe.eyeandsickle</groupId>
       <artifactId>eyeandsickle-protocol</artifactId>
@@ -165,23 +176,49 @@
                 <bannedDependencies>
                   <message>
                     INVARIANT I14. The client must not depend on the server
-                    module or on Spring, and must never reach a database driver.
-                    Server code on the client classpath is how "the client
-                    decided the outcome" bugs start. Talk to the server over
-                    REST/WebSocket using types from eyeandsickle-protocol.
+                    module, must never reach a database driver, and must not
+                    acquire the parts of Spring that talk to either. Server code
+                    on the client classpath is how "the client decided the
+                    outcome" bugs start. Talk to the server over REST/WebSocket
+                    using types from eyeandsickle-protocol.
+
+                    AMENDED 2026-07-29: spring-context (with core, beans and aop)
+                    is PERMITTED, for the in-process event broker and nothing
+                    else — see client/events/EventBus and docs/design/15 UI-7.
+                    An event multicaster does not make the client authoritative,
+                    which is the thing this rule protects; spring-web, the jdbc
+                    and orm layers, all of Boot and every data module remain
+                    banned, because those are how it would.
 
                     The absence of a &lt;dependency&gt; element is not
-                    self-defending — someone will add one. This rule is.
+                    self-defending — someone will add one. This rule is. Adding
+                    a Spring module NOT on the permitted list is the drift this
+                    amendment is shaped to keep catching.
                   </message>
                   <searchTransitive>true</searchTransitive>
                   <excludes>
                     <exclude>io.github.stoicswe.eyeandsickle:eyeandsickle-server</exclude>
+                    <!--
+                      Everything under org.springframework EXCEPT the four the
+                      event broker needs. Listed as a broad ban plus explicit
+                      includes rather than as a list of banned modules: a new
+                      Spring module published tomorrow is caught by the first
+                      form and invisible to the second.
+                    -->
                     <exclude>org.springframework:*</exclude>
                     <exclude>org.springframework.boot:*</exclude>
                     <exclude>org.postgresql:*</exclude>
                     <exclude>org.flywaydb:*</exclude>
                     <exclude>org.hibernate*:*</exclude>
                   </excludes>
+                  <includes>
+                    <include>org.springframework:spring-context</include>
+                    <include>org.springframework:spring-core</include>
+                    <include>org.springframework:spring-beans</include>
+                    <include>org.springframework:spring-aop</include>
+                    <include>org.springframework:spring-expression</include>
+                    <include>org.springframework:spring-jcl</include>
+                  </includes>
                 </bannedDependencies>
               </rules>
             </configuration>

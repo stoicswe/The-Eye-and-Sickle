@@ -35,7 +35,26 @@ public final class LocalGameSession implements GameSession {
     private final List<Consumer<GameSession>> listeners = new CopyOnWriteArrayList<>();
 
     public LocalGameSession(SoloGame game) {
+        this(game, new io.github.stoicswe.eyeandsickle.client.events.EventBus());
+    }
+
+    /**
+     * The same session, publishing onto a bus somebody else owns.
+     *
+     * <p>The client makes one bus and hands it in, so the LOG window's EVENTS tab and this session
+     * are looking at the same stream. A session that made its own would mean the log showed the
+     * events of a bus nothing else published to.
+     */
+    public LocalGameSession(SoloGame game, io.github.stoicswe.eyeandsickle.client.events.EventBus bus) {
         this.game = game;
+        this.bus = bus;
+    }
+
+    private final io.github.stoicswe.eyeandsickle.client.events.EventBus bus;
+
+    @Override
+    public io.github.stoicswe.eyeandsickle.client.events.EventBus events() {
+        return bus;
     }
 
     public SoloGame game() {
@@ -299,6 +318,18 @@ public final class LocalGameSession implements GameSession {
         // routed through `changed()` above it, because that one is about GAME state changing and a
         // refusal is by definition the game not changing.
         fire();
+        // ⚠ …but it IS published, and this is the second chokepoint the event layer needs. `changed()`
+        // covers what the player did that worked; a refusal is still an interaction, and for anyone
+        // reading the EVENTS tab to work out why a session went wrong it is the more interesting half.
+        // A stream showing only successes describes a game where nothing was ever refused.
+        bus.publish(
+                io.github.stoicswe.eyeandsickle.client.events.EventTypes.of(
+                        io.github.stoicswe.eyeandsickle.client.events.EventTypes.INTENT + ".refused"),
+                "/client/session",
+                facility,
+                java.util.Map.of(
+                        "status", String.valueOf(outcome.status()),
+                        "why", outcome.message()));
         return outcome;
     }
 
@@ -1190,11 +1221,60 @@ public final class LocalGameSession implements GameSession {
         return () -> listeners.remove(listener);
     }
 
+    /**
+     * The heartbeat — and the client's only source of events with no player behind them.
+     *
+     * <h2>⚠ Background events are DIFFED, not emitted by the rules</h2>
+     *
+     * A task finishing and a block landing both happen inside {@code SoloGame.tick()}, one module
+     * down, in {@code solo} — which has no bus and must not gain one. {@code solo} is the offline
+     * rules engine and its own enforcer rule keeps Spring out of it; handing it a client broker to
+     * publish through would put the client's event layer inside the module that exists precisely to
+     * have no framework in it.
+     *
+     * <p>So the seam is here: take what the world looked like before the tick, take it again after,
+     * and publish the difference. That costs one small snapshot per second and buys a rules engine
+     * that stays ignorant of events entirely — and the events still name the real thing, because a
+     * task that vanished from the running list is a task that finished however it finished.
+     */
     @Override
     public void tick() {
+        java.util.Set<String> before = runningTaskIds();
+        long heightBefore = game.chainHeight();
         if (game.tick()) {
             fire();
+            for (String finished : before) {
+                if (!runningTaskIds().contains(finished)) {
+                    bus.publish(
+                            io.github.stoicswe.eyeandsickle.client.events.EventTypes.of(
+                                    io.github.stoicswe.eyeandsickle.client.events.EventTypes.TASK
+                                            + ".finished"),
+                            "/client/tasks",
+                            finished);
+                }
+            }
+            long heightAfter = game.chainHeight();
+            if (heightAfter > heightBefore) {
+                bus.publish(
+                        io.github.stoicswe.eyeandsickle.client.events.EventTypes.of(
+                                io.github.stoicswe.eyeandsickle.client.events.EventTypes.CHAIN
+                                        + ".block"),
+                        "/client/chain",
+                        String.valueOf(heightAfter),
+                        // ⚠ `blocks`, not just the new height. A tick after a long pause settles
+                        // several at once, and one event saying "height is now 4212" hides how far it
+                        // moved — which is the first question when the ledger looks wrong.
+                        java.util.Map.of("blocks", String.valueOf(heightAfter - heightBefore)));
+            }
         }
+    }
+
+    private java.util.Set<String> runningTaskIds() {
+        java.util.Set<String> ids = new java.util.HashSet<>();
+        for (var task : game.tasks()) {
+            ids.add(task.taskId);
+        }
+        return ids;
     }
 
     @Override
@@ -1218,9 +1298,48 @@ public final class LocalGameSession implements GameSession {
         listeners.clear();
     }
 
+    /**
+     * Every successful mutation: notify the listeners, and put it on the bus.
+     *
+     * <h2>⚠ ONE chokepoint, so "every interaction publishes" is STRUCTURAL</h2>
+     *
+     * Instrumenting the forty-odd intent methods individually would be forty chances to forget, and a
+     * forgotten one is invisible — a missing event looks exactly like an interaction that never
+     * happened, which is the worst possible failure mode for a debugging record. Every mutation in
+     * this class already funnels through here, so publishing here means the set of published
+     * interactions cannot drift from the set of interactions.
+     *
+     * <p>⚠ <b>The subject is the calling method, read off the stack.</b> That is unusual and it is
+     * the reason this works with no churn: the alternative is a string literal at every call site,
+     * which is the same forty edits with a typo budget. {@code StackWalker} with
+     * {@code RETAIN_CLASS_REFERENCE} omitted is cheap — it walks one frame — and this runs once per
+     * player action, not once per frame. If it ever shows up in a profile, the fix is a literal, and
+     * the events will name the same things either way.
+     */
     private Outcome changed(Outcome outcome) {
         fire();
+        publishIntent(outcome);
         return outcome;
+    }
+
+    /** Puts a completed intent on the bus, named for whatever called {@code changed}. */
+    private void publishIntent(Outcome outcome) {
+        String what = StackWalker.getInstance()
+                .walk(frames -> frames
+                        .map(StackWalker.StackFrame::getMethodName)
+                        // changed() and publishIntent() are this mechanism, not the act. The first
+                        // frame that is neither is the intent the player actually invoked.
+                        .filter(name -> !name.equals("changed") && !name.equals("publishIntent"))
+                        .findFirst()
+                        .orElse("unknown"));
+        bus.publish(
+                io.github.stoicswe.eyeandsickle.client.events.EventTypes.of(
+                        io.github.stoicswe.eyeandsickle.client.events.EventTypes.INTENT),
+                "/client/session",
+                what,
+                java.util.Map.of(
+                        "outcome", outcome.succeeded() ? "ok" : "refused",
+                        "status", String.valueOf(outcome.status())));
     }
 
     /**

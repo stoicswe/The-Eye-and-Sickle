@@ -63,6 +63,14 @@ public final class RemoteGameSession implements GameSession {
         return server;
     }
 
+    private final io.github.stoicswe.eyeandsickle.client.events.EventBus bus =
+            new io.github.stoicswe.eyeandsickle.client.events.EventBus();
+
+    @Override
+    public io.github.stoicswe.eyeandsickle.client.events.EventBus events() {
+        return bus;
+    }
+
     @Override
     public SessionMode mode() {
         return SessionMode.ONLINE;

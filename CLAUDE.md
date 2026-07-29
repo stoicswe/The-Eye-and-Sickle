@@ -524,6 +524,44 @@ cannot climb above `/`.
 
 ⚠ **The mascot sits on the bare panel with NO plate behind it, and one was built and rejected.** The reasoning for a plate is sound — the drawing is black ink on white, so on the deck's ground the outlines sink into the dark and the gloves and shoes lose their edges — and it looked wrong anyway, putting the only light surface in the whole client on one tab. Rendered both, kept the transparent one. Notes to that effect sit in `theme.css` and `RigAbout` so the "fix" is not re-attempted.
 
+**The client has an event bus, and it is CloudEvents v1.0.2 (2026-07-29)** — `client/.../events/`,
+over Spring's `SimpleApplicationEventMulticaster`. The LOG window gained an **EVENTS** tab beside
+**OVERVIEW**, which is its previous content unchanged.
+
+- ⚠ **`client/pom.xml`'s Spring ban is now an ALLOWLIST of six artifacts**, not a blanket refusal:
+  `spring-context` plus the five jars it cannot resolve without. **I14 is untouched** — an in-process
+  multicaster makes nothing authoritative and reaches no network, while `spring-web`, the jdbc layers
+  and the server module are still refused. Negative-tested: adding `spring-web` fails the build.
+  **No `ApplicationContext`** — a context can add a listener after refresh and offers no public way to
+  **remove** one, and every panel here is created and destroyed as windows open and close.
+- ⚠ **The spec is enforced in the compact constructor, with the section cited on every rule.** `id` is
+  a generated **UUID** and `time` is filled by the builder: §3.1.1 requires `source` + `id` to be
+  unique per distinct event, and a hand-written id breaks that first. An extension name that breaks
+  §4.1 is **rejected, not lowercased** — coercing `retryCount` means the key read back is not the key
+  written.
+- ⚠ **`time` is `Instant.now()`, NOT the session clock** — the one place in this codebase that inverts
+  that rule. An event log records when the *process* observed something; a test clock would file a
+  developer's afternoon under the wrong year. Nothing here is a deadline.
+- ⚠ **Publication is at chokepoints so coverage cannot drift** — `changed()` for successes,
+  `announce()` for **refusals** (a success-only stream describes a game where nothing was refused),
+  `DeskManager` for windows. The subject is the **calling method read off the stack**, which is what
+  makes it cost nothing at forty call sites.
+- ⚠ **Background events are DIFFED across the tick, not emitted by the rules.** `solo` has no broker
+  and must not gain one, so `LocalGameSession.tick()` compares running-task ids and chain height
+  before/after and publishes the difference. A multi-block settle is **one** event carrying the count;
+  a quiet tick publishes **nothing**.
+- ⚠ **The recorder subscribes in the `EventBus` CONSTRUCTOR**, so "all events are logged" is
+  structural — an event published before the LOG window ever opened is still there. Bounded ring
+  (2000), reports its drops, never persisted.
+- ⚠ **Spring propagates a listener's exception to the publisher unless an error handler is set.** That
+  default would let a panel's failed repaint unwind a **purchase** with the coin already spent. The
+  handler catches it and publishes the failure as an event — recorded, not printed, because a packaged
+  client has no console behind it.
+- ⚠ **Snapshotting two tabs needs a fresh Scene per tab.** `Scene.snapshot` renders what the scene last
+  laid out, so toggling `setVisible` between synchronous snapshots yields two identical images.
+- **UI-7 is not closed by this.** Nothing was migrated off a `Pulse`; the requirement was that
+  behaviour not change. `docs/design/15-open-questions.md` UI-7 records what is left.
+
 **The command strip has a drive activity lamp (2026-07-29)** — left of the prompt, where a machine's LED sits. ⚠ **Every flash is a file actually written.** `DiskActivity.wrote()` is called at the two chokepoints that do the writing — `ClientProfile.save` and `LocalGameSession.persist` — **after** the bytes land, not at the call sites: a settings change, an avatar, a window move and the 30s autosave all reach those two by different routes, and instrumenting callers means a new route silently stops lighting it. `RemoteGameSession.persist` deliberately does **not** light it — the server owns that state and nothing touches the player's disk.
 
 - ⚠ **A counter, not a timestamp.** The lamp asks "anything since I last looked", which needs no clock — so the `Instant.now()`-versus-session-clock trap cannot apply. Counts are compared, never consumed, so a second reader can't eat the signal.

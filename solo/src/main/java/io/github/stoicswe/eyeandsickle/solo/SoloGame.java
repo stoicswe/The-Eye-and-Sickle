@@ -1788,6 +1788,17 @@ public final class SoloGame {
         return ChainExplorer.mempool(save, clock.instant());
     }
 
+    /**
+     * How many blocks the chain has produced.
+     *
+     * <p>Exists so a caller can ask the cheap question without building a whole
+     * {@code MiningSnapshot}, which computes difficulty, expected yield and a payout to answer it.
+     * The client's heartbeat asks once a second.
+     */
+    public long chainHeight() {
+        return save.chain == null ? 0L : save.chain.height;
+    }
+
     /** One block with every transaction in it, for the detail view. Any height renders. */
     public io.github.stoicswe.eyeandsickle.protocol.game.ChainBlock chainBlock(long height) {
         if (save.chain == null || height < 0 || height > save.chain.height) {

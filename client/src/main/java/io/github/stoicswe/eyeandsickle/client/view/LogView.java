@@ -16,7 +16,10 @@ import javafx.scene.control.ListView;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
+import io.github.stoicswe.eyeandsickle.client.ui.Ui;
+import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
 import javafx.util.Duration;
 
 /**
@@ -157,8 +160,57 @@ public final class LogView {
         footer.setWrapText(true);
         footer.getStyleClass().add("es-text-secondary");
 
-        root.getChildren().addAll(heading, explain, controls, list, footer);
+        // ── the two tabs ──────────────────────────────────────────────────────────────────────
+        //
+        // ⚠ OVERVIEW is everything this window already was, unchanged and in the same order. The
+        // EVENTS tab is a debugging surface added beside it, not a replacement — a player who opens
+        // LOG is looking for what the rig has been doing, and putting a stream of CloudEvent types in
+        // front of that would answer a question only a developer is asking.
+        VBox overview = new VBox(UiTokens.SPACE_3, explain, controls, list, footer);
+        VBox.setVgrow(overview, Priority.ALWAYS);
+        VBox.setVgrow(list, Priority.ALWAYS);
+        Region events = EventLogView.create(session);
+        VBox.setVgrow(events, Priority.ALWAYS);
+
+        LogTab[] tab = {LogTab.OVERVIEW};
+        HBox tabs = new HBox(UiTokens.SPACE_3);
+        tabs.getStyleClass().add("es-breach-picker");
+        java.util.List<BreachView.Chip> chips = new java.util.ArrayList<>();
+        Runnable[] applyTab = new Runnable[1];
+        for (LogTab which : LogTab.values()) {
+            BreachView.Chip chip = new BreachView.Chip(
+                    which.control(LogTab.OVERVIEW), "es-breach-chip-quiet");
+            chip.setAccessibleText(which.description());
+            chip.onInvoke(() -> {
+                tab[0] = which;
+                applyTab[0].run();
+            });
+            chips.add(chip);
+            tabs.getChildren().add(chip);
+        }
+        applyTab[0] = () -> {
+            for (int i = 0; i < chips.size(); i++) {
+                LogTab which = LogTab.values()[i];
+                BreachView.Chip chip = chips.get(i);
+                chip.setText(Ui.upper(which.control(tab[0])));
+                chip.getStyleClass().remove("es-breach-chip-loud");
+                if (which == tab[0]) {
+                    chip.getStyleClass().add("es-breach-chip-loud");
+                }
+            }
+            show(overview, tab[0] == LogTab.OVERVIEW);
+            show(events, tab[0] == LogTab.EVENTS);
+        };
+        applyTab[0].run();
+
+        root.getChildren().addAll(heading, tabs, overview, events);
         return root;
+    }
+
+    /** ⚠ Unmanaged as well as invisible, or the hidden tab still claims its height. */
+    private static void show(javafx.scene.Node node, boolean visible) {
+        node.setVisible(visible);
+        node.setManaged(visible);
     }
 
     /**

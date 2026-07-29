@@ -45,6 +45,23 @@ import java.util.function.Consumer;
  */
 public interface GameSession extends AutoCloseable {
 
+    /**
+     * The client's event broker.
+     *
+     * <h2>⚠ Reached through the session on purpose, not through a static</h2>
+     *
+     * Every view already holds a {@code GameSession} and nothing else, which is what stops a panel
+     * from acquiring a second route to the game's state. A global bus would be exactly that second
+     * route — and a static one would be shared across the two sessions a test opens side by side,
+     * which is how one test's events end up asserted by another.
+     *
+     * <p>Events published here are the client's own: what the player did and what the world did back.
+     * They are <b>not</b> game state, are never persisted, and nothing reads them to decide anything.
+     * A subscriber that started deciding an outcome from an event would be the client claiming
+     * authority (I14) by a new route.
+     */
+    io.github.stoicswe.eyeandsickle.client.events.EventBus events();
+
     /** Whether this session is a local solo game or a connection to a home server. */
     SessionMode mode();
 
