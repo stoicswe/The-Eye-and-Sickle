@@ -64,7 +64,12 @@ public final class NetText {
     static final int HOPS = 6;
     static final int KIND = 10;
     static final int TIER = 6;
-    static final int STATE = 12;
+    /**
+     * ⚠ 14, not 12. {@code foothold [i]} is exactly twelve characters, so at the old width the
+     * marker ran straight into the next column with no space between them — which on a
+     * character-cell surface reads as one field rather than two.
+     */
+    static final int STATE = 14;
 
     /** {@code -v} only: what the sweep heard, and how deep the node's server sits from home. */
     static final int SIGNAL = 10;
@@ -185,10 +190,18 @@ public final class NetText {
      * somebody edited one of them.
      */
     static String state(Sighting sighting) {
-        if (sighting.vantage()) {
-            return "vantage";
-        }
-        return sighting.foothold() ? "foothold" : "contact";
+        String standing = sighting.vantage()
+                ? "vantage"
+                : sighting.foothold() ? "foothold" : "contact";
+        // ⚠ AFTER the standing, never instead of it. The two say different things — where the player
+        // can operate from, and whether there is a file to open — and a marker that replaced the word
+        // would trade a fact for a fact. Square brackets because the whole client marks a state that
+        // way (§4.4, the tab strips and the sweep ladder both), so it needs no legend.
+        //
+        // ⚠ ASCII. `i` in brackets rather than a glyph: GlyphCoverageTest fails the build on anything
+        // outside the two bundled faces, and a fallback font would break the character-cell alignment
+        // this whole column is laid out on.
+        return sighting.reported() ? standing + " [i]" : standing;
     }
 
     /**

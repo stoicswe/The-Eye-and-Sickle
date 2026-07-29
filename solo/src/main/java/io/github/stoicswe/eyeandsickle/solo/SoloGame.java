@@ -85,11 +85,34 @@ public final class SoloGame {
     private SoloSave save;
     private Instant lastTick;
 
+    /**
+     * What the last {@link #resume()} filled in — the {@code SYNCHRONIZING} screen's whole content.
+     *
+     * <h2>⚠ Session state, deliberately not saved</h2>
+     *
+     * It describes one transition rather than the world: "the chain gained 51 blocks just now" is
+     * true once, and persisting it would make the sync screen reappear on the next load reporting a
+     * catch-up that had already happened. The blocks themselves are in the chain and the money is in
+     * the ledger; this is only the explanation, and an explanation has a shelf life.
+     */
+    private io.github.stoicswe.eyeandsickle.protocol.game.ChainSync sync;
+
+    /**
+     * Whether the player has been shown {@link #sync} yet.
+     *
+     * <p>Session state for the same reason the report is, and reset by {@link #resume()} — a load is
+     * what produces a report, so a load is what makes one worth showing again. Not saved: a flag
+     * saying "already announced" that survived a restart would suppress the announcement for the one
+     * load that actually had something to announce.
+     */
+    private boolean syncShown;
+
     private SoloGame(SaveStore store, SoloSave save, Clock clock) {
         this.store = store;
         this.save = save;
         this.clock = clock;
         this.lastTick = clock.instant();
+        this.sync = io.github.stoicswe.eyeandsickle.protocol.game.ChainSync.none(clock.instant());
     }
 
     /**
@@ -158,7 +181,62 @@ public final class SoloGame {
                     "chain synced at height " + save.chain.height
                             + "; self-mining is pooled by default. `mine --solo` to go it alone.", now);
         }
+        retuneNetworkHashrate(save, now);
         abandonBreachInProgress(save, now);
+    }
+
+    /**
+     * Moves a character onto the current chain when the network's size has been re-tuned.
+     *
+     * <h2>⚠ A frozen network hashrate is a silent, permanent income cut</h2>
+     *
+     * {@code ChainState.networkHashrate} is copied from {@link Balance#chainNetworkHashrate()} at
+     * genesis and was then never touched, so a character created before a balance change kept the
+     * old chain forever. That is not a cosmetic difference: expected mining income is
+     * {@code subsidy × rigHashrate × 3600 / (interval × networkHashrate)} — <b>inversely proportional
+     * to the network's size</b> — so a character on a network 40% larger earns <b>71% of what the
+     * economy says they should</b>, for the life of the character, with nothing on any readout
+     * saying so.
+     *
+     * <p>Measured on a real save: a character created 2026-07-26 was on the 2352-cycle network that
+     * {@link Balance#CHAIN_TARGET_BLOCK_SECONDS} records as having become a 1680-cycle network when
+     * the block interval moved from ten minutes to fourteen. Its difficulty had correctly converged
+     * to that chain's own equilibrium, so nothing looked broken — the chain was internally consistent
+     * and 29% poorer than {@code docs/design/03-economy.md} §1 prices it.
+     *
+     * <p>{@code Balance}'s own charter is that the network hashrate is <em>derived</em> so that
+     * "every figure here stays consistent" when the anchor moves. A stored copy that outlives the
+     * derivation defeats exactly that, which is what makes this a migration rather than a redesign.
+     *
+     * <h2>⚠ Difficulty is rescaled in the same step, and it must be</h2>
+     *
+     * Difficulty is what holds the block interval at
+     * {@code difficulty × 2^32 / networkHashrate}, so changing the hashrate alone changes the
+     * interval until the next retarget corrects it — and retargets are 1440 blocks apart. Shrinking
+     * this save's network without touching its difficulty would have stretched its blocks from 12
+     * minutes to 17 for the better part of a fortnight of game time, which is precisely the "the
+     * chain is stuck" reading this method exists to prevent rather than cause. Scaling both by the
+     * same factor holds the interval exactly where it is and leaves the retarget nothing to correct.
+     */
+    private static void retuneNetworkHashrate(SoloSave save, Instant now) {
+        ChainState chain = save.chain;
+        double wanted = Balance.chainNetworkHashrate();
+        if (chain == null || chain.networkHashrate <= 0 || wanted <= 0) {
+            return;
+        }
+        double factor = wanted / chain.networkHashrate;
+        // A hair either side of 1 is floating-point noise from a round trip through JSON, not a
+        // re-tune. Anything a player could feel is well outside this.
+        if (Math.abs(factor - 1.0d) < 1e-6d) {
+            return;
+        }
+        double wasDifficulty = chain.difficulty;
+        chain.networkHashrate = wanted;
+        chain.difficulty = Math.max(1e-9d, chain.difficulty * factor);
+        EventLog.notice(save, "mining", String.format(java.util.Locale.ROOT,
+                "chain re-tuned: the network is now %.0f cycle-equivalents, difficulty %.2f → %.2f. "
+                        + "Your block interval is unchanged; your share of the chain is not.",
+                wanted / Balance.HASHES_PER_CYCLE_SECOND, wasDifficulty, chain.difficulty), now);
     }
 
     /**
@@ -310,6 +388,14 @@ public final class SoloGame {
         recovered += ComputeRules.settleRecovered(save.rig, now);
         long accrued = MiningRules.accrueDeployedMiners(save, now);
 
+        // ⚠ The chain ran while the client did not, and until 2026-07-29 it did not — height froze
+        // at the last tick, so a character played on Monday and again on Friday found four days of
+        // wall-clock time and zero blocks, on the one readout whose whole subject is that nobody can
+        // stop it. docs/design/04-mining.md §1.3d. The fill is shown rather than applied silently:
+        // a height that jumped 51 blocks with no explanation is indistinguishable from a tampered
+        // save, which is exactly the reading §3.1 trains players into.
+        ChainRules.Sync walked = catchUpChain(now);
+
         // The log's primary job: telling a returning player what happened while they were gone.
         // Without this, offline income is invisible and a player has no way to tell it from a bug.
         java.time.Duration away = java.time.Duration.between(save.lastPlayedAt, now);
@@ -322,20 +408,97 @@ public final class SoloGame {
                 EventLog.info(save, "mining",
                         "Deployed miners buffered " + money(accrued) + " while away. `collect` sweeps it.", now);
             }
-            if (save.rig.selfMiningCycles > 0) {
-                // Said explicitly because its absence is otherwise indistinguishable from a bug —
-                // and Invariant I5 is the reason, not an oversight.
-                EventLog.info(save, "mining",
-                        "Self-mining earned nothing while away: it is online-only.", now);
-            }
+            logSync(walked, now);
         }
 
-        // Self-mining is deliberately NOT credited for time away. It is online-only (Invariant I5),
-        // and crediting it here would make the safe, zero-heat, unseizable income source also the
-        // best one — which collapses the entire risk economy into "leave the game closed". Deployed
-        // miners, accrued above, are the only offline income, and their buffer cap is what bounds it.
         save.lastPlayedAt = now;
         this.lastTick = now;
+    }
+
+    /**
+     * Runs the chain forward over the absence and settles whatever the rig earned before it stopped.
+     *
+     * <h2>⚠ Two clamps that must agree, and only one of them is enforced here</h2>
+     *
+     * {@code ChainRules.sync} has already excluded the player from the winner draw on every block
+     * past the spin-down window, so solo and PPLNS income is capped by the chain itself. Pay-per-share
+     * is <b>not</b> — it runs on its own share clock off {@code elapsed} — so the elapsed handed to
+     * {@code runSelfMining} is the capped window {@code sync} reports rather than the absence.
+     * Passing the absence would break Invariant I5 silently, and only for PPS miners.
+     */
+    private ChainRules.Sync catchUpChain(Instant now) {
+        Rng rng = Rng.of(save);
+        ChainRules.Sync walked = ChainRules.sync(save, save.lastPlayedAt, now, rng);
+        long credited = MiningRules.runSelfMining(save, walked.minedFor(), now, rng, walked.minted());
+        rng.commit(save);
+
+        if (credited > 0) {
+            LedgerEntryState row = LedgerRules.applyEntry(
+                    save, credited, "SELF_MINING", offlineMiningLabel(walked), now);
+            // ⚠ A SOLO win names the block that carried it; a pool payout does not — the pool paid
+            // out of its own balance, and a block number would put a transaction on the chain that
+            // no miner ever mined. The LAST block won, not chain.height: the chain has since run on
+            // past it, so the tip is somebody else's block.
+            if (MiningRules.modeOf(save.rig) == MiningMode.SOLO && !walked.minted().yourBlocks().isEmpty()) {
+                row.blockNumber = walked.minted().yourBlocks().getLast().height();
+            } else if (MiningRules.modeOf(save.rig) != MiningMode.SOLO) {
+                row.counterparty = ChainExplorer.addressOf(MiningRules.poolOf(save.rig));
+            }
+        }
+        this.sync = walked.report().withCredit(credited);
+        // A new report is a new thing to announce. Set beside the assignment rather than in
+        // resume(), so the flag cannot outlive the report it refers to.
+        this.syncShown = false;
+        return walked;
+    }
+
+    /** What the ledger row for an offline settlement says. */
+    private String offlineMiningLabel(ChainRules.Sync walked) {
+        int won = walked.minted().yours();
+        if (won > 0) {
+            return won == 1
+                    ? "Solo block " + walked.minted().yourBlocks().getFirst().height() + ", found while away"
+                    : won + " solo blocks found while away";
+        }
+        return "Mining settled for " + humanAway(walked.minedFor()) + " after logout";
+    }
+
+    /**
+     * Tells a returning player what the chain did, and what their rig did before it stopped.
+     *
+     * <p>⚠ The spin-down cap is stated whenever it bit. A player who left for a week and was paid
+     * for four hours has no way to distinguish that from a bug otherwise — which is the same reason
+     * the old log said "self-mining earned nothing while away: it is online-only" in as many words.
+     */
+    private void logSync(ChainRules.Sync walked, Instant now) {
+        if (!sync.any()) {
+            return;
+        }
+        EventLog.info(save, "chain",
+                sync.blocks() + " blocks synchronised — the chain reached height " + sync.toHeight()
+                        + " while you were gone.", now);
+        if (sync.transactionsConfirmed() > 0) {
+            EventLog.info(save, "chain",
+                    sync.transactionsConfirmed() == 1
+                            ? "1 of your transactions confirmed while away."
+                            : sync.transactionsConfirmed() + " of your transactions confirmed while away.",
+                    now);
+        }
+        if (save.rig.selfMiningCycles <= 0) {
+            return;
+        }
+        for (ChainRules.Won block : walked.minted().yourBlocks()) {
+            EventLog.notice(save, "mining",
+                    "block " + block.height() + " is yours — found after logout, "
+                            + money(Balance.BLOCK_SUBSIDY_MINOR_UNITS) + " subsidy plus "
+                            + money(block.feesMinorUnits()) + " in fees.", now);
+        }
+        if (sync.capped()) {
+            EventLog.info(save, "mining",
+                    "The rig spun down " + humanAway(java.time.Duration.ofSeconds(sync.minedSeconds()))
+                            + " after logout; the " + sync.uncontestedBlocks()
+                            + " blocks after that were mined without it (I5).", now);
+        }
     }
 
     /**
@@ -418,6 +581,44 @@ public final class SoloGame {
 
     public void persist() {
         store.save(save);
+    }
+
+    /**
+     * The last port-scan report for each machine, this session.
+     *
+     * <h2>⚠ Session state, not save state — and the reason is the CYCLE LOAD line</h2>
+     *
+     * A report is a <b>snapshot</b>: {@code cyclesUsed} was true at the instant it was taken and is
+     * a guess five minutes later. Persisting one would hand a returning player a figure about a
+     * machine's current load that was measured last Tuesday, presented with exactly the same
+     * confidence as one taken thirty seconds ago. Everything durable a scan learned — that the
+     * machine exists, its tier, its firewall — already lives on the node.
+     */
+    private final java.util.Map<String, io.github.stoicswe.eyeandsickle.protocol.game.PortScanReport>
+            lastPortScans = new java.util.HashMap<>();
+
+    /** The last report for this machine, if one was taken this session. */
+    public java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.PortScanReport> portScan(
+            String address) {
+        return java.util.Optional.ofNullable(lastPortScans.get(address));
+    }
+
+    /** Commissions a port scan. See {@code PortScanRules} for what depth costs. */
+    public io.github.stoicswe.eyeandsickle.solo.net.PortScanRules.Started portScan(
+            String address, io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget target) {
+        return io.github.stoicswe.eyeandsickle.solo.net.PortScanRules.begin(
+                save, address, target, clock.instant());
+    }
+
+    /** The host record behind an address, for the rules that need ground truth. */
+    private java.util.Optional<io.github.stoicswe.eyeandsickle.solo.state.HostState> topologyHost(
+            String address) {
+        if (save.topology == null) {
+            return java.util.Optional.empty();
+        }
+        return save.topology.hosts.stream()
+                .filter(host -> address.equals(host.address))
+                .findFirst();
     }
 
     // ------------------------------------------------------------------ read model
@@ -550,6 +751,51 @@ public final class SoloGame {
     /** The explorer's rolling window of blocks, newest first. */
     public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.ChainBlock> chainBlocks() {
         return ChainExplorer.recentBlocks(save);
+    }
+
+    /**
+     * What the last load filled in. Reports zero blocks when there was nothing to catch up.
+     *
+     * <p>Session state rather than save state — see the field. Idempotent: reading it never consumes
+     * it, so a test or a second readout can ask without changing what the player sees. The
+     * {@code SYNCHRONIZING} screen uses {@link #takeChainSync()} instead.
+     */
+    public io.github.stoicswe.eyeandsickle.protocol.game.ChainSync chainSync() {
+        return sync;
+    }
+
+    /**
+     * The same report, once — for the surface that <em>shows</em> it.
+     *
+     * <h2>⚠ Why showing it has to consume it</h2>
+     *
+     * The LEDGER window is rebuilt from scratch every time it is opened ({@code DeskManager} calls
+     * the factory afresh, so a closed window keeps no state). A panel built from {@link #chainSync()}
+     * therefore replayed the whole fill on every single open — the third time a player opened the
+     * ledger in one sitting they watched a meter fill about a catch-up that had happened an hour ago.
+     *
+     * <p>A synchronisation is a <b>transition</b>, and a transition is reportable exactly once. The
+     * information is not lost: {@code logSync} has already written it to the rig log — how many
+     * blocks, what confirmed, where the rig spun down — and the log is where history belongs and
+     * where {@code docs/design/15} §3 says a returning player should find what happened while they
+     * were gone. The panel is the announcement; the log is the record.
+     *
+     * <p>⚠ Consumed when the panel is <b>built</b>, not when the replay finishes. A player who closes
+     * the window two seconds in does not get it again — which is the deliberate cost of "once per
+     * session", and the alternative is that closing and reopening fast replays it forever.
+     */
+    public io.github.stoicswe.eyeandsickle.protocol.game.ChainSync takeChainSync() {
+        if (syncShown) {
+            return io.github.stoicswe.eyeandsickle.protocol.game.ChainSync.none(clock.instant());
+        }
+        syncShown = true;
+        return sync;
+    }
+
+    /** Every block this character put hashrate into, newest first. */
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.BlockContribution> contributions(
+            int limit) {
+        return ChainExplorer.contributions(save, limit);
     }
 
     /** The player's ledger rendered as chain transactions, newest first. */
@@ -1252,8 +1498,16 @@ public final class SoloGame {
                         name,
                         TransferRules.addressOf(task),
                         TransferRules.bytesOf(task),
-                        upgradeTypeFor(TransferRules.pathOf(task)),
+                        // ⚠ A bought package states its own item type; a stolen one is resolved from
+                        // the app bundle it was sitting in. Falling back to the path lookup for a
+                        // purchase would ask "which app on the vendor's machine was this in", of a
+                        // vendor that has no machine.
+                        TransferRules.itemTypeOf(task).isBlank()
+                                ? upgradeTypeFor(TransferRules.pathOf(task))
+                                : TransferRules.itemTypeOf(task),
                         task.endsAt);
+                // What releases it, carried from the task. Empty for anything not bought.
+                arrived.lockedByEntryId = TransferRules.entryIdOf(task);
                 EventLog.notice(save, "net",
                         name + " arrived from " + TransferRules.addressOf(task)
                                 + " in " + arrived.directory, task.endsAt);
@@ -1261,11 +1515,63 @@ public final class SoloGame {
                 // the one bounded by somebody else's uplink — has already happened, and two progress
                 // bars for one act is noise. It is LOGGED, though, because a package silently
                 // becoming a different file is the step worth having noticed.
+                // ⚠ A BOUGHT package is NOT repacked here. Repac is the step that turns somebody
+                // else's `.pkg` into a `.upg` this rig can install, and for a purchase that step is
+                // the payment being mined — MempoolRules.released runs it. Repacking on arrival
+                // would hand over an installable upgrade before the debit had reached a block,
+                // which is a purchase with no settlement.
+                //
+                // Said plainly in the log, because the file is on disk and refuses to install: a
+                // player who is not told why concludes the download was corrupt.
+                if (io.github.stoicswe.eyeandsickle.solo.rules.Repac.locked(save, arrived)) {
+                    EventLog.notice(save, "storage",
+                            name + " is a vendor package and stays one until your payment is mined. "
+                                    + "`ledger` shows it pending; it becomes installable on "
+                                    + "confirmation.", task.endsAt);
+                    continue;
+                }
                 io.github.stoicswe.eyeandsickle.solo.rules.Repac.repack(save, arrived, task.endsAt)
                         .ifPresent(packaged -> EventLog.notice(save, "storage",
                                 "repac: " + name + " -> " + packaged.name
                                         + " (installable; double-click it, or sell it)",
                                 task.endsAt));
+                continue;
+            }
+            if (io.github.stoicswe.eyeandsickle.solo.net.PortScanRules.KIND.equals(task.kind)) {
+                // ⚠ The held cycles are released here, exactly as a finished scan's are. A task kind
+                // that forgot this would leak the reservation forever and the rig would shrink by
+                // every port scan the player had ever run — with the compute readout still
+                // reconciling, because the allocation is real.
+                ComputeRules.beginRecovery(save.rig, task.allocationId, task.endsAt);
+                Rng scanRng = Rng.of(save);
+                var report = io.github.stoicswe.eyeandsickle.solo.net.PortScanRules.settle(
+                        save, task, scanRng, task.endsAt);
+                lastPortScans.put(report.address(), report);
+                // ⚠ Folded into the machine's file BEFORE anything is logged, so the completion
+                // notice and the RECON list cannot disagree about what was learned.
+                io.github.stoicswe.eyeandsickle.solo.net.NodeReports.merge(save, report, task.endsAt);
+                EventLog.notice(save, "net",
+                        "port scan of " + report.address() + " finished. " + report.note()
+                                + " The report is in RECON.",
+                        task.endsAt);
+                // ⚠ The reprisal is rolled only when the scan was NOTICED, and it is the target's
+                // turn rather than a second failure mode of the scan. See ReprisalRules.
+                if (report.detected()) {
+                    topologyHost(report.address()).ifPresent(host ->
+                            io.github.stoicswe.eyeandsickle.solo.net.ReprisalRules.answer(
+                                    save, host, scanRng, task.endsAt));
+                }
+                scanRng.commit(save);
+                // A deep scan that got through narrows the next estimate — the one thing about a
+                // port scan that is remembered. See NodeState.deepScans.
+                if (!report.blocked()
+                        && report.requested() == io.github.stoicswe.eyeandsickle.protocol.game
+                                .PortScanTarget.deepest()) {
+                    save.knownNodes.stream()
+                            .filter(node -> report.address().equals(node.address))
+                            .findFirst()
+                            .ifPresent(node -> node.deepScans++);
+                }
                 continue;
             }
             if ("sweep".equals(task.kind)) {
@@ -1398,15 +1704,29 @@ public final class SoloGame {
      *
      * <h2>⚠ The balance moves now; the chain record confirms later</h2>
      *
-     * The debit is immediate and whatever was bought is the player's immediately — the same instant a
-     * real wallet shows a send and deducts it from your spendable balance. What waits is the
-     * <em>confirmation</em>: a miner has to pack the transaction into a block, and the fee is a bid
-     * for one of a block's fixed number of slots.
+     * The debit is immediate — the same instant a real wallet shows a send and deducts it from your
+     * spendable balance. What waits is the <em>confirmation</em>: a miner has to pack the transaction
+     * into a block, and the fee is a bid for one of a block's fixed number of slots.
      *
-     * <p>That split is the one place this simulation declines to be faithful, deliberately. A purchase
-     * that withheld the goods for fourteen minutes would be accurate and would also make buying a
-     * consumable mid-breach impossible — a worse game, for a lesson the fee market already teaches by
-     * being visible in the mempool.
+     * <h2>⚠ AMENDED 2026-07-29 — the goods now wait for the block</h2>
+     *
+     * This comment used to say the split was "the one place this simulation declines to be faithful",
+     * because a purchase handed over the item in the same call that took the money. The argument was
+     * that withholding goods for fourteen minutes would make buying a consumable mid-breach
+     * impossible.
+     *
+     * <p>It was reversed on explicit direction, and the reversal is narrower than that argument
+     * feared: a bought upgrade <b>downloads immediately</b> and lands in {@code ~/Downloads} as a
+     * vendor {@code .pkg}, and what waits is only the step that turns it into something installable.
+     * The player has the bytes; the vendor has not released the licence. That is what confirmation
+     * means, and it is the first thing in this game that gives a {@link FeeTier} a mechanical
+     * consequence rather than a cosmetic one — until now a fee bought nothing but how soon a row
+     * stopped printing "—" in the ledger.
+     *
+     * <p>⚠ The mid-breach objection stands and is unresolved for <b>consumables</b>: the catalogue
+     * currently has none whose value depends on being bought during a breach, so nothing is broken
+     * today, and the day one is added it needs an answer. Logged in
+     * {@code docs/design/15-open-questions.md}. See {@code docs/design/04-mining.md} §1.3e.
      *
      * <p>⚠ <b>The fee is charged on top and is also a debit</b>, so a player who cannot afford
      * {@code amount + fee} cannot send. Charging the fee silently out of the amount would make the
@@ -1416,9 +1736,33 @@ public final class SoloGame {
      * @param counterparty the other end, as an address; empty derives one from the type
      */
     public boolean debit(long minorUnits, String type, String description, FeeTier tier, String counterparty) {
+        return spend(minorUnits, type, description, tier, counterparty).isPresent();
+    }
+
+    /**
+     * The same spend, handing back the ledger row it broadcast.
+     *
+     * <h2>⚠ This exists because "the last ledger row" is the WRONG row</h2>
+     *
+     * {@link #debit} writes <b>two</b> entries: the spend itself, which goes into the mempool, and a
+     * separate {@code TX_FEE} row, which does not — a fee folded into the amount would be a charge
+     * {@code ledger(1)} could not explain, so it is named on its own line. A caller that needed the
+     * transaction and reached for the end of the list therefore got the fee, which is never submitted
+     * and so never gets a block number.
+     *
+     * <p>That is not a cosmetic mix-up. A bought package waits on its entry's confirmation
+     * ({@code Repac.locked}), so pointing it at the fee row would hold it <b>forever</b>, with the
+     * money gone and no surface anywhere able to say why. Caught by {@code PurchaseFlowTest} rather
+     * than by review, which is the argument for the test walking the whole journey instead of
+     * stopping at "the purchase succeeded".
+     *
+     * @return the broadcast entry, or empty when the player cannot afford {@code amount + fee}
+     */
+    public Optional<LedgerEntryState> spend(
+            long minorUnits, String type, String description, FeeTier tier, String counterparty) {
         long fee = Balance.feeFor(tier);
         if (!LedgerRules.canDebit(save, minorUnits + fee)) {
-            return false;
+            return Optional.empty();
         }
         Instant now = clock.instant();
         LedgerEntryState entry = LedgerRules.applyEntry(save, -minorUnits, type, description, now);
@@ -1431,7 +1775,7 @@ public final class SoloGame {
                         "Transaction fee (" + tier.label().toLowerCase(java.util.Locale.ROOT) + ")", now);
             }
         }
-        return true;
+        return Optional.of(entry);
     }
 
     /** What a spend at this tier would cost in fees, for a dry run. */

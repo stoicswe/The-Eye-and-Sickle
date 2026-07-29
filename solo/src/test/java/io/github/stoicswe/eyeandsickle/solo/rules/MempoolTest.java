@@ -432,16 +432,145 @@ class MempoolTest {
     }
 
     @Nested
+    @DisplayName("replace-by-fee")
+    class Boosting {
+
+        private ChainTransaction pendingOn(Rig rig) {
+            return rig.game.mempool().queued().getFirst().tx();
+        }
+
+        @Test
+        @DisplayName("a boost charges the difference, not the whole new fee")
+        void chargesTheDifference(@TempDir Path dir) {
+            Rig rig = new Rig(dir);
+            rig.game.credit(50_000L, "TEST", "seed");
+            rig.game.debit(500L, "TRANSFER", "Sent", FeeTier.ECONOMY, "0xabc");
+            long before = rig.game.balance().minorUnits();
+            long was = pendingOn(rig).feeMinorUnits();
+
+            var boost = MempoolRules.boost(
+                    rig.game.state(), pendingOn(rig).hash(), FeeTier.PRIORITY, rig.game.now());
+
+            assertThat(boost.ok()).isTrue();
+            long difference = Balance.FEE_PRIORITY_MINOR_UNITS - was;
+            assertThat(boost.paidMinorUnits()).isEqualTo(difference);
+            // ⚠ The DIFFERENCE. The first fee was debited when the transaction was broadcast, so
+            // charging the new tier in full would take it twice — and the player would end up having
+            // paid more than priority costs.
+            assertThat(rig.game.balance().minorUnits()).isEqualTo(before - difference);
+            assertThat(pendingOn(rig).feeMinorUnits()).isEqualTo(Balance.FEE_PRIORITY_MINOR_UNITS);
+        }
+
+        /**
+         * ⚠ BOTH records, because they are read at different times.
+         *
+         * <p>The pending record is what {@code confirmInto} sorts on and what the mempool panel
+         * draws; the ledger row is what the explorer reads once the transaction is mined and the
+         * pending record has been deleted. Updating one would make a boosted transaction sort at its
+         * new fee and render at its old one.
+         */
+        @Test
+        @DisplayName("the boost reaches the ledger row as well as the pending record")
+        void bothRecordsMove(@TempDir Path dir) {
+            Rig rig = new Rig(dir);
+            rig.game.credit(50_000L, "TEST", "seed");
+            rig.game.debit(500L, "TRANSFER", "Sent", FeeTier.ECONOMY, "0xabc");
+            String hash = pendingOn(rig).hash();
+            MempoolRules.boost(rig.game.state(), hash, FeeTier.PRIORITY, rig.game.now());
+
+            var entry = rig.game.state().ledger.stream()
+                    .filter(e -> "TRANSFER".equals(e.type))
+                    .findFirst()
+                    .orElseThrow();
+            assertThat(entry.feeMinorUnits).isEqualTo(Balance.FEE_PRIORITY_MINOR_UNITS);
+        }
+
+        /**
+         * ⚠ Real replace-by-fee has this rule for a harder reason than tidiness: a replacement that
+         * paid less would let anyone rewrite a transaction the network has already relayed, for free,
+         * as many times as they liked.
+         */
+        @Test
+        @DisplayName("a bump only ever goes up")
+        void neverDownwards(@TempDir Path dir) {
+            Rig rig = new Rig(dir);
+            rig.game.credit(50_000L, "TEST", "seed");
+            rig.game.debit(500L, "TRANSFER", "Sent", FeeTier.PRIORITY, "0xabc");
+            long before = rig.game.balance().minorUnits();
+
+            for (FeeTier down : new FeeTier[] {FeeTier.ECONOMY, FeeTier.STANDARD, FeeTier.PRIORITY}) {
+                var boost = MempoolRules.boost(
+                        rig.game.state(), pendingOn(rig).hash(), down, rig.game.now());
+                assertThat(boost.ok()).as("%s", down).isFalse();
+                assertThat(boost.refusal()).isEqualTo(MempoolRules.BoostRefusal.NOT_HIGHER);
+            }
+            assertThat(rig.game.balance().minorUnits()).isEqualTo(before);
+        }
+
+        @Test
+        @DisplayName("a confirmed transaction cannot be boosted, and says why")
+        void notAfterItIsMined(@TempDir Path dir) {
+            Rig rig = new Rig(dir);
+            rig.game.credit(50_000L, "TEST", "seed");
+            rig.game.debit(500L, "TRANSFER", "Sent", FeeTier.PRIORITY, "0xabc");
+            String hash = pendingOn(rig).hash();
+
+            MempoolRules.confirmInto(rig.game.state(), rig.game.state().chain.height + 1, rig.game.now());
+            assertThat(rig.game.state().chain.mempool).isEmpty();
+
+            var boost = MempoolRules.boost(rig.game.state(), hash, FeeTier.PRIORITY, rig.game.now());
+            assertThat(boost.refusal()).isEqualTo(MempoolRules.BoostRefusal.NOT_PENDING);
+            // The ordinary case, not an error — it confirmed while the player was deciding.
+            assertThat(boost.message()).contains("already been mined");
+        }
+
+        @Test
+        @DisplayName("a boost that cannot be afforded takes nothing")
+        void cannotAfford(@TempDir Path dir) {
+            Rig rig = new Rig(dir);
+            rig.game.credit(Balance.FEE_ECONOMY_MINOR_UNITS + 10L, "TEST", "seed");
+            rig.game.debit(0L, "TRANSFER", "Sent", FeeTier.ECONOMY, "0xabc");
+            long before = rig.game.balance().minorUnits();
+
+            var boost = MempoolRules.boost(
+                    rig.game.state(), pendingOn(rig).hash(), FeeTier.PRIORITY, rig.game.now());
+            assertThat(boost.refusal()).isEqualTo(MempoolRules.BoostRefusal.CANNOT_AFFORD);
+            assertThat(rig.game.balance().minorUnits()).isEqualTo(before);
+            assertThat(pendingOn(rig).feeMinorUnits()).isEqualTo(Balance.FEE_ECONOMY_MINOR_UNITS);
+        }
+
+        /** The whole point: a boosted transaction is packed before one that did not boost. */
+        @Test
+        @DisplayName("boosting moves a transaction ahead of one that did not")
+        void boostingJumpsTheQueue(@TempDir Path dir) {
+            Rig rig = new Rig(dir);
+            rig.game.credit(50_000L, "TEST", "seed");
+            rig.game.debit(100L, "TRANSFER", "first, cheap", FeeTier.ECONOMY, "0xaaa");
+            rig.game.debit(100L, "TRANSFER", "second, cheap", FeeTier.ECONOMY, "0xbbb");
+
+            var second = rig.game.state().chain.mempool.get(1);
+            MempoolRules.boost(rig.game.state(), second.txHash, FeeTier.PRIORITY, rig.game.now());
+
+            assertThat(rig.game.mempool().queued().getFirst().tx().hash())
+                    .as("the fee-sorted queue puts the boosted one first")
+                    .isEqualTo(second.txHash);
+        }
+    }
+
+    @Nested
     @DisplayName("the projections")
     class Projections {
 
         @Test
-        @DisplayName("three blocks ahead, and none of them is a promise")
-        void projectsThreeBlocks(@TempDir Path dir) {
+        @DisplayName("three to five blocks ahead, and none of them is a promise")
+        void projectsThreeToFiveBlocks(@TempDir Path dir) {
             Rig rig = new Rig(dir);
             ChainMempool pool = rig.game.mempool();
-            assertThat(pool.projected()).hasSize(3);
-            for (int i = 0; i < 3; i++) {
+            // 3–5 since 2026-07-29, derived from chain state. How far a queue can honestly be read
+            // ahead is a property of the queue, and a fixed three claimed otherwise.
+            assertThat(pool.projected().size())
+                    .isBetween(MempoolRules.MIN_PROJECTIONS, MempoolRules.MAX_PROJECTIONS);
+            for (int i = 0; i < pool.projected().size(); i++) {
                 ChainMempool.ProjectedBlock p = pool.projected().get(i);
                 assertThat(p.index()).isEqualTo(i);
                 assertThat(p.transactions()).isLessThanOrEqualTo(Balance.BLOCK_TRANSACTION_LIMIT);
@@ -450,6 +579,111 @@ class MempoolTest {
                 assertThat(p.expectedSeconds(pool.expectedNextBlockSeconds()))
                         .isEqualTo(pool.expectedNextBlockSeconds() * (i + 1));
             }
+        }
+
+        /**
+         * ⚠ The depth must not change between two reads of the same chain state.
+         *
+         * <p>The panel repaints once a second ({@code Views.ledger}'s {@code refreshClock}). A drawn
+         * count would add and remove a card on every repaint, which reads as the interface glitching
+         * rather than as the chain being uncertain — so the depth is derived from
+         * {@code (blockSeed, height)} and this is the assertion that keeps it that way.
+         */
+        @Test
+        @DisplayName("the depth is stable per height, not redrawn per repaint")
+        void projectionDepthIsStable(@TempDir Path dir) {
+            Rig rig = new Rig(dir);
+            int first = rig.game.mempool().projected().size();
+            for (int repaint = 0; repaint < 32; repaint++) {
+                assertThat(rig.game.mempool().projected()).hasSize(first);
+            }
+        }
+
+        /**
+         * ⚠ The estimate and the block that replaces it are ONE number, arrived at once.
+         *
+         * <p>A projection card is superseded by a block card at the same height, and a player who
+         * read "fees 32.40 EC" and then saw "fees 7.60 EC" two minutes later has been shown a
+         * contradiction about mining income — which is precisely what
+         * {@code docs/design/04-mining.md} §3.1 trains them to treat as evidence of tampering. So the
+         * projection does not estimate from the queue's depth; it asks {@code MempoolRules} the same
+         * question the mined card asks, at the same height.
+         */
+        @Test
+        @DisplayName("a projected block's fees are the fees the block actually pays")
+        void projectedFeesMatchTheMinedBlock(@TempDir Path dir) {
+            Rig rig = new Rig(dir);
+            ChainMempool pool = rig.game.mempool();
+            long height = rig.game.state().chain.height;
+
+            for (ChainMempool.ProjectedBlock p : pool.projected()) {
+                long at = height + 1 + p.index();
+                assertThat(p.feesMinorUnits())
+                        .as("projection %d must agree with block %d", p.index(), at)
+                        .isEqualTo(MempoolRules.blockFeesMinorUnits(rig.game.state(), at));
+                assertThat(p.transactions())
+                        .as("and so must its transaction count")
+                        .isEqualTo(MempoolRules.blockTransactionCount(rig.game.state(), at));
+            }
+        }
+
+        /**
+         * ⚠ The fee total must be non-zero on a projection the player has nothing waiting in.
+         *
+         * <p>That is the whole bug: the field carried <em>this rig's</em> fees, so every card on a
+         * quiet wallet read "fees 0.00 EC" — a block explorer reporting that mining the next block is
+         * worth nothing. A regression to the old meaning would show up here and nowhere else, because
+         * the value is arithmetically fine, just about the wrong subject.
+         */
+        @Test
+        @DisplayName("fees are the block's, so a player with nothing queued still sees a real total")
+        void feesAreTheBlocksNotTheRigs(@TempDir Path dir) {
+            Rig rig = new Rig(dir);
+            ChainMempool pool = rig.game.mempool();
+            assertThat(pool.queued()).isEmpty();
+
+            assertThat(pool.projected()).allSatisfy(p -> {
+                assertThat(p.yours()).isZero();
+                assertThat(p.feesMinorUnits())
+                        .as("mining the next block is not worth nothing")
+                        .isPositive();
+                // Sanity on the magnitude: a block carries 12–200 transactions between the floor and
+                // priority fee, so the total has to sit inside those bounds by construction.
+                assertThat(p.feesMinorUnits())
+                        .isBetween(
+                                12L * Balance.FEE_ECONOMY_MINOR_UNITS,
+                                (long) Balance.BLOCK_TRANSACTION_LIMIT * Balance.FEE_PRIORITY_MINOR_UNITS);
+            });
+        }
+
+        /** ⚠ A card can never render more transactions than a block holds — the fill bar caps at 100%. */
+        @Test
+        @DisplayName("a projection never overflows the block limit, however the queue falls")
+        void projectionsNeverOverflow(@TempDir Path dir) {
+            Rig rig = new Rig(dir);
+            for (int block = 0; block < 200; block++) {
+                for (ChainMempool.ProjectedBlock p : rig.game.mempool().projected()) {
+                    assertThat(p.transactions()).isBetween(0, Balance.BLOCK_TRANSACTION_LIMIT);
+                    assertThat(p.yours()).isLessThanOrEqualTo(p.transactions());
+                    assertThat(p.fullness()).isBetween(0.0d, 1.0d);
+                }
+                rig.game.state().chain.height++;
+            }
+        }
+
+        /** And it does actually vary — a rule that always returned 3 would pass the two above. */
+        @Test
+        @DisplayName("the depth varies as the chain advances")
+        void projectionDepthVaries(@TempDir Path dir) {
+            Rig rig = new Rig(dir);
+            java.util.Set<Integer> seen = new java.util.HashSet<>();
+            for (int block = 0; block < 400; block++) {
+                seen.add(MempoolRules.projectionDepth(rig.game.state()));
+                rig.game.state().chain.height++;
+            }
+            assertThat(seen)
+                    .as("every depth in the range is reachable")
+                    .containsExactlyInAnyOrder(3, 4, 5);
         }
 
         @Test

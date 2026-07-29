@@ -40,4 +40,21 @@ public final class LedgerEntryState {
 
     /** The other end of the transfer, as an address. Empty means "derive one from the type". */
     public String counterparty = "";
+
+    /**
+     * What this transaction paid to be included, in minor units. {@code -1} when it never had a fee.
+     *
+     * <h2>⚠ Stored, because the mempool record is DESTROYED on confirmation</h2>
+     *
+     * The fee lived only on {@code PendingTxState}, which {@code MempoolRules.confirmInto} removes
+     * the moment a miner takes the transaction — so the explorer's lookup missed and fell back to the
+     * standard rate. A priority transaction therefore reported the standard fee <em>from the instant
+     * it confirmed</em>, and since a block's rows are sorted by fee rate, the player's own row also
+     * sorted into the wrong group: they paid for the top of the block and were rendered in the
+     * middle of it. Found by rendering a block that contained one.
+     *
+     * <p>-1 rather than 0 on an entry that predates this field, so "no fee recorded" and "a fee of
+     * zero" stay different answers — the explorer falls back only for the first.
+     */
+    public long feeMinorUnits = -1L;
 }

@@ -7,6 +7,7 @@ import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.Pools;
 import io.github.stoicswe.eyeandsickle.solo.breach.Rng;
 import io.github.stoicswe.eyeandsickle.solo.state.ChainState;
+import io.github.stoicswe.eyeandsickle.solo.state.ContributionState;
 import io.github.stoicswe.eyeandsickle.solo.state.MinerState;
 import io.github.stoicswe.eyeandsickle.solo.state.NodeState;
 import io.github.stoicswe.eyeandsickle.solo.state.RigState;
@@ -20,13 +21,22 @@ import java.time.Instant;
  * <h2>The two sources are deliberately asymmetric</h2>
  *
  * <b>Self-mining</b> is the income floor and is protected by two invariants: it generates zero heat
- * and cannot be detected or seized (I4), and it only runs while the player is online (I5). It is
- * boring on purpose — it is what stops a run from becoming unrecoverable.
+ * and cannot be detected or seized (I4), and it stops a bounded time after the client closes (I5).
+ * It is boring on purpose — it is what stops a run from becoming unrecoverable.
  *
- * <p><b>Deployed miners</b> are the only offline income (I5), and every one of them costs the deployer
- * a permanent control channel while charging its actual work to the <em>host</em> (I6). Their yield
- * accrues into an on-host buffer that stops dead at a cap, so time away is worth something but not
- * proportionally — and the buffer is the prize somebody takes when they crack the miner.
+ * <p><b>Deployed miners</b> are the <em>volume</em> offline income, and every one of them costs the
+ * deployer a permanent control channel while charging its actual work to the <em>host</em> (I6).
+ * Their yield accrues into an on-host buffer that stops dead at a cap, so time away is worth
+ * something but not proportionally — and the buffer is the prize somebody takes when they crack the
+ * miner.
+ *
+ * <p>⚠ <b>I5 was amended on 2026-07-29 and the two are no longer separated by "offline".</b> The rig
+ * keeps hashing for {@code Balance.OFFLINE_MINING_HOURS} after the client closes and then stops dead,
+ * so both streams now pay across a bounded absence. What still separates them is <b>exposure and
+ * volume</b>: a deployed miner spends somebody else's compute, so five of them buffer five hosts'
+ * worth of the same window — and a miner's buffer sits on a machine an attacker can reach, where
+ * self-mining cannot be touched. Had the distinction ever rested on "one works offline and one does
+ * not", this change would have deleted it. See {@code docs/design/04-mining.md} §1.2.
  *
  * <h2>Self-mining is a real proof-of-work simulation since 2026-07-27</h2>
  *
@@ -234,12 +244,21 @@ public final class MiningRules {
     /**
      * Runs the rig's mining for an elapsed interval and credits whatever landed.
      *
-     * <h2>⚠ Called from tick() only — never from resume()</h2>
+     * <h2>⚠ Called from tick(), and from resume() with a CAPPED elapsed — never with the absence</h2>
      *
-     * Invariant <b>I5</b>: self-mining is online-only. {@code resume()} sets {@code lastTick = now}
-     * precisely so that time spent logged off produces nothing here, and the memorylessness of the
-     * process is what makes that clean rather than punitive — a player who logs off is not
-     * abandoning progress, because there is none to abandon.
+     * Invariant <b>I5</b> as amended on 2026-07-29: the rig keeps hashing for
+     * {@code Balance.OFFLINE_MINING_HOURS} after the client closes and then stops dead. The resume
+     * path therefore passes {@code min(away, that window)} as {@code elapsed}, and
+     * {@code ChainRules.sync} has already excluded the player from the draw on every block past it,
+     * so the two halves agree by construction rather than by both remembering to clamp.
+     *
+     * <p>⚠ Passing the raw absence here would break the invariant <b>silently and only for
+     * pay-per-share</b>, which runs on its own share clock and would happily accrue a week of shares
+     * off a single {@code elapsed}. Solo and PPLNS would look correct, because their payouts come
+     * from {@code minted} and the chain already capped that.
+     *
+     * <p>Memorylessness is what makes the cap clean rather than punitive: a player who logs off is
+     * not abandoning progress, because there is none to abandon.
      *
      * <h2>Two clocks, because two things are being paid for</h2>
      *
@@ -265,28 +284,44 @@ public final class MiningRules {
         }
         boolean solo = modeOf(rig) == MiningMode.SOLO;
         int payouts = 0;
-        double earned = 0.0d;
 
         if (solo) {
-            payouts = minted.yours();
             // ⚠ Subsidy PLUS the block's fees, which is what a real miner is paid. Until 2026-07-27
             // the fees players paid into the mempool were debited and then vanished, so the fee
             // market was a pure sink and the block card's "fees 0.38 EC" named money nobody ever
             // received. See MempoolRules.blockFeesMinorUnits for the ~10.6% this adds and where the
             // economy absorbs it.
-            earned = payouts * (double) Balance.BLOCK_SUBSIDY_MINOR_UNITS
-                    + minted.yoursFeesMinorUnits();
+            //
+            // ⚠ Banked block by block rather than as one sum, so each block's own credit is known
+            // and can be written to the contributor record. The total is bit-for-bit identical —
+            // floor(r+a+b) == floor(r+a) + floor(r+a-floor(r+a)+b) — so this is an attribution
+            // change and not an economy one.
+            for (ChainRules.Won block : minted.yourBlocks()) {
+                double value = Balance.BLOCK_SUBSIDY_MINOR_UNITS + (double) block.feesMinorUnits();
+                record(save, block, bank(rig, value), true);
+                payouts++;
+            }
         } else if (poolOf(rig).scheme() == PoolScheme.PPLNS) {
             // Paid out of blocks the POOL won, in proportion to what this rig contributed to it —
             // including their fees, because a block's fees are part of what the pool has to divide.
             // ⚠ The REAL fees of the blocks that were won, not payoutMinorUnits' expectation: this
             // is a realised payout, and a PPLNS miner's exposure to what a block happened to carry
             // is the thing that distinguishes it from PPS.
-            payouts = minted.yourPool();
-            earned = (payouts * (double) Balance.BLOCK_SUBSIDY_MINOR_UNITS
-                            + minted.yourPoolFeesMinorUnits())
-                    * payoutFraction(rig, chain) * (1.0d - feeOf(rig));
+            double cut = payoutFraction(rig, chain) * (1.0d - feeOf(rig));
+            for (ChainRules.Won block : minted.poolBlocks()) {
+                double value = (Balance.BLOCK_SUBSIDY_MINOR_UNITS + (double) block.feesMinorUnits()) * cut;
+                record(save, block, bank(rig, value), false);
+                payouts++;
+            }
         } else {
+            // ⚠ PPS records the pool's blocks and takes NOTHING from them. The rig's hashrate really
+            // did go into them, so they belong in the contributor record; a share pool simply is not
+            // dividing a block up — it pays a fixed price per accepted share out of its own balance,
+            // which is the entire product. See rewardBaseMinorUnits. A zero in that column beside a
+            // real hashrate is the difference between the two schemes, rendered.
+            for (ChainRules.Won block : minted.poolBlocks()) {
+                record(save, block, 0L, false);
+            }
             // PPS: a share clock, independent of the chain. Progress in units of "expected shares",
             // so the pool retuning this rig's target — or the player reallocating mid-flight —
             // re-rates the accrual instead of invalidating the draw.
@@ -299,24 +334,81 @@ public final class MiningRules {
             while (rig.miningWorkDone >= rig.miningWorkTarget && payouts < 4096) {
                 rig.miningWorkDone -= rig.miningWorkTarget;
                 rig.miningWorkTarget = ChainRules.drawWork(rng);
-                earned += payoutMinorUnits(rig, chain);
+                bank(rig, payoutMinorUnits(rig, chain));
                 payouts++;
             }
         }
 
         if (payouts > 0) {
-            // Carry the sub-unit remainder rather than truncating it. A share is worth about 33.3
-            // minor units and dropping the third would skim roughly 40 EC per hundred hours.
-            rig.miningResidueMinorUnits += earned;
-            long banked = (long) Math.floor(rig.miningResidueMinorUnits);
-            rig.miningResidueMinorUnits -= banked;
-
-            rig.miningPendingMinorUnits += banked;
             rig.miningPendingPayouts += payouts;
             rig.miningPayouts += payouts;
             rig.miningLastPayoutAt = now;
         }
         return settle(rig, now, solo);
+    }
+
+    /**
+     * Moves one payout into the pool's internal balance and reports what whole units it added.
+     *
+     * <h2>⚠ The residue is carried, never truncated</h2>
+     *
+     * A share is worth about 33.3 minor units and dropping the third would skim roughly 40 EC per
+     * hundred hours — invisible per payout and a real leak at 120 payouts an hour.
+     *
+     * <h2>⚠ Banking per payout rather than per tick is an ATTRIBUTION change, not an economy one</h2>
+     *
+     * {@code floor(r + a + b) == floor(r + a) + floor(r + a − floor(r + a) + b)} for any non-negative
+     * {@code a}, {@code b}, so a tick that lands two blocks banks exactly what it banked when the two
+     * were summed first. What it buys is a per-block figure to write into the contributor record —
+     * and one that sums to the ledger row, which a separately-rounded display figure would not.
+     *
+     * @return the whole minor units this payout added, which is what the contributor row records
+     */
+    private static long bank(RigState rig, double value) {
+        rig.miningResidueMinorUnits += value;
+        long banked = (long) Math.floor(rig.miningResidueMinorUnits);
+        rig.miningResidueMinorUnits -= banked;
+        rig.miningPendingMinorUnits += banked;
+        return banked;
+    }
+
+    /**
+     * Writes one block into the contributor record.
+     *
+     * <h2>⚠ Called for blocks that paid nothing, and that is the point</h2>
+     *
+     * Under pay-per-share the rig's hashrate goes into every block its pool finds and none of those
+     * blocks pay it — the pool pays a fixed price per accepted share out of its own balance instead.
+     * Recording only the blocks that paid would make PPS look like a mode that mines nothing, and
+     * would delete the one surface where the difference between the two schemes is visible.
+     *
+     * <p>Only what was <b>rolled</b> is stored. The transaction count, the fee total and the subsidy
+     * are stable functions of the height and are derived at read time from the same place
+     * {@code ChainExplorer} derives them for the block card, so a contributor row and the card it
+     * names cannot come apart. See {@code ContributionState}.
+     */
+    private static void record(SoloSave save, ChainRules.Won block, long credited, boolean won) {
+        ChainState chain = save.chain;
+        if (chain == null) {
+            return;
+        }
+        ContributionState row = new ContributionState();
+        row.height = block.height();
+        row.at = block.at();
+        row.offline = block.offline();
+        row.won = won;
+        row.mode = modeOf(save.rig).name();
+        row.scheme = won ? "SOLO" : poolOf(save.rig).scheme().name();
+        row.poolId = won ? "" : poolOf(save.rig).id();
+        row.hashrate = ChainRules.hashrate(save.rig.selfMiningCycles);
+        row.networkHashrate = Math.round(chain.networkHashrate);
+        row.difficulty = chain.difficulty;
+        row.creditedMinorUnits = credited;
+
+        chain.contributions.add(row);
+        while (chain.contributions.size() > ContributionState.LIMIT) {
+            chain.contributions.removeFirst();
+        }
     }
 
     /**

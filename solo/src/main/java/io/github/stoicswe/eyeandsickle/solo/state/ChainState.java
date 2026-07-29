@@ -93,6 +93,16 @@ public final class ChainState {
     /** How many won heights the index keeps. Older wins are still in the ledger. */
     public static final int WON_INDEX = 256;
 
+    /**
+     * Every block this character put hashrate into, oldest first, bounded.
+     *
+     * <p>Wider than {@link #blocksWon} in two directions and narrower in none: it includes blocks the
+     * rig's <em>pool</em> won, and it keeps what the world looked like at the time — the allocation,
+     * the network hashrate, the difficulty. See {@link ContributionState}, and note that everything
+     * derivable from the height deliberately is not stored here.
+     */
+    public java.util.List<ContributionState> contributions = new java.util.ArrayList<>();
+
     /** This rig's transactions that no miner has packed into a block yet. */
     public java.util.List<PendingTxState> mempool = new java.util.ArrayList<>();
 

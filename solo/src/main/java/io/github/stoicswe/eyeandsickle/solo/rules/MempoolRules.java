@@ -4,6 +4,7 @@ import io.github.stoicswe.eyeandsickle.protocol.game.FeeTier;
 import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.state.LedgerEntryState;
 import io.github.stoicswe.eyeandsickle.solo.state.PendingTxState;
+import io.github.stoicswe.eyeandsickle.solo.state.StoredFileState;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -43,10 +44,35 @@ public final class MempoolRules {
      * people's traffic rather than a fixed slower speed.
      */
     public static int backlog(SoloSave save) {
+        return save.chain == null ? 0 : backlogAt(save, save.chain.height);
+    }
+
+    /**
+     * The same queue depth at a stated height — what the panel's projections pack against.
+     *
+     * <h2>⚠ Each projected block gets its OWN queue, and draining one snapshot was wrong</h2>
+     *
+     * The projections used to subtract from a single current backlog: the next block took 200 of
+     * ~300, the one after took the remaining ~100, and everything past that rendered <b>empty</b>.
+     * With a fixed three cards that put one dead card at the end of the strip; at 3–5 it would put up
+     * to three, and a card reading "0 txs" claims the chain is about to go quiet, which is a
+     * prediction the model does not make and the fee market flatly contradicts.
+     *
+     * <p>The queue does not drain, because transactions keep arriving — a real mempool at steady
+     * state has inflow roughly equal to throughput, which is exactly why there is a fee market to
+     * bid into at all. A queue that emptied after two blocks would price every later slot at the
+     * floor, and {@link FeeTier}'s middle tiers would stop meaning anything.
+     *
+     * <p>Derived per height rather than modelled as an arrival rate: the depth already varies ±60%
+     * with height, so reading it at {@code height + n} gives each future block a plausible and
+     * <em>stable</em> queue for free, and stability is what stops the strip reshuffling on a panel
+     * that repaints once a second.
+     */
+    public static int backlogAt(SoloSave save, long height) {
         if (save.chain == null) {
             return 0;
         }
-        long mixed = mix(save.chain.blockSeed ^ (save.chain.height * 0x9E3779B97F4A7C15L));
+        long mixed = mix(save.chain.blockSeed ^ (height * 0x9E3779B97F4A7C15L));
         // ±60% around the baseline. Wide enough that a quiet block genuinely happens.
         double swing = ((mixed >>> 11) / (double) (1L << 53)) * 1.2d - 0.6d;
         return Math.max(0, (int) Math.round(Balance.MEMPOOL_BASELINE_DEPTH * (1 + swing)));
@@ -60,7 +86,20 @@ public final class MempoolRules {
      * the mempool panel prints it.
      */
     public static double clearingFee(SoloSave save) {
-        int waiting = backlog(save);
+        return save.chain == null
+                ? Balance.FEE_ECONOMY_MINOR_UNITS
+                : clearingFeeAt(save, save.chain.height);
+    }
+
+    /**
+     * The same price at a stated height, so each projected block quotes its own.
+     *
+     * <p>It is a function of that block's queue depth ({@link #backlogAt}), so a strip of five cards
+     * shows the price moving with the queue rather than repeating one figure five times — which is
+     * the whole reason a player would look at more than the next block.
+     */
+    public static double clearingFeeAt(SoloSave save, long height) {
+        int waiting = backlogAt(save, height);
         int slots = Balance.BLOCK_TRANSACTION_LIMIT;
         if (waiting <= slots) {
             // Everyone gets in. The floor clears, and an economy transaction confirms immediately.
@@ -103,6 +142,10 @@ public final class MempoolRules {
 
         entry.txHash = tx.txHash;
         entry.counterparty = tx.counterparty;
+        // ⚠ Copied onto the LEDGER row, not left on the pending record alone. confirmInto removes
+        // the pending record, so a fee that lived only there vanished at the exact moment the
+        // transaction became interesting to look at.
+        entry.feeMinorUnits = tx.feeMinorUnits;
         // ⚠ -1 until a miner takes it. The explorer prints a dash, and a number here would claim a
         // block carried a transaction it does not.
         entry.blockNumber = -1L;
@@ -110,6 +153,144 @@ public final class MempoolRules {
         save.chain.mempool.add(tx);
         save.chain.nonce++;
         return tx;
+    }
+
+    // ================================================================== replace-by-fee
+
+    /** Why a boost was refused. */
+    public enum BoostRefusal {
+        /** No transaction under that hash is waiting — most often because it already confirmed. */
+        NOT_PENDING,
+
+        /**
+         * ⚠ The new fee is not higher than the old one.
+         *
+         * <p>Real replace-by-fee has the same rule and for a harder reason than tidiness: a
+         * replacement that paid <em>less</em> would let anyone rewrite a transaction the network has
+         * already relayed, at no cost, as many times as they liked. A bump only ever goes up.
+         */
+        NOT_HIGHER,
+
+        /** The difference cannot be afforded. */
+        CANNOT_AFFORD
+    }
+
+    /** What a boost did, or why it did not. */
+    public record Boost(boolean ok, BoostRefusal refusal, long paidMinorUnits, String message) {
+
+        static Boost refused(BoostRefusal refusal, String message) {
+            return new Boost(false, refusal, 0L, message);
+        }
+    }
+
+    /**
+     * Raises a waiting transaction's fee — <b>replace-by-fee</b>.
+     *
+     * <h2>What this is a model of</h2>
+     *
+     * A transaction sitting in a mempool is not committed to anything. Its sender can rebroadcast it
+     * offering more, and miners — who sort by fee rate — will prefer the new version. Bitcoin calls
+     * this RBF, and it is the mechanism behind every "stuck transaction, bump the fee" support thread
+     * on the internet. It is worth modelling because it is the piece that makes a fee feel like a
+     * <em>bid</em> rather than a price: a player who under-paid, watched their purchase sit three
+     * blocks out, and paid the difference to jump the queue has learned what a fee market is in a way
+     * no tooltip achieves.
+     *
+     * <h2>⚠ Only the DIFFERENCE is charged, and that is not a discount</h2>
+     *
+     * The original fee was already debited when the transaction was broadcast, so charging the full
+     * new fee would take it twice. What the player ends up having paid is exactly the new tier's fee,
+     * which is what a replacement costs.
+     *
+     * <p>⚠ Both records are updated. The pending transaction is what {@link #confirmInto} sorts on and
+     * what the mempool panel draws; the ledger row is what the block explorer reads once it is mined
+     * and the pending record is gone ({@code LedgerEntryState.feeMinorUnits}). Updating one would make
+     * a boosted transaction sort at the new fee and render at the old one.
+     *
+     * <h2>⚠ The hash does NOT change</h2>
+     *
+     * A real replacement is a different transaction with a different txid; this one keeps its hash.
+     * That is a deliberate simplification, for the reason {@link #submit} already gives: a hash that
+     * changed underneath the player would make the pending row and the mined row two different
+     * transactions on a readout {@code docs/design/04-mining.md} §3.1 asks them to reconcile. The
+     * simplification is stated in {@code rbf(7)} rather than hidden.
+     *
+     * @param txHash the waiting transaction, as the panel shows it
+     * @param tier the tier to raise it to
+     */
+    public static Boost boost(SoloSave save, String txHash, FeeTier tier, Instant now) {
+        if (save == null || save.chain == null || txHash == null) {
+            return Boost.refused(BoostRefusal.NOT_PENDING, "no such transaction is waiting.");
+        }
+        PendingTxState tx = save.chain.mempool.stream()
+                .filter(pending -> txHash.equals(pending.txHash))
+                .findFirst()
+                .orElse(null);
+        if (tx == null) {
+            // Overwhelmingly the ordinary case rather than an error: it confirmed while the player
+            // was deciding. Said as what happened, not as a failure.
+            return Boost.refused(BoostRefusal.NOT_PENDING,
+                    "that transaction is no longer waiting — it has already been mined.");
+        }
+        long wanted = Balance.feeFor(tier);
+        if (wanted <= tx.feeMinorUnits) {
+            return Boost.refused(BoostRefusal.NOT_HIGHER,
+                    "a replacement has to offer more than the transaction it replaces. This one is "
+                            + "already paying " + tier(tx) + ".");
+        }
+        long difference = wanted - tx.feeMinorUnits;
+        if (!LedgerRules.canDebit(save, difference)) {
+            return Boost.refused(BoostRefusal.CANNOT_AFFORD,
+                    "not enough ethecoin to raise the fee — the difference is "
+                            + money(difference) + ".");
+        }
+
+        LedgerRules.apply(save, -difference, "TX_FEE",
+                "Fee boost to " + tier.label().toLowerCase(java.util.Locale.ROOT)
+                        + " (" + money(difference) + " on top)", now);
+        String was = tier(tx);
+        tx.feeTier = tier.name();
+        tx.feeMinorUnits = wanted;
+        for (LedgerEntryState entry : save.ledger) {
+            if (entry.entryId.equals(tx.entryId)) {
+                entry.feeMinorUnits = wanted;
+                break;
+            }
+        }
+        EventLog.info(save, "chain",
+                "fee boosted " + was + " -> " + tier.label().toLowerCase(java.util.Locale.ROOT)
+                        + " on " + shortHash(tx.txHash) + "; miners sort by fee rate, so it moves up "
+                        + "the queue.", now);
+        return new Boost(true, null, difference,
+                "boosted to " + tier.label().toLowerCase(java.util.Locale.ROOT) + " for "
+                        + money(difference) + " more. " + tier.promise() + ".");
+    }
+
+    /** The tier a waiting transaction is currently paying, in words. */
+    private static String tier(PendingTxState tx) {
+        try {
+            return FeeTier.valueOf(tx.feeTier).label().toLowerCase(java.util.Locale.ROOT);
+        } catch (IllegalArgumentException | NullPointerException unknown) {
+            return money(tx.feeMinorUnits);
+        }
+    }
+
+    /** The next tier up from what this transaction is paying, or empty when it is already at the top. */
+    public static java.util.Optional<FeeTier> nextTierUp(PendingTxState tx) {
+        long paying = tx == null ? 0L : tx.feeMinorUnits;
+        return java.util.Arrays.stream(FeeTier.values())
+                .filter(tier -> Balance.feeFor(tier) > paying)
+                .min(java.util.Comparator.comparingLong(Balance::feeFor));
+    }
+
+    private static String money(long minorUnits) {
+        return String.format(java.util.Locale.ROOT, "%d.%02d EC",
+                minorUnits / 100, Math.abs(minorUnits % 100));
+    }
+
+    private static String shortHash(String hash) {
+        return hash == null || hash.length() < 14 ? String.valueOf(hash)
+                : hash.substring(0, 8) + "…" + hash.substring(hash.length() - 4);
     }
 
     /**
@@ -144,7 +325,7 @@ public final class MempoolRules {
         }
         for (PendingTxState tx : confirmed) {
             save.chain.mempool.remove(tx);
-            stamp(save, tx, height);
+            stamp(save, tx, height, now);
         }
         if (!confirmed.isEmpty()) {
             EventLog.info(save, "chain",
@@ -189,13 +370,49 @@ public final class MempoolRules {
         return Math.max(1, free);
     }
 
-    /** Marks a transaction mined, on both the pending record and the ledger row it belongs to. */
-    private static void stamp(SoloSave save, PendingTxState tx, long height) {
+    /**
+     * Marks a transaction mined, on both the pending record and the ledger row it belongs to.
+     *
+     * <p>⚠ This one assignment is what releases a bought upgrade. {@code Repac.locked} derives the
+     * hold from exactly this field, so there is no unlock step to forget and no flag to go stale —
+     * the package becomes installable the instant a miner packs the payment, whether or not anything
+     * was on screen to watch it happen.
+     */
+    private static void stamp(SoloSave save, PendingTxState tx, long height, Instant now) {
         for (LedgerEntryState entry : save.ledger) {
             if (entry.entryId.equals(tx.entryId)) {
                 entry.blockNumber = height;
+                released(save, entry, height, now);
                 return;
             }
+        }
+    }
+
+    /**
+     * Says so when a confirmation has unlocked something the player is waiting on.
+     *
+     * <p>A package that silently becomes installable is a package the player checks on by accident,
+     * minutes or hours late — and this is a wait they were told to expect, which makes its end the
+     * kind of event {@code EventLog} exists for. Nothing is logged for a confirmation that releases
+     * nothing, because most of them do not.
+     */
+    private static void released(SoloSave save, LedgerEntryState entry, long height, Instant now) {
+        for (StoredFileState file : List.copyOf(save.files)) {
+            if (!entry.entryId.equals(file.lockedByEntryId)) {
+                continue;
+            }
+            // ⚠ THE CONFIRMATION IS WHAT RUNS REPAC, and that is the whole lock.
+            //
+            // `.pkg` already means "a vendor's package" and `.upg` means "one this rig can install"
+            // — Repac is the documented step between them. A bought package therefore lands as a
+            // `.pkg` and stays one until the payment is mined, so the lock needs no new state, no
+            // new glyph and no plumbing into the filesystem: it is visible in `ls`, in the file
+            // manager and in the shell, in a vocabulary the game already teaches. You do not own it
+            // until you have paid, and on a chain "paid" means "in a block".
+            String was = file.name;
+            Repac.repack(save, file, now).ifPresent(packaged -> EventLog.notice(save, "storage",
+                    "payment confirmed in block " + height + " — repac: " + was + " -> "
+                            + packaged.name + " (installable; double-click it, or sell it)", now));
         }
     }
 
@@ -272,6 +489,69 @@ public final class MempoolRules {
         }
         return total;
     }
+
+    /**
+     * How many blocks ahead the mempool panel projects — 3 to 5, varying with the chain.
+     *
+     * <h2>Why it varies at all</h2>
+     *
+     * A fixed count said something the chain does not: that the queue is always legible exactly three
+     * blocks out. How far ahead a mempool can honestly be read depends on how much is in it — a thin
+     * queue is predictable further out because there is less traffic to displace what is waiting, and
+     * a deep one stops being a projection and starts being a guess after a block or two. Varying the
+     * depth is the panel admitting that its horizon is a property of the queue rather than of the
+     * panel.
+     *
+     * <h2>⚠ Derived from chain state, never drawn, and NOT from the wall clock</h2>
+     *
+     * Three properties, and each one is a bug avoided:
+     *
+     * <ul>
+     *   <li><b>Stable per height.</b> The panel repaints once a second ({@code Views.ledger}'s
+     *       {@code refreshClock}). A drawn count would add and remove a card every second, which
+     *       reads as the interface glitching rather than as the chain being uncertain.
+     *   <li><b>Advances with the chain, not with time.</b> Same rule as {@link #backlog}: a queue
+     *       that changed while the chain stood still would let a player watch for a good moment
+     *       without paying a block for it.
+     *   <li><b>Reproducible.</b> It is a function of {@code (blockSeed, height)}, so the same chain
+     *       state always renders the same panel — which is what the whole {@code solo} module's
+     *       "pure function of (save, clock)" discipline is for.
+     * </ul>
+     *
+     * <p>The correlation with the backlog is deliberate rather than decorative: the mix is over the
+     * same height, so a deep-queue block tends to project shallower and a thin one deeper. It is not
+     * a hard rule — that would be a rule players would learn to read the backlog off — but it is the
+     * right tendency.
+     */
+    public static int projectionDepth(SoloSave save) {
+        if (save.chain == null) {
+            return MIN_PROJECTIONS;
+        }
+        long mixed = mix(save.chain.blockSeed
+                ^ (save.chain.height * 0x9E3779B97F4A7C15L)
+                ^ 0x7F4A_7C15_1234_5678L);
+        int span = MAX_PROJECTIONS - MIN_PROJECTIONS + 1;
+        return MIN_PROJECTIONS + (int) Math.floorMod(mixed, (long) span);
+    }
+
+    /**
+     * The shallowest the panel ever projects.
+     *
+     * <p>Three, because the fee tiers promise three distinguishable outcomes — priority lands in the
+     * next block, standard soon after, economy when the queue thins — and a panel that could show two
+     * would have nowhere to render the third.
+     */
+    public static final int MIN_PROJECTIONS = 3;
+
+    /**
+     * The deepest.
+     *
+     * <p>Five, which is about seventy minutes at the target interval. Past that the projection is
+     * describing a queue that has been entirely replaced by traffic that has not arrived yet, and
+     * {@code ChainMempool}'s type comment is explicit that a projection is a snapshot of a queue and
+     * never a schedule — a sixth card would be the panel over-claiming.
+     */
+    public static final int MAX_PROJECTIONS = 5;
 
     /** splitmix64 finalizer. Same mixing the save's own Rng uses, so the two look alike. */
     private static long mix(long z) {

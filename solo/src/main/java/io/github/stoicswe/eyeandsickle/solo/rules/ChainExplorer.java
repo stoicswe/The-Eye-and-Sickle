@@ -1,12 +1,15 @@
 package io.github.stoicswe.eyeandsickle.solo.rules;
 
+import io.github.stoicswe.eyeandsickle.protocol.game.BlockContribution;
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainBlock;
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainMempool;
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainTransaction;
+import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningPool;
 import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.Pools;
 import io.github.stoicswe.eyeandsickle.solo.state.ChainState;
+import io.github.stoicswe.eyeandsickle.solo.state.ContributionState;
 import io.github.stoicswe.eyeandsickle.solo.state.LedgerEntryState;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
 import java.nio.charset.StandardCharsets;
@@ -159,6 +162,77 @@ public final class ChainExplorer {
     /** A block header with every transaction in it, for the detail view. */
     public static ChainBlock blockWithBody(SoloSave save, long height) {
         return header(save, height).withBody(body(save, height));
+    }
+
+    // ================================================================== contributions
+
+    /**
+     * Every block this character put hashrate into, newest first — the CONTRIBUTOR tab.
+     *
+     * <h2>⚠ Four of these fields are DERIVED and must never be stored</h2>
+     *
+     * The transaction count, the fee total and the subsidy are stable functions of the height, and
+     * they are read here from exactly the places the block card reads them — {@code MempoolRules} and
+     * {@code Balance} — so a contributor row and the card for the block it names cannot disagree.
+     * Storing them in the save would be caching game state, and a cache of game state eventually
+     * disagrees with it on the one surface {@code docs/design/04-mining.md} §3.1 trains a player to
+     * treat a disagreement as evidence.
+     *
+     * <p>What the save does hold is what was <b>rolled</b> and what the world looked like at the
+     * time: the height, the mode, the rig's allocation, the network's hashrate, the difficulty, and
+     * what was actually credited. See {@code ContributionState}.
+     *
+     * <h2>Blocks that paid nothing are here on purpose</h2>
+     *
+     * A pay-per-share pool does not divide up the blocks it finds — it pays a fixed price per accepted
+     * share out of its own balance — so a PPS row carries a real hashrate and a zero credit. That is
+     * not a gap in the record; it is the difference between the two pool schemes, which
+     * {@code MiningRules.rewardBaseMinorUnits} spends three paragraphs on and no screen had ever
+     * shown.
+     */
+    public static List<BlockContribution> contributions(SoloSave save, int limit) {
+        ChainState chain = save.chain;
+        if (chain == null || chain.contributions.isEmpty()) {
+            return List.of();
+        }
+        List<BlockContribution> out = new ArrayList<>();
+        int from = Math.max(0, chain.contributions.size() - Math.max(1, limit));
+        for (int i = chain.contributions.size() - 1; i >= from; i--) {
+            out.add(contribution(save, chain.contributions.get(i)));
+        }
+        return out;
+    }
+
+    /** One stored row, with everything derivable derived. */
+    private static BlockContribution contribution(SoloSave save, ContributionState row) {
+        MiningMode mode;
+        try {
+            mode = MiningMode.valueOf(row.mode);
+        } catch (IllegalArgumentException | NullPointerException unknown) {
+            // Pooled, matching MiningRules.modeOf — a hand-edited save must not make a pooled row
+            // render as a solo win, which is the reading that would over-state what the rig did.
+            mode = MiningMode.POOLED;
+        }
+        boolean solo = row.won;
+        String poolName = solo || row.poolId == null || row.poolId.isBlank()
+                ? ""
+                : Pools.byId(row.poolId).name();
+        return new BlockContribution(
+                row.height,
+                row.at,
+                mode,
+                row.scheme == null || row.scheme.isBlank() ? "PPS" : row.scheme,
+                solo ? "" : row.poolId == null ? "" : row.poolId,
+                poolName,
+                row.won,
+                row.offline,
+                row.hashrate,
+                row.networkHashrate,
+                row.difficulty,
+                MempoolRules.blockTransactionCount(save, row.height),
+                Balance.BLOCK_SUBSIDY_MINOR_UNITS,
+                MempoolRules.blockFeesMinorUnits(save, row.height),
+                row.creditedMinorUnits);
     }
 
     /**
@@ -393,6 +467,14 @@ public final class ChainExplorer {
 
     /** What this entry paid to be included, from the mempool record if it is still waiting. */
     private static long feeOf(SoloSave save, LedgerEntryState entry) {
+        // ⚠ The ROW's own record first. The mempool loop below only ever answered for a transaction
+        // still waiting — confirmInto deletes the pending record — so a confirmed priority
+        // transaction reported the STANDARD fee, and a block's rows are sorted by fee rate, so the
+        // player's own row also sorted into the wrong part of the block they had paid to be at the
+        // top of. Caught by rendering a block that contained one.
+        if (entry.feeMinorUnits >= 0) {
+            return entry.feeMinorUnits;
+        }
         if (save.chain != null) {
             for (PendingTxState pending : save.chain.mempool) {
                 if (pending.entryId.equals(entry.entryId)) {
@@ -400,6 +482,7 @@ public final class ChainExplorer {
                 }
             }
         }
+        // Only reached by an entry written before the fee was recorded on the row.
         return Balance.FEE_STANDARD_MINOR_UNITS;
     }
 
@@ -509,11 +592,20 @@ public final class ChainExplorer {
         int[] landsIn = new int[pending.size()];
         java.util.Arrays.fill(landsIn, -1);
         int placed = 0;
-        int remaining = backlog;
-        for (int index = 0; index < 3; index++) {
+        // ⚠ 3 to 5, derived from chain state rather than drawn — the panel repaints once a second
+        // and a drawn count would add and remove a card every repaint. MempoolRules owns the rule
+        // because how far a queue can honestly be read ahead is a fact about the queue.
+        int depth = MempoolRules.projectionDepth(save);
+        for (int index = 0; index < depth; index++) {
             int slots = Balance.BLOCK_TRANSACTION_LIMIT;
-            int npc = Math.min(slots, remaining);
-            remaining -= npc;
+            // ⚠ EACH block's own queue, not a single snapshot drained across the strip. Draining
+            // meant the third card onward rendered "0 txs" — one dead card at a fixed three, up to
+            // three of them at 3–5 — which claims the chain is about to go quiet. It does not: a
+            // real mempool has inflow roughly equal to throughput, which is the entire reason there
+            // is a fee market to bid into. See MempoolRules.backlogAt.
+            long height = chain.height + 1L + index;
+            int npc = Math.min(slots, MempoolRules.backlogAt(save, height));
+            double clearingHere = MempoolRules.clearingFeeAt(save, height);
             // ⚠ MempoolRules' rule, not a second copy of it. The old local `slots - npc` had no
             // floor, so a block the backlog filled reported zero slots for the player here while
             // confirmInto went on giving them one — a 0.30 EC priority transaction whose card
@@ -521,8 +613,13 @@ public final class ChainExplorer {
             int free = MempoolRules.slotsAgainst(npc);
             int ours = 0;
             while (ours < free && placed < pending.size()) {
-                if (pending.get(placed).feeMinorUnits() < Math.floor(clearing) && index == 0) {
-                    // Outbid for the next block. It shows up in a later projection instead, which is
+                // ⚠ Checked against THIS block's clearing price, at every index rather than only the
+                // first. It used to be `&& index == 0`, which was right while every card quoted one
+                // shared price and became wrong the moment they each quoted their own: a transaction
+                // outbid for the next block would then be placed unconditionally in the one after,
+                // however expensive that block's queue happened to be.
+                if (pending.get(placed).feeMinorUnits() < Math.floor(clearingHere)) {
+                    // Outbid for this block. It shows up in a later projection instead, which is
                     // exactly what an under-priced transaction does rather than vanishing.
                     break;
                 }
@@ -530,19 +627,38 @@ public final class ChainExplorer {
                 placed++;
                 ours++;
             }
-            // ⚠ The player's transactions DISPLACE network ones in a full block, they do not extend
-            // it. Adding them on top would render a 201-transaction block against a 200 limit, and a
+            // ⚠ How many the block CARRIES, from the same rule the mined card will use — not how
+            // many are queued for it.
+            //
+            // Those are two different quantities and the panel needs both: the backlog above is
+            // queue pressure and decides how many slots the player wins, while this is what the
+            // block ends up holding. Rendering the backlog as the count meant a card reading
+            // "200 txs" that landed two minutes later as a 47-transaction block, and — once the fee
+            // total below became real — "200 txs · fees 7.60 EC", which a player can falsify with
+            // arithmetic. Asking MempoolRules for both keeps the projection and the block it becomes
+            // reconcilable, which docs/design/04-mining.md §3.1 makes the difference between a
+            // readout and a false-positive generator.
+            int carried = MempoolRules.blockTransactionCount(save, height);
+            // ⚠ The player's transactions DISPLACE network ones, they do not extend the block.
+            // Adding them on top would render a 201-transaction block against a 200 limit, and a
             // fill bar over 100% — which is what happens if the contested slot is granted without
-            // taking it off somebody.
-            int npcShown = Math.min(npc, slots - ours);
-            int total = npcShown + ours;
-            long fees = 0;
-            for (int i = placed - ours; i < placed; i++) {
-                fees += pending.get(i).feeMinorUnits();
-            }
+            // taking it off somebody. Same rule as body(); max() only matters in the degenerate case
+            // where a near-empty queue hands the player more slots than the block carries.
+            int total = Math.min(slots, Math.max(carried, ours));
+            // ⚠ THE WHOLE BLOCK'S fees, estimated over exactly the transactions counted above — not
+            // this rig's, which is what it was and why the card read "fees 0.00 EC" on every
+            // projection the player had nothing waiting in. It is the same call the mined block card
+            // makes at the same height, so the estimate and the realised figure are the same number
+            // arrived at once. The rig's own fee is deliberately not added: it displaces network
+            // traffic rather than adding to it, so the block's total does not move for it — see
+            // MempoolRules.blockFeesMinorUnits.
+            long fees = MempoolRules.blockFeesMinorUnits(save, height);
+            // ⚠ THIS block's clearing price, not the strip's. Every card quoted the current one
+            // before the queues were split apart, so five cards printed the same figure five times
+            // and a player comparing them learned nothing from looking past the first.
             projected.add(new ChainMempool.ProjectedBlock(
                     index, total, ours, (long) total * GAS_PER_TRANSFER,
-                    BLOCK_GAS_LIMIT, fees, clearing, etaOf(anchor, index)));
+                    BLOCK_GAS_LIMIT, fees, clearingHere, etaOf(anchor, index)));
         }
 
         List<ChainMempool.Queued> queued = new ArrayList<>();

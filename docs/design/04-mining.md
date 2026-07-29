@@ -21,9 +21,23 @@ Runs on the player's own rig. Consumes allocated compute at **0.4 EC per cycle-h
 
 **Why the immunity is load-bearing:** heat can destroy a deployment network but never the floor. A player who goes hot drops from ~60 EC/hr to 40 EC/hr, not to zero. Heat stays a real cost with a real bottom, and mining remains the productive off-ramp from a hot state instead of a second punishment stacked on the first. If self-mining were ever raidable, going hot would mean total income loss and the heat system would become a fun-ejector.
 
-### 1.2 Online-only
+### 1.2 The spin-down window (amended 2026-07-29)
 
-Self-mining runs **only while the player is in session** (matching the botnet rule, Invariant I5). This keeps the compute tradeoff real — cycles on mining are cycles not on bots, tools, and defense, and that tension only exists during a session. Offline accrual would make those cycles free and mining would stop being an active bet.
+Self-mining ran **only while the player was in session** until 2026-07-29. It now keeps hashing for a **bounded window after the client closes** — `Balance.OFFLINE_MINING_HOURS`, currently 4 — and then stops dead. Invariant I5 was amended to match.
+
+**What the cap protects, and why it is the same 4 hours the miner buffer uses.** The original rule existed to stop absence out-earning play: uncapped accrual on an income stream that is also zero-heat and unseizable (I4) makes "leave the game closed" the dominant strategy, and it rewards the *cautious* player most. A cap defeats that on its own — the same argument §5's buffer cap already won. Past four hours a longer absence is worth exactly nothing more, so there is no absence a player can optimise toward, and an hour played always beats an hour away because play is uncapped.
+
+**The compute tradeoff survives it.** Cycles on mining are still cycles not on bots, tools and defence, and the spin-down window does not change that ratio — it shifts *when* four hours of one allocation pays out, never how much any allocation is worth per hour.
+
+**Why it exists at all:** the chain does not stop when the client does (§1.3d), so a returning player watches hundreds of blocks fill in that their rig was demonstrably powered for part of. A rig that produced nothing across a window the chain plainly recorded read as a bug, and the resume log had to say so in as many words to stop it being reported as one.
+
+**Deployed miners keep their identity.** They are still the *volume* offline income, because a deployed miner spends the **host's** compute (I6): a five-miner network buffers five hosts' worth of the same four hours while the rig's own allocation buffers one. What they are no longer is the *only* offline income — and the thing that still distinguishes them is exposure, not duration. A miner's buffer sits on somebody else's disk and can be seized (§5.1); self-mining cannot be touched (I4).
+
+### 1.2a Solo blocks found during spin-down
+
+A block won inside the window is a real block, credited whole — the subsidy plus that block's fees, exactly as one won in session. It names its height in the ledger and appears in the contributor record like any other. Pooled mining accrues across the window on the same terms.
+
+Past the cap the rig is off, so its hashrate is zero and it is drawn against nothing. Those blocks still happen — somebody else mined them — and the explorer shows them with their real winners.
 
 ### 1.3 The chain — pooled and solo (rebuilt 2026-07-27)
 
@@ -216,6 +230,35 @@ The chain is also small: a full rig is ~4% of it, where a real solo miner is a r
 #### Deployed miners and bots are unchanged
 
 Deliberately. They are pooled by construction — a buffer that fills at a rate, capped, collected on a visit — and variance on the one income stream the player cannot watch or react to would be punishment without a decision. It would also break §5.1's crack timing bet, which is priced on *"payout scales with buffer fullness"*: a buffer that filled in jumps would make *"found at minute five, it holds almost nothing"* false about half the time.
+
+### 1.3e Buying a tool settles on-chain (2026-07-29)
+
+A purchase used to hand over the item in the same call that took the money. It now runs the same pipeline a stolen upgrade does:
+
+1. **Pay.** Ethecoin leaves the balance immediately and the transaction enters the mempool, exactly as a real wallet deducts a send before it is mined.
+2. **Download.** A real transfer, bounded by the vendor's uplink like every other transfer (§1.3c's link ceiling), with the progress bar the file manager already draws. It lands in `~/Downloads`.
+3. **Wait for the block.** It arrives as a vendor `.pkg` and *stays one* until the payment is mined. `install` and `sell` both refuse, naming the block rather than the file type.
+4. **Install.** Confirmation runs Repac, the file becomes a `.upg`, and installing it puts the tool in the vault.
+
+**⚠ The `.pkg` → `.upg` rename *is* the lock.** Repac already draws the line between "a vendor's package" and "one this rig can install"; a bought package simply does not cross it until the chain says the money moved. That means the lock needs no new state, no new glyph and no plumbing into the filesystem — it is visible in `ls`, in the file manager and in the shell, in vocabulary the game already teaches. It also means there is no flag anywhere that can disagree with the chain, because the hold is derived from the ledger row's block number on every read.
+
+**This is the first thing in the game that gives a fee tier a mechanical consequence.** Until now a fee bought only how soon a row stopped printing `—` in the ledger; it now buys a place in an earlier block, and therefore a tool sooner. A higher fee buys a slot, never a faster chain, and the refusal says so.
+
+**⚠ What this cost, stated plainly.** The old behaviour was defended on the grounds that withholding goods would make buying a consumable mid-breach impossible. That objection stands and is unresolved: the catalogue currently has no consumable whose value depends on being bought *during* a breach, so nothing is broken today — and the day one is added it needs an answer rather than a rediscovery. Logged in `15-open-questions.md`.
+
+### 1.3d Synchronizing — the chain kept going (2026-07-29)
+
+The chain advances **whether or not the client is running**. Until 2026-07-29 it did not: height froze at the moment of the last tick and resumed from there, so a character who played on Monday and again on Friday found four days of wall-clock time and no blocks, on the one readout in the game whose entire subject is that nobody owns it. A ledger that waits for you is not a decentralised ledger, and it is the single most legible way to say so.
+
+On load the missed span is filled in **block by block**, and the LEDGER window shows the fill as a `SYNCHRONIZING` screen rather than presenting a height that silently jumped. What it reports is what actually happened: how many blocks, over what span, how many the rig was still hashing for (§1.2), how many retargets closed, and how many of the player's own transactions confirmed while they were gone.
+
+**Three things follow from the fill being real rather than a jump.**
+
+- **Pending transactions confirm.** A broadcast transaction is on the network and gets mined whether or not its sender is watching. This is not income — the value moved when the row was written — so it is unaffected by I5, and a transaction that sat unconfirmed across a four-day absence would have been the lie.
+- **Difficulty retargets on the window that actually elapsed.** Each filled block carries its own timestamp, walked forward from the block interval, so a retarget closing mid-absence compares against *its* 1440 blocks and not against the whole absence. Stamping every filled block at the load instant instead makes `actual` the entire gap and drives difficulty into the clamp.
+- **The blocks have real winners.** They come off the same weighted table the live draw uses, so a player who scrolls back into the synchronized span sees a pool distribution indistinguishable from the one they watched live.
+
+**What the sync must never do is pay for the whole absence.** Only blocks inside the spin-down window are contested; past it the rig is off and its hashrate is zero. That is the whole of I5's remaining force, and it is what stops the sync screen becoming a reward for closing the game.
 
 ---
 

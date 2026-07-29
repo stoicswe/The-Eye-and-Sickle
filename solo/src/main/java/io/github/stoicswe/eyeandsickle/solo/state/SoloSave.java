@@ -115,6 +115,17 @@ public final class SoloSave {
     public List<NodeState> knownNodes = new ArrayList<>();
 
     /**
+     * The intelligence file on each machine a scan has come back from.
+     *
+     * <p>Separate from {@link #knownNodes} because they answer different questions and are written by
+     * different things: a node is "this machine exists and here is where it sits", established by a
+     * sweep; a report is "here is what we have learned about it and when", established by a scan.
+     * Folding the second into the first would put seven nullable findings and a timestamp map on every
+     * row of a list that is mostly machines nobody has looked at.
+     */
+    public List<NodeReportState> nodeReports = new ArrayList<>();
+
+    /**
      * The player's own filing of what they have discovered — see {@link FolderState}.
      *
      * <p>Sits beside {@link #knownNodes} rather than inside {@link #topology} on purpose. A folder is

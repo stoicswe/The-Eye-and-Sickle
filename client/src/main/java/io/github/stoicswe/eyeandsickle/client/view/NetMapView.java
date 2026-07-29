@@ -170,6 +170,18 @@ public final class NetMapView {
         /** Aim the breach window at it and raise it. Arms; never attacks. */
         void breach(String address);
 
+        /**
+         * Open the port scanner on it.
+         *
+         * <p>⚠ An action rather than a window in the catalogue: a scan is a thing done *to* a
+         * machine, so a scanner opened with no target would be a window asking "scan what?". See
+         * {@code PortScanView}.
+         */
+        void portScan(String address);
+
+        /** Open the intelligence file on it. Disabled in the menu when there is nothing on file. */
+        void info(String address);
+
         /** A no-op set, so a caller that has no desk still gets a working panel. */
         static NodeActions none() {
             return new NodeActions() {
@@ -178,6 +190,12 @@ public final class NetMapView {
 
                 @Override
                 public void breach(String address) {}
+
+                @Override
+                public void portScan(String address) {}
+
+                @Override
+                public void info(String address) {}
             };
         }
     }
@@ -230,11 +248,35 @@ public final class NetMapView {
         String[] menuTarget = {""};
         java.util.function.BiConsumer<String, javafx.scene.input.ContextMenuEvent> openMenu =
                 (address, event) -> {
+                    // ⚠ THE WINDOW IS CAPTURED FIRST, and the menu is anchored to it rather than to
+                    // the node that fired the event.
+                    //
+                    // Selecting repaints, and repainting REBUILDS THE GRAPH — so by the time the
+                    // menu is shown, the label the player right-clicked has been detached from the
+                    // scene. Anchoring a popup to a node with no window throws
+                    // "The owner node needs to be associated with a window", which is a crash on
+                    // every right-click of a machine on the map. Screen coordinates are absolute, so
+                    // the menu lands in exactly the same place either way.
+                    //
+                    // Selecting still happens BEFORE the rebuild, for the reason above this block:
+                    // a menu that acted on the previously-selected machine while the pointer was
+                    // plainly over another one would be a context menu about the wrong context.
+                    javafx.scene.Node source = event.getSource() instanceof javafx.scene.Node node
+                            ? node
+                            : null;
+                    javafx.stage.Window window = source == null || source.getScene() == null
+                            ? null
+                            : source.getScene().getWindow();
+
                     menuTarget[0] = address;
                     select.accept(address);
                     rebuildNodeMenu(nodeMenu, session, menuTarget[0], actions, arming, select);
-                    nodeMenu.show((javafx.scene.Node) event.getSource(),
-                            event.getScreenX(), event.getScreenY());
+                    if (window == null) {
+                        // Nothing to anchor to — the panel is not on screen. Selecting has already
+                        // happened, which is the half of this that is still meaningful.
+                        return;
+                    }
+                    nodeMenu.show(window, event.getScreenX(), event.getScreenY());
                 };
         graph.setOnNodeMenu(openMenu);
         list.setOnNodeMenu(openMenu);
@@ -654,6 +696,24 @@ public final class NetMapView {
             breach.setOnAction(event -> actions.breach(address));
             menu.getItems().add(breach);
         }
+
+        // ⚠ Offered on ANY machine a sweep has found, held or not — a port scan is the thing you do
+        // *before* you have a foothold, and gating it on one would put it behind the problem it
+        // exists to help with.
+        if (!self) {
+            javafx.scene.control.MenuItem scan = new javafx.scene.control.MenuItem("Port scan…");
+            scan.setOnAction(event -> actions.portScan(address));
+            menu.getItems().add(scan);
+        }
+
+        // ⚠ Offered even with nothing on file, and DISABLED rather than absent. An entry that
+        // vanished would make a player wonder whether they had mis-clicked; a disabled one says
+        // there is such a thing as a report and this machine has none yet, which is the fact.
+        javafx.scene.control.MenuItem info = new javafx.scene.control.MenuItem("Info");
+        boolean filed = session.nodeReport(address).map(r -> r.any()).orElse(false);
+        info.setDisable(!filed);
+        info.setOnAction(event -> actions.info(address));
+        menu.getItems().add(info);
 
         javafx.scene.control.MenuItem vantage = new javafx.scene.control.MenuItem(
                 "Move vantage here");

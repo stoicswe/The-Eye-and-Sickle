@@ -214,7 +214,24 @@ public final class FileManagerView {
 
         repaint[0].run();
         AutoCloseable subscription = session.onChange(s -> repaint[0].run());
-        closeOnDetach(root, subscription);
+        // ⚠ TWO refreshes, and the transfer bar needs the second one.
+        //
+        // A transfer's progress is derived from two timestamps and the session clock, not from game
+        // state, so nothing about the save changes while a download runs — `onChange` does not fire
+        // again until it finishes. The bar therefore painted once, at whatever fraction it was at
+        // when the panel was built, and sat there: a progress bar that does not progress, which
+        // reads as a stalled download rather than as a frozen readout.
+        //
+        // ⚠ Only the transfer strip is on the clock. Re-running the whole repaint every second would
+        // rebuild the listing under the player's scroll position and selection, which is the trade
+        // `Views.ledger` already records for the same reason — its block ages tick on a one-second
+        // pulse while its tables are rebuilt only on data change.
+        //
+        // Pulse.every, not animate: this is DATA. Under reduced motion a suppressed bar would not
+        // remove an animation, it would remove the only readout of how far along a download is.
+        AutoCloseable clock = io.github.stoicswe.eyeandsickle.client.ui.Pulse.shared()
+                .every(1_000, () -> paintTransfers(transfers, session));
+        closeOnDetach(root, subscription, clock);
         return root;
     }
 
@@ -603,13 +620,21 @@ public final class FileManagerView {
 
         // On your own rig, a package installs or sells. Both consume it, and the menu says which is
         // which rather than making the player guess from a single ambiguous "Use".
-        if (here.rig() && entry.name().endsWith(".upg")) {
-            MenuItem install = new MenuItem("Install");
+        // ⚠ BOTH suffixes. A `.pkg` on this rig is a bought package whose payment has not been
+        // mined; offering the panel only for `.upg` would hide the one screen that explains why it
+        // will not install, at exactly the moment a player is looking for that explanation.
+        if (here.rig() && isPackage(entry)) {
+            MenuItem install = new MenuItem("Install…");
             install.setOnAction(event ->
-                    refusal.setText(session.install(entry.path()).message()));
+                    showPackage(session, entry, PackageView.Mode.INSTALL, refusal));
+            // Read-only. The safe way to look at something you have not decided about — and the one
+            // to reach for on a package from a source you did not choose.
+            MenuItem inspect = new MenuItem("Inspect");
+            inspect.setOnAction(event ->
+                    showPackage(session, entry, PackageView.Mode.INSPECT, refusal));
             MenuItem sell = new MenuItem("Sell on the secondary market");
             sell.setOnAction(event -> refusal.setText(session.sell(entry.path()).message()));
-            menu.getItems().addAll(new SeparatorMenuItem(), install, sell);
+            menu.getItems().addAll(new SeparatorMenuItem(), install, inspect, sell);
         }
         row.setOnContextMenuRequested(event -> {
             menu.show(row, event.getScreenX(), event.getScreenY());
@@ -655,10 +680,12 @@ public final class FileManagerView {
             refusal.setText(entry.name() + ": you do not hold this machine. Breach it first.");
             return;
         }
-        if (here.rig() && entry.name().endsWith(".upg")) {
-            // Double-click installs, which is what double-clicking an installer does everywhere.
-            // Selling is a deliberate right-click, because it is the irreversible one.
-            refusal.setText(session.install(entry.path()).message());
+        if (here.rig() && isPackage(entry)) {
+            // ⚠ Double-click opens the INSTALLER, it no longer installs outright. Double-clicking an
+            // installer opens it everywhere else too — and installing consumes a package that could
+            // have been sold instead, which is a decision that should not be one accidental
+            // double-click away from being made without the facts.
+            showPackage(session, entry, PackageView.Mode.INSTALL, refusal);
             return;
         }
         refusal.setText(switch (entry.kind()) {
@@ -668,6 +695,39 @@ public final class FileManagerView {
             default -> entry.name() + " — " + human(entry.sizeBytes()) + ", " + entry.mode()
                     + ". Nothing in this file is modelled.";
         });
+    }
+
+    /** Whether this is an upgrade package in either of its two states — vendor's, or this rig's. */
+    private static boolean isPackage(FsEntry entry) {
+        return entry.name().endsWith(".upg") || entry.name().endsWith(".pkg");
+    }
+
+    /**
+     * Opens the package installer over the file manager.
+     *
+     * <p>⚠ Falls back to the rules' own refusal when there is no manifest. A path that looks like a
+     * package but is not one this rig holds — somebody else's, or a name that merely ends in
+     * {@code .pkg} — must produce the engine's sentence rather than an empty panel.
+     */
+    private static void showPackage(
+            GameSession session, FsEntry entry, PackageView.Mode mode, Label refusal) {
+        var manifest = session.packageAt(entry.path());
+        if (manifest.isEmpty()) {
+            refusal.setText(session.install(entry.path()).message());
+            return;
+        }
+        javafx.stage.Popup popup = new javafx.stage.Popup();
+        popup.setAutoHide(true);
+        Region panel = PackageView.create(session, manifest.get(), mode, popup::hide,
+                message -> refusal.setText(message));
+        popup.getContent().add(panel);
+        javafx.stage.Window window = javafx.stage.Window.getWindows().stream()
+                .filter(javafx.stage.Window::isShowing).findFirst().orElse(null);
+        if (window != null) {
+            popup.show(window,
+                    window.getX() + (window.getWidth() - 640) / 2,
+                    window.getY() + 90);
+        }
     }
 
     /**
@@ -797,7 +857,7 @@ public final class FileManagerView {
         return tip;
     }
 
-    private static void closeOnDetach(Region root, AutoCloseable subscription) {
+    private static void closeOnDetach(Region root, AutoCloseable... subscriptions) {
         boolean[] attached = {false};
         root.sceneProperty().addListener((observable, was, now) -> {
             if (now != null) {
@@ -808,11 +868,15 @@ public final class FileManagerView {
                 return;
             }
             attached[0] = false;
-            try {
-                subscription.close();
-            } catch (Exception ignored) {
-                // Nothing this panel can do about a registry that will not forget a listener, and
-                // throwing out of a scene listener would take the whole close with it.
+            for (AutoCloseable subscription : subscriptions) {
+                try {
+                    subscription.close();
+                } catch (Exception ignored) {
+                    // Nothing this panel can do about a registry that will not forget a listener,
+                    // and throwing out of a scene listener would take the whole close with it — and
+                    // would leave every LATER subscription in this loop still running, which is the
+                    // reason the try sits inside the loop rather than around it.
+                }
             }
         });
     }

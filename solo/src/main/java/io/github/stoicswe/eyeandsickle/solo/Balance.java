@@ -384,6 +384,49 @@ public final class Balance {
      */
     public static final long YIELD_BUFFER_HOURS = 4L;
 
+    /**
+     * How long the rig keeps hashing after the client closes — {@code docs/design/04-mining.md} §1.2.
+     *
+     * <h2>⚠ This is Invariant I5, amended on 2026-07-29, and it used to be zero</h2>
+     *
+     * I5 read "self-mining runs online-only". It now reads "stops a bounded time after the client
+     * closes; all offline income is capped, never proportional to absence" — because the cap, not the
+     * online-only rule, was always the thing doing the work. The argument against offline accrual was
+     * that absence would out-earn play on an income stream that is also zero-heat and unseizable
+     * (I4); past this window a longer absence is worth exactly nothing more, so there is no absence to
+     * optimise toward, and an hour played always beats an hour away because play is uncapped.
+     *
+     * <h2>⚠ Deliberately the same figure as {@link #YIELD_BUFFER_HOURS}, and deliberately not the
+     * same constant</h2>
+     *
+     * They agree today and they are not the same quantity. This one bounds how long a rig the player
+     * owns goes on working; that one bounds how much a miner sitting on somebody else's disk may hold
+     * before an attacker's prize stops growing ({@code 04} §5.1's crack timing bet is priced on it).
+     * Aliasing them would mean a re-tune of the crack window silently re-tuning self-mining, which is
+     * the class of coupling {@code CLAUDE.md} warns about for the {@code design/03} tables.
+     *
+     * <p>⚠ What separates self-mining from a deployed miner is now <b>exposure, not duration</b>: a
+     * miner spends the <em>host's</em> compute (I6), so five of them buffer five hosts' worth of the
+     * same four hours — and their buffer can be seized, where self-mining cannot be touched.
+     */
+    public static final long OFFLINE_MINING_HOURS = 4L;
+
+    /** The same window in seconds, which is the unit every caller actually wants. */
+    public static long offlineMiningSeconds() {
+        return OFFLINE_MINING_HOURS * 3600L;
+    }
+
+    /**
+     * The most blocks one synchronisation will fill in, block by block.
+     *
+     * <p>At a 14-minute interval this is a little over five years of absence, so it is a runaway
+     * backstop rather than a limit anybody reaches — the loop is a few arithmetic operations per
+     * block and 200 000 of them cost single-digit milliseconds. It exists because the alternative to
+     * a bound is a save whose {@code lastPlayedAt} was hand-edited to 1970 hanging the client on
+     * load, and because {@code advanceNetwork} already takes the same precaution per tick.
+     */
+    public static final int CHAIN_SYNC_BLOCK_LIMIT = 200_000;
+
     // ------------------------------------------------------------------ scanning
 
     /**

@@ -1574,6 +1574,91 @@
     -fx-padding: 7;
 }
 .es-block:hover      { -fx-border-color: -es-rule-hi; }
+/* ⚠ TWO classes, because `.es-block:hover` above is a class plus a pseudo-class and therefore
+   outranks any single-class rule — a one-class `.es-block-yours` lost its amber border the moment
+   the pointer crossed it, which is the one card a player is most likely to be pointing at. */
+.es-block.es-block-yours { -fx-border-color: -es-amber-mid; }
+/* ── Selection ──────────────────────────────────────────────────────────────────────────────
+ * Which card the detail panel below is describing. There was no selected state at all before
+ * 2026-07-29: clicking rewrote the detail text and marked nothing, so the header appeared with no
+ * indication of which of twenty-four cards it belonged to — reported as the selection not moving,
+ * which is what having none looks like from the outside.
+ *
+ * ⚠ NOT the accent. §2.1 reserves amber for money, and `.es-block-yours` already spends it on the
+ * one card that is income; a selected card is neither. It steps up the neutral ramp instead —
+ * brighter than hover, on a lifted ground — which reads as "this one" without claiming value.
+ * A card that is BOTH takes the bright accent, so selecting your own block does not demote it. */
+.es-block.es-block-selected {
+    -fx-background-color: -es-panel-hi;
+    -fx-border-color: -es-text-hi;
+}
+.es-block.es-block-yours.es-block-selected { -fx-border-color: -es-amber; }
+
+/* ── A block's transaction list ─────────────────────────────────────────────────────────────
+ * The reason a player opens a block is to find their own rows in it, and a block carries up to 200.
+ * ⚠ Two classes, because of the late `.label { -fx-text-fill: -es-text; }` — at equal specificity
+ * the later rule wins, so a one-class rule here would set nothing and the miss would be invisible.
+ * The accent is earned rather than borrowed: §2.1 reserves amber for the player's own money and
+ * these rows are literally that, and nothing else in the list is coloured. */
+/* ── The package installer ──────────────────────────────────────────────────────────────────
+ * What is in a package, who signed it, and whether the payload matches its manifest. Installing
+ * consumes the package and selling it does not, so the panel exists to put the facts where the
+ * decision is. Two classes throughout — the late `.label` fill rule again. */
+.es-package { -fx-background-color: -es-panel; -fx-border-color: -es-rule; -fx-border-width: 1; }
+.es-package > .es-package-name    { -fx-text-fill: -es-text-hi; -fx-font-size: 14px; }
+.es-package > .es-package-heading { -fx-text-fill: -es-dim-1; -fx-font-size: 9.5px; }
+.es-package > .es-package-summary { -fx-text-fill: -es-text; -fx-font-size: 11px; }
+.es-package > .es-package-note    { -fx-text-fill: -es-dim-1; -fx-font-size: 9.5px; }
+.es-package .es-package-field     { -fx-text-fill: -es-text; -fx-font-size: 11px; }
+/* ⚠ Full width and unshortened. The panel is asking a person to compare two digests, which a
+   truncated one makes impossible — the exact failure of every interface that renders a hash as
+   "9f3c…4a2b ✓". Micro-grey, because the digits are evidence rather than a headline. */
+.es-package .es-package-sha       { -fx-text-fill: -es-dim-1; -fx-font-size: 10px; }
+.es-package .es-package-match     { -fx-text-fill: -es-gain; -fx-font-size: 10.5px; }
+/* ⚠ ALARM, and this is one of §2.1's two permitted uses on this screen. A payload that is not what
+   its manifest declares is the one state on this panel that costs the player something real. */
+.es-package .es-package-mismatch  { -fx-text-fill: -es-alarm; -fx-font-size: 10.5px; }
+/* NOT alarm. A package waiting on its own payment is the ordinary case for anything just bought,
+   and painting the ordinary case red teaches a player to stop reading the colour. */
+.es-package .es-package-note,
+.es-package .es-package-locked    { -fx-text-fill: -es-dim-1; -fx-font-size: 10.5px; }
+.es-package .es-package-locked    { -fx-text-fill: -es-warn; }
+
+/* ── The port scanner ───────────────────────────────────────────────────────────────────────
+ * A price list: seven things you could learn, each with what it costs in cycles, in seconds, and
+ * in the chance the machine notices. The third column is the one that makes it a decision.
+ *
+ * ⚠ The risk bands step through the NEUTRAL ramp and then to warn — never to alarm. Being noticed
+ * is a risk the player chose to take, not a loss they have suffered; §2.1 rations alarm to two uses
+ * a screen and a column of seven rows would spend it on a number that is still only a forecast.
+ * And the percentage is printed beside the colour, because §4.4 forbids colour alone. */
+.es-portscan > .es-portscan-target { -fx-text-fill: -es-text-hi; -fx-font-size: 14px; }
+.es-portscan > .es-portscan-lead   { -fx-text-fill: -es-dim-1; -fx-font-size: 10px; }
+.es-portscan .es-portscan-what     { -fx-text-fill: -es-text; -fx-font-size: 11px; }
+.es-portscan .es-portscan-finding  { -fx-text-fill: -es-text; -fx-font-size: 10.5px; }
+.es-portscan-row                   { -fx-padding: 3 0 3 0; }
+.es-portscan .es-portscan-risk-low  { -fx-text-fill: -es-dim-1; }
+.es-portscan .es-portscan-risk-mid  { -fx-text-fill: -es-text-hi; }
+.es-portscan .es-portscan-risk-high { -fx-text-fill: -es-warn; }
+
+/* ── The defence minigame, prototyped ───────────────────────────────────────────────────────
+ * [PROTOTYPE] — two buttons standing in for a mechanic that has not been chosen. Styled at all
+ * so the shape around it can be built and looked at; deliberately plain, so nobody mistakes it
+ * for a finished screen. */
+/* ── The node report ────────────────────────────────────────────────────────────────────────
+ * What has been learned about a machine, and how old each part of it is. The ages are the reason
+ * the file is worth keeping, so they are body text rather than micro — and a finding nobody has
+ * paid for is stated in the dim ramp rather than rendered as a zero. */
+.es-report > .es-report-target { -fx-text-fill: -es-text-hi; -fx-font-size: 14px; }
+.es-report .es-report-meta     { -fx-text-fill: -es-dim-1; -fx-font-size: 10px; }
+.es-report .es-report-finding  { -fx-text-fill: -es-text; -fx-font-size: 11px; }
+.es-report .es-report-absent   { -fx-text-fill: -es-dim-2; -fx-font-size: 11px; }
+
+.es-defensegame > .es-defensegame-subject { -fx-text-fill: -es-text-hi; -fx-font-size: 14px; }
+.es-defensegame > .es-defensegame-note    { -fx-text-fill: -es-dim-1; -fx-font-size: 10.5px; }
+
+.es-block-detail { -fx-padding: 7 0 0 0; }
+.es-block-detail > .es-block-detail-yours { -fx-text-fill: -es-amber; }
 /* A projection is not a block. Dashed, because it has not happened — a card that looked mined
    would be a promise the chain cannot make. */
 .es-block-projected {
@@ -1587,12 +1672,41 @@
     -fx-font-size: 11px;
     -fx-text-fill: -es-rule-hi;
 }
-.es-block-yours {
-    -fx-border-color: -es-amber-mid;
-}
 .es-block-yours > .es-value {
     -fx-text-fill: -es-amber-mid;
 }
+/* ── The miner pill ─────────────────────────────────────────────────────────────────────────
+ * Who mined a block is the one field on the card that is a NAME rather than a number, and set as
+ * bare grey type it read as a fifth measurement in a stack of four. A filled chip separates the
+ * two kinds of fact at a glance.
+ *
+ * ⚠ SQUARE by default. §9's radius ban is UNAMENDED and UiContractTest still scans for it — the
+ * shape is gated on `.es-rounded` below, so this is a chip for a player who has not asked for
+ * rounded corners and a pill for one who has. That also keeps the two settings telling one story
+ * rather than rounding a component nobody opted into.
+ *
+ * ⚠ Two classes throughout, because of the late `.label { -fx-text-fill: -es-text; }`: at equal
+ * specificity the later rule wins, so a one-class pill would take every property EXCEPT its text
+ * colour and the miss would be invisible in review. The trap CLAUDE.md records. */
+.es-block > .es-miner-pill {
+    -fx-background-color: -es-tool;
+    -fx-text-fill: -es-dim-1;
+    -fx-padding: 1 5 1 5;
+    -fx-font-size: 9px;
+}
+/* The rig's own block takes the accent, which is the same claim the card's border already makes:
+   §2.1 reserves amber for money you actually have, and a block you mined is exactly that. Void on
+   amber rather than amber on void — a filled chip is what makes it read as a highlight and not as
+   another outlined box in a strip that is already all outlines. */
+.es-block > .es-miner-pill-yours {
+    -fx-background-color: -es-amber;
+    -fx-text-fill: -es-void;
+}
+/* ⚠ The ONLY rounded thing outside the window opt-in, and the selector may not name a block, a
+   meter or a cell — UiContractTest refuses a radius on any of those, because a measurement with a
+   soft corner reads as a smaller measurement and discrete meters exist to be counted. So the shape
+   lives on the generic class and the colours live on the two above. */
+.es-rounded .es-pill { -fx-background-radius: 8; }
 /* An estimate that has been overtaken. Deliberately NOT the alarm colour: an exponential wait runs
    past its own mean about 37% of the time, so "running long" is the ordinary case, and painting the
    ordinary case red would teach a player to read normal variance as a fault. It steps up from micro
@@ -1607,6 +1721,58 @@
 .es-queued-row {
     -fx-padding: 2 0 2 0;
 }
+
+/* ── SYNCHRONIZING ──────────────────────────────────────────────────────────────────────────
+ * The chain catching up on what it did while the client was closed (docs/design/04-mining.md
+ * §1.3d). It sits at the top of the CHAIN tab rather than over it: the deck has no modal layer,
+ * and a player who came back to check one figure should not have to dismiss a dialog to reach it.
+ *
+ * ⚠ Bordered on the LEADING EDGE ONLY. A full box would read as a fifth block card in a column
+ * that already has three kinds of bordered box, and this is not a block — it is a note about all
+ * of them. The rule is the same convention the log's severity gutter uses. */
+.es-sync {
+    -fx-background-color: -es-void;
+    -fx-border-color: -es-amber-mid;
+    -fx-border-width: 0 0 0 2;
+    -fx-padding: 9 9 9 12;
+}
+/* Two classes throughout this block, because theme.css has a late `.label { -fx-text-fill:
+   -es-text; }` and a one-class selector cannot beat it at equal specificity — the trap documented
+   in CLAUDE.md, measured on the wallpaper and again here. */
+.es-sync > .es-sync-title {
+    -fx-text-fill: -es-amber-mid;
+    -fx-font-size: 11px;
+    -fx-font-weight: 600;
+}
+.es-sync > .es-sync-heights {
+    -fx-text-fill: -es-text-hi;
+    -fx-font-size: 15px;
+}
+.es-sync > .es-sync-caption {
+    -fx-text-fill: -es-dim-1;
+    -fx-font-size: 10px;
+}
+.es-sync-summary {
+    -fx-padding: 3 0 0 0;
+}
+/* A block you won is money you actually have, which is what §2.1 reserves amber for. */
+.es-sync-summary > .es-sync-win  { -fx-text-fill: -es-amber-mid; -fx-font-size: 10.5px; }
+.es-sync-summary > .es-sync-note { -fx-text-fill: -es-text; -fx-font-size: 10.5px; }
+/* ⚠ NOT the alarm colour. Falling behind the block limit means the fill will finish on the next
+   load — it is information, and §2.1 caps alarm at two uses per screen for a reason. */
+.es-sync-summary > .es-sync-warn { -fx-text-fill: -es-text-hi; -fx-font-size: 10.5px; }
+
+/* ── CONTRIBUTOR ────────────────────────────────────────────────────────────────────────────
+ * Blocks this rig put hashrate into. The one column that needs a colour is the credit, and it
+ * needs two: amber where something was paid, micro-grey where nothing was — which is the correct
+ * and expected reading of a pay-per-share row, not a failure. See BlockContribution. */
+/* ⚠ Qualified by `.table-view .table-cell`, which is a TWO-class selector setting -fx-text-fill
+   further up this sheet. A bare `.es-contrib-paid` is one class and loses on specificity whatever
+   the order, so the column rendered in body grey while every other property in the block applied
+   — the same trap CLAUDE.md documents for the late `.label` rule, arrived at from the other side
+   and just as invisible in review. Caught by rendering it. */
+.table-view .table-cell.es-contrib-paid   { -fx-text-fill: -es-amber-mid; }
+.table-view .table-cell.es-contrib-unpaid { -fx-text-fill: -es-dim-1; }
 
 /* ── The balance readout ────────────────────────────────────────────────────────────────────
  * The steady figure keeps the amber it has always had — §2.1 reserves it for money, and this IS
@@ -1770,6 +1936,34 @@
 .es-attn .es-attn-caption { -fx-text-fill: -es-dim-2; }
 
 /* ── The cost strip: what each available move would spend ───────────────────────────────────── */
+/* ── The chip, unscoped ─────────────────────────────────────────────────────────────────────
+ * ⚠ A BASE rule, because every other chip rule in this sheet is scoped to a container and a Chip
+ * used anywhere else therefore rendered as BARE TEXT — no border, no padding, no affordance. The
+ * comment forty lines down already records that happening once to the target list; it then happened
+ * again to the ledger's boost control and to the package installer's buttons, which is the point at
+ * which a documented trap should stop being documented and start being fixed.
+ *
+ * Two-class selectors for the fills, because theme.css has a late `.label { -fx-text-fill: -es-text; }`
+ * that a single class cannot beat. The scoped rules below are also two classes and come later, so
+ * they still win the tie — a container that wants a different chip still gets one.
+ *
+ * ⚠ Disabled is a real state and needs to READ as refused rather than as broken: dimmed text and a
+ * dimmed edge, at full opacity. JavaFX's default is to fade the whole node, which on this palette
+ * makes a disabled control look like a rendering fault. */
+.es-breach-chip {
+    -fx-padding: 2 7 2 7;
+    -fx-border-color: -es-rule-hi;
+    -fx-border-width: 1;
+}
+.es-breach-chip.es-breach-chip-quiet { -fx-text-fill: -es-dim-1; }
+.es-breach-chip.es-breach-chip-loud  { -fx-text-fill: -es-text-hi; -fx-border-color: -es-text-hi; }
+.es-breach-chip:disabled {
+    -fx-opacity: 1;
+    -fx-border-color: -es-rule;
+}
+.es-breach-chip.es-breach-chip-quiet:disabled,
+.es-breach-chip.es-breach-chip-loud:disabled { -fx-text-fill: -es-dim-3; }
+
 .es-cost-strip .es-breach-chip {
     -fx-padding: 2 7 2 7;
     -fx-border-color: -es-rule-hi;

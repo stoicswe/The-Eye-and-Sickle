@@ -148,8 +148,14 @@ class ShortcutsTest {
 
             var outcome = session.purchase("canary-token");
             assertThat(outcome.succeeded()).isTrue();
+            // ⚠ NOT in the vault. Changed 2026-07-29: buying takes the money and starts a download;
+            // the package lands in Downloads and installs when the payment is mined. This test is
+            // about the command being reachable, so it asserts the money moved and the download
+            // started — PurchaseFlowTest owns the rest of the journey.
             assertThat(session.items(io.github.stoicswe.eyeandsickle.protocol.game.StorageTier.VAULT))
-                    .anyMatch(i -> i.displayName().equals("Canary Token"));
+                    .noneMatch(i -> i.displayName().equals("Canary Token"));
+            assertThat(session.transfers()).isNotEmpty();
+            assertThat(outcome.message()).contains("downloading");
         }
 
         @Test

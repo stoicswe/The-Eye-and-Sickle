@@ -207,7 +207,19 @@ class NetTypesTest {
                             "honeypotSuspected",
                             "hostsDeployedMiner",
                             "documentAvailable",
-                            "bridgePeerServerName");
+                            "bridgePeerServerName",
+                            // ⚠ Added 2026-07-29, and it clears the same bar `patched` does. It is
+                            // not an observation of the machine — it says nothing about what is on
+                            // the far side — it is the player's own relationship to one: whether
+                            // they have a file open on it. The list marks it `[i]` so a player can
+                            // see at a glance which machines they have already worked on, and no
+                            // recon had to be sold to establish that they own their own notes.
+                            //
+                            // ⚠ It is deliberately BOOLEAN rather than a completeness figure. How
+                            // much is in the file is the report's own first line; a column trying to
+                            // carry that would need seven states in a space that has room for three
+                            // characters, and would be read as none of them.
+                            "reported");
         }
 
         @Test

@@ -93,11 +93,29 @@ public record ChainMempool(
      * One block the mempool would produce if it were mined now.
      *
      * @param index 0 is the next block, 1 the one after, and so on
-     * @param transactions how many would fit
-     * @param yours how many of those are this rig's
+     * @param transactions how many this block would carry
+     * @param yours how many of those are this rig's. ⚠ They <b>displace</b> network traffic rather
+     *     than adding to the block, so this is a share of {@link #transactions} and never an
+     *     addition to it — otherwise a contested slot renders a 201-transaction block against a 200
+     *     limit, and a fill bar over 100%.
      * @param gasUsed the gas they would consume
      * @param gasLimit the ceiling they are packed against
-     * @param feesMinorUnits what a miner would collect in fees
+     * @param feesMinorUnits <b>the whole block's</b> estimated fee total — what a miner would
+     *     collect for mining it.
+     *     <p>⚠ Not this rig's fees, which is what it used to be and why the card read
+     *     "fees 0.00 EC" on every projection a player had nothing waiting in — which is nearly all
+     *     of them. A projection is a block, and the interesting figure about a block is what mining
+     *     it is worth.
+     *     <p>⚠ It is an <b>estimate</b> and must stay reconcilable with the block card that
+     *     eventually replaces it: both are summed over the same simulated transactions at the same
+     *     height, so the figure a player reads here is the figure they read again once it lands.
+     *     Estimating it from the queue's depth instead would have made the two disagree by a factor
+     *     of several — a projection promising 32 EC in fees followed two minutes later by a block
+     *     card saying 7.60, which is the kind of contradiction {@code docs/design/04-mining.md} §3.1
+     *     trains players to read as evidence of tampering.
+     *     <p>The rig's own fees are deliberately absent: a player's transaction displaces network
+     *     traffic rather than adding to it, so the block's total does not move when they have
+     *     something in it. Their own fee is on their row under YOUR PENDING, where it is theirs.
      * @param lowFeeRate the cheapest fee rate that still made it into this block
      * @param etaAt when this block arrives <em>on average</em> — an estimate the chain is free to
      *     overtake, never a deadline. See the enclosing type.

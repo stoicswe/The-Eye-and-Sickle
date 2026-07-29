@@ -958,10 +958,24 @@ public final class DeckShell {
      * opt-in and off unless the player asks.
      */
     public void applyRoundedSetting() {
-        // ⚠ No style class any more. There is no CSS for this — see the note in theme.css: a
-        // background radius under the notch's polygon clip is applied and then cut straight off,
-        // which is how this feature silently did nothing the first time.
+        // ⚠ The WINDOW's corner is a clip, not CSS — a background radius under the notch's polygon
+        // clip is applied and then cut straight off, which is how this feature silently did nothing
+        // the first time. The class below does not shape a window.
+        //
+        // What it does is let smaller things opt into the same taste: §9's radius ban is amended
+        // only for `.es-rounded`, and UiContractTest enforces that by scanning the stylesheet, so a
+        // component that wants a soft corner has to be gated on this class or it fails the build.
+        // Reinstated 2026-07-29 for the block cards' miner pill, which is a chip when the setting is
+        // off and a pill when it is on. ⚠ It must NEVER reach a measurement — the same test's second
+        // half refuses a radius on any selector naming a meter, a cell or a block.
         boolean rounded = profile.appearance().roundedWindows;
+        // ⚠ On the ROOT, and toggled on every call, because this method is what the Settings switch
+        // invokes on a live deck. A class added once at construction would make the setting appear
+        // to work only for windows opened afterwards — the failure CLAUDE.md records three times.
+        root.getStyleClass().remove("es-rounded");
+        if (rounded) {
+            root.getStyleClass().add("es-rounded");
+        }
         // ⚠ The desk windows are shaped by a CLIP, not by CSS — see WindowFrame.clip. The class
         // above only reaches painted backgrounds; without this call the setting would appear to do
         // nothing at all, which is exactly what it did on the first attempt.

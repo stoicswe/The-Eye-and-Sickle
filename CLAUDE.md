@@ -40,7 +40,7 @@ From `docs/design/00-vision-and-pillars.md` §4. Each one, if broken, collapses 
 2. **I2** — Ethecoin never buys a ceiling (only breadth: consumables, replacements, horizontal options).
 3. **I3** — Every item sits behind exactly one unlock gate (assignment follows the rule in `design/02`, not taste).
 4. **I4** — Self-mining is immune to detection/seizure and generates zero heat (it's the income floor).
-5. **I5** — Self-mining and bots are online-only; deployed miners are the only offline income (buffer-capped).
+5. **I5** — Self-mining and bots stop a bounded time after the client closes (`Balance.OFFLINE_MINING_HOURS`); *all* offline income is capped and never proportional to absence. Amended 2026-07-29 — see `design/15` §3.
 6. **I6** — A deployed miner consumes the *host's* compute, not the deployer's.
 7. **I7** — Proof-of-skill gates are tier-gated, never count-gated.
 8. **I8** — Zero-days are never reliably purchasable/farmable.
@@ -242,6 +242,190 @@ real protection.
 Ubuntu. Applications are genuine macOS bundles — `Network.app/Contents/MacOS/network` — and the fact
 worth teaching is that an application on a Mac is a folder. `Contents/Upgrades` is **ours** and is
 not part of a real bundle.
+
+**The chain runs while the client does not (2026-07-29).** `resume()` fills in every missed block via
+`ChainRules.sync`, and the LEDGER window opens on a `SYNCHRONIZING` panel reporting what it did. Height
+used to freeze at the last tick, so a character played Monday and again Friday found four days of
+wall-clock time and zero blocks — on the one readout whose whole subject is that nobody can stop it.
+
+- ⚠ **Every filled block carries its OWN instant, walked forward on a time cursor.** `retarget()`
+  computes `expected / actual` from `Duration.between(retargetStartedAt, now)`, so stamping the whole
+  fill at the load instant makes `actual` the entire absence — a window closing two hours into a
+  30-day gap is measured as having taken 30 days, the adjustment pins to the ÷4 clamp, and difficulty
+  collapses on a chain whose hashrate never moved. The online path never showed this because it ticks
+  once a second. `ChainSyncTest.retargetIsNotSkewedByTheAbsence`.
+- ⚠ **I5 WAS AMENDED and is no longer "online-only."** The rig keeps hashing for
+  `Balance.OFFLINE_MINING_HOURS` (4) after logout and then stops dead; past that its hashrate is zero
+  and it is drawn against nothing. The **cap**, not the online-only rule, was always what stopped
+  absence out-earning play. Deployed miners kept their identity — they spend the *host's* compute (I6),
+  so five buffer five hosts' worth of the same window, and their buffer can be **seized** where
+  self-mining cannot. Had they been separated only by "one works offline", this would have deleted the
+  distinction. `design/15` §3, `design/04` §1.2.
+- ⚠ **Two clamps must agree and only one is enforced in `SoloGame`.** `ChainRules.sync` excludes the
+  player from the draw past the window, which caps solo and PPLNS. **PPS is not capped by that** — it
+  runs its own share clock off `elapsed` — so `resume()` passes `walked.minedFor()`, never the absence.
+  Passing the absence breaks I5 silently and *only for pay-per-share*.
+- **Confirming pending transactions while away is not income.** The value moved when the ledger row was
+  written; confirmation only stamps the height. A transaction unconfirmed across a four-day absence
+  would be the lie, and would let a player park money in the mempool to hide it.
+- ⚠ `SoloGame.sync` is **session state, never saved.** It describes one transition; persisting it
+  replays the sync screen on the next load reporting a catch-up that already happened.
+- ⚠ **The panel builds from `takeChainSync()`, NOT `chainSync()` — announced once per session.** A
+  closed tool window keeps no state (`DeskManager` calls the factory afresh), so an idempotent read
+  replayed the whole fill on *every* open of the ledger. `chainSync()` stays idempotent for tests and
+  any second readout; `takeChainSync()` answers once and then reports nothing. Consumed when the panel
+  is **built**, not when the replay finishes — otherwise closing and reopening fast replays forever.
+  Nothing is lost: `logSync` already wrote the same facts to the rig log, which is where history goes.
+
+**LEDGER has a third tab, CONTRIBUTOR (2026-07-29)** — every block this rig put hashrate into, solo and
+pooled, with the rig's share of the chain at the time, the block's transaction count, and the **coinbase
+and fee halves of the reward kept separate** (one credit in the ledger, two different things on the
+chain; `proof-of-work(7)` teaches the split and a single total hides it).
+
+- ⚠ **Only what was ROLLED is stored** (`ContributionState`): height, mode, scheme, hashrate, network
+  hashrate, difficulty, credit. Transaction count, fees and subsidy are **derived from the height** by
+  the same calls the block card uses, so a row and its block cannot disagree.
+- ⚠ **A PPS row credits ZERO from the block and that is the record working.** A share pool buys accepted
+  shares out of its own balance rather than dividing a block, so the column renders **"per share"**, not
+  `0.00 EC` — every row of a default character's tab is PPS, and ten zeroes under "your cut" read as a
+  broken column. It is the only surface where the two pool schemes differ visibly.
+- ⚠ `MiningRules.bank()` banks **per payout**, not per tick. `floor(r+a+b) == floor(r+a) + floor(r+a−floor(r+a)+b)`,
+  so the total is identical — what it buys is a per-block figure that *sums to the ledger row*, which a
+  separately-rounded display figure would not.
+
+**The mempool projects 3–5 blocks, each with its own queue (2026-07-29).** Depth comes from
+`MempoolRules.projectionDepth` — derived from `(blockSeed, height)`, never drawn: the panel repaints once
+a second and a drawn count adds and removes a card every repaint. ⚠ **Each projection packs against
+`backlogAt(height + 1 + i)`, not against one snapshot drained across the strip.** Draining rendered
+`0 txs` from the third card on — one dead card at a fixed three, up to three at 3–5 — which claims the
+chain is about to go quiet. It is not: a real mempool has inflow ≈ throughput, which is the entire reason
+there is a fee market. Each card also quotes **its own** clearing price, and the outbid check runs at
+every index (it was `&& index == 0`, correct only while all cards shared one price).
+
+⚠ **A projection's `transactions` and `feesMinorUnits` are the MINED block's, not the queue's.** Both
+come from `MempoolRules.blockTransactionCount`/`blockFeesMinorUnits` at the projected height — the same
+calls the block card makes when it lands — so an estimate and the block that replaces it are one number
+arrived at once. Two bugs this closes: the count was the *backlog* (a card reading "200 txs" landing as
+a 47-transaction block), and `feesMinorUnits` was **this rig's** fees, so every card read `fees 0.00 EC`
+on a wallet with nothing queued — a block explorer reporting that mining the next block is worth
+nothing. ⚠ The rig's own fee is deliberately **not** added: a player's transaction *displaces* network
+traffic rather than adding to it, so the block's total does not move for it (`blockFeesMinorUnits`); the
+queue depth still drives `slotsAgainst` for how many slots the player wins, which is a different
+question from what the block carries.
+
+⚠ **`Scene.snapshot` does not pick up a plain `setVisible` toggle between two synchronous snapshots of
+the same Scene.** It re-applies CSS, so a theme change lands; pushing a visibility change into the render
+tree needs a real pulse and nothing fires one headlessly. Three tab PNGs came out byte-identical while
+the chip labels proved the state had changed — a verification tool reporting success and showing the
+wrong screen. `LedgerSnapshot` builds a fresh Scene per tab. Also: `lookupAll` matches on style class and
+finds **nothing** before `applyCss()`.
+
+**Buying a tool settles on-chain (2026-07-29).** Pay → **download** (a real transfer, the file manager's
+existing progress bar) → the package lands in `~/Downloads` as a vendor `.pkg` → `install`/`sell` refuse
+until the payment is mined → confirmation runs Repac, it becomes a `.upg`, installing it fills the vault.
+This **reverses** `SoloGame.debit`'s documented "the goods are immediate" decision, on explicit direction.
+
+- ⚠ **The `.pkg` → `.upg` rename IS the lock — there is no second mechanism.** Repac already means "a
+  vendor's package" vs "one this rig can install", and a bought one does not cross that line until the
+  chain says the money moved. So the lock shows in `ls`, the file manager and the shell without any of
+  them knowing about confirmation, and — being derived from the ledger row's `blockNumber` on every
+  read — no flag anywhere can disagree with the chain.
+- **First mechanical consequence a `FeeTier` has ever had.** Previously a fee bought only how soon a row
+  stopped printing `—`. A higher fee buys a slot in an earlier block, never a faster chain.
+- ⚠ **`SoloGame.debit` writes TWO ledger rows** — the spend (broadcast) and a separate `TX_FEE` line
+  (not broadcast). Taking "the last row" gets the fee, which never confirms; a package pointed at it is
+  held **forever** with the money gone. Use **`spend()`**, which returns the row it broadcast.
+- ⚠ **`LedgerEntryState.feeMinorUnits` exists because `confirmInto` DELETES the pending record.** The fee
+  lived only on `PendingTxState`, so a confirmed priority transaction reported the *standard* fee — and
+  since block rows sort by fee rate, the player's own row sorted into the wrong part of a block they had
+  paid to be at the top of. `-1` means "no fee recorded" and is distinct from a fee of zero.
+- ⚠ **Open:** the reversed decision's own argument — that withholding goods breaks buying a consumable
+  mid-breach — still stands. No such consumable is in the catalogue today; the day one is, it needs an
+  answer. `design/15` §3.
+
+**Replace-by-fee (2026-07-29).** `MempoolRules.boost` raises a waiting transaction's tier; the YOUR
+PENDING rows carry a `boost +X` chip. ⚠ **Only the DIFFERENCE is charged** — the first fee was debited at
+broadcast, so charging the new tier in full takes it twice. ⚠ **Both records move**: the pending record
+is what `confirmInto` sorts on, the ledger row is what the explorer reads once the pending record is
+deleted — updating one makes a boosted transaction sort at its new fee and render at its old one.
+⚠ **A bump only ever goes up**, for real RBF's reason: a replacement paying less would let anyone
+rewrite a relayed transaction for free, repeatedly. The hash deliberately does *not* change (see
+`submit` — a hash that changed would make the pending row and the mined row two transactions).
+
+**Port scans file persistent node reports (2026-07-29).** `solo/state/NodeReportState` per machine,
+merged by `NodeReports`; Info on the node menu, `[i]` in the network list, and RECON lists every file
+with opened/updated dates.
+
+- ⚠ **Each finding carries its OWN `learnedAt`, keyed by `PortScanTarget`.** One timestamp for the file
+  would be *worse than storing nothing*: `updatedAt` moves with any scan, so a cheap firewall re-check
+  would present a week-old vault estimate as measured this morning. This is what made persisting a
+  snapshot acceptable at all — the report was session-only before, precisely because the cycle-load
+  line goes stale.
+- ⚠ **Findings MERGE — a shallow rescan must not erase what a deep scan paid for.** Write a field only
+  when `PortScanReport.knows` says the scan reached it; `-1` means "never looked", never "none".
+- ⚠ **`NetText.STATE` is 14, not 12** — `foothold [i]` is exactly 12 characters. `NetHostListTest`
+  treats the widths as a contract.
+- ⚠ **`Sighting`'s field list is locked by name in `NetTypesTest`** so an addition is a deliberate
+  edit. `reported` qualifies on the same grounds as `patched`: it is the player's relationship to a
+  machine, not an observation of it.
+- ⚠ **A scan requires `host.discovered`, not merely presence in the topology** — every host in the
+  world is in the topology, so the old check was a check on nothing while the refusal claimed "no
+  machine that a sweep has found".
+
+⚠ **NEVER anchor a `ContextMenu` to the node that fired the event when the handler repaints first.**
+The map's node menu selected the machine before showing — correctly, so the entries are about what the
+pointer is over — but selecting repaints, repainting rebuilds the graph, and the label the player
+right-clicked is **detached from the scene** by the time the popup anchors to it. JavaFX throws
+`"The owner node needs to be associated with a window"` on the FX thread, on **every right-click**.
+Capture `getScene().getWindow()` *before* the repaint and anchor to the window; screen coordinates make
+it identical on screen. `NetMapView.openMenu`, `NodeMenuTest`.
+
+- ⚠ **A Scene with no Stage reproduces it**, which is what makes it testable headlessly.
+- ⚠ **The first version of that test passed against the broken code**, because it fired on
+  `.es-focusable` — which matches the sweep buttons and legend, none of which carry the node menu. A
+  regression test that passes both ways is worse than none: it reports the bug as fixed. Always run a
+  new regression test against the *unfixed* code before trusting it.
+
+⚠ **A wall-clock-derived readout needs `Pulse.every`, NOT `session.onChange`.** The file manager's
+transfer bar painted once and froze: nothing about the *save* changes while a download runs, so
+`onChange` does not fire again until it finishes — a progress bar that does not progress reads as a
+stalled download. Only the transfer strip is on the clock; re-running the whole repaint every second
+would rebuild the listing under the player's scroll position. Same split `Views.ledger` already makes.
+
+⚠ **A block's transaction list marks the player's rows in a `YOU` COLUMN, not a prefix.** A leading
+marker shifts every field after it and breaks the character-cell alignment the table is read down. The
+detail panel is a column of Labels rather than one text block, because per-row styling needs per-row
+nodes — a two-character `>` gutter in 200 rows of monospace is a needle, not a marker.
+
+⚠ **`ChainState.networkHashrate` is a STORED COPY of a derived balance value, and a stale one is a
+silent permanent income cut.** Found on a real save (2026-07-29): a character created 2026-07-26 was
+still on the **2352**-cycle network while one created two days later was on **1680** — the re-tune
+`Balance.CHAIN_TARGET_BLOCK_SECONDS` records as "the 2352-cycle network at ten minutes became a
+1680-cycle network at fourteen". Nothing looked wrong, because that chain's difficulty had correctly
+converged to *its own* equilibrium (482 vs 344) — but mining income is `subsidy × rigHashrate × 3600 /
+(interval × networkHashrate)`, i.e. **inversely proportional to network size**, so that character had
+been earning **71% of what `design/03` §1 prices**, forever, with no readout saying so.
+`SoloGame.retuneNetworkHashrate` migrates it on load. ⚠ **It rescales difficulty by the same factor in
+the same step** — difficulty is what holds the block interval, and moving the hashrate alone stretches
+blocks from 12 to 17 minutes until the next retarget, which is **1440 blocks** away.
+
+⚠ **The block cards' selected state lives OUTSIDE the card, keyed by HEIGHT.** The strip is torn down
+and rebuilt on every chain advance, so a selection held on a node dies every ~14 minutes; and before
+2026-07-29 there was no selected state at all — clicking rewrote the detail text and marked nothing, so
+the header appeared with no indication which of 24 cards it described. `markSelectedBlock` clears the
+whole row and re-marks from the one piece of state, and `refreshData` calls it after every rebuild.
+
+⚠ **`.es-rounded` is a real style class again, applied on the deck root by `DeckShell.applyRoundedSetting`.**
+It had been removed when window corners moved to clips. It is back because `UiContractTest` permits a
+non-zero radius **only** under that selector, so any component wanting a soft corner has to gate on it —
+the block cards' miner pill is a flat chip with the setting off and a pill with it on. §9's ban is
+**unamended**. ⚠ The radius rule must not name `es-block`/`es-meter`/`es-cell`/… — the test's second
+half refuses a radius on anything a measurement is read off, so the shape sits on a generic `.es-pill`
+and the colours on `.es-block > .es-miner-pill`.
+
+⚠ **A `.table-cell` text fill needs a THREE-class selector.** `theme.css` sets `-fx-text-fill` under
+`.table-view .table-cell` (specificity 0,2,0), so a bare `.es-contrib-paid` loses whatever the order —
+the same trap as the late `.label` rule, from the other side. Use `.table-view .table-cell.es-thing`.
 
 ⚠ **There are now THREE reputations and none may share a field.** `factionReputation` (Eye/Sickle
 standing), `validatorReputation` (federation trust, server-side) and — new — **`traderReputation`**

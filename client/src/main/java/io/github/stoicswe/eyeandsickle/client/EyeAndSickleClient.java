@@ -13,6 +13,7 @@ import io.github.stoicswe.eyeandsickle.client.theme.ThemeManager;
 import io.github.stoicswe.eyeandsickle.client.view.CalcView;
 import io.github.stoicswe.eyeandsickle.client.view.CommandPalette;
 import io.github.stoicswe.eyeandsickle.client.view.FileManagerView;
+import io.github.stoicswe.eyeandsickle.client.view.PortScanView;
 import io.github.stoicswe.eyeandsickle.client.view.MainMenuView;
 import io.github.stoicswe.eyeandsickle.client.view.SetupWizardView;
 import io.github.stoicswe.eyeandsickle.client.view.BreachView;
@@ -852,6 +853,47 @@ public class EyeAndSickleClient extends Application {
             public void breach(String address) {
                 arming.rearm("node:" + address);
                 arming.open();
+            }
+
+            /**
+             * ⚠ Opened as a SHELL-style window, not a catalogue one.
+             *
+             * <p>The desk's {@code showShell} keys a window on a string and reuses it, which is
+             * exactly the shape a per-machine tool needs: two scanners open on two machines, one per
+             * machine, and reopening raises the one that is already there. Adding it to
+             * {@code WindowSpec} instead would put it in the rail, where it would open with no
+             * target and have nothing to be about.
+             */
+            @Override
+            public void portScan(String address) {
+                if (deck == null) {
+                    return;
+                }
+                String key = "portscan:" + address;
+                deck.showShell(
+                        key,
+                        "Port scan - " + address,
+                        // ⚠ Swallowed here, not printed twice. Every Outcome this panel produces has already
+                        // reached the rig log through the session, and a second copy in a window
+                        // would be the same sentence in two places — which is how a player comes to
+                        // believe two things happened.
+                        PortScanView.create(session, address, message -> {}),
+                        () -> deck.closeShell(key));
+            }
+
+            /** Same per-subject window shape as the scanner — one file open per machine. */
+            @Override
+            public void info(String address) {
+                if (deck == null) {
+                    return;
+                }
+                String key = "report:" + address;
+                deck.showShell(
+                        key,
+                        "Report - " + address,
+                        io.github.stoicswe.eyeandsickle.client.view.NodeReportView.create(
+                                session, address),
+                        () -> deck.closeShell(key));
             }
         };
     }

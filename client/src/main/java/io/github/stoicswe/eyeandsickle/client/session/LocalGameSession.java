@@ -409,6 +409,75 @@ public final class LocalGameSession implements GameSession {
     }
 
     @Override
+    public java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.PackageManifest> packageAt(
+            String path) {
+        return io.github.stoicswe.eyeandsickle.solo.rules.Repac.manifest(game.state(), path);
+    }
+
+    @Override
+    public Outcome portScan(
+            String address, io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget target) {
+        var started = game.portScan(address, target);
+        if (started.succeeded()) {
+            return changed(Outcome.ok(String.format(Locale.ROOT,
+                    "scanning %s for %s — %d cycles, ~%ds, %d%% chance it notices.",
+                    address, target.label().toLowerCase(Locale.ROOT),
+                    started.cycles(), started.duration().toSeconds(), started.riskPercent())));
+        }
+        // ⚠ The rules' refusal, named. "Could not scan" would leave a player retrying a thing that
+        // will refuse for the same reason every time.
+        return switch (started.refusal()) {
+            case UNKNOWN_HOST -> Outcome.refused(
+                    "no machine at " + address + " that a sweep has found. Sweep for it first.");
+            case YOUR_OWN_RIG -> Outcome.refused(
+                    "that is your own rig. The audit window reads it directly — free, silent, and "
+                            + "it sees everything a scan could not.");
+            case NOT_ENOUGH_CYCLES -> notEnoughCycles(started.cycles());
+            case ALREADY_RUNNING -> Outcome.refused("a scan of " + address + " is already running.");
+        };
+    }
+
+    @Override
+    public java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.PortScanReport>
+            portScanReport(String address) {
+        return game.portScan(address);
+    }
+
+    @Override
+    public java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.NodeReport> nodeReport(
+            String address) {
+        return io.github.stoicswe.eyeandsickle.solo.net.NodeReports.at(game.state(), address);
+    }
+
+    @Override
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.NodeReport> nodeReports() {
+        return io.github.stoicswe.eyeandsickle.solo.net.NodeReports.all(game.state());
+    }
+
+    @Override
+    public PortScanQuote portScanQuote(
+            String address, io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget target) {
+        long cycles = io.github.stoicswe.eyeandsickle.solo.net.PortScanRules.cyclesFor(target);
+        long seconds = io.github.stoicswe.eyeandsickle.solo.net.PortScanRules
+                .durationFor(target).toSeconds();
+        var host = game.state().topology == null ? null
+                : game.state().topology.hosts.stream()
+                        .filter(h -> address.equals(h.address))
+                        .findFirst()
+                        .orElse(null);
+        int risk = io.github.stoicswe.eyeandsickle.solo.net.PortScanRules.riskPercent(host, target);
+        boolean affordable = computeBudget().available().cycles() >= cycles;
+        return new PortScanQuote(cycles, seconds, risk, affordable);
+    }
+
+    @Override
+    public Outcome boostFee(String txHash, io.github.stoicswe.eyeandsickle.protocol.game.FeeTier tier) {
+        var result = io.github.stoicswe.eyeandsickle.solo.rules.MempoolRules.boost(
+                game.state(), txHash, tier, game.now());
+        return result.ok() ? changed(Outcome.ok(result.message())) : Outcome.refused(result.message());
+    }
+
+    @Override
     public io.github.stoicswe.eyeandsickle.protocol.game.ChainBlock chainBlock(long height) {
         return game.chainBlock(height);
     }
@@ -416,6 +485,22 @@ public final class LocalGameSession implements GameSession {
     @Override
     public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.ChainBlock> chainBlocks() {
         return game.chainBlocks();
+    }
+
+    @Override
+    public io.github.stoicswe.eyeandsickle.protocol.game.ChainSync chainSync() {
+        return game.chainSync();
+    }
+
+    @Override
+    public io.github.stoicswe.eyeandsickle.protocol.game.ChainSync takeChainSync() {
+        return game.takeChainSync();
+    }
+
+    @Override
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.BlockContribution> contributions(
+            int limit) {
+        return game.contributions(limit);
     }
 
     @Override
@@ -1009,21 +1094,47 @@ public final class LocalGameSession implements GameSession {
                     + o.gate().name().toLowerCase(Locale.ROOT).replace('_', '-')
                     + " gate. " + o.gateRequirement());
         }
-        if (!game.debit(o.priceMinorUnits(), "MARKET", "Bought " + o.name())) {
+        // Already on its way, or already installed. Refused rather than charged twice.
+        if (game.state().items.stream().anyMatch(i -> o.id().equals(i.itemType))) {
+            return Outcome.refused("you already have " + o.name() + ".");
+        }
+        if (io.github.stoicswe.eyeandsickle.solo.net.TransferRules
+                .running(game.state(), "/market/" + o.id() + ".pkg").isPresent()) {
+            return Outcome.refused(o.name() + " is already downloading.");
+        }
+        // ⚠ THE ITEM IS NOT CREATED HERE ANY MORE (changed 2026-07-29).
+        //
+        // A purchase used to hand over the goods in the same call that took the money, which
+        // SoloGame.debit defended as the one place the simulation declined to be faithful. It now
+        // downloads a package like any other upgrade — over a real transfer, into Downloads — and
+        // that package will not install until the payment is mined. See docs/design/04 §1.3e.
+        //
+        // ⚠ spend(), not debit(): the package has to wait on the RIGHT ledger row. debit() writes
+        // two — the purchase and a separate TX_FEE line — and only the first is broadcast, so
+        // reaching for the end of the ledger gets the fee, which never confirms and would hold the
+        // package forever with the money gone.
+        var paid = game.spend(o.priceMinorUnits(), "MARKET", "Bought " + o.name(),
+                io.github.stoicswe.eyeandsickle.protocol.game.FeeTier.STANDARD, "");
+        if (paid.isEmpty()) {
             return Outcome.refused("not enough ethecoin — " + o.name() + " costs "
                     + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.ofMinorUnits(o.priceMinorUnits())
                     + ", you have " + balance());
         }
-        ItemState item = new ItemState();
-        item.displayName = o.name();
-        item.itemType = o.id();
-        item.tier = StorageTier.VAULT.name();
-        item.origin = "bought";
-        item.equippedCycles = o.equippedCycles();
-        item.acquiredAt = game.now();
-        game.state().items.add(item);
-
-        return changed(Outcome.ok("bought " + o.name() + "; it is in the vault"));
+        var started = io.github.stoicswe.eyeandsickle.solo.net.TransferRules.beginPurchase(
+                game.state(), o.id(), o.id() + ".pkg", paid.get().entryId, game.now());
+        if (!started.succeeded()) {
+            // The money is already gone and the download did not start, which must never happen
+            // silently. Nothing here can currently produce it — the two refusals it can return are
+            // both checked above — so this is the branch that exists to be loud if that stops being
+            // true rather than to be taken.
+            return changed(Outcome.refused(
+                    "paid for " + o.name() + ", but the download would not start. `ledger` has the "
+                            + "transaction; the package is not on its way."));
+        }
+        return changed(Outcome.ok(String.format(Locale.ROOT,
+                "bought %s — downloading %.0f MB to Downloads. It installs once the block carrying "
+                        + "your payment confirms.",
+                o.name(), started.bytes() / (1024.0d * 1024.0d))));
     }
 
     /** Standing reservations from {@code docs/design/09-defense-and-hardening.md} §1. */

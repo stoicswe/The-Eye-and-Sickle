@@ -3,12 +3,16 @@ package io.github.stoicswe.eyeandsickle.solo.rules;
 import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.breach.Rng;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
+import io.github.stoicswe.eyeandsickle.protocol.game.ChainSync;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningPool;
 import io.github.stoicswe.eyeandsickle.solo.Pools;
 import io.github.stoicswe.eyeandsickle.solo.state.ChainState;
+import io.github.stoicswe.eyeandsickle.solo.state.PendingTxState;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Proof of work, done properly: difficulty, the retarget, and the exponential wait.
@@ -107,22 +111,67 @@ public final class ChainRules {
     }
 
     /**
+     * One block that is going to pay this rig something, and everything the payer needs to know.
+     *
+     * <h2>⚠ The height and the fees travel together, and that is not convenience</h2>
+     *
+     * A block's fee total is a function of its height, so anything that wants to pay it has to know
+     * <em>which</em> block it is paying for. {@code Minted} used to carry a count and a summed fee
+     * total, which was enough to credit a balance and not enough to write a contributor row — by the
+     * time {@code MiningRules} saw it, the heights that earned the money were gone. Carrying the
+     * blocks themselves costs a few objects per tick, and a tick produces a block about once every
+     * fourteen minutes.
+     *
+     * @param height the block
+     * @param at when it was found — the walked cursor instant, not the tick's
+     * @param feesMinorUnits what its transactions paid, collected by whoever mined it
+     * @param offline whether it landed during the post-logout spin-down window ({@code 04} §1.2)
+     */
+    public record Won(long height, Instant at, long feesMinorUnits, boolean offline) {}
+
+    /**
      * What a stretch of chain produced, and how much of it was the player's.
      *
-     * @param yoursFeesMinorUnits the fees carried by the blocks in {@link #yours} — paid to the
-     *     miner on top of the subsidy, exactly as on a real chain. Summed here rather than
-     *     recomputed later because {@link #yours} is only a count, and by the time
-     *     {@code MiningRules} sees it the heights that earned it are no longer identifiable.
-     * @param yourPoolFeesMinorUnits the same for the blocks in {@link #yourPool}. Divided among the
-     *     pool under PPLNS and <b>ignored under PPS</b>, which buys a fixed price per share rather
-     *     than a share of what a block happened to carry — see {@code MiningRules.rewardBase}.
+     * @param blocks every block the chain produced, whoever won it
+     * @param yourBlocks blocks this rig won outright — solo only, and empty otherwise
+     * @param poolBlocks blocks this rig's pool won. ⚠ Populated under <b>both</b> schemes: the rig
+     *     contributed hashrate to them either way, which is what the contributor record is about.
+     *     Only PPLNS is <em>paid</em> out of them — PPS buys a fixed price per share instead, so it
+     *     reads this list to record the contribution and takes no money from it. See
+     *     {@code MiningRules.rewardBaseMinorUnits}.
      */
-    public record Minted(
-            int blocks,
-            int yours,
-            int yourPool,
-            long yoursFeesMinorUnits,
-            long yourPoolFeesMinorUnits) {}
+    public record Minted(int blocks, List<Won> yourBlocks, List<Won> poolBlocks) {
+
+        public static final Minted NOTHING = new Minted(0, List.of(), List.of());
+
+        /** How many blocks this rig won. */
+        public int yours() {
+            return yourBlocks.size();
+        }
+
+        /** How many its pool won. */
+        public int yourPool() {
+            return poolBlocks.size();
+        }
+
+        /** The fees carried by the blocks in {@link #yourBlocks} — paid on top of the subsidy. */
+        public long yoursFeesMinorUnits() {
+            return fees(yourBlocks);
+        }
+
+        /** The same for {@link #poolBlocks}. Divided among the pool under PPLNS, ignored under PPS. */
+        public long yourPoolFeesMinorUnits() {
+            return fees(poolBlocks);
+        }
+
+        private static long fees(List<Won> blocks) {
+            long total = 0L;
+            for (Won block : blocks) {
+                total += block.feesMinorUnits();
+            }
+            return total;
+        }
+    }
 
     /**
      * Runs the chain forward and decides who won each block.
@@ -149,68 +198,180 @@ public final class ChainRules {
      * runs on its own share clock in {@code MiningRules}.
      */
     public static Minted advanceNetwork(SoloSave save, Duration elapsed, Instant now, Rng rng) {
-        ChainState chain = save.chain;
-        double seconds = elapsed.toMillis() / 1000.0d;
-        if (chain == null || seconds <= 0 || chain.networkHashrate <= 0) {
-            return new Minted(0, 0, 0, 0L, 0L);
+        if (elapsed.isNegative() || elapsed.isZero()) {
+            return Minted.NOTHING;
         }
-        double mean = expectedSeconds(chain.difficulty, chain.networkHashrate);
-        chain.networkWorkDone += seconds / mean;
+        // Online: the rig is running for the whole interval, so it competes for every block in it.
+        return advance(save, now.minus(elapsed), now, now, rng, TICK_BLOCK_LIMIT, false).minted();
+    }
 
-        int blocks = 0;
-        int yours = 0;
-        int yourPool = 0;
-        long yoursFees = 0L;
-        long yourPoolFees = 0L;
+    /**
+     * What one call to {@link #advance} did, for the two callers that need more than the payouts.
+     *
+     * @param minted the blocks that are going to pay this rig
+     * @param competed how many of them landed while the rig was still hashing. Equal to
+     *     {@code minted.blocks()} online; the whole point of the record when filling in an absence.
+     * @param retargets difficulty adjustments that closed inside the interval
+     * @param confirmed the player's own pending transactions that were mined in it
+     * @param truncated whether the block limit stopped the walk short of {@code to}
+     */
+    private record Advance(
+            Minted minted, int competed, int retargets, int confirmed, boolean truncated) {}
+
+    /**
+     * The most blocks one tick will produce, so a machine that slept with the client open cannot
+     * spin. Surplus work stays on the counter and settles next tick.
+     */
+    private static final int TICK_BLOCK_LIMIT = 4096;
+
+    /**
+     * The one block loop, walked on a time cursor.
+     *
+     * <h2>⚠ Every block gets its own instant, and stamping them all at {@code to} is a real bug</h2>
+     *
+     * {@link #retarget} computes {@code expected / actual} from
+     * {@code Duration.between(retargetStartedAt, now)}. Stamp every block in the interval at the
+     * instant the interval <em>ended</em> and {@code actual} becomes the whole interval, however
+     * long it was — so a window that closes twelve hours into an absence is measured as having taken
+     * twelve hours instead of its real fourteen, and the adjustment goes straight into the ÷4 clamp.
+     * The online path never noticed because it ticks once a second and the error is bounded by one
+     * tick; filling in days at a time makes it the difference between a chain and a broken one.
+     *
+     * <p>So the cursor is walked forward by the time each block actually took, which is
+     * {@code (target − done) × mean} seconds — the inverse of the work accrual, and exact rather than
+     * a plausible-looking spacing. It also means {@code mean} can be recomputed after a retarget and
+     * the rest of the interval runs at the new difficulty, which the fixed-{@code mean} loop this
+     * replaced could not do.
+     *
+     * <p>⚠ The elapsed figure is accumulated as a double and added to {@code from} each time rather
+     * than added to the previous cursor. Adding a rounded millisecond count per block would drift by
+     * the rounding error times the block count, which over a long fill is minutes.
+     *
+     * @param competesUntil the last instant the player's own hashrate is in the draw. The load
+     *     instant when online; {@code from + } the spin-down window when filling in an absence
+     *     (Invariant <b>I5</b> as amended — {@code docs/design/04-mining.md} §1.2).
+     * @param limit the most blocks to produce before giving up and leaving the rest on the counter
+     * @param offline whether these blocks landed while the client was closed, which the contributor
+     *     record keeps and nothing else reads
+     */
+    private static Advance advance(
+            SoloSave save,
+            Instant from,
+            Instant to,
+            Instant competesUntil,
+            Rng rng,
+            int limit,
+            boolean offline) {
+        ChainState chain = save.chain;
+        double span = millisBetween(from, to) / 1000.0d;
+        if (chain == null || span <= 0 || chain.networkHashrate <= 0) {
+            return new Advance(Minted.NOTHING, 0, 0, 0, false);
+        }
+
         boolean solo = MiningRules.modeOf(save.rig) == MiningMode.SOLO;
         String poolId = MiningRules.poolOf(save.rig).id();
-        // Bounded so a machine that slept with the client open cannot spin. Surplus work stays on
-        // the counter and settles next tick.
-        while (chain.networkWorkDone >= chain.networkWorkTarget && blocks < 4096) {
-            chain.networkWorkDone -= chain.networkWorkTarget;
+        List<Won> yours = new ArrayList<>();
+        List<Won> poolBlocks = new ArrayList<>();
+        int blocks = 0;
+        int competed = 0;
+        int retargets = 0;
+        int confirmed = 0;
+
+        double elapsed = 0.0d;
+        double mean = expectedSeconds(chain.difficulty, chain.networkHashrate);
+        while (blocks < limit) {
+            // How much longer the block currently being mined has to run. Memorylessness is what
+            // makes this answerable at all: the outstanding draw is not consumed by the passage of
+            // time, only measured against it.
+            // Clamped at zero: a hand-edited save can carry more work done than the target it is
+            // racing, and a negative remainder would walk the cursor backwards and mint a block
+            // dated before its own parent.
+            double remaining = Math.max(0.0d, (chain.networkWorkTarget - chain.networkWorkDone) * mean);
+            if (!Double.isFinite(remaining) || elapsed + remaining > span) {
+                break;
+            }
+            elapsed += remaining;
+            Instant at = from.plusMillis(Math.round(elapsed * 1000.0d));
+            long height = chain.height + 1;
+
+            chain.networkWorkDone = 0.0d;
             chain.networkWorkTarget = drawWork(rng);
 
             // ⚠ The draw happens for every block whatever the mode, so the RNG stream does not
             // depend on how the player is mining. Rng's contract: consumption that varies with what
             // was produced stops a stored seed being a replay.
-            String winner = drawWinner(save, rng, solo);
-            boolean mine = solo && "you".equals(winner);
-            if (mine) {
-                yours++;
+            boolean competing = !at.isAfter(competesUntil);
+            if (competing) {
+                competed++;
+            }
+            String winner = drawWinner(save, rng, solo && competing);
+            if (solo && "you".equals(winner)) {
                 // ⚠ Read against the height this block is ABOUT to take — recordBlock has not run
                 // yet, so chain.height is still the parent. The fee total is a function of height,
                 // so reading it a line later would pay the previous block's fees.
-                yoursFees += MempoolRules.blockFeesMinorUnits(save, chain.height + 1);
-                chain.blocksWon.add(chain.height + 1);
+                yours.add(new Won(height, at, MempoolRules.blockFeesMinorUnits(save, height), offline));
+                chain.blocksWon.add(height);
                 while (chain.blocksWon.size() > ChainState.WON_INDEX) {
                     chain.blocksWon.removeFirst();
                 }
-            } else if (!solo && winner.equals(poolId)) {
-                yourPool++;
-                // Same height caveat as above: recordBlock has not run yet.
-                yourPoolFees += MempoolRules.blockFeesMinorUnits(save, chain.height + 1);
+            } else if (!solo && competing && winner.equals(poolId)) {
+                poolBlocks.add(new Won(height, at, MempoolRules.blockFeesMinorUnits(save, height), offline));
             }
-            recordBlock(chain, now);
-            confirm(save, chain.height, now);
+
+            double before = chain.difficulty;
+            recordBlock(chain, at);
+            if (chain.difficulty != before) {
+                retargets++;
+                // The rest of the interval runs at the new difficulty, which is what a retarget is.
+                mean = expectedSeconds(chain.difficulty, chain.networkHashrate);
+            }
+            confirmed += confirm(save, chain.height, at).size();
             blocks++;
         }
-        return new Minted(blocks, yours, yourPool, yoursFees, yourPoolFees);
+
+        boolean truncated = blocks >= limit;
+        if (!truncated) {
+            // Whatever is left of the interval is partial progress toward the outstanding draw. It
+            // stays on the counter and settles next time, exactly as it did before the cursor.
+            chain.networkWorkDone += Math.max(0.0d, span - elapsed) / mean;
+        }
+        return new Advance(
+                new Minted(blocks, yours, poolBlocks), competed, retargets, confirmed, truncated);
+    }
+
+    /**
+     * Milliseconds between two instants, saturating rather than overflowing.
+     *
+     * <p>⚠ {@code Duration.toMillis()} throws {@code ArithmeticException} past ~292 million years,
+     * and a hand-edited {@code lastPlayedAt} reaches that trivially. This is the one place a save
+     * file's own numbers set the size of a loop, so it is the one place that has to be careful about
+     * them.
+     */
+    private static long millisBetween(Instant from, Instant to) {
+        try {
+            return Duration.between(from, to).toMillis();
+        } catch (ArithmeticException absurd) {
+            return Long.MAX_VALUE;
+        }
     }
 
     /**
      * Picks who won a block, weighted by hashrate.
      *
-     * <p>The player is a competitor in their own right only when <b>solo</b>. When pooled their
-     * hashrate is inside their pool's, so drawing them separately would count it twice — the pool
-     * would win its full share and the player would win on top of it.
+     * <p>The player is a competitor in their own right only when <b>solo</b>, and only while their
+     * rig is actually hashing. When pooled their hashrate is inside their pool's, so drawing them
+     * separately would count it twice — the pool would win its full share and the player would win
+     * on top of it.
      *
      * <p>⚠ The draw is unconditional and happens once per block whatever the outcome, so the RNG
      * stream does not depend on who won. A generator whose consumption varies with what it produced
-     * stops a stored seed being a replay ({@code Rng}).
+     * stops a stored seed being a replay ({@code Rng}). That is also why a rig that has spun down
+     * still draws: the blocks it is absent from consume the stream identically to the ones it
+     * contested, so an absence does not shift what a later block would have rolled.
      */
-    private static String drawWinner(SoloSave save, Rng rng, boolean solo) {
+    private static String drawWinner(SoloSave save, Rng rng, boolean competing) {
         double roll = rng.nextDouble();
-        double you = solo
+        double you = competing
                 ? Math.min(1.0d, hashrate(save.rig.selfMiningCycles) / save.chain.networkHashrate)
                 : 0.0d;
         if (roll < you) {
@@ -240,9 +401,103 @@ public final class ChainRules {
      * Confirming the player's transactions unconditionally would have made the fee a cosmetic choice
      * and the mempool a decoration.
      */
-    private static void confirm(SoloSave save, long height, Instant now) {
-        MempoolRules.confirmInto(save, height, now);
+    private static List<PendingTxState> confirm(SoloSave save, long height, Instant now) {
+        return MempoolRules.confirmInto(save, height, now);
     }
+
+    // ================================================================== catching up
+
+    /**
+     * Fills in the blocks the chain made while the client was closed.
+     *
+     * <h2>The chain does not stop when the client does</h2>
+     *
+     * Until 2026-07-29 it did: height froze at the last tick and resumed from there, so a character
+     * played on Monday and again on Friday found four days of wall-clock time and zero blocks — on
+     * the one readout in this game whose whole subject is that nobody owns it and nobody can stop it.
+     * {@code docs/design/04-mining.md} §1.3d. A ledger that waits for you is not a decentralised
+     * ledger, and this is the most legible possible way to say so.
+     *
+     * <h2>⚠ The rig competes for the first {@code Balance.OFFLINE_MINING_HOURS} and then stops dead</h2>
+     *
+     * That is Invariant <b>I5</b> as amended on 2026-07-29. It used to read "self-mining runs
+     * online-only"; the cap was always the thing doing the work, because what the rule protects
+     * against is <em>absence out-earning play</em> on an income stream that is also zero-heat and
+     * unseizable (I4). Past the window a longer absence is worth exactly nothing more, so there is no
+     * absence to optimise toward — and play is uncapped, so an hour played always beats an hour away.
+     *
+     * <p>Blocks past the cap still happen, still have real winners, and still confirm the player's
+     * pending transactions. What they do not do is pay.
+     *
+     * <h2>⚠ Confirming transactions while away is NOT offline income</h2>
+     *
+     * A broadcast transaction is on the network and gets mined whether or not its sender is watching.
+     * The value moved when the ledger row was written; confirmation only stamps it with the height
+     * that carried it. A transaction left unconfirmed across a four-day absence would be the lie, and
+     * would also mean a player could park money in the mempool to hide it.
+     *
+     * @param from when the client was last running — {@code save.lastPlayedAt}
+     * @param to now
+     * @return what happened, for the {@code SYNCHRONIZING} screen. Never null; a fill with nothing to
+     *     do reports zero blocks and the screen does not appear.
+     */
+    public static Sync sync(SoloSave save, Instant from, Instant to, Rng rng) {
+        ChainState chain = save.chain;
+        if (chain == null || from == null || !from.isBefore(to)) {
+            return new Sync(ChainSync.none(to), Minted.NOTHING, Duration.ZERO);
+        }
+        long away = Duration.between(from, to).getSeconds();
+        // ⚠ Capped against the ABSENCE, not to the window. A player away ten minutes mined for ten
+        // minutes; a player away a week mined for four hours.
+        long mined = Math.min(away, Balance.offlineMiningSeconds());
+
+        long fromHeight = chain.height;
+        double difficultyBefore = chain.difficulty;
+        Advance walked = advance(
+                save,
+                from,
+                to,
+                from.plusSeconds(mined),
+                rng,
+                Balance.CHAIN_SYNC_BLOCK_LIMIT,
+                true);
+
+        ChainSync report = new ChainSync(
+                from,
+                to,
+                away,
+                mined,
+                fromHeight,
+                chain.height,
+                walked.minted().blocks(),
+                walked.competed(),
+                walked.minted().yours(),
+                walked.minted().yourPool(),
+                // ⚠ Zero here and filled in by the caller. What a block PAYS is MiningRules'
+                // question — this class runs the chain and decides who won, and a payout figure
+                // computed in two places is two places for it to be computed differently.
+                0L,
+                walked.retargets(),
+                difficultyBefore,
+                chain.difficulty,
+                walked.confirmed(),
+                walked.truncated());
+        return new Sync(report, walked.minted(), Duration.ofSeconds(mined));
+    }
+
+    /**
+     * A completed fill, and the two things the caller still has to settle.
+     *
+     * <p>The split is the same one {@code tick()} already makes: the chain decides <em>who won</em>
+     * and {@code MiningRules} decides <em>what that is worth</em>. {@code minedFor} is how much of
+     * the absence to run the share clock over, which is not the same as the absence — a pay-per-share
+     * pool accrues across the spin-down window and not one second past it.
+     *
+     * @param report what to show the player, with {@code creditedMinorUnits} still unset
+     * @param minted the blocks that are going to pay, for {@code MiningRules.runSelfMining}
+     * @param minedFor how long the rig was actually hashing — the capped window, never the absence
+     */
+    public record Sync(ChainSync report, Minted minted, Duration minedFor) {}
 
     /** Adds one block to the chain and retargets if that closed the window. */
     public static void recordBlock(ChainState chain, Instant now) {

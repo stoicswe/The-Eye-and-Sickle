@@ -86,7 +86,7 @@ class MiningChainTest {
     }
 
     /** A tick in which the chain produced nothing — for driving settlement directly. */
-    private static final ChainRules.Minted NOTHING = new ChainRules.Minted(0, 0, 0, 0L, 0L);
+    private static final ChainRules.Minted NOTHING = ChainRules.Minted.NOTHING;
 
     /** Where each save's simulated clock has reached. See {@link #mine}. */
     private static final java.util.Map<SoloSave, Instant> CLOCKS = new java.util.IdentityHashMap<>();

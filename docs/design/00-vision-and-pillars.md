@@ -41,7 +41,7 @@ These are the load-bearing rules extracted from the full design. A change to any
 | I2 | Ethecoin never buys a ceiling | Money buys breadth only; ceilings come from schematics/story | `02-unlock-gates.md` |
 | I3 | Every item sits behind exactly one unlock gate | Gate assignment follows a rule, not per-item taste | `02-unlock-gates.md` |
 | I4 | Self-mining is structurally immune to detection and seizure, and generates zero heat | It is the income floor; heat must have a real cost with a real bottom | `04-mining.md` |
-| I5 | Self-mining and botnets run online-only; deployed miners are the only offline income | Keeps compute allocation an active bet; offline accrual is buffer-capped | `04-mining.md` |
+| I5 | Self-mining and botnets stop a bounded time after the client closes; all offline income is capped, never proportional to absence | Keeps compute allocation an active bet; a longer absence must never be worth more | `04-mining.md` |
 | I6 | A deployed miner consumes the host's compute, not the deployer's | If a hostile miner cost the host nothing, no one would ever spend compute on detection | `04-mining.md` |
 | I7 | Proof-of-skill gates are tier-gated, never count-gated | Count gates reward farming the weakest target; tier gates reward competence | `02-unlock-gates.md` |
 | I8 | Zero-days are never reliably purchasable | The moment they're farmable they answer every problem and the puzzle stops mattering | `06-intrusion-tools.md` |

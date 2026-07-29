@@ -15,9 +15,11 @@ import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
 import io.github.stoicswe.eyeandsickle.client.ui.cursors.Cursors;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.KeyValue;
+import io.github.stoicswe.eyeandsickle.protocol.game.BlockContribution;
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainBlock;
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainMempool;
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainTransaction;
+import io.github.stoicswe.eyeandsickle.protocol.game.FeeTier;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningPool;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningSnapshot;
@@ -37,6 +39,7 @@ import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
 import javafx.scene.control.Slider;
 import javafx.scene.control.TextField;
+import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
 import javafx.scene.control.ToggleButton;
@@ -962,9 +965,12 @@ public final class Views {
         blockStrip.setPrefHeight(150);
         blockStrip.getStyleClass().add("es-block-strip");
 
-        Label detail = new Label();
-        detail.getStyleClass().add("es-mono");
-        detail.setWrapText(true);
+        // ⚠ A COLUMN OF LABELS, not one Label of text — because the player's own rows have to be
+        // findable in it. A block carries up to 200 transactions and theirs might be row 137; a
+        // two-character ">" gutter in a wall of monospace is not a marker, it is a needle. Per-row
+        // styling needs per-row nodes.
+        VBox detail = new VBox();
+        detail.getStyleClass().add("es-block-detail");
         detail.setVisible(false);
         detail.setManaged(false);
 
@@ -1024,12 +1030,22 @@ public final class Views {
         // entry redraws one label from the wall clock; the list is rebuilt whenever the cards are.
         List<Runnable> ticking = new ArrayList<>();
 
+        // Which block the detail panel is showing, as a HEIGHT. See blockCard: the strip is rebuilt
+        // on every chain advance, so a selection held on a node would not survive one. -1 is "none",
+        // which is the state before the player has clicked anything.
+        long[] selectedBlock = {-1L};
+        Runnable[] markSelected = {() -> markSelectedBlock(blocks, selectedBlock[0])};
+
         // Two panes, one strip. Same bracket-selected chips the rig monitor draws (§4.4) — two tab
         // strips in one deck indicating selection differently would be two conventions to learn.
+        TableView<BlockContribution> contributions = contributionTable();
+
         LedgerTab[] tab = {LedgerTab.CHAIN};
         VBox chainPane = new VBox(UiTokens.SPACE_3);
         VBox ledgerPane = new VBox(UiTokens.SPACE_3);
+        VBox contributorPane = new VBox(UiTokens.SPACE_3);
         VBox.setVgrow(ledgerPane, Priority.ALWAYS);
+        VBox.setVgrow(contributorPane, Priority.ALWAYS);
 
         HBox tabs = Ui.row(UiTokens.SPACE_3);
         tabs.getStyleClass().add("es-breach-picker");
@@ -1037,9 +1053,10 @@ public final class Views {
         Runnable[] applyTab = new Runnable[1];
         for (LedgerTab which : LedgerTab.values()) {
             BreachView.Chip chip = new BreachView.Chip(which.control(LedgerTab.CHAIN), "es-breach-chip-quiet");
-            chip.setAccessibleText(which == LedgerTab.CHAIN
-                    ? "Show the chain: height, difficulty, the mempool and recent blocks."
-                    : "Show your own transactions, newest first.");
+            // ⚠ The enum's own answer, not a ternary here. A two-branch conditional silently gave a
+            // third tab the second one's description, and nothing would have reported it — the chip
+            // renders, reads out wrong, and only a screen-reader user ever finds out.
+            chip.setAccessibleText(which.description());
             chip.onInvoke(() -> {
                 tab[0] = which;
                 applyTab[0].run();
@@ -1059,6 +1076,7 @@ public final class Views {
             }
             tabVisible(chainPane, tab[0] == LedgerTab.CHAIN);
             tabVisible(ledgerPane, tab[0] == LedgerTab.LEDGER);
+            tabVisible(contributorPane, tab[0] == LedgerTab.CONTRIBUTOR);
         };
 
         Runnable refreshData = () -> {
@@ -1085,7 +1103,7 @@ public final class Views {
 
             queue.getChildren().clear();
             for (ChainMempool.Queued q : pool.queued()) {
-                queue.getChildren().add(queuedRow(q, pool, ticking));
+                queue.getChildren().add(queuedRow(session, q, pool, ticking));
             }
             // Hidden AND unmanaged when empty, or the heading and an empty box would claim a row's
             // worth of the strip's height on the overwhelming majority of frames, where a player has
@@ -1096,17 +1114,35 @@ public final class Views {
 
             blocks.getChildren().clear();
             for (ChainBlock b : session.chainBlocks()) {
-                blocks.getChildren().add(blockCard(session, b, detail, ticking));
+                blocks.getChildren().add(
+                        blockCard(session, b, detail, ticking, selectedBlock, markSelected[0]));
             }
             if (blocks.getChildren().isEmpty()) {
                 blocks.getChildren().add(secondary("No blocks yet — the chain mints one every "
                         + Math.round(Balance.CHAIN_TARGET_BLOCK_SECONDS / 60.0d) + " minutes."));
             }
+            // ⚠ Re-marked after every rebuild. The row is torn down whenever the chain advances, so
+            // a selection painted only on click vanishes on the next block while the detail panel
+            // below goes on showing that block's header — a card and a readout disagreeing about
+            // which block is being looked at.
+            markSelected[0].run();
             table.getItems().setAll(session.chainTransactions(500));
+            contributions.getItems().setAll(session.contributions(512));
         };
         refreshData.run();
 
+        // ⚠ takeChainSync, not chainSync — and built once, outside refreshData.
+        //
+        // Two different repeats, both of which shipped as replays of a finished fill. Rebuilding
+        // inside refreshData restarted the animation every time a block landed; reading the report
+        // rather than taking it restarted it every time the player opened the window, because a
+        // closed tool window keeps no state and DeskManager calls this factory afresh. A
+        // synchronisation is a transition and is announceable exactly once — after that the rig log
+        // carries the same facts, which is where history belongs.
+        ChainSyncPanel.Built sync = ChainSyncPanel.build(session.takeChainSync(), refreshData);
+
         chainPane.getChildren().addAll(
+                sync.node(),
                 new Label("CHAIN"), chainLine,
                 new Label("MEMPOOL — NEXT BLOCKS"), mempoolLine, upcoming,
                 queueHeading, queue,
@@ -1117,6 +1153,17 @@ public final class Views {
                         + "so the log reconciles without replaying it. A dash in the block column "
                         + "means the transaction never touched the chain."),
                 table);
+
+        contributorPane.getChildren().addAll(
+                wrapped("Every block your rig put hashrate into — the ones you mined outright, and "
+                        + "the ones your pool found while you were contributing. SHARE is what "
+                        + "fraction of the whole chain you were at the time, which is exactly the "
+                        + "chance each of those blocks had of being yours. COINBASE is newly minted; "
+                        + "FEES were paid by the senders in the block. YOUR CUT is what reached you: "
+                        + "the whole reward when solo, a share of it under PPLNS, and nothing under "
+                        + "pay-per-share — which buys your shares instead and is not dividing the "
+                        + "block up at all."),
+                contributions);
 
         Runnable refreshClock = () -> {
             ChainMempool pool = session.mempool();
@@ -1160,10 +1207,140 @@ public final class Views {
                 new Label("YOUR ADDRESS"), address, balance,
                 new Separator(),
                 tabs,
-                chainPane, ledgerPane);
+                chainPane, ledgerPane, contributorPane);
         Region scrolled = scrollable(root);
-        releaseOnDetach(root, onSession, clock);
+        releaseOnDetach(root, onSession, clock, () -> sync.release().run());
         return scrolled;
+    }
+
+    /**
+     * CONTRIBUTOR — every block this rig's hashrate went into.
+     *
+     * <h2>⚠ SHARE is the column the whole tab exists for</h2>
+     *
+     * It is the rig's fraction of the chain when the block was found, which is <b>exactly</b> the
+     * probability {@code ChainRules.drawWinner} rolled against. Over enough solo rows the proportion
+     * that came back marked YOUR RIG should converge on it — so the tab is not a trophy cabinet, it
+     * is the one surface where a player can check the game's own claim about how mining works against
+     * what the game actually did. {@code docs/education/07} teaches the arithmetic and had nowhere to
+     * point.
+     *
+     * <h2>⚠ COINBASE and FEES are two columns and must not become one</h2>
+     *
+     * They are one credit in the ledger and two different things on the chain: the subsidy is
+     * <b>minted</b> — those coins did not exist before this block — and the fees were <b>paid by the
+     * senders</b> of the transactions in it. {@code proof-of-work(7)} teaches that split, and a single
+     * "reward" total is precisely the readout that hides it.
+     *
+     * <h2>⚠ A zero in YOUR CUT is correct under pay-per-share, and is styled as information</h2>
+     *
+     * A share pool does not divide up the blocks it finds — it pays a fixed price per accepted share
+     * out of its own balance, which is the entire product a PPS miner buys. So a PPS row carries a
+     * real hashrate and no cut, rendered in micro grey rather than the alarm colour: it is the
+     * expected reading, not a fault. It is also the only place in the client where the difference
+     * between the two pool schemes is visible at all.
+     */
+    private static TableView<BlockContribution> contributionTable() {
+        TableView<BlockContribution> table = new TableView<>();
+        table.setPlaceholder(new Label(
+                "No blocks yet. Commit cycles to mining and this fills as the chain finds them."));
+
+        TableColumn<BlockContribution, String> height = new TableColumn<>("Block");
+        height.setCellValueFactory(c -> text(String.format(Locale.ROOT, "%,d", c.getValue().height())));
+        height.setPrefWidth(90);
+
+        TableColumn<BlockContribution, String> when = new TableColumn<>("Age");
+        when.setCellValueFactory(c -> text(age(c.getValue().at())));
+        when.setPrefWidth(80);
+
+        TableColumn<BlockContribution, String> miner = new TableColumn<>("Mined by");
+        miner.setCellValueFactory(c -> text(c.getValue().minerLabel()));
+        miner.setPrefWidth(150);
+
+        // The scheme, because it is what explains the cut column. SOLO / PPS / PPLNS are the names
+        // the pool picker and the manual already use — a fourth vocabulary here would be a fourth
+        // thing to learn for the same three facts.
+        TableColumn<BlockContribution, String> scheme = new TableColumn<>("Paid as");
+        scheme.setCellValueFactory(c -> text(c.getValue().scheme()));
+        scheme.setPrefWidth(80);
+
+        TableColumn<BlockContribution, String> rate = new TableColumn<>("Your hashrate");
+        rate.setCellValueFactory(c -> text(hashrate(c.getValue().hashrate())));
+        rate.setPrefWidth(120);
+
+        TableColumn<BlockContribution, String> share = new TableColumn<>("Share");
+        share.setCellValueFactory(c -> text(
+                String.format(Locale.ROOT, "%.2f%%", c.getValue().networkShare() * 100)));
+        share.setPrefWidth(80);
+
+        TableColumn<BlockContribution, String> transactions = new TableColumn<>("TXNs");
+        transactions.setCellValueFactory(c -> text(String.valueOf(c.getValue().transactions())));
+        transactions.setPrefWidth(70);
+
+        TableColumn<BlockContribution, String> coinbase = new TableColumn<>("Coinbase");
+        coinbase.setCellValueFactory(c -> text(money(c.getValue().subsidyMinorUnits())));
+        coinbase.setPrefWidth(110);
+
+        TableColumn<BlockContribution, String> fees = new TableColumn<>("Fees");
+        fees.setCellValueFactory(c -> text(money(c.getValue().feesMinorUnits())));
+        fees.setPrefWidth(110);
+
+        // ⚠ "per share", not "0.00 EC", under pay-per-share.
+        //
+        // A PPS pool does not divide up the blocks it finds — it buys accepted shares out of its own
+        // balance — so nothing from this block reached the player and the honest figure is genuinely
+        // zero. Rendered as a zero it read as a broken column: every row of a default character's
+        // tab is PPS, so the first thing a new player would see here is ten zeroes in the one column
+        // labelled with their own money. Naming the mechanism instead answers the question the zero
+        // raises. ⚠ Keyed off the SCHEME and not off paid(): a PPLNS block whose cut rounded to zero
+        // really did pay nothing out of a block that was being divided, and must still say 0.00.
+        TableColumn<BlockContribution, String> cut = new TableColumn<>("Your cut");
+        cut.setCellValueFactory(c -> text("PPS".equals(c.getValue().scheme())
+                ? "per share"
+                : money(c.getValue().creditedMinorUnits())));
+        cut.setCellFactory(column -> new TableCell<>() {
+            @Override
+            protected void updateItem(String value, boolean empty) {
+                super.updateItem(value, empty);
+                setText(empty ? null : value);
+                getStyleClass().removeAll("es-contrib-paid", "es-contrib-unpaid");
+                BlockContribution row = empty || getIndex() >= getTableView().getItems().size()
+                        ? null
+                        : getTableView().getItems().get(getIndex());
+                if (row != null) {
+                    getStyleClass().add(row.paid() ? "es-contrib-paid" : "es-contrib-unpaid");
+                }
+            }
+        });
+        cut.setPrefWidth(120);
+
+        table.getColumns().addAll(List.of(
+                height, when, miner, scheme, rate, share, transactions, coinbase, fees, cut));
+        VBox.setVgrow(table, Priority.ALWAYS);
+        table.setMinHeight(320);
+        return table;
+    }
+
+    /**
+     * A hashrate in the units a miner reads.
+     *
+     * <p>⚠ SI prefixes on powers of ten, not of two. A hashrate is a <em>rate</em> — hashes per
+     * second — and rates take SI prefixes; the binary ones belong to storage. Every real pool
+     * dashboard quotes MH/s meaning 10⁶, so using 2²⁰ here would put this client 4.9% out of step
+     * with the arithmetic {@code docs/education/07} checks against a live explorer.
+     */
+    private static String hashrate(long hashesPerSecond) {
+        if (hashesPerSecond <= 0) {
+            return "—";
+        }
+        String[] units = {"H/s", "kH/s", "MH/s", "GH/s", "TH/s", "PH/s"};
+        double value = hashesPerSecond;
+        int unit = 0;
+        while (value >= 1000 && unit < units.length - 1) {
+            value /= 1000;
+            unit++;
+        }
+        return String.format(Locale.ROOT, value >= 100 ? "%.0f %s" : "%.1f %s", value, units[unit]);
     }
 
     /**
@@ -1409,7 +1586,7 @@ public final class Views {
      * repaints a detached scene graph forever, and every re-open starts another — so the tenth time a
      * player opens the ledger the machine is doing ten times the work for one visible panel.
      */
-    private static void releaseOnDetach(Region root, AutoCloseable... handles) {
+    static void releaseOnDetach(Region root, AutoCloseable... handles) {
         boolean[] attached = {false};
         root.sceneProperty().addListener((observable, was, now) -> {
             if (now != null) {
@@ -1504,12 +1681,15 @@ public final class Views {
      * "every tier gets in eventually" is most likely to be misread as.
      */
     private static Region queuedRow(
-            ChainMempool.Queued q, ChainMempool pool, List<Runnable> ticking) {
+            GameSession session, ChainMempool.Queued q, ChainMempool pool, List<Runnable> ticking) {
         Label eta = Ui.small("");
         double mean = pool.expectedNextBlockSeconds();
 
+        // ⚠ Named against the projection depth rather than a literal "+3". The strip projects 3–5
+        // blocks now, so a hard-coded three said "past +3" while a fourth and fifth card sat
+        // visibly beside it.
         Label where = Ui.micro(q.beyondProjection()
-                ? "past +3"
+                ? "past +" + Math.max(1, pool.projected().size())
                 : q.projectedIndex() == 0 ? "next block" : "block +" + (q.projectedIndex() + 1));
 
         HBox row = Ui.row(UiTokens.SPACE_3,
@@ -1518,6 +1698,7 @@ public final class Views {
                 where,
                 eta,
                 Ui.micro("fee " + money(q.tx().feeMinorUnits())),
+                boostChip(session, q),
                 Ui.micro(q.tx().description()));
         row.setAlignment(Pos.CENTER_LEFT);
 
@@ -1548,6 +1729,56 @@ public final class Views {
         ticking.add(retime);
         row.getStyleClass().add("es-queued-row");
         return row;
+    }
+
+    /**
+     * BOOST — raise a waiting transaction's fee, and jump the queue.
+     *
+     * <h2>Why this control exists on the row and not in a dialog</h2>
+     *
+     * The decision it supports is "this is going to take three more blocks and I do not want to
+     * wait", and the evidence for that decision — the projected block, the countdown, the fee already
+     * paid — is on this row. Moving the action away from the evidence would make the player carry the
+     * comparison in their head to somewhere it could not be checked.
+     *
+     * <h2>⚠ It names the DIFFERENCE, not the new fee</h2>
+     *
+     * The original fee was debited when the transaction was broadcast, so a boost costs the gap. A
+     * chip reading "0.30 EC" beside a row already showing "fee 0.08 EC" would read as the total and
+     * would over-state the price by the amount already paid.
+     *
+     * <p>Absent entirely on a transaction already at the top tier — there is nothing above priority
+     * to bid, and a disabled control that never becomes enabled is furniture.
+     */
+    private static javafx.scene.Node boostChip(GameSession session, ChainMempool.Queued q) {
+        FeeTier next = null;
+        long paying = q.tx().feeMinorUnits();
+        for (FeeTier tier : FeeTier.values()) {
+            long cost = Balance.feeFor(tier);
+            if (cost > paying && (next == null || cost < Balance.feeFor(next))) {
+                next = tier;
+            }
+        }
+        if (next == null) {
+            return Ui.micro("top of the queue");
+        }
+        FeeTier target = next;
+        long difference = Balance.feeFor(target) - paying;
+        BreachView.Chip chip = new BreachView.Chip(
+                "boost +" + money(difference), "es-breach-chip-quiet");
+        chip.setAccessibleText("Raise this transaction's fee to " + target.label()
+                + " for " + money(difference) + " more. Miners sort by fee rate, so it moves up the "
+                + "queue: " + target.promise() + ". This is replace-by-fee.");
+        javafx.scene.control.Tooltip boost = new javafx.scene.control.Tooltip(
+                "Replace-by-fee. A transaction waiting in the mempool is not committed to anything — "
+                        + "offer more and miners, who sort by fee rate, prefer the better offer. You "
+                        + "pay the difference, because the first fee is already spent.\n"
+                        + target.label() + ": " + target.promise() + ".");
+        boost.setWrapText(true);
+        boost.setMaxWidth(360);
+        javafx.scene.control.Tooltip.install(chip, boost);
+        chip.onInvoke(() -> session.boostFee(q.tx().hash(), target));
+        return chip;
     }
 
     /** Whole seconds from now until {@code at}; zero or negative once the estimate is overtaken. */
@@ -1590,11 +1821,44 @@ public final class Views {
      * {@code docs/design/ui-design-language.md} §4 forbids a continuous one for the same reason the
      * cycle grid is countable: a smooth bar implies a precision the model does not have.
      */
+    /**
+     * One block in the RECENT BLOCKS strip.
+     *
+     * <h2>⚠ Selection lives OUTSIDE the card, keyed by height</h2>
+     *
+     * The strip is torn down and rebuilt whenever the chain advances ({@code refreshData} clears the
+     * row and re-adds every card), so selection held on a card would be destroyed roughly every
+     * fourteen minutes — and, before this, was not held anywhere at all: clicking rewrote the detail
+     * text and marked nothing, so the panel showed a header with no indication of which of
+     * twenty-four cards it belonged to. Reported as the selection not moving, which is what having no
+     * selection indicator looks like from outside.
+     *
+     * <p>So the selected <em>height</em> is the state and {@code markSelected} repaints the row from
+     * it. A height survives a rebuild; a node does not.
+     *
+     * @param selected one-element holder for the selected height, shared with the panel
+     * @param markSelected repaints the whole row's selected state — called on click and after every
+     *     rebuild, so a selection outlives the block that pushed the strip along
+     */
     private static Region blockCard(
-            GameSession session, ChainBlock b, Label detail, List<Runnable> ticking) {
+            GameSession session,
+            ChainBlock b,
+            VBox detail,
+            List<Runnable> ticking,
+            long[] selected,
+            Runnable markSelected) {
         Label height = Ui.value("#" + b.number());
+
+        // ⚠ A pill, and §9's radius ban was amended for it (2026-07-29) — see `.es-pill` in
+        // theme.css. A miner is the one field on this card that is a NAME rather than a number, and
+        // a bare grey line of type read as another measurement in a stack of four. The rig's own
+        // pill takes the accent, which is the same claim `.es-block-yours` already makes about the
+        // card's border: amber is income, and a block you mined is income.
         Label who = Ui.micro(b.minerLabel());
-        who.getStyleClass().add("es-legend-sub");
+        who.getStyleClass().addAll("es-pill", "es-miner-pill");
+        if (b.yours()) {
+            who.getStyleClass().add("es-miner-pill-yours");
+        }
 
         Label fill = new Label(cells(b.fullness(), 10));
         fill.getStyleClass().add("es-block-fill");
@@ -1617,6 +1881,9 @@ public final class Views {
             // the deck and a block you mined is exactly that.
             card.getStyleClass().add("es-block-yours");
         }
+        // What markSelected matches on. The height, not the node — the row is rebuilt every time the
+        // chain advances and a node identity does not survive that.
+        card.setUserData(b.number());
         card.setMinWidth(112);
         card.setPickOnBounds(true);
         Cursors.shared().clickable(card);
@@ -1630,9 +1897,31 @@ public final class Views {
             // Fetched with its body, which is derived on demand rather than carried on every card —
             // a strip of 24 cards would otherwise build 24 full transaction lists to draw 24 headers.
             ChainBlock full = session.chainBlock(b.number());
-            detail.setText(blockDetail(full == null ? b : full));
+            paintBlockDetail(detail, full == null ? b : full);
+            selected[0] = b.number();
+            markSelected.run();
         });
         return card;
+    }
+
+    /**
+     * Paints the strip's selected card, from the selected height.
+     *
+     * <p>⚠ Walks <b>every</b> card and clears first. Toggling only the two cards involved works right
+     * up until the row is rebuilt underneath — the old node is gone and the new one for the same
+     * height was never told, so the mark silently disappears on the next block. Clearing the row and
+     * re-marking from the one piece of state is the version that cannot drift.
+     *
+     * <p>A height that has scrolled out of the strip's window simply marks nothing, which is correct:
+     * the detail below still shows that block, and the card for it is no longer on screen to mark.
+     */
+    private static void markSelectedBlock(HBox strip, long selected) {
+        for (javafx.scene.Node node : strip.getChildren()) {
+            node.getStyleClass().remove("es-block-selected");
+            if (node.getUserData() instanceof Long height && height == selected) {
+                node.getStyleClass().add("es-block-selected");
+            }
+        }
     }
 
     /**
@@ -1642,8 +1931,24 @@ public final class Views {
      * belongs to the reader is the only one they are looking for, and an explorer that made them
      * match hex strings by eye would be technically complete and practically useless.
      */
-    private static String blockDetail(ChainBlock b) {
-        List<String> out = new ArrayList<>(List.of(
+    /**
+     * A block's header and every transaction in it, with the player's own rows made findable.
+     *
+     * <h2>⚠ The player's rows are the point of opening a block, and they used to be a "&gt;"</h2>
+     *
+     * A block carries up to 200 transactions and the two the player cares about might be rows 137
+     * and 138. The marker was a two-character gutter in a wall of identical monospace, which is not a
+     * marker — it is a needle. Their rows now take the income accent, carry {@code YOU} in a column
+     * of their own, and print the description the ledger has for them, which the derived network
+     * traffic does not have and cannot have.
+     *
+     * <p>⚠ The accent is earned rather than borrowed: §2.1 reserves amber for the player's own money,
+     * and these rows are literally that. Nothing else in the list is coloured, so the budget is spent
+     * once.
+     */
+    private static void paintBlockDetail(VBox into, ChainBlock b) {
+        into.getChildren().clear();
+        for (String line : List.of(
                 "number        " + b.number(),
                 "hash          " + b.hash(),
                 "parentHash    " + b.parentHash(),
@@ -1656,25 +1961,60 @@ public final class Views {
                         + String.format(Locale.ROOT, "  (%.1f%%)", b.fullness() * 100),
                 "size          " + b.sizeBytes() + " bytes",
                 "reward        " + money(b.rewardMinorUnits()) + " subsidy + "
-                        + money(b.feesMinorUnits()) + " fees = " + money(b.minerTakeMinorUnits()),
-                "",
-                "  " + pad("#", 4) + pad("hash", 16) + pad("from", 16) + pad("to", 16)
-                        + pad("value", 13) + pad("fee", 9) + "gas price"));
+                        + money(b.feesMinorUnits()) + " fees = " + money(b.minerTakeMinorUnits()))) {
+            into.getChildren().add(detailLine(line, false));
+        }
+
+        int mine = 0;
+        for (ChainTransaction tx : b.body()) {
+            if (tx.yours()) {
+                mine++;
+            }
+        }
+        into.getChildren().add(detailLine("", false));
+        into.getChildren().add(detailLine(
+                mine == 0
+                        ? "  nothing of yours is in this block"
+                        : "  " + mine + (mine == 1 ? " row here is yours" : " rows here are yours")
+                                + " — marked YOU below",
+                mine > 0));
+        into.getChildren().add(detailLine(
+                "  " + pad("#", 4) + pad("who", 5) + pad("hash", 16) + pad("from", 16)
+                        + pad("to", 16) + pad("value", 13) + pad("fee", 9) + "gas price", false));
+
         int index = 0;
         for (ChainTransaction tx : b.body()) {
-            out.add((tx.yours() ? "> " : "  ")
+            String line = (tx.yours() ? "> " : "  ")
                     + pad(String.valueOf(index++), 4)
+                    // ⚠ Its own COLUMN, not a prefix. A leading marker shifts everything after it
+                    // and breaks the character-cell alignment the whole table is read down.
+                    + pad(tx.yours() ? "YOU" : "", 5)
                     + pad(ChainBlock.shorten(tx.hash()), 16)
                     + pad(tx.coinbase() ? "coinbase" : ChainBlock.shorten(tx.from()), 16)
                     + pad(ChainBlock.shorten(tx.to()), 16)
                     + pad(money(tx.valueMinorUnits()), 13)
                     + pad(tx.coinbase() ? "—" : money(tx.feeMinorUnits()), 9)
-                    + (tx.coinbase() ? "—" : String.format(Locale.ROOT, "%.1f", tx.gasPriceMinorUnits())));
+                    + (tx.coinbase() ? "—" : String.format(Locale.ROOT, "%.1f", tx.gasPriceMinorUnits()));
+            // The description is the one field the derived network traffic does not have — it is
+            // read off the ledger row — so it doubles as proof that this row is really the player's.
+            if (tx.yours() && !tx.description().isBlank()) {
+                line = line + "   " + tx.description();
+            }
+            into.getChildren().add(detailLine(line, tx.yours()));
         }
         if (b.body().isEmpty()) {
-            out.add("  (select a block to load its transactions)");
+            into.getChildren().add(detailLine("  (select a block to load its transactions)", false));
         }
-        return String.join("\n", out);
+    }
+
+    /** One line of block detail. Two classes on the accented ones — the late `.label` fill rule. */
+    private static Label detailLine(String text, boolean yours) {
+        Label label = new Label(text);
+        label.getStyleClass().add("es-mono");
+        if (yours) {
+            label.getStyleClass().add("es-block-detail-yours");
+        }
+        return label;
     }
 
     /** Left-aligned in a fixed column, so the body reads as a table in a monospaced label. */
@@ -2546,7 +2886,7 @@ public final class Views {
      * content the content's own preferred width, so every wrapped label stops wrapping and the
      * panel grows a horizontal scrollbar instead of reflowing.
      */
-    private static Region scrollable(Region content) {
+    static Region scrollable(Region content) {
         return scrollable(content, false);
     }
 

@@ -121,6 +121,77 @@ public final class TransferRules {
         return new Started(task, null, bytes, duration);
     }
 
+    /**
+     * The stand-in address a bought package is fetched from.
+     *
+     * <p>Not a machine and never resolvable: a vendor is a shopfront, and giving it an address would
+     * put something on the map that cannot be swept, breached or held. It reads as a source in the
+     * activity list and the arrival log, which is all it has to be.
+     */
+    public static final String VENDOR = "market";
+
+    /**
+     * Commissions the download of a bought upgrade.
+     *
+     * <h2>Why buying goes over the same pipe as stealing</h2>
+     *
+     * Until 2026-07-29 a purchase materialised the item in the same call that took the money. It now
+     * takes the money, broadcasts the transaction, and <b>downloads a package</b> — the same task, the
+     * same activity readout, the same Downloads folder and the same {@code install} step a stolen
+     * upgrade goes through. One pipeline rather than two means the fee market, the link speed and the
+     * install step are facts about upgrades rather than facts about where you got one.
+     *
+     * <p>⚠ <b>No session is required and none is charged.</b> {@link #begin} refuses without a shell
+     * on the far machine because you cannot pull a file off a host you do not hold; a vendor hands it
+     * to you because you paid. That is the whole difference, and it is why this is a second entry
+     * point rather than a flag on the first.
+     *
+     * @param entryId the ledger row for the payment. Rides on the task so the package that lands
+     *     minutes later knows which transaction releases it — see {@code Repac.locked}.
+     */
+    public static Started beginPurchase(
+            SoloSave save, String itemType, String fileName, String entryId, Instant now) {
+        if (save == null || itemType == null || itemType.isBlank()) {
+            return new Started(null, Refusal.NOT_TRANSFERABLE, 0, Duration.ZERO);
+        }
+        String path = "/" + VENDOR + "/" + fileName;
+        if (running(save, path).isPresent()) {
+            return new Started(null, Refusal.ALREADY_RUNNING, 0, Duration.ZERO);
+        }
+        // The same size the identical upgrade has when it is sitting inside somebody's app bundle,
+        // from the same function — a bought copy and a stolen copy of one tool are one file.
+        long bytes = io.github.stoicswe.eyeandsickle.solo.fs.VirtualFs.upgradeBytes(itemType);
+        Duration duration = Balance.transferTime(bytes);
+        TaskState task = new TaskState(
+                KIND, "downloading " + fileName, "", 0L, now, now.plus(duration));
+        task.outcome = VENDOR + " " + path + " " + bytes + " "
+                + io.github.stoicswe.eyeandsickle.solo.rules.Repac.defaultDestination(save.handle)
+                + " " + itemType + " " + entryId;
+        save.tasks.add(task);
+        return new Started(task, null, bytes, duration);
+    }
+
+    /**
+     * The catalogue id a bought download will install as, or empty for an ordinary transfer.
+     *
+     * <p>⚠ Appended as a FIFTH field, so a task written before this existed still parses — every
+     * accessor reads by index and a missing index answers empty rather than throwing. A task list is
+     * serialised into the save and outlives the code that wrote it.
+     */
+    public static String itemTypeOf(TaskState task) {
+        return field(task, 4);
+    }
+
+    /** The ledger row that releases a bought package, or empty when nothing holds it. */
+    public static String entryIdOf(TaskState task) {
+        return field(task, 5);
+    }
+
+    /** Whether this transfer is a purchase rather than a pull off a machine. */
+    public static boolean isPurchase(TaskState task) {
+        return VENDOR.equals(addressOf(task));
+    }
+
     /** A transfer already running for this path, if there is one. */
     public static Optional<TaskState> running(SoloSave save, String path) {
         if (save == null || path == null) {

@@ -142,11 +142,35 @@ public final class MoreViews {
 
     // ------------------------------------------------------------------ recon
 
-    /** What recon costs and what it buys — the decided part of a proposed system. */
+    /**
+     * What recon costs, and every intelligence file collected so far.
+     *
+     * <h2>⚠ The files come FIRST, above the cost model</h2>
+     *
+     * This window opened as a page about pricing because there was nothing collected to show. Now
+     * that port scans file reports, the thing a player opens RECON to look at is what they already
+     * know — and the cost model is reference material they read once. Reference above data would make
+     * them scroll past the same paragraph every time.
+     */
     public static Region recon(GameSession session) {
         VBox root = panel("RECON — less");
+        VBox files = new VBox(io.github.stoicswe.eyeandsickle.client.ui.UiTokens.SPACE_1);
+        Runnable repaint = () -> paintReports(files, session);
+        repaint.run();
+        AutoCloseable onSession = session.onChange(s -> repaint.run());
+        // Every row carries an age, which is wall-clock derived — see NodeReportView.
+        AutoCloseable clock = io.github.stoicswe.eyeandsickle.client.ui.Pulse.shared()
+                .every(1_000, repaint);
+        Views.releaseOnDetach(root, onSession, clock);
+
         root.getChildren()
                 .addAll(
+                        new Label("COLLECTED REPORTS"),
+                        secondary("What a port scan has established about each machine. Open a "
+                                + "machine's report from its right-click menu on the map, or from "
+                                + "the network list — rows marked [i] have a file."),
+                        files,
+                        new Separator(),
                         wrapped("Recon is a paid service. What you learn about a machine costs compute "
                                 + "and ethecoin, and that price is the reason the network map starts "
                                 + "empty."),
@@ -166,6 +190,47 @@ public final class MoreViews {
                                 + "still open. The cost model above is decided and is what a player "
                                 + "needs to budget."));
         return scrollable(root);
+    }
+
+    /**
+     * One row per machine on file: what it is, how complete the file is, and how old it is.
+     *
+     * <p>⚠ <b>Both</b> dates. "Opened" says when this machine first came into view as something worth
+     * knowing about; "updated" says whether what is in the file is any use now. A list carrying one of
+     * them would answer half the question a player is asking when they come here looking for a target
+     * they scanned a while ago.
+     */
+    private static void paintReports(VBox into, GameSession session) {
+        into.getChildren().clear();
+        var reports = session.nodeReports();
+        if (reports.isEmpty()) {
+            into.getChildren().add(secondary(
+                    "Nothing collected yet. Port-scan a machine and its report appears here."));
+            return;
+        }
+        Label head = mono(pad("ADDRESS", 18) + pad("KNOWN", 8) + pad("SCANS", 8)
+                + pad("OPENED", 20) + "UPDATED");
+        head.getStyleClass().add("es-text-secondary");
+        into.getChildren().add(head);
+        var now = session.now();
+        for (var report : reports) {
+            into.getChildren().add(mono(
+                    pad(report.address(), 18)
+                            + pad(report.known() + "/"
+                                    + io.github.stoicswe.eyeandsickle.protocol.game.NodeReport.total(), 8)
+                            + pad(String.valueOf(report.scans()), 8)
+                            + pad(NodeReportView.age(report.createdAt(), now), 20)
+                            + NodeReportView.age(report.updatedAt(), now)));
+        }
+    }
+
+    /** Character-cell padding, the same shape every table in this client uses. */
+    private static String pad(String text, int width) {
+        String value = text == null ? "" : text;
+        if (value.length() >= width) {
+            return value.substring(0, Math.max(0, width - 1)) + " ";
+        }
+        return value + " ".repeat(width - value.length());
     }
 
     // ------------------------------------------------------------------ botnet

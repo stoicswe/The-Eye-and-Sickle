@@ -180,7 +180,8 @@ public final class NetRules {
 
         List<Sighting> sightings = new ArrayList<>();
         for (String address : visible) {
-            sightings.add(sighting(hosts.get(address), known.get(address), servers, hops, vantage, topology));
+            sightings.add(sighting(
+                    save, hosts.get(address), known.get(address), servers, hops, vantage, topology));
         }
 
         List<NetLink> links = new ArrayList<>();
@@ -222,6 +223,7 @@ public final class NetRules {
      * player has actually identified.
      */
     private static Sighting sighting(
+            SoloSave save,
             HostState host,
             NodeState node,
             Map<String, ServerState> servers,
@@ -270,7 +272,8 @@ public final class NetRules {
                 node != null && node.honeypotSuspected,
                 hostsMiner,
                 host.foothold && !host.documentId.isEmpty() && !host.documentTaken,
-                peerServerName);
+                peerServerName,
+                NodeReports.any(save, host.address));
     }
 
     /**

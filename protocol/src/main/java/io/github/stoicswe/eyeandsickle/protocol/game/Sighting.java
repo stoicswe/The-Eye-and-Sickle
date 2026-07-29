@@ -105,7 +105,17 @@ public record Sighting(
         boolean honeypotSuspected,
         boolean hostsDeployedMiner,
         boolean documentAvailable,
-        String bridgePeerServerName) {
+        String bridgePeerServerName,
+        /**
+         * Whether a scan has ever come back from this machine — what the list's {@code [i]} marks.
+         *
+         * <p>⚠ "There is a file", not "the file is complete". A machine scanned once for its firewall
+         * and a machine taken apart down to its vault both carry the marker, because the marker's job
+         * is to say <em>there is something to open</em>. How much is in it is the report's own first
+         * line, which is the right place for it — a marker that tried to carry completeness would need
+         * seven states and would be read as none of them.
+         */
+        boolean reported) {
 
     /**
      * The reading without a patch state — every producer that has one today.
@@ -138,7 +148,35 @@ public record Sighting(
             String bridgePeerServerName) {
         this(address, label, serverId, kind, tier, signal, hopsFromVantage, vantage, foothold,
                 false, looted, honeypotSuspected, hostsDeployedMiner, documentAvailable,
-                bridgePeerServerName);
+                bridgePeerServerName, false);
+    }
+
+    /**
+     * The reading without a report flag — every fixture and test that has no scan behind it.
+     *
+     * <p>Same reasoning as the overload above: {@code reported} was added on 2026-07-29 and a literal
+     * {@code false} threaded through every producer would be noise the reader of each call site has to
+     * decode. It defaults to the true value — a machine nobody has scanned has no file.
+     */
+    public Sighting(
+            String address,
+            String label,
+            String serverId,
+            HostKind kind,
+            DifficultyTier tier,
+            SignalStrength signal,
+            int hopsFromVantage,
+            boolean vantage,
+            boolean foothold,
+            boolean patched,
+            boolean looted,
+            boolean honeypotSuspected,
+            boolean hostsDeployedMiner,
+            boolean documentAvailable,
+            String bridgePeerServerName) {
+        this(address, label, serverId, kind, tier, signal, hopsFromVantage, vantage, foothold,
+                patched, looted, honeypotSuspected, hostsDeployedMiner, documentAvailable,
+                bridgePeerServerName, false);
     }
 
     public Sighting {

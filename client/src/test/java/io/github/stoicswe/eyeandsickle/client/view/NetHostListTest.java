@@ -58,11 +58,20 @@ class NetHostListTest {
     @DisplayName("the columns are a contract, not a layout preference")
     class Columns {
 
+        /**
+         * ⚠ STATE widened 12 → 14 on 2026-07-29, deliberately.
+         *
+         * <p>The column now carries an {@code [i]} marker after the standing for a machine with an
+         * intelligence file on it, and {@code foothold [i]} is exactly twelve characters — at the old
+         * width it ran straight into NOTE with no space, which on a character-cell surface reads as
+         * one field rather than two. This class calls the widths a contract rather than a layout
+         * preference, so changing one is an edit here as well as there.
+         */
         @Test
         @DisplayName("the header is exactly the seven columns at the specified widths")
         void header() {
             assertThat(NetText.header(false)).isEqualTo(
-                    "ADDRESS         SERVER          HOPS  KIND      TIER  STATE       NOTE");
+                    "ADDRESS         SERVER          HOPS  KIND      TIER  STATE         NOTE");
         }
 
         @Test
@@ -87,7 +96,7 @@ class NetHostListTest {
         @DisplayName("-v adds SIGNAL and DEPTH and moves nothing else")
         void verboseColumns() {
             assertThat(NetText.header(true)).isEqualTo(
-                    "ADDRESS         SERVER          HOPS  KIND      TIER  STATE       "
+                    "ADDRESS         SERVER          HOPS  KIND      TIER  STATE         "
                             + "SIGNAL    DEPTH  NOTE");
             assertThat(NetText.header(true)).startsWith(
                     NetText.header(false).substring(0, NetText.header(false).length() - "NOTE".length()));

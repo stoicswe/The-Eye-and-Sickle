@@ -106,11 +106,21 @@ class RigLogTest {
                     .contains("mining", "defense", "scan");
         }
 
+        /**
+         * ⚠ This used to assert the log said "online-only", and the wording changed with I5.
+         *
+         * <p>I5 was amended on 2026-07-29 ({@code docs/design/15-open-questions.md} §3): the rig
+         * keeps hashing for {@code Balance.OFFLINE_MINING_HOURS} after the client closes and then
+         * stops dead. The log's job is unchanged and is the reason this test exists at all —
+         * <b>silent behaviour and broken behaviour look identical from outside</b> — so what it must
+         * now say is where the rig stopped, rather than that it never started.
+         */
         @Test
-        @DisplayName("INVARIANT I5 — offline income is reported, and so is its absence")
+        @DisplayName("INVARIANT I5 — offline income is reported, and so is where it stopped")
         void offlineIncomeIsReported(@TempDir Path dir) {
-            // Deployed miners accrue while away and self-mining does not. Both facts are invisible
-            // without the log, and invisible income is indistinguishable from a bug.
+            // Deployed miners accrue for the whole window and self-mining accrues until the rig
+            // spins down. Both facts are invisible without the log, and invisible income — or
+            // invisibly *absent* income — is indistinguishable from a bug.
             Path file = dir.resolve("s.json");
             SoloGame first = SoloGame.open(new SaveStore(file), "op", Clock.fixed(T0, ZoneOffset.UTC));
             first.allocateSelfMining(50);
@@ -131,9 +141,14 @@ class RigLogTest {
                     .toList());
             assertThat(text).contains("Resumed after");
             assertThat(text).contains("buffered");
-            // The important half: it says self-mining earned nothing, rather than staying silent
-            // and leaving the player to wonder whether it broke.
-            assertThat(text).contains("online-only");
+            // The chain ran without the client, and says so — a height that moved 26 blocks with no
+            // explanation is indistinguishable from a tampered save.
+            assertThat(text).contains("blocks synchronised");
+            // The important half: it names where the rig stopped and how many blocks were mined
+            // after that, rather than staying silent and leaving a player who was away six hours
+            // and paid for four to wonder whether it broke.
+            assertThat(text).contains("spun down");
+            assertThat(text).contains("(I5)");
         }
 
         @Test

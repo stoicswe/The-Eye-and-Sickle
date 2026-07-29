@@ -108,4 +108,21 @@ public final class NodeState {
 
     /** Whether the Traffic Analyzer has been run here ({@code docs/design/07-recon-tools.md} §2). */
     public boolean trafficAnalyzed = false;
+
+    /**
+     * How many times a scan has reached the deepest rung against this machine.
+     *
+     * <h2>⚠ The only thing about a port scan that is REMEMBERED, and it is why rescanning is worth it</h2>
+     *
+     * Every finding a port scan reports is derived from the host, so a rescan agrees with itself and
+     * nothing needs storing. The exception is the medium-tier vault, which is only ever an
+     * <em>estimate</em>: more samples of the same machine narrow the band, exactly as more
+     * measurements of anything do. That is what turns a rescan from a pointless repeat into a trade —
+     * a tighter number against another roll of the detection dice.
+     *
+     * <p>⚠ It narrows and never closes. The middle tier is not readable from outside at any depth,
+     * which is what {@code docs/design/01-core-resources.md} §6 buys with the tier; a band that
+     * reached zero would hand over a count and make the tier a formality.
+     */
+    public int deepScans = 0;
 }

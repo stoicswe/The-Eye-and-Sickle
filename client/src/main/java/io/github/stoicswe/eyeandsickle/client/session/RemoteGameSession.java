@@ -262,6 +262,32 @@ public final class RemoteGameSession implements GameSession {
         return java.util.List.of();
     }
 
+    /**
+     * Nothing to report: a home server's chain runs whether or not this client is connected, so there
+     * is no gap for a load to fill in and no {@code SYNCHRONIZING} screen to show.
+     *
+     * <p>⚠ Not a stub awaiting the server slice. The offline fill exists because {@code solo} is the
+     * only place the chain can stop, and it stops there because it is running inside the client's own
+     * process. That is a difference in where the simulation lives, not a missing feature — see
+     * {@code docs/design/04-mining.md} §1.4 for the multiplayer chain.
+     */
+    @Override
+    public io.github.stoicswe.eyeandsickle.protocol.game.ChainSync chainSync() {
+        return io.github.stoicswe.eyeandsickle.protocol.game.ChainSync.none(now());
+    }
+
+    /** Nothing to take, for the same reason there is nothing to report. */
+    @Override
+    public io.github.stoicswe.eyeandsickle.protocol.game.ChainSync takeChainSync() {
+        return chainSync();
+    }
+
+    @Override
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.BlockContribution> contributions(
+            int limit) {
+        return java.util.List.of();
+    }
+
     @Override
     public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.MiningPool> pools() {
         return java.util.List.of();
@@ -269,6 +295,46 @@ public final class RemoteGameSession implements GameSession {
 
     @Override
     public Outcome setMiningPool(String poolId) {
+        return unavailable();
+    }
+
+    @Override
+    public java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.PackageManifest> packageAt(
+            String path) {
+        return java.util.Optional.empty();
+    }
+
+    @Override
+    public Outcome portScan(
+            String address, io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget target) {
+        return unavailable();
+    }
+
+    @Override
+    public java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.PortScanReport>
+            portScanReport(String address) {
+        return java.util.Optional.empty();
+    }
+
+    @Override
+    public java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.NodeReport> nodeReport(
+            String address) {
+        return java.util.Optional.empty();
+    }
+
+    @Override
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.NodeReport> nodeReports() {
+        return java.util.List.of();
+    }
+
+    @Override
+    public PortScanQuote portScanQuote(
+            String address, io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget target) {
+        return new PortScanQuote(0L, 0L, 0, false);
+    }
+
+    @Override
+    public Outcome boostFee(String txHash, io.github.stoicswe.eyeandsickle.protocol.game.FeeTier tier) {
         return unavailable();
     }
 

@@ -1,10 +1,13 @@
 package io.github.stoicswe.eyeandsickle.solo.rules;
 
+import io.github.stoicswe.eyeandsickle.protocol.game.PackageManifest;
 import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
 import io.github.stoicswe.eyeandsickle.protocol.game.UnlockGate;
 import io.github.stoicswe.eyeandsickle.solo.Catalogue;
 import io.github.stoicswe.eyeandsickle.solo.fs.VirtualFs;
+import io.github.stoicswe.eyeandsickle.solo.net.TransferRules;
 import io.github.stoicswe.eyeandsickle.solo.state.ItemState;
+import io.github.stoicswe.eyeandsickle.solo.state.LedgerEntryState;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
 import io.github.stoicswe.eyeandsickle.solo.state.StoredFileState;
 import java.time.Instant;
@@ -113,6 +116,118 @@ public final class Repac {
         return Optional.of(file);
     }
 
+    // ── the manifest ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * What a package declares about itself, and what it actually is.
+     *
+     * <p>Everything here is <b>derived</b> — the catalogue supplies the tool's name, summary, gate
+     * and cycle cost, the file supplies its size and where it came from, and the ledger supplies
+     * whether it is still waiting on a payment. Nothing about a package is stored twice, so a
+     * manifest cannot drift from the thing it describes.
+     *
+     * @return empty when the path is not a package this rig holds
+     */
+    public static Optional<PackageManifest> manifest(SoloSave save, String path) {
+        Optional<StoredFileState> found = find(save, path);
+        if (found.isEmpty()) {
+            return Optional.empty();
+        }
+        StoredFileState file = found.get();
+        if (file.itemType == null || file.itemType.isBlank()) {
+            return Optional.empty();
+        }
+        Optional<Catalogue.Offering> offering = Catalogue.byId(file.itemType);
+        boolean held = locked(save, file);
+        boolean owned = save.items.stream().anyMatch(i -> file.itemType.equals(i.itemType));
+        boolean market = TransferRules.VENDOR.equals(file.sourceAddress);
+
+        return Optional.of(new PackageManifest(
+                file.path(),
+                file.name,
+                file.itemType,
+                displayName(file.itemType),
+                offering.map(Catalogue.Offering::description).orElse(
+                        // A package for something the catalogue no longer lists. Said plainly rather
+                        // than rendered blank — a manifest with an empty contents field reads as a
+                        // panel that failed to load.
+                        "This rig has no catalogue entry for " + file.itemType
+                                + ". It will install, and nothing here can describe what it does."),
+                publisherOf(file, market),
+                market ? TransferRules.VENDOR
+                        : file.sourceAddress == null || file.sourceAddress.isBlank()
+                                ? "recovered" : file.sourceAddress,
+                offering.map(Catalogue.Offering::gate).orElse(UnlockGate.ETHECOIN),
+                file.bytes,
+                offering.map(Catalogue.Offering::equippedCycles).orElse(0L),
+                expectedSha(file.itemType),
+                actualSha(file),
+                held,
+                held ? pendingNote(save, file) : "",
+                owned,
+                // ⚠ Exactly the conditions install() checks, in the same order, rather than a second
+                // opinion about them. A panel whose button was enabled when the rule would refuse is
+                // the interface claiming an authority it does not have (client pillar C4).
+                !held && "package".equals(file.kind) && !owned));
+    }
+
+    /** Who signed it. A vendor for a bought package; the machine it was taken off for a stolen one. */
+    private static String publisherOf(StoredFileState file, boolean market) {
+        if (market) {
+            return "EAS VENDOR NETWORK";
+        }
+        if (file.sourceAddress == null || file.sourceAddress.isBlank()) {
+            return "unsigned — recovered fragment";
+        }
+        return "unsigned — taken from " + file.sourceAddress;
+    }
+
+    /** Which block the payment is waiting for, in words. */
+    private static String pendingNote(SoloSave save, StoredFileState file) {
+        return heldBy(save, file)
+                .map(entry -> "payment broadcast, not yet mined — it unlocks when a miner packs it "
+                        + "into a block. A higher fee buys an earlier block.")
+                .orElse("waiting on a payment.");
+    }
+
+    /**
+     * The digest a package's manifest declares for its payload.
+     *
+     * <p>A function of <em>what it claims to be</em>. Two copies of the same upgrade, one bought and
+     * one stolen off a stranger's machine, declare the same digest — which is the property that makes
+     * comparing them worth anything.
+     */
+    public static String expectedSha(String itemType) {
+        return sha256("eas.upgrade.payload:" + itemType);
+    }
+
+    /**
+     * The digest of the payload actually on this disk.
+     *
+     * <p>⚠ Identical to {@link #expectedSha} unless {@code StoredFileState.payloadSalt} is set, which
+     * nothing in single player does. That is the tamper seam, and it is why this is a separate
+     * function over the <em>file</em> rather than the same call twice: the day a payload can be
+     * substituted, this is the one that changes.
+     */
+    public static String actualSha(StoredFileState file) {
+        String salt = file.payloadSalt == null ? "" : file.payloadSalt;
+        return salt.isEmpty()
+                ? expectedSha(file.itemType)
+                : sha256("eas.upgrade.payload:" + file.itemType + "!" + salt);
+    }
+
+    private static String sha256(String of) {
+        try {
+            byte[] digest = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(of.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return "sha256:" + java.util.HexFormat.of().formatHex(digest);
+        } catch (java.security.NoSuchAlgorithmException impossible) {
+            // Required of every Java platform. If it is genuinely absent, the save layer and the
+            // provenance verifier are already broken and a package panel is not the problem.
+            throw new IllegalStateException("SHA-256 unavailable", impossible);
+        }
+    }
+
     // ── installing ────────────────────────────────────────────────────────────────────────────
 
     /** Why an install or a sale was refused. */
@@ -127,8 +242,49 @@ public final class Repac {
         ALREADY_OWNED,
 
         /** ⚠ Gated by something other than money, so it cannot be turned into money. See I2. */
-        NOT_SELLABLE
+        NOT_SELLABLE,
+
+        /**
+         * Bought, downloaded, and still waiting for the payment to confirm on-chain.
+         *
+         * <p>Not a failure and not a gate in {@code docs/design/02}'s sense — the player has paid and
+         * the bytes are on their disk. It is the vendor's escrow: a package released before its
+         * transaction was mined would be a purchase with no settlement, which is the one thing a
+         * chain is for.
+         */
+        UNCONFIRMED
     }
+
+    /**
+     * The ledger row a package is waiting on, or empty when nothing holds it.
+     *
+     * <p>⚠ <b>Fails OPEN.</b> A file naming an entry that is not in the ledger is released rather
+     * than held: the only ways to reach that state are a hand-edited save and a bug, and of the two
+     * possible errors — releasing a package whose payment cannot be found, and holding one forever
+     * with no way for the player to discover why — the second is unrecoverable and the first costs
+     * one item in a single-player game.
+     */
+    public static Optional<LedgerEntryState> heldBy(SoloSave save, StoredFileState file) {
+        if (save == null || file == null || file.lockedByEntryId == null
+                || file.lockedByEntryId.isBlank()) {
+            return Optional.empty();
+        }
+        return save.ledger.stream()
+                .filter(entry -> file.lockedByEntryId.equals(entry.entryId))
+                .findFirst();
+    }
+
+    /**
+     * Whether this package is still waiting for its purchase to confirm.
+     *
+     * <p>Derived on every call rather than cached — see {@code StoredFileState.lockedByEntryId}.
+     * Confirmation happens on a tick, and a flag would go stale the moment it happened with the file
+     * manager closed.
+     */
+    public static boolean locked(SoloSave save, StoredFileState file) {
+        return heldBy(save, file).filter(entry -> entry.blockNumber < 0).isPresent();
+    }
+
 
     /** The outcome of an install or a sale. */
     public record Result(boolean ok, Refusal refusal, String message, long minorUnits) {
@@ -152,6 +308,20 @@ public final class Repac {
             return Result.refused(Refusal.NO_SUCH_FILE, "no such file: " + path);
         }
         StoredFileState file = found.get();
+        // ⚠ CHECKED BEFORE the kind, and the order is the whole message. A bought package is a
+        // `.pkg` until its payment is mined, so the kind check below would refuse it as "not an
+        // installable upgrade" — true, useless, and indistinguishable from a corrupt download. The
+        // player is owed the actual reason, which is that they are waiting for a block.
+        //
+        // This is also the one place a fee tier finally buys something mechanical: until 2026-07-29
+        // a purchase handed over the goods in the same call that took the money, so the fee bought
+        // only how soon a row stopped saying "—" in the ledger. See docs/design/04-mining.md §1.3e.
+        if (locked(save, file)) {
+            return Result.refused(Refusal.UNCONFIRMED,
+                    file.name + " is paid for and downloaded, but the payment has not been mined "
+                            + "yet. It becomes installable when the block carrying it is confirmed "
+                            + "— a higher fee buys a place in an earlier block, not a faster chain.");
+        }
         if (!"package".equals(file.kind) || file.itemType.isBlank()) {
             return Result.refused(Refusal.NOT_INSTALLABLE,
                     file.name + " is not an installable upgrade.");
@@ -215,6 +385,15 @@ public final class Repac {
             return Result.refused(Refusal.NO_SUCH_FILE, "no such file: " + path);
         }
         StoredFileState file = found.get();
+        // ⚠ Before the kind check, same reasoning as install(), and NOT redundant with it: reselling
+        // an unconfirmed package is strictly worse than installing one early, because it turns goods
+        // the player has not finished paying for into ethecoin they can spend before the debit is
+        // mined. Without this the escrow would have a hole shaped exactly like the secondary market.
+        if (locked(save, file)) {
+            return Result.refused(Refusal.UNCONFIRMED,
+                    file.name + " has not been paid for on-chain yet. It cannot be resold until the "
+                            + "block carrying the purchase is confirmed.");
+        }
         if (!"package".equals(file.kind) || file.itemType.isBlank()) {
             return Result.refused(Refusal.NOT_INSTALLABLE, file.name + " is not an upgrade.");
         }

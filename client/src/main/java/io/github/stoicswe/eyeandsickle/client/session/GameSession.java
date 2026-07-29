@@ -1,8 +1,10 @@
 package io.github.stoicswe.eyeandsickle.client.session;
 
+import io.github.stoicswe.eyeandsickle.protocol.game.BlockContribution;
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainBlock;
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainMempool;
 import io.github.stoicswe.eyeandsickle.protocol.game.FeeTier;
+import io.github.stoicswe.eyeandsickle.protocol.game.ChainSync;
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainTransaction;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningPool;
@@ -219,6 +221,48 @@ public interface GameSession extends AutoCloseable {
     List<ChainTransaction> chainTransactions(int limit);
 
     /**
+     * What the chain did while this client was closed — the {@code SYNCHRONIZING} screen's content.
+     *
+     * <p>Reports zero blocks when there was nothing to catch up, which is the common case: a session
+     * that has been running, or a character loaded seconds after it was saved. The LEDGER window asks
+     * once when it opens and shows nothing when the answer is nothing.
+     *
+     * <p>⚠ This describes one transition and not the world, so it is <b>session state</b> — never
+     * persisted. Persisting it would replay the sync screen on the next load, reporting a catch-up
+     * that had already happened. The blocks are in the chain and the money is in the ledger; this is
+     * only the explanation, and an explanation has a shelf life.
+     */
+    ChainSync chainSync();
+
+    /**
+     * The same report, once — for the surface that <em>shows</em> it.
+     *
+     * <h2>⚠ The window is rebuilt on every open, so reading it cannot be what shows it</h2>
+     *
+     * A closed tool window keeps no state: {@code DeskManager} calls the factory afresh each time,
+     * so a {@code SYNCHRONIZING} panel built from {@link #chainSync()} replayed the entire fill every
+     * time the player opened the ledger. The third open in one sitting meant watching a meter fill
+     * about a catch-up that had happened an hour earlier.
+     *
+     * <p>A synchronisation is a <b>transition</b>, and a transition is announceable exactly once.
+     * Nothing is lost by consuming it — the rig log already carries the same facts, and a log is
+     * where history belongs.
+     *
+     * <p>Returns a report with no blocks once it has been taken, and on every call for a session that
+     * had nothing to catch up. Use {@link #chainSync()} for an idempotent read.
+     */
+    ChainSync takeChainSync();
+
+    /**
+     * Every block this character put hashrate into, newest first.
+     *
+     * <p>Wider than "blocks won": under a pool it includes every block the <em>pool</em> found while
+     * this rig was contributing, and under pay-per-share those pay nothing at all — the pool buys the
+     * shares instead. See {@link BlockContribution}, which is where that distinction is explained.
+     */
+    List<BlockContribution> contributions(int limit);
+
+    /**
      * Sends ethecoin to an address, at the chosen fee.
      *
      * <p>The balance moves now and the transaction enters the mempool; the fee buys how soon a miner
@@ -229,6 +273,71 @@ public interface GameSession extends AutoCloseable {
 
     /** The mempool: what is waiting, and what the next blocks would hold. */
     ChainMempool mempool();
+
+    /**
+     * Raises a waiting transaction's fee — <b>replace-by-fee</b>.
+     *
+     * <p>A transaction in a mempool is not committed to anything: its sender can offer more, and
+     * miners, who sort by fee rate, will prefer the better offer. It is the mechanism behind every
+     * "stuck transaction, bump the fee" thread on the internet, and it is what makes a fee feel like
+     * a bid rather than a price.
+     *
+     * <p>Only the <b>difference</b> is charged — the original fee was debited when the transaction
+     * was broadcast. Refused when the transaction has already been mined, when the new tier is not
+     * higher (a replacement that paid less would let anyone rewrite a relayed transaction for free),
+     * or when the difference cannot be afforded.
+     */
+    Outcome boostFee(String txHash, FeeTier tier);
+
+    /**
+     * What a package on this rig declares about itself, and what it actually is.
+     *
+     * <p>Backs the installer panel: publisher, contents, size, both digests, and whether a payment is
+     * still holding it. Empty for a path that is not a package this rig holds.
+     */
+    java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.PackageManifest> packageAt(
+            String path);
+
+    /**
+     * Commissions a port scan against a machine a sweep has found.
+     *
+     * <p>The player names the deepest thing they want to know, which sets the cycle cost, the
+     * duration and the chance the target notices all at once — see {@code PortScanTarget}. Being
+     * noticed is not merely a wasted scan: the target gets a turn.
+     */
+    Outcome portScan(String address, io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget target);
+
+    /** The last report for this machine, if one was taken this session. */
+    java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.PortScanReport> portScanReport(
+            String address);
+
+    /**
+     * The intelligence file on one machine — everything ever learned about it, and when.
+     *
+     * <p>Distinct from {@link #portScanReport}, which is the <em>last scan</em> and is session state.
+     * This is the accumulated file: it survives a restart, merges findings across scans of different
+     * depths, and dates each one individually so a week-old vault estimate does not read as fresh.
+     */
+    java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.NodeReport> nodeReport(
+            String address);
+
+    /** Every file on record, most recently updated first. What RECON lists. */
+    List<io.github.stoicswe.eyeandsickle.protocol.game.NodeReport> nodeReports();
+
+    /** What a scan of this depth would cost against this machine, before committing to it. */
+    PortScanQuote portScanQuote(
+            String address, io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget target);
+
+    /**
+     * The price of a scan, in all three currencies it is paid in.
+     *
+     * <p>⚠ Shown <b>before</b> the player commits. Cycles and seconds are ordinary costs; the risk is
+     * the one that makes the choice a choice, and a panel that revealed it afterwards would be
+     * offering a gamble without saying it was one.
+     *
+     * @param riskPercent the chance the target notices, 0–100
+     */
+    record PortScanQuote(long cycles, long seconds, int riskPercent, boolean affordable) {}
 
     /** One block with every transaction in it. Null for a height the chain has not reached. */
     ChainBlock chainBlock(long height);

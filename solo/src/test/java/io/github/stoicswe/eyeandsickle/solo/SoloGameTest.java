@@ -2,12 +2,14 @@ package io.github.stoicswe.eyeandsickle.solo;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.withinPercentage;
 
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeBudget;
 import io.github.stoicswe.eyeandsickle.protocol.game.Cycles;
 import io.github.stoicswe.eyeandsickle.solo.rules.ComputeRules;
 import io.github.stoicswe.eyeandsickle.solo.rules.MiningRules;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
+import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import io.github.stoicswe.eyeandsickle.solo.state.MinerState;
 import io.github.stoicswe.eyeandsickle.solo.state.NodeState;
@@ -283,20 +285,111 @@ class SoloGameTest {
             assertThat(dry).isGreaterThan(12);
         }
 
+        /**
+         * The amended I5, and the one assertion that keeps it honest.
+         *
+         * <h2>⚠ This test used to assert ZERO, and the change is a design decision, not a fix</h2>
+         *
+         * I5 read "self-mining runs online-only" and this asserted a week away paid nothing. It was
+         * amended on 2026-07-29 ({@code docs/design/15-open-questions.md} §3): the rig keeps hashing
+         * for {@code Balance.OFFLINE_MINING_HOURS} after the client closes and then stops dead.
+         *
+         * <p>What the old rule actually protected against was <b>absence out-earning play</b> on an
+         * income stream that is also zero-heat and unseizable (I4) — and a cap defeats that on its
+         * own. So the assertion that matters is no longer "nothing" but <b>"a month away pays what
+         * four hours pays"</b>: the moment income tracks the absence, it is farmable and the
+         * invariant is gone.
+         *
+         * <h2>⚠ Asserted structurally first, and only then on the money</h2>
+         *
+         * The two structural figures — how long the rig was credited as hashing, and how many blocks
+         * it was in the draw for — are <b>exact</b> and are what the cap actually does. The balances
+         * are then compared as a band rather than for equality, because they legitimately differ: a
+         * longer fill walks more blocks, each block consumes RNG draws, and the pay-per-share clock
+         * downstream therefore lands on different share targets. That is realised variance on an
+         * unchanged expectation, and it is the same variance an online session has. Asserting exact
+         * equality there would be asserting that the generator is not being used.
+         */
         @Test
-        @DisplayName("INVARIANT I5 — self-mining earns nothing while the client is closed")
-        void selfMiningIsOnlineOnly(@TempDir Path dir) throws IOException {
+        @DisplayName("INVARIANT I5 — a month away pays no more than the spin-down window")
+        void offlineSelfMiningIsCappedNotProportional(@TempDir Path dir) throws IOException {
             Path file = dir.resolve("save.json");
             SoloGame first = bare(new SaveStore(file), new TestClock(T0));
             first.allocateSelfMining(100);
             first.persist();
+            byte[] saved = Files.readAllBytes(file);
 
-            // Reopen a week later. If self-mining paid out for time away it would be the safest AND
-            // the best income in the game, and every other risk in the design would be optional.
-            SoloGame later =
-                    bare(new SaveStore(file), new TestClock(T0.plus(Duration.ofDays(7))));
-            assertThat(later.balance().minorUnits()).isZero();
-            assertThat(Files.exists(file)).isTrue();
+            // The same save reopened after four hours, a day, a week and a month. Same seed, same
+            // rig, same chain — the only difference is how long the client was shut, which is
+            // exactly the thing that must stop mattering at the cap.
+            long atCap = 0L;
+            for (Duration away : List.of(
+                    Duration.ofHours(Balance.OFFLINE_MINING_HOURS),
+                    Duration.ofDays(1),
+                    Duration.ofDays(7),
+                    Duration.ofDays(30))) {
+                Path each = dir.resolve("away-" + away.toHours() + ".json");
+                Files.write(each, saved);
+                SoloGame game = bare(new SaveStore(each), new TestClock(T0.plus(away)));
+
+                assertThat(game.chainSync().minedSeconds())
+                        .as("the rig is credited with the window, never the absence (%s)", away)
+                        .isEqualTo(Balance.offlineMiningSeconds());
+                // ⚠ False at exactly the window, and correctly so — nothing has been withheld from a
+                // player who came back the moment the rig stopped. capped() answers "did the cap
+                // bite", which is a different question from "was the window applied".
+                assertThat(game.chainSync().capped())
+                        .isEqualTo(away.getSeconds() > Balance.offlineMiningSeconds());
+
+                if (atCap == 0L) {
+                    atCap = game.balance().minorUnits();
+                    assertThat(atCap).isPositive();
+                    continue;
+                }
+                // The chain ran the whole time — filling the blocks in is the change. Paying for
+                // them is what the cap refuses.
+                //
+                // ⚠ Asserted as a RATE against the target interval, not as a floor. A flat "more
+                // than 100 blocks" is both weaker and wrong: it says nothing about a day's fill
+                // arriving at the right pace, and 24h expects ~103 blocks with σ ≈ 10, so it fails
+                // on ordinary variance about a third of the time. This band is ±3σ at the shortest
+                // absence tested and far wider than needed at the longest.
+                double expected = away.getSeconds() / (double) Balance.CHAIN_TARGET_BLOCK_SECONDS;
+                assertThat(game.chainSync().blocks())
+                        .as("the chain fills in at its own block interval (%s)", away)
+                        .isBetween((int) (expected * 0.7d), (int) (expected * 1.3d));
+                assertThat(game.balance().minorUnits())
+                        .as("income must not track the absence (%s)", away)
+                        .isCloseTo(atCap, withinPercentage(20.0d));
+            }
+        }
+
+        @Test
+        @DisplayName("the rig is absent from every block after it spins down")
+        void nothingIsWonPastTheCap(@TempDir Path dir) {
+            Path file = dir.resolve("save.json");
+            SoloGame first = bare(new SaveStore(file), new TestClock(T0));
+            first.setMiningMode(MiningMode.SOLO);
+            first.allocateSelfMining(100);
+            first.persist();
+
+            // Three days away. At a ~4% share and a 14-minute block that is ~300 blocks the rig
+            // would have expected to win a dozen of — it must win none of them past hour four.
+            SoloGame later = bare(new SaveStore(file), new TestClock(T0.plus(Duration.ofDays(3))));
+            var sync = later.chainSync();
+
+            assertThat(sync.competedBlocks())
+                    .as("only blocks inside the spin-down window are contested")
+                    .isLessThanOrEqualTo(
+                            (int) Math.ceil(
+                                    Balance.offlineMiningSeconds()
+                                            / (double) Balance.CHAIN_TARGET_BLOCK_SECONDS)
+                                    + 8);
+            assertThat(sync.uncontestedBlocks()).isGreaterThan(200);
+            // Every contributor row the fill produced is inside the window, by construction.
+            assertThat(later.contributions(64))
+                    .allSatisfy(row -> assertThat(row.height())
+                            .isLessThanOrEqualTo(sync.fromHeight() + sync.competedBlocks()));
         }
 
         @Test
