@@ -310,6 +310,26 @@ listing never reshuffles between visits — which is what makes "was this here b
 **Nothing in the package touches a real filesystem**, and `normalise` resolves `..` textually and
 cannot climb above `/`.
 
+**The rig monitor has an ABOUT tab (2026-07-29)** — sixth and last, after NETWORK. It carries **Mr. Monitor**, the hand-drawn uOS mascot (`client/.../ui/mascot.png`, from `docs/pngs/`), and a spec sheet: client version, build architecture, runtime, host OS, CPU, GPU, memory. It sits *after* the four table tabs rather than inside them because everything to its left reports the **fictional** rig and this one steps out and reports the player's real hardware. Like `calc` it takes no `GameSession`.
+
+⚠ **`SystemReport` starts no process and opens no host file, and that costs two readouts their specificity.** There is no JVM API for a CPU brand string, and — measured against JavaFX 26 — none for the GPU either: `GraphicsPipeline.getDeviceDetails()` returns context pointers, `GLFactory` is package-private and *prints* its driver info to stdout. So the CPU is cores + architecture and the GPU is the render pipeline plus hardware/software, which is the question a player with a stuttering deck actually has. `Apple M4 Max` needs `sysctl`/`/proc/cpuinfo`/WMI — three platform paths, one a subprocess, in a client that has never spawned one. A footnote on the panel says so, because an unexplained `16 CORES · AARCH64` reads as failed detection.
+
+⚠ **Every lookup in it degrades to `UNAVAILABLE`; none may throw.** `com.sun.management` is a JDK extension, the prism pipeline is reachable only on a classpath launch (`javafx:run` is module-path, so it reports `HARDWARE` alone), and `build.properties` is absent if Maven never filtered it. Two specifics: the reflection catches **`Throwable`**, because a module-path failure is an `IllegalAccessError`; and memory casts to the exported *interface* `com.sun.management.OperatingSystemMXBean`, never the impl class, which `jdk.management` does not export. Also `Platform.isSupported` **initialises** the graphics pipeline rather than querying it — a test asserting "no toolkit, so SOFTWARE" failed with `OPENGL · HARDWARE`.
+
+⚠ **The client's own version comes from a Maven-filtered `build.properties`, not the jar manifest.** The client runs from loose classes in an IDE, a shaded jar, and a jpackage image; a manifest exists for one of those three. ⚠ **Exactly one resource is filtered, by name** — `client/pom.xml` has two `<resource>` entries over the same directory, because filtering the whole of it rewrites the two TTFs and the mascot PNG byte for byte and eats any `${...}` in a term page. `-Dclient.version=` overrides it, since a release is named after its tag while the POM is not.
+
+⚠ **The mascot sits on the bare panel with NO plate behind it, and one was built and rejected.** The reasoning for a plate is sound — the drawing is black ink on white, so on the deck's ground the outlines sink into the dark and the gloves and shoes lose their edges — and it looked wrong anyway, putting the only light surface in the whole client on one tab. Rendered both, kept the transparent one. Notes to that effect sit in `theme.css` and `RigAbout` so the "fix" is not re-attempted.
+
+**Settings → Credits (2026-07-29)** — `view/Credits`, beneath About and out of the fiction entirely. Folding real names into a spec sheet that also lists an invented kernel version is the one context where a person's name reads as set dressing.
+
+⚠ **Portraits are looked up, never required.** Each entry loads `ui/credits/<slug>.png` and falls back to initials in a dashed ring, so a photo is added by **dropping a file in** — no code change. The dash is deliberate, same as `MainMenuView`'s empty slot: a placeholder that looks finished never gets replaced.
+
+⚠ **The Bluesky and YouTube marks are paths THIS repo authored, not the official logos.** The client bundles no third-party artwork and downloads nothing at run time; they exist so a reader knows which network a handle is on. Swapping in official assets replaces two constants. The YouTube plate needs `FillRule.EVEN_ODD` — under the default the triangle fills and it becomes a lozenge. §9's radius ban is not in play: that governs the interface's own geometry, and this is a quoted mark drawn as a path. ⚠ Handles are **printed, not clickable** — opening a browser would throw the player out of a full-screen game, and this client has never opened one. The network name is spoken only in `accessibleText`, since a screen reader cannot see a butterfly.
+
+⚠ **`Views.scrollable` now has a `fillHeight` overload, and Settings needs it.** A `ScrollPane` hands its content the content's **preferred** height, so every `Vgrow` inside was measured against a box that had already stopped — the visible symptom was not the pages but the sidebar's divider ending halfway down the window, which reads as the panel having ended. `setFitToHeight` on both the outer wrapper and the detail pane fixes it, and never shrinks anything: a category taller than the window still scrolls. It is **off by default** because stretching is only right when something inside wants the room.
+
+⚠ **`RigTab.isTable()` exists because `!isOverview()` used to mean "draws the table".** A third kind of tab made that silently false — ABOUT would have rendered the process table under the mascot. Ask what a tab *is*, not what it is not.
+
 ⚠ **`calc` is the one tool window that takes no `GameSession`,** and keeping it that way is the point.
 It spends nothing, is gated by nothing and cannot be lost, so adding it required checking no invariant —
 I14 is about state a cheater would forge, and the answer to `0xFF + 1` is not the server's opinion. It
@@ -445,6 +465,14 @@ launch (`mvn javafx:run`) wants `--enable-native-access=javafx.graphics`, a clas
 wants `--enable-native-access=ALL-UNNAMED`. The module form from the classpath prints
 `WARNING: Unknown module: javafx.graphics` and grants nothing. Verified on JDK 25 / JavaFX 26.0.2 —
 `client/pom.xml` and `.run/` deliberately differ for this reason.
+
+⚠ **Any `javafx-maven-plugin` `<option>` whose value contains a SPACE must be quoted inside the element.** The plugin hands options to commons-exec, which tokenises on whitespace, so `-Xdock:name=EAS uOS Client` arrived as three arguments and `uOS` was taken as the main class:
+
+```
+Error: Could not find or load main class uOS
+```
+
+`mvn -pl client javafx:run` — the launch this file documents — failed on **every** run from the moment the app was renamed until 2026-07-29, and the message names neither the option nor the plugin. `LauncherTest.dockFlagIsWiredUp` passed the whole time because it asserted the substring rather than the working form; it now pins the quotes.
 
 **`mvn clean install` builds a runnable jar for every platform**, in the `client-dist` module: `client-dist/target/eyeandsickle-client-dist-<version>-{win,mac,mac-aarch64,linux,linux-aarch64}.jar`, each run with `java -jar`. All five come off one machine because nothing is compiled per platform — only a different set of prebuilt JavaFX natives is packaged. Needs a JDK/JRE 25+ on the target; it does **not** bundle a runtime. `-Ddist.skip=true` skips the five uber jars when you want a fast build.
 

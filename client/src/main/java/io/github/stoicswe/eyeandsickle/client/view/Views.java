@@ -2489,8 +2489,22 @@ public final class Views {
 
         pages.put("About", settingsPage(about(profile, session)));
 
+        // Beneath About, and out of the fiction entirely — see Credits' class comment for why the
+        // real people are not a section of the spec sheet.
+        pages.put("Credits", settingsPage(
+                Credits.page(),
+                new Separator(),
+                wrapped("Handles are printed rather than linked: opening a browser would throw you "
+                        + "out of the game, and this client has never opened one.")));
+
         root.getChildren().add(settingsBody(pages));
-        return scrollable(root);
+        // ⚠ FILLING, not plain scrollable, and this was a real bug rather than a refinement. A
+        // ScrollPane hands its content the content's OWN preferred height, so `root` was exactly as
+        // tall as the selected category happened to be — which made every Vgrow inside it a no-op.
+        // The visible symptom was not the pages: it was the sidebar's divider stopping partway down
+        // the window with dead space under it, so a short category looked like the panel had ended
+        // early. See scrollable(Region, boolean).
+        return scrollable(root, true);
     }
 
     // ------------------------------------------------------------------ still-proposal windows
@@ -2533,8 +2547,28 @@ public final class Views {
      * panel grows a horizontal scrollbar instead of reflowing.
      */
     private static Region scrollable(Region content) {
+        return scrollable(content, false);
+    }
+
+    /**
+     * @param fillHeight whether the content should be stretched to the viewport when it is shorter
+     *     than the window
+     *     <p>⚠ Off for most panels and ON for anything whose own children use {@code Vgrow}. A
+     *     ScrollPane gives its content the content's <b>preferred</b> height, so a panel that
+     *     contains a full-height divider, a sidebar or a pane meant to reach the bottom gets none of
+     *     it: every grow constraint inside is measured against a box that already stopped at the
+     *     content. Settings had exactly this — the category divider ended halfway down the window
+     *     and the space beneath it read as the panel having ended.
+     *     <p>It is not the default because stretching a short panel is only right when something
+     *     inside wants the room. Elsewhere it would hand a three-line panel the whole window and
+     *     move nothing, or worse, stretch a control that grows badly.
+     *     <p>Note this never <em>shrinks</em> anything: past the viewport height the content keeps
+     *     its own size and the pane scrolls as before.
+     */
+    private static Region scrollable(Region content, boolean fillHeight) {
         ScrollPane scroll = new ScrollPane(content);
         scroll.setFitToWidth(true);
+        scroll.setFitToHeight(fillHeight);
         scroll.getStyleClass().add("es-scroll");
         // Vertical only. A deck panel reflows to its width; a horizontal bar here would mean the
         // content refused to, which is a layout bug rather than something to scroll past.
@@ -2684,6 +2718,11 @@ public final class Views {
         // preferred height and the category's content sat in the top third of the window with dead
         // space under it. Vgrow was set and looked correct; the clamp was one level down.
         detail.setMaxHeight(Double.MAX_VALUE);
+        // And the PAGE fills the pane, not just the pane the window. Without this the category's
+        // column is only as tall as its own text, so a short category leaves the right-hand side
+        // ending partway down while the sidebar beside it runs to the bottom. Ignored, correctly,
+        // whenever a category is taller than the window — that one scrolls as before.
+        detail.setFitToHeight(true);
 
         TextField search = new TextField();
         search.setPromptText("Search");

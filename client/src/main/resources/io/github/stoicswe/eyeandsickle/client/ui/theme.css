@@ -2486,3 +2486,70 @@
 .es-swatch-cyberdeck .es-swatch-strip  { -fx-background-color: #0F1A22; }
 .es-swatch-cyberdeck .es-swatch-pane   { -fx-background-color: #0A1218; }
 .es-swatch-cyberdeck .es-swatch-accent { -fx-background-color: #FF9B3D; }
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * THE MASCOT — rig monitor, ABOUT tab. NO RULE HERE, DELIBERATELY.
+ *
+ * ⚠ A light plate behind Mr. Monitor was built and rejected. The reasoning for it was sound —
+ * the drawing is black ink on white, so on the deck's ground the outlines sink into the dark and
+ * the gloves and shoes lose their edges — and it looked wrong anyway: it put the only light
+ * surface in the whole client on this one tab, and the drawing on the bare panel is the intended
+ * look. Rendered both, kept the transparent one.
+ *
+ * So the mascot is styled by nothing at all. If a future contrast "fix" appears here, this is the
+ * note saying it was already tried.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+ * CREDITS — Settings → Credits.
+ *
+ * ⚠ EVERY TEXT RULE HERE IS TWO-CLASS, AND THAT IS NOT STYLE. `.label { -fx-text-fill: -es-text; }`
+ * sits further up this file, and a one-class selector cannot beat it at equal specificity — the
+ * later rule wins. A `.es-credit-name` written on its own would apply its FONT and silently drop
+ * its COLOUR, which is exactly the split that makes the bug hard to see. Same lesson as
+ * `.es-splash .es-face-name` above.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+
+.es-credits .es-credit-name {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 13px;
+    -fx-font-weight: 500;
+    -fx-text-fill: -es-text-hi;
+}
+
+/* The role is a label in the §6 sense — uppercase, applied in Java, on the label face. */
+.es-credits .es-credit-role {
+    -fx-font-family: "Martian Mono", "IBM Plex Mono", monospace;
+    -fx-font-size: 8.5px;
+    -fx-font-weight: 500;
+    -fx-text-fill: -es-dim-2;
+}
+
+.es-credits .es-credit-handle {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 11px;
+    -fx-text-fill: -es-dim-1;
+}
+
+/* Both network marks — the butterfly and the play plate. One rule, because they are the same kind
+   of thing at the same weight; a per-network colour would be brand paint on an instrument panel.
+   ⚠ Deliberately NOT -es-amber either. §2.1 spends the accent on what is earning or doing work, and
+   a social handle is neither. An entire credits page in the accent colour is how the one accent the
+   language has quietly becomes an emphasis system. */
+.es-credits .es-credit-mark { -fx-fill: -es-dim-2; }
+
+/* A portrait nobody has supplied yet. Dashed, like MainMenuView's empty slot and for the same
+   reason: a placeholder that looks finished never gets replaced. Drop a PNG into
+   ui/credits/<slug>.png and this stops being drawn — see view/Credits. */
+.es-credits .es-credit-ring {
+    -fx-fill: transparent;
+    -fx-stroke: -es-rule-hi;
+    -fx-stroke-width: 1;
+    -fx-stroke-dash-array: 3 4;
+}
+
+.es-credits .es-credit-initials {
+    -fx-font-family: "IBM Plex Mono", monospace;
+    -fx-font-size: 15px;
+    -fx-text-fill: -es-dim-2;
+}

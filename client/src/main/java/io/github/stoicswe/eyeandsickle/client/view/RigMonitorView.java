@@ -127,9 +127,10 @@ public final class RigMonitorView {
 
         // ---------------------------------------------------------------- tabs
         //
-        // Five views of one machine, in escalation order. Overview is the panel that was already
-        // here; the other four are the process table, which is what makes docs/design/04 §3.1's
-        // "manual audit" an act rather than a sentence.
+        // Six views, five of one machine and one of the other. Overview is the panel that was
+        // already here; the next four are the process table, which is what makes docs/design/04
+        // §3.1's "manual audit" an act rather than a sentence; ABOUT steps out of the fiction and
+        // reports the player's real hardware (see RigTab.ABOUT and SystemReport).
         RigTab[] tab = {RigTab.OVERVIEW};
         ProcessTableView table = new ProcessTableView();
         VBox overview = new VBox(UiTokens.SPACE_6, greeble, grid, activity, working, notes);
@@ -149,6 +150,11 @@ public final class RigMonitorView {
 
         VBox tableSide = new VBox(UiTokens.SPACE_3, history, tableNote, table);
         VBox.setVgrow(tableSide, Priority.ALWAYS);
+
+        // Built once. Nothing on it changes while the client is running, so it is deliberately
+        // absent from `refresh` below — a panel that re-read the host's memory every session tick
+        // would be doing work to print the same number.
+        Region about = RigAbout.create();
 
         HBox tabs = Ui.row(UiTokens.SPACE_3);
         tabs.getStyleClass().add("es-breach-picker");
@@ -175,10 +181,15 @@ public final class RigMonitorView {
                     chip.getStyleClass().add("es-breach-chip-loud");
                 }
             }
+            // ⚠ Asked positively, one question per panel. This was `isOverview()` and `!isOverview()`
+            // while there were only two kinds of tab, and a third kind turns the negation into a
+            // silent bug: ABOUT is not the overview, so the process table would have rendered under
+            // the mascot. See RigTab.isTable.
             visible(overview, tab[0].isOverview());
-            visible(tableSide, !tab[0].isOverview());
+            visible(tableSide, tab[0].isTable());
+            visible(about, tab[0] == RigTab.ABOUT);
             history.show(tab[0]);
-            if (!tab[0].isOverview()) {
+            if (tab[0].isTable()) {
                 table.setColumns(tab[0].columns());
             }
         };
@@ -192,7 +203,7 @@ public final class RigMonitorView {
         table.setOnKill(process -> session.killProcess(process.processId()));
         table.setOnRestart(process -> session.restartProcess(process.processId()));
 
-        root.getChildren().addAll(head, tabs, overview, tableSide);
+        root.getChildren().addAll(head, tabs, overview, tableSide, about);
 
         Runnable refresh = () -> {
             ComputeBudget budget = session.computeBudget();

@@ -113,6 +113,41 @@ public final class UiTokens {
     /** The desk's snap lattice, in the character-cell language §11 question 1 asks about. */
     public static final double SNAP_GRID = 22;
 
+    /**
+     * The mascot on the rig monitor's ABOUT tab, in width only.
+     *
+     * <p>⚠ Width alone, and its partner is {@code preserveRatio} rather than a second token. A
+     * height here would be a second source of truth for the drawing's aspect ratio, and the day the
+     * artwork is redrawn at a different shape the picture would silently start stretching. Medium by
+     * intent: large enough to read as a drawing rather than an icon, small enough that the
+     * specification sheet under it is still the panel's subject.
+     */
+    public static final double MASCOT_WIDTH = 224;
+
+    /**
+     * Measure for the ABOUT tab's rule and its footnote.
+     *
+     * <p>Both are set from one number so the paragraph wraps exactly at the hairline above it. A
+     * free-running wrap in a scrollable panel is as wide as the window, which at
+     * {@link #MAX_SUPPORTED_WIDTH} is a line nobody's eye tracks back from.
+     */
+    public static final double ABOUT_RULE_WIDTH = 460;
+
+    /** The ABOUT tab's key column, wide enough for {@code RUNTIME} without the values jittering. */
+    public static final double ABOUT_KEY_WIDTH = 78;
+
+    /**
+     * A portrait on Settings → Credits.
+     *
+     * <p>Smaller than the login screen's face: that one is a target the player clicks, this one is
+     * an illustration beside a name. Big enough to recognise somebody, not so big the page becomes
+     * a gallery.
+     */
+    public static final double CREDIT_FACE = 56;
+
+    /** The network mark beside a credits handle. Sized to the cap height of the line it sits on. */
+    public static final double SOCIAL_MARK = 13;
+
     // ── Type (§2.2) ───────────────────────────────────────────────────────────────────────────
 
     /** Labels, keys, headers, buttons — Martian Mono 500, uppercase. */

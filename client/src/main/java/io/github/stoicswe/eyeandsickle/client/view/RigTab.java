@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * The rig monitor's five views, and the columns each one shows.
+ * The rig monitor's six views, and the columns each one shows.
  *
  * <h2>Why five tabs and not one wide table</h2>
  *
@@ -21,7 +21,8 @@ import java.util.Locale;
  *
  * Overview first, because it is the panel that was already there and the one a player opens by
  * reflex. Then CPU, MEMORY, DISK, NETWORK — cheapest signal to most specific. A player who suspects
- * something walks rightwards.
+ * something walks rightwards. {@link #ABOUT} is appended after that ladder rather than inserted into
+ * it, for the reason given on the constant.
  *
  * <h2>⚠ Every column is a fact the process genuinely reports</h2>
  *
@@ -59,7 +60,22 @@ public enum RigTab {
      * audit or a self-mining process with packets on it is not what it claims to be. A parasite is
      * talking to whoever planted it and cannot not be.
      */
-    NETWORK("NETWORK");
+    NETWORK("NETWORK"),
+
+    /**
+     * The machine the game is running on, rather than the machine in the game.
+     *
+     * <p>Last on purpose, and outside the escalation the four table tabs form. Everything to its
+     * left answers a question about the <em>fictional</em> rig — what is eating its cycles, what is
+     * talking to the network — and reads state the engine owns. This one steps out of the fiction
+     * and reports the player's real hardware, so it sits after the ladder rather than in it. A
+     * player walking rightwards through the diagnostic tabs reaches the end of the diagnosis before
+     * they reach the colophon.
+     *
+     * <p>It draws no table and takes no {@code GameSession}: nothing on it is game state, so there
+     * is nothing here for {@code I14} to have an opinion about.
+     */
+    ABOUT("ABOUT");
 
     private final String label;
 
@@ -73,6 +89,17 @@ public enum RigTab {
 
     public boolean isOverview() {
         return this == OVERVIEW;
+    }
+
+    /**
+     * Whether this tab draws the process table.
+     *
+     * <p>⚠ Exists because {@code !isOverview()} used to mean "table", and adding a third kind of tab
+     * made that false in a way nothing would have reported: ABOUT would have rendered the process
+     * table underneath the mascot. Ask what a tab <em>is</em>, not what it is not.
+     */
+    public boolean isTable() {
+        return this != OVERVIEW && this != ABOUT;
     }
 
     /** Brackets, not colour — §4.4, and it survives greyscale and a screen reader. */
@@ -91,10 +118,10 @@ public enum RigTab {
      */
     public List<Column> columns() {
         return switch (this) {
-            // Overview draws no table, but returning the CPU set rather than an empty list means the
-            // widget is never asked to render zero columns — and a tab switch back from CPU finds the
-            // sort it left, because the column list is the same object.
-            case OVERVIEW, CPU -> List.of(
+            // Overview and About draw no table, but returning the CPU set rather than an empty list
+            // means the widget is never asked to render zero columns — and a tab switch back from
+            // CPU finds the sort it left, because the column list is the same object.
+            case OVERVIEW, ABOUT, CPU -> List.of(
                     processColumn(),
                     number("% CPU", 9, p -> String.format(Locale.ROOT, "%.1f", p.cpuPercent()),
                             Comparator.comparingDouble(RigProcess::cpuPercent)),

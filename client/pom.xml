@@ -29,6 +29,13 @@
   <properties>
     <client.main.class>io.github.stoicswe.eyeandsickle.client.Launcher</client.main.class>
     <javafx.app.class>io.github.stoicswe.eyeandsickle.client.EyeAndSickleClient</javafx.app.class>
+    <!--
+      What the rig monitor's ABOUT tab reports as the client version. Defaults to the POM version
+      and is overridable (-Dclient.version=0.2.0) because a release is named after its git tag
+      while the POM stays wherever it was — see .github/workflows/build.yml, which renames the
+      artefacts for exactly that reason. Reaches the code through build.properties.
+    -->
+    <client.version>${project.version}</client.version>
   </properties>
 
   <dependencies>
@@ -76,6 +83,30 @@
   </dependencies>
 
   <build>
+    <!--
+      ⚠ TWO RESOURCE ENTRIES OVER ONE DIRECTORY, AND THE SPLIT IS LOAD-BEARING. Filtering the
+      whole of src/main/resources would rewrite the two bundled TTFs and the mascot PNG byte for
+      byte — Maven's filter is a text transform and does not know it is looking at a font — and
+      would eat any `${...}` a term page happens to contain. So exactly one file is filtered, by
+      name, and everything else is copied verbatim. Losing the <excludes> below would produce a
+      build that succeeds and a client whose fonts no longer load.
+    -->
+    <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+        <filtering>false</filtering>
+        <excludes>
+          <exclude>io/github/stoicswe/eyeandsickle/client/build.properties</exclude>
+        </excludes>
+      </resource>
+      <resource>
+        <directory>src/main/resources</directory>
+        <filtering>true</filtering>
+        <includes>
+          <include>io/github/stoicswe/eyeandsickle/client/build.properties</include>
+        </includes>
+      </resource>
+    </resources>
     <plugins>
       <plugin>
         <groupId>org.openjfx</groupId>
@@ -93,8 +124,19 @@
             <!-- What macOS puts in the menu bar and the dock. Without it the running application is
                  called "java", which is the runtime's name rather than the game's. Harmless on
                  Windows and Linux, which ignore the flag. Launcher sets the matching system
-                 properties for the platforms that read those instead. -->
-            <option>-Xdock:name=EAS uOS Client</option>
+                 properties for the platforms that read those instead.
+
+                 ⚠ THE INNER QUOTES ARE LOad-BEARING AND THIS BROKE javafx:run FOR A WHILE. The
+                 plugin hands its options to commons-exec, which TOKENISES ON WHITESPACE — so the
+                 unquoted form arrived as three arguments and the second of them, `uOS`, was taken
+                 as the main class:
+
+                     Error: Could not find or load main class uOS
+
+                 A message that names neither the option nor the plugin, on the one command
+                 CLAUDE.md documents as the way to launch the client. Any option value here that
+                 contains a space needs the same treatment. -->
+            <option>-Xdock:name="EAS uOS Client"</option>
           </options>
         </configuration>
       </plugin>
