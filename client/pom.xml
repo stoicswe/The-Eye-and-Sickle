@@ -281,34 +281,298 @@
         </plugins>
       </build>
     </profile>
+    <!--
+      SELF-CONTAINED APPLICATION FOR THE HOST PLATFORM — bundles a Java runtime, so the
+      player needs no JDK at all:
+
+          mvn -Pnative -pl client -am package -DskipTests                  # app image
+          mvn -Pnative -Djpackage.installer=true -pl client -am package    # native installer
+
+      Output lands in `client/target/jpackage/`:
+
+          macOS    EAS uOS Client.app          →  installer=true gives a .dmg
+          Windows  EAS uOS Client\             →  installer=true gives an .msi
+          Linux    EAS uOS Client/             →  installer=true gives a .deb
+
+      ⚠ WRITE `installer=true`, NOT A BARE `-Djpackage.installer`. Maven's -D is declared to
+      commons-cli as taking two arguments split on `=`, so a bare flag SWALLOWS THE NEXT
+      ARGUMENT: `-Djpackage.installer -pl client` sets the property to "-pl" and leaves Maven
+      hunting for a reactor project called "client". Measured, and the error names neither the
+      property nor the real cause.
+
+      ⚠ HOST PLATFORM ONLY, AND THAT IS JPACKAGE, NOT A CHOICE WE MADE. jpackage embeds the
+      runtime of the JDK running the build and emits a platform-native launcher binary, so it
+      cannot cross-compile: a Windows .exe launcher must be produced on Windows. Shipping all
+      five platforms therefore needs `-Pdist` (or the `client-dist` module), which needs one
+      machine but bundles no runtime. The two profiles are complements, not rivals.
+
+      Nothing here has to be told which platform it is on:
+
+        · the JavaFX natives come from the plain, classifier-less `javafx-controls`/`javafx-fxml`
+          dependencies above, whose own poms carry os.name/os.arch profiles that pull this
+          machine's classifier — the same resolution `mvn test` already relies on. `-Pdist`'s
+          explicit `${dist.platform}` classifiers are deliberately NOT used here, precisely
+          because host-platform is the whole point of this profile;
+        · the runtime is jlinked from the JDK running Maven;
+        · the installer type and the OS-specific options come from the three os-activated
+          profiles below.
+
+      ⚠ OS-SPECIFIC OPTIONS MUST LIVE IN OS-ACTIVATED PROFILES, never in one shared block.
+      jpackage REJECTS a foreign option outright rather than ignoring it — `win-menu` on a Mac
+      is `Option [win-menu] is not valid on this platform`, a hard failure — so a single
+      configuration listing winMenu + linuxShortcut + macPackageIdentifier cannot build
+      anywhere. Verified against jpackage 26.
+
+      ⚠ INPUT IS A DEDICATED DIRECTORY HOLDING EXACTLY ONE JAR. jpackage copies *everything*
+      under `input` into the app, and puts every jar it finds there on the classpath (verified:
+      the generated .cfg gets one `app.classpath=` line per jar). Pointing it at `target/` would
+      ship `classes/`, `test-classes/`, `maven-status/` and the archiver working directories
+      inside the application. The shade execution below writes one uber jar into
+      `target/jpackage-input/` and nothing else goes there.
+
+      ⚠ MUST RUN FROM THE CLASSPATH — `main-jar`, never `module`. `Launcher` does not extend
+      Application so the JVM does not look for JavaFX on the module path before main() runs; see
+      the dist profile's note and CLAUDE.md. That is also why `enable-native-access` takes the
+      ALL-UNNAMED form here and the `javafx.graphics` form in `javafx:run` — the one flag in this
+      build that differs by launch mode, and the module form silently grants nothing.
+
+      ⚠ WHY jlink ALONE STILL DOES NOT WORK, and why that does not block this. jlink can only
+      link explicit JPMS modules, and `io.github.erdtman:java-json-canonicalization` is a plain
+      Java 8 jar that can only ever be an automatic module. jpackage in NON-MODULAR mode does not
+      care: it jlinks a runtime out of the JDK's own modules and puts our classpath jar beside it.
+      The cost is image size (the default runtime is generous). Trimming it means a hand-built
+      `runtime-image`, which is a real project — full JPMS is option 2 and remains open.
+    -->
+    <profile>
+      <id>native</id>
+      <properties>
+        <!--
+          app-image is the default because it needs NO external tooling: an .msi needs WiX, a
+          .deb needs dpkg/fakeroot, an .rpm needs rpm-build. A profile whose documented command
+          fails on a clean machine is worse than no profile, so the installer is opt-in
+          (-Djpackage.installer=true) and the os profiles below choose the right type for the
+          host. Override the type directly with -Djpackage.type=PKG / EXE / RPM — a CLI -D beats
+          a profile property.
+
+          ⚠ These are the plugin's ENUM CONSTANT names, not jpackage's spelling: `app-image`
+          fails the build with "No enum constant ImageType.app-image" before jpackage ever runs.
+        -->
+        <jpackage.type>APP_IMAGE</jpackage.type>
+        <jpackage.input>${project.build.directory}/jpackage-input</jpackage.input>
+        <jpackage.dest>${project.build.directory}/jpackage</jpackage.dest>
+        <!--
+          ⚠ NOT ${revision}, and this is not laziness. jpackage validates app-version hard:
+          `0.1.0-SNAPSHOT` fails with "contains invalid component [0-SNAPSHOT]", and even a clean
+          `0.1.0` fails on macOS with "The first number in an app-version cannot be zero" because
+          it becomes CFBundleVersion. Both verified. Pass a real one at release time with
+          -Djpackage.appVersion=1.2.3; until the project's own version clears 1.0 the two cannot
+          be the same string.
+        -->
+        <jpackage.appVersion>1.0.0</jpackage.appVersion>
+      </properties>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-shade-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>shade-for-jpackage</id>
+                <phase>package</phase>
+                <goals><goal>shade</goal></goals>
+                <configuration>
+                  <!--
+                    outputFile writes the uber jar to an explicit path and leaves the module's
+                    own artifact alone — so `-Pnative` does not change what gets installed, and
+                    the input directory contains this file and nothing else.
+                  -->
+                  <outputFile>${jpackage.input}/eyeandsickle-client.jar</outputFile>
+                  <createDependencyReducedPom>false</createDependencyReducedPom>
+                  <transformers>
+                    <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                      <mainClass>${client.main.class}</mainClass>
+                      <manifestEntries>
+                        <!-- Jackson ships multi-release jars; without this the JDK ignores their
+                             versioned classes and Jackson fails in ways that look like ours. -->
+                        <Multi-Release>true</Multi-Release>
+                      </manifestEntries>
+                    </transformer>
+                    <!-- ServiceLoader files must be CONCATENATED, not overwritten — see the dist
+                         profile; last-one-wins surfaces as a save that will not deserialise. -->
+                    <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                  </transformers>
+                  <filters>
+                    <filter>
+                      <artifact>*:*</artifact>
+                      <excludes>
+                        <exclude>module-info.class</exclude>
+                        <exclude>META-INF/versions/*/module-info.class</exclude>
+                        <exclude>META-INF/*.SF</exclude>
+                        <exclude>META-INF/*.DSA</exclude>
+                        <exclude>META-INF/*.RSA</exclude>
+                      </excludes>
+                    </filter>
+                  </filters>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+
+          <plugin>
+            <groupId>org.panteleyev</groupId>
+            <artifactId>jpackage-maven-plugin</artifactId>
+            <executions>
+              <execution>
+                <id>jpackage-host-platform</id>
+                <phase>package</phase>
+                <goals><goal>jpackage</goal></goals>
+              </execution>
+            </executions>
+            <configuration>
+              <type>${jpackage.type}</type>
+              <name>EAS uOS Client</name>
+              <appVersion>${jpackage.appVersion}</appVersion>
+              <vendor>stoicswe</vendor>
+              <copyright>The Eye and Sickle</copyright>
+              <description>The Eye and Sickle — uOS client</description>
+
+              <input>${jpackage.input}</input>
+              <mainJar>eyeandsickle-client.jar</mainJar>
+              <mainClass>${client.main.class}</mainClass>
+              <destination>${jpackage.dest}</destination>
+
+              <javaOptions>
+                <!--
+                  ⚠ Two leading dashes, and they are legal here: the "no double hyphen" rule is
+                  an XML *comment* restriction, not an element-content one. Dropping them gives
+                  the bundled JVM `enable-native-access=ALL-UNNAMED`, which it rejects as an
+                  unrecognised option — the app then fails to start with no clue why.
+                -->
+                <option>--enable-native-access=ALL-UNNAMED</option>
+              </javaOptions>
+
+              <!--
+                No icon yet: jpackage errors if the path does not exist, so an <icon> element
+                pointing at a placeholder would break the build. When there is artwork, add
+                src/main/jpackage/{macos/icon.icns,windows/icon.ico,linux/icon.png} and put the
+                <icon> element in the matching os profile below — the formats are not
+                interchangeable.
+              -->
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
+    <!--
+      Host-platform installer options. Each activates on os.family AND on -Djpackage.installer,
+      so a plain `-Pnative` build stays a bare app-image and never trips jpackage's
+      "not valid with type [app-image]" check on an installer-only option like win-menu.
+      Configuration here merges into the execution declared above.
+    -->
+    <profile>
+      <id>native-installer-mac</id>
+      <activation>
+        <os><family>mac</family></os>
+        <property><name>jpackage.installer</name></property>
+      </activation>
+      <properties>
+        <jpackage.type>DMG</jpackage.type>
+      </properties>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.panteleyev</groupId>
+            <artifactId>jpackage-maven-plugin</artifactId>
+            <configuration>
+              <macPackageName>EAS uOS Client</macPackageName>
+              <macPackageIdentifier>io.github.stoicswe.eyeandsickle.client</macPackageIdentifier>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
+    <profile>
+      <id>native-installer-windows</id>
+      <activation>
+        <os><family>windows</family></os>
+        <property><name>jpackage.installer</name></property>
+      </activation>
+      <properties>
+        <jpackage.type>MSI</jpackage.type>
+      </properties>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.panteleyev</groupId>
+            <artifactId>jpackage-maven-plugin</artifactId>
+            <configuration>
+              <winMenu>true</winMenu>
+              <winMenuGroup>The Eye and Sickle</winMenuGroup>
+              <winShortcut>true</winShortcut>
+              <winDirChooser>true</winDirChooser>
+              <!--
+                ⚠ A FIXED UUID is what makes the next .msi an UPGRADE rather than a second
+                parallel installation. Generate one once and never change it.
+              -->
+              <winUpgradeUuid>5e6f3f1e-6f2b-4a2b-9a3e-1b7f4c9d2a10</winUpgradeUuid>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+
+    <profile>
+      <id>native-installer-linux</id>
+      <activation>
+        <!--
+          ⚠ os.name, NOT family "unix" — macOS matches the unix family too, so a family match
+          here would fire on a Mac and hand jpackage linux-shortcut, which it refuses.
+          Maven's family vocabulary has no "linux" at all.
+        -->
+        <os><name>Linux</name></os>
+        <property><name>jpackage.installer</name></property>
+      </activation>
+      <properties>
+        <jpackage.type>DEB</jpackage.type>
+      </properties>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.panteleyev</groupId>
+            <artifactId>jpackage-maven-plugin</artifactId>
+            <configuration>
+              <!-- dpkg names must be lowercase and free of spaces; the app's display name is not. -->
+              <linuxPackageName>eas-uos-client</linuxPackageName>
+              <linuxAppCategory>Game</linuxAppCategory>
+              <linuxMenuGroup>Game</linuxMenuGroup>
+              <linuxShortcut>true</linuxShortcut>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
   </profiles>
 
   <!--
-    NO SELF-CONTAINED INSTALLER YET — deliberately, and this is worth reading before you
-    add one back.
+    SELF-CONTAINED PACKAGING — where it stands, so nobody re-derives the dead end.
 
-    docs/architecture/01 §1 lists self-contained packaging (jlink/jpackage) as a
-    [PROPOSAL] so players never have to "install a JRE first". An earlier draft
-    of this pom wired `javafx:jlink` into a `dist` profile. It does not work, and
-    it fails for a structural reason rather than a configuration mistake:
+    docs/architecture/01 §1 lists this as a [PROPOSAL] so players never have to "install a JRE
+    first". `-Pnative` above delivers it, in jpackage's NON-MODULAR mode: `type app-image`,
+    `input <dir>`, `main-jar`. Host platform only, bundled runtime, no module-info anywhere.
 
-      jlink can only link EXPLICIT JPMS modules. This client runs from the
-      classpath and has no module-info.java, and — more stubbornly — the
-      provenance canonicalizer `io.github.erdtman:java-json-canonicalization`
-      is a plain Java 8 jar with no module descriptor, so it can only ever be
-      an AUTOMATIC module, and jlink refuses to link automatic modules.
+    ⚠ `javafx:jlink` was tried first and cannot work here — a structural limit, not a
+    misconfiguration. jlink links only EXPLICIT JPMS modules; this client runs from the
+    classpath with no module-info.java, and the provenance canonicalizer
+    `io.github.erdtman:java-json-canonicalization` is a plain Java 8 jar that can only ever be
+    an AUTOMATIC module, which jlink refuses. jpackage's non-modular mode sidesteps it by
+    jlinking a runtime out of the JDK's own modules and putting our jar on the classpath beside
+    it — which is why the profile is written that way and must stay that way.
 
-    So the two real options, whenever this is picked up:
-
-      1. jpackage in non-modular app-image mode (`type app-image`, `input <dir>`, `main-jar`). Works today with the classpath layout, produces a bundled
-         runtime, needs no module-info anywhere. Largest image, least friction.
-         This is the recommended first move.
-      2. Full JPMS: add module-info.java to protocol and client AND replace or
-         patch the canonicalizer with something modular. Smallest image, but it
-         is a real dependency-graph project, not an afternoon.
-
-    Shipping a profile whose documented command fails every time is worse than
-    shipping no profile, so there is no profile. `mvn verify` and `mvn
-    -pl client javafx:run` are the supported paths until this is built properly.
+    Still open, and a real dependency-graph project rather than an afternoon: full JPMS
+    (module-info.java in protocol and client, plus a modular replacement for the canonicalizer)
+    would let the runtime be trimmed to what the client actually uses. Until then the image
+    carries the JDK's default module set.
   -->
 </project>

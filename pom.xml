@@ -92,6 +92,7 @@
     <javafx-maven-plugin.version>0.0.8</javafx-maven-plugin.version>
     <spotless-maven-plugin.version>3.8.0</spotless-maven-plugin.version>
     <palantir-java-format.version>2.96.0</palantir-java-format.version>
+    <jpackage-maven-plugin.version>1.8.0</jpackage-maven-plugin.version>
   </properties>
 
   <dependencyManagement>
@@ -225,6 +226,11 @@
               sorted XML.
             -->
           </configuration>
+        </plugin>
+        <plugin>
+          <groupId>org.panteleyev</groupId>
+          <artifactId>jpackage-maven-plugin</artifactId>
+          <version>${jpackage-maven-plugin.version}</version>
         </plugin>
       </plugins>
     </pluginManagement>

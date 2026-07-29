@@ -1,3 +1,5 @@
+<img src="./docs/pngs/Mr._Monitor_PNG.png" width="450" height="300" />
+
 # The-Eye-and-Sickle
 
 A distributed, federated online hacking game involving the "Eye" and the "Sickle".
