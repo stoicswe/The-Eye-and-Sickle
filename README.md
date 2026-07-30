@@ -1,5 +1,7 @@
 <img src="./docs/pngs/Mr._Monitor_PNG.png" width="450" height="300" />
 
+*Mr. Monitor is © Sham Tomaselli — [shamcube](https://www.youtube.com/@ShamCube).*
+
 # The-Eye-and-Sickle
 
 A distributed, federated online hacking game involving the "Eye" and the "Sickle".
