@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.solo.rules;
 
+import java.math.BigInteger;
 import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.solo.state.LedgerEntryState;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
@@ -18,8 +19,8 @@ public final class LedgerRules {
     private LedgerRules() {}
 
     /** Insufficient funds is a refusal, not an exception path — the caller renders exit status 1. */
-    public static boolean canDebit(SoloSave save, long minorUnits) {
-        return minorUnits >= 0 && save.ethecoinMinorUnits >= minorUnits;
+    public static boolean canDebit(SoloSave save, BigInteger wei) {
+        return wei.signum() >= 0 && save.ethecoinWei.compareTo(wei) >= 0;
     }
 
     /**
@@ -30,9 +31,9 @@ public final class LedgerRules {
      *     have checked {@link #canDebit} first, and a bug that skips it should be loud
      */
     public static Ethecoin apply(
-            SoloSave save, long deltaMinorUnits, String type, String description, Instant now) {
-        applyEntry(save, deltaMinorUnits, type, description, now);
-        return Ethecoin.ofMinorUnits(save.ethecoinMinorUnits);
+            SoloSave save, BigInteger deltaWei, String type, String description, Instant now) {
+        applyEntry(save, deltaWei, type, description, now);
+        return Ethecoin.ofWei(save.ethecoinWei);
     }
 
     /**
@@ -43,18 +44,19 @@ public final class LedgerRules {
      * is the one thing {@code ledger(1)} promises cannot happen.
      */
     public static LedgerEntryState applyEntry(
-            SoloSave save, long deltaMinorUnits, String type, String description, Instant now) {
-        long next = save.ethecoinMinorUnits + deltaMinorUnits;
-        if (next < 0) {
+            SoloSave save, BigInteger deltaWei, String type, String description, Instant now) {
+        BigInteger next = save.ethecoinWei.add(deltaWei);
+        if (next.signum() < 0) {
             throw new IllegalArgumentException(
-                    "Ledger would go negative: balance " + save.ethecoinMinorUnits + " delta " + deltaMinorUnits);
+                    "Ledger would go negative: balance " + Ethecoin.format(save.ethecoinWei)
+                            + " delta " + Ethecoin.format(deltaWei));
         }
-        save.ethecoinMinorUnits = next;
+        save.ethecoinWei = next;
 
         LedgerEntryState entry = new LedgerEntryState();
         entry.at = now;
-        entry.deltaMinorUnits = deltaMinorUnits;
-        entry.balanceAfterMinorUnits = next;
+        entry.deltaWei = deltaWei;
+        entry.balanceAfterWei = next;
         entry.type = type;
         entry.description = description;
         save.ledger.add(entry);

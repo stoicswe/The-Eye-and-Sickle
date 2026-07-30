@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.solo.net;
 
+import java.math.BigInteger;
 import io.github.stoicswe.eyeandsickle.protocol.game.HostKind;
 import io.github.stoicswe.eyeandsickle.protocol.game.SignalStrength;
 import io.github.stoicswe.eyeandsickle.solo.Balance;
@@ -308,9 +309,9 @@ public final class TopologyGenerator {
                 if (HostArchetypes.carriesDocuments(host.kind) && uDoc < Balance.netDocumentChance(d)) {
                     host.documentId = DocumentPool.forAddress(host.address);
                 }
-                host.lootMinorUnits = HostArchetypes.carriesLoot(host.kind)
-                        ? Balance.netLootMinorUnits(host.tier, uLoot)
-                        : 0L;
+                host.lootWei = HostArchetypes.carriesLoot(host.kind)
+                        ? Balance.netLootWei(host.tier, uLoot)
+                        : java.math.BigInteger.ZERO;
             }
         }
 
@@ -392,7 +393,7 @@ public final class TopologyGenerator {
             host.defended = false;
             host.looted = false;
             host.bridgePeer = "";
-            host.lootMinorUnits = Math.max(host.lootMinorUnits, Balance.NET_LOOT_FLOOR_MINOR_UNITS);
+            host.lootWei = host.lootWei.max(Balance.NET_LOOT_FLOOR_WEI);
         }
 
         // 3. Neighbour floor. Whatever the intra-server tree did, the rig ends up one link from at

@@ -261,6 +261,19 @@ wall-clock time and zero blocks — on the one readout whose whole subject is th
   so five buffer five hosts' worth of the same window, and their buffer can be **seized** where
   self-mining cannot. Had they been separated only by "one works offline", this would have deleted the
   distinction. `design/15` §3, `design/04` §1.2.
+- ⚠ **TWO levers bound offline mining, and they are not the same lever.** `OFFLINE_MINING_HOURS` caps
+  how **long** an absent rig hashes; **`OFFLINE_SOLO_WIN_WEIGHT`** (0.5, 2026-07-29) caps how **well**
+  it does while it is, so an hour played beats an hour away *inside* the buffered window too. ⚠ **Self-
+  mining and fills only** — the live tick is untouched (leaving the client running is playing), and a
+  pool competes whether or not one member is online, so weighting a pool would be this rig reaching
+  into somebody else's rate. The freed probability goes to the **unpooled** remainder. ⚠ It scales the
+  **threshold**, never the number of draws: one `nextDouble` per block whatever the mode, or a stored
+  seed stops being a replay. ⚠ **Deliberately invisible** — no readout names it, by decision.
+- ⚠ **Comparing a live run against a fill needs the SAME save loaded twice.** Two saves built
+  identically are not identical: a fresh game draws its own initial `networkWorkTarget` from the
+  character id, so the walks are a fraction of a block apart at the start and diverge within the hour
+  — which reads exactly like a broken RNG contract. `ChainSyncTest.OfflineWeight` persists one and
+  loads it twice.
 - ⚠ **Two clamps must agree and only one is enforced in `SoloGame`.** `ChainRules.sync` excludes the
   player from the draw past the window, which caps solo and PPLNS. **PPS is not capped by that** — it
   runs its own share clock off `elapsed` — so `resume()` passes `walked.minedFor()`, never the absence.
@@ -499,6 +512,52 @@ menu that templates any command's options and previews the line before writing i
 Many at once, one window per machine (`shell:<address>` — not a `WindowSpec`; see `docs/client/05`
 §2.1 for why that is not the WL-8 duplication).
 
+⚠ **A shell window's `[×]` must release the session's cycles, and for a long time it did not.**
+`DeskManager.Spec` accepted an `onClosed` callback and **dropped it** — declared, passed in by
+`DeckShell.showShell`, never invoked. Typing `exit` released the 2 cycles (the shell view asks the
+rules, then the desk); clicking the close control went straight to the window manager and left the
+allocation held forever, with nothing on screen to give it back. Both halves were individually
+correct and covered; the defect was in the **join**, same shape as `reconcileFootholds`.
+⚠ **The callback fires AFTER the window leaves the map** — it can re-enter `close` for the same id
+(ending a session also closes its window), and firing first recurses on a mouse click.
+⚠ **Ordinary tool windows pass `null`** and must: a tool is a view onto state that exists whether or
+not it is on screen. Only a window whose existence *is* game state releases anything.
+
+**AUDIT has two tabs and a scan history (2026-07-30).** `view/AuditView`. **SCANNER** holds the
+tiers plus a live panel printing each file as the walk reaches it, with a bar and a countdown;
+**STATUS** keeps `ps`/`ss`/`df` and gains every completed audit. The running caption now says
+**"checking for adversarial processes"** — it read "signal strength, not certainty", which answers a
+different question and never named the subject.
+
+- ⚠ **The listings stay on ONE tab.** `design/04` §3.1's investigation is that the three should
+  agree; splitting them would split the mechanic.
+- ⚠ **Running lines are DERIVED from progress** (`auditPaths()` is a stable walk), never appended on
+  a tick — otherwise the panel restarts empty on every repaint, reopen, or scan that ran while the
+  client was shut. On `Pulse.every` (data), so Reduce motion keeps it.
+- ⚠ **The history stores the MEASURED duration**, not the quoted one: an infested rig slows a scan
+  (`slowedSeconds`), and a scan taking longer than it should is itself a symptom. Verified — a Quick
+  quoted 30s recorded 0:32.
+- ⚠ **A clean scan is a row like any other** — it is what dates a later finding. Capped at 100,
+  trimmed from the **front**.
+- ⚠ **`-es-accent` DOES NOT EXIST.** JavaFX does not fail on an unknown looked-up value — it warns to
+  stdout and drops the declaration, so the bar rendered with no fill. Palette names are in
+  `theme.css`; `-es-amber` is the accent.
+- ⚠ **`ScrollPane.setVvalue(1.0)` needs a deferred pulse** — clamped against a content height the
+  pane does not know until it lays out, so the newest line lands off the bottom.
+
+⚠ **`RigMonitorView.ORDER` drives the grid AND the legend — a consumer missing from it is invisible.**
+`SHELL_SESSION` was absent, so an open shell's 2 cycles counted toward "84 / 100 CLAIMED" and produced
+no slice: the panel claimed 84 and accounted for 80. ⚠ **That reads as a parasite** — `design/04` §3.1
+teaches "the numbers do not add up" as how you detect one — so opening a shell faked the game's own
+intrusion evidence. `RigLegendCoversEveryConsumerTest` walks the **enum**, not a hand-kept list, so a
+new consumer without a legend entry fails the build.
+
+⚠ **`Ethecoin.formatApprox(wei, n)` ROUNDS and is a separate method for that reason.** Derived,
+*labelled* approximations only — `~40 EC/hr`, a projected payout. **Never** a balance, ledger delta,
+fee charged or resale price: a rounded amount somebody holds is a lie they cannot detect. The rig
+monitor read `~39.99999999999999802 EC/hr` because the rate derives through a double; that residue
+always existed and only became visible at 18 places. Four decimals.
+
 ⚠ **A session is NOT the vantage, and merging them breaks the reach model.** The vantage is the
 single point a sweep measures hop distance from — a hard ceiling no purchase moves (**I2**). A
 session is a shell on a machine already held: it costs `Balance.SESSION_CYCLES` while open, buys no
@@ -523,6 +582,203 @@ cannot climb above `/`.
 ⚠ **The client's own version comes from a Maven-filtered `build.properties`, not the jar manifest.** The client runs from loose classes in an IDE, a shaded jar, and a jpackage image; a manifest exists for one of those three. ⚠ **Exactly one resource is filtered, by name** — `client/pom.xml` has two `<resource>` entries over the same directory, because filtering the whole of it rewrites the two TTFs and the mascot PNG byte for byte and eats any `${...}` in a term page. `-Dclient.version=` overrides it, since a release is named after its tag while the POM is not.
 
 ⚠ **The mascot sits on the bare panel with NO plate behind it, and one was built and rejected.** The reasoning for a plate is sound — the drawing is black ink on white, so on the deck's ground the outlines sink into the dark and the gloves and shoes lose their edges — and it looked wrong anyway, putting the only light surface in the whole client on one tab. Rendered both, kept the transparent one. Notes to that effect sit in `theme.css` and `RigAbout` so the "fix" is not re-attempted.
+
+⚠ **ETHECOIN DIVIDES TO 18 PLACES (2026-07-30), and a `long` cannot carry it.** The unit is `1e-18`
+EC — ether's relationship to wei. At that scale a `long` tops out at **9.22 EC**, less than one
+firmware image, so `Ethecoin` carries a **`BigInteger`** and Postgres `bigint` became
+`numeric(78,0)` (`V6__ethecoin_wei.sql`).
+
+- **Display trims trailing zeros** — `0.05 EC`, `500 EC`, `0.037097927036961408 EC`. A fixed
+  `%.18f` would put eighteen characters of noise on every ledger row. ⚠ Trimming is never rounding.
+  ⚠ `stripTrailingZeros` leaves a **negative scale** (`500` → `5E+2`); `toPlainString` guards it.
+- ⚠ **Ratios stay `double`; amounts do not.** A payout fraction, pool fee, gas price and buffer fill
+  have no scale. Past 2^53 (~0.009 EC) a double cannot hold a wei integer exactly, and that residue
+  now lands inside digits the formatter prints.
+- ⚠ **NPC fees/transfers are drawn in HUNDREDTHS and scaled up.** A uniform draw across the wei range
+  gives every transaction an eighteen-digit tail and the mempool reads as machine output.
+- ⚠ **`miningResidueWei` is a `BigDecimal`** — as a double it would absorb rounding error rather than
+  prevent it, which is the opposite of what the residue is for.
+- ⚠ **EVERY renamed money field carries `@JsonAlias` with its OLD key, or the save is lost.** Jackson
+  has `FAIL_ON_UNKNOWN_PROPERTIES` **off**, so an unrecognised key is *silently dropped* — a real
+  pre-wei save loaded as **0 EC across the board** and the rescale multiplied zero. It surfaced only
+  because `ContributionState.creditedWei` lacked an initialiser and threw; every other field failed
+  quietly. ⚠ **All money fields must initialise to zero**, never be left null.
+- ⚠ **A migration fixture built with the CURRENT code cannot catch a rename.** The first check did
+  exactly that and passed against the broken build. `LegacySaveTest` pins **literal old-format JSON**
+  and was verified to fail without the aliases.
+- ⚠ **Save migration is gated on `SoloSave.moneySchema`, never a heuristic** ("is this balance small?"
+  is unanswerable — 8 wei is legal). Multiplies by 10^16, once, logged; `newCharacter` stamps the
+  current schema; the `MISSING` fee sentinel is skipped.
+- ⚠ **Server columns were RENAMED `_ec_minor` → `_wei`, not just retyped.** The suffix is what
+  `EconomyColumns` keys on to refuse an I1 conversion, so it has to name the truth. The multiply is in
+  the same statement as the widening.
+- ⚠ **`send` parsed through `Double.parseDouble`** — the one place a player types an amount, and a
+  double holds ~16 digits. Now `Ethecoin.ofDecimal`, which REFUSES finer than 18 places.
+- ⚠ **The mempool's fee figures are AMOUNTS, not gas prices.** `lowFeeWei`/`highFeeWei` were
+  fee-per-million-gas and printed `5319047619047619000` once amounts were wei. Amounts are also the
+  better fix for what the pairing was *for*: mixed units made an under-4× spread read as 180×. The
+  block table's gas-price column is gone for the same reason.
+- ⚠ **Economy anchors are asserted to DOUBLE precision, not to the wei.** The rate derives through
+  `chainNetworkHashrate()`, a double; bit equality asserted a precision the model has never had.
+- **Verified unchanged:** subsidy 160 EC, fees 0.02/0.06/0.30, firmware 180 EC, 0.4 EC/cycle-hour,
+  loot 3–6…45–65, and the *derived* network hashrate still lands on exactly **1680 cycles**.
+
+⚠ **`Ethecoin.format(long)` is the ONE money formatter — there were thirteen, and twelve were wrong
+(2026-07-30).** They read `String.format("%d.%02d EC", m / 100, Math.abs(m % 100))`. Integer division
+truncates **toward zero**, so between −1 and −99 the whole part is `0` and `-0` is `0` — **the minus
+sign vanished**. Every fee in the game is 2, 6 or 30 minor units, so **every fee row in the LEDGER
+rendered as a credit.** (`BalanceReadout`'s `%.2f` copy was accidentally correct, which is why the two
+never visibly disagreed.) ⚠ It takes a **`long`, not an `Ethecoin`**: the value type is non-negative by
+construction, a ledger *delta* is signed, and that is the seam. ⚠ `Math.abs` goes on the whole part,
+never on `minorUnits`, so `Long.MIN_VALUE` cannot overflow to a negative magnitude. ⚠ `EthecoinTest`
+used to assert **no** formatter may exist here, on the grounds that one would "invite a second, subtly
+different formatter" — backwards: a type with none invites thirteen. The surviving half is still
+enforced by reflection: no `Locale`-taking overload, because localization is the client's.
+
+⚠ **`Ethecoin` and `Cycles` render themselves, and the old "no display formatting" note is REVERSED
+(2026-07-30).** A record's generated `toString` is *the thing you get by accident*: `"you have " +
+balance` compiles, renders without complaint, and printed `Ethecoin[minorUnits=480]` at the player on
+**five** surfaces before anyone noticed — a delete confirmation, a storage log line, `inv`'s balance
+row, a balance readout, and a refusal about what they could afford. `Views.spec` had already grown a
+comment warning the next person. The correct formatter existed as **eleven private copies** of
+`money(long)`, which is precisely why nobody reached for it. A footgun that fires five times and
+acquires a folk warning is a defect in the **type**. The localization argument survives — a
+*localized* amount is a different method and still the client's — what was missing was a safe
+canonical default (`Locale.ROOT`). ⚠ Nothing serialises through `toString`; the wire form is
+`minorUnits()` and a test pins that. `Cycles` got the same treatment **before** it fired.
+
+**Files can be deleted from your own rig (2026-07-30).** `Repac.delete`, the file manager's Delete
+entry, and `rm` in the node shell. Downloads accumulated and nothing removed them.
+
+- ⚠ **Only files the rig actually STORES.** The system tree, app bundles and vault views are
+  *generated* by `VirtualFs` and stored nowhere — there is nothing to delete, and the refusal says so
+  rather than succeeding and leaving the entry on screen.
+- ⚠ **Own rig only.** `AccessLog` already holds that a remote actor **blanks** a log line rather than
+  deleting it; a remote delete would grant exactly what that rule refuses.
+- ⚠ **An image being flashed cannot be deleted** — `completeFlash` drops a task whose image is gone,
+  so without the guard you delete mid-write, wait out the minute and get nothing.
+- ⚠ **The GUI confirms; the shell's `rm` does not.** Real `rm` does not ask (that is `rm -i`), and a
+  terminal that behaved otherwise teaches something false about a command the manual documents. The
+  dialog and the log both name the **resale value** — "delete this file?" and "burn 108 EC?" are
+  different questions.
+- ⚠ **`rm -rf /` is safe and tested.** `-rf` is not a known flag so it swallows the operand ("missing
+  operand"); `rm /` gets "Is a directory". ⚠ The root resolves to **no entry** — `entry()` lists a
+  path's *parent* and `/` has none — so that branch is explicit. **No recursive delete, ever:** the
+  tree is generated from game state, so there is nothing to walk.
+
+⚠ **`PackageView` caps its width and scrolls; it must not size itself from its content.** It pinned
+`setMinWidth(640)`, so the two 71-character SHA digests set the width of the whole window. Now 560 +
+`setFitToWidth(true)` — **without `setFitToWidth` a `ScrollPane` hands content its *preferred* width,
+so nothing wraps and a horizontal scrollbar appears instead.** Digests are **wrapped, never
+shortened** (an elided middle is where a substituted payload hides). ⚠ **Actions are PINNED below the
+scroll** — a long refusal would otherwise push Install past the fold, which reads as no Install
+button. ⚠ An unstyled `ScrollPane` paints Modena's white viewport; style the `.viewport` too.
+
+**Firmware FLASHES, it does not install (2026-07-30).** `.frm`, a 90-second `save.tasks` task, the
+affected tool frozen throughout, behind a full-panel overlay with a drawn warning mark, what is being
+written, a bar and a countdown.
+
+- ⚠ **`.pkg → .frm` for firmware, `.pkg → .upg` for software — the `.pkg` stage is UNCHANGED.** That
+  rename *is* the confirmation lock; naming firmware `.frm` at both ends leaves it with no rename to
+  make and a bought image goes flashable before its payment is mined.
+- ⚠ **Raising self-mining is refused for the whole flash; setting it to ZERO never is.** Trapping a
+  player's cycles inside a tool they cannot use is a bug wearing a rule's clothes.
+- ⚠ **Settled by `tick()` AND `resume()`; the image is consumed on COMPLETION, not at the start** — an
+  interrupted flash must cost nothing rather than everything.
+- ⚠ **90s is not derived from image size**, unlike a transfer: a flash is bounded by the device
+  writing itself, not by anyone's uplink.
+- ⚠ **The warning mark is a drawn `Polygon` + two `Region`s, never a glyph** — `U+26A0` is in neither
+  bundled face and `GlyphCoverageTest` already rejected it once.
+- ⚠ **The bar is `Pulse.every` (data), and its fill is BOUND to `track.widthProperty()`.** Setting
+  `prefWidth` from `track.getWidth()` reads 0 before the first layout pass — the bar was empty on the
+  opening frame and in every render. Caught by a snapshot, invisible in review.
+
+**Firmware upgrades are a class, and the mining tool's is the first (2026-07-30).** `UpgradeKind
+.FIRMWARE`. Needs the **schematic** *and* a **software component** (the image — bought or stolen),
+costs more than any ordinary upgrade, and **the affected tool must be stopped to flash it**. All
+three are the real behaviour of firmware, which is why they are worth having. `docs/design/11` §3.
+
+- ⚠ **NOT a second gate — I3 is intact.** `design/02` §1.1 already sanctions this split ("Rainbow
+  Table is EC + schematic: buy the table, the capability to use it is found") under its condition
+  that the **ceiling component sits on the non-EC side**. The schematic is the ceiling and the image
+  is inert without it, so `11` §4 rule 1's "no EC path, no exceptions" holds. §4 rule 2 checked too:
+  it touches mining income and adds **no cycles** (**I1**).
+- ⚠ **Schematic checked BEFORE the running tool.** A player missing both who is told to stop mining
+  loses their hashrate and then hits a schematic refusal they were never going to clear.
+- ⚠ **Deployed miners count as "running", and that is the half nobody thinks of.** They spend the
+  *host's* compute (**I6**) so the player's own rig looks idle — but it is this rig's mining software
+  driving them. The refusal names the count; "the tool is running" sends them to the wrong readout.
+- ⚠ **A refusal, never an offer to stop mining for them** — that silently costs income they did not
+  agree to lose.
+- ⚠ **`Offering`'s compact constructor REJECTS firmware with no schematic named.** That one omission
+  is what turns firmware into a ceiling reachable with money alone, and it is exactly the edit a
+  second firmware item would make by accident.
+- ⚠ **The image must stay dear enough that stealing one beats buying it.** `design/01` §6's raiding
+  route is what the two-part requirement leans on; a cheap image makes the breach dead content.
+- Named `<tool>-firmware.pkg`, not `-upgrade.pkg`, so `ls` shows the class before anything is spent.
+
+**Upgrades carry a version, and Get Info answers before you take one (2026-07-30).** A foreign
+`.pkg` used to be opaque — 40–320 MB with no way to learn what it was without paying for the
+transfer. `SoloGame.upgradeAt` reads the package's own metadata; the file manager renders a compare
+block and `stat` prints the same facts (one source, two surfaces).
+
+- ⚠ **A newer build is worth more and SUPERSEDES an older one. It is NOT a better tool.** The
+  better-tool reading was offered and rejected: a capability rising with the hardness of the machine
+  you take it off is a ceiling reachable by grinding with no gate on it (**I2**), and the item would
+  sit behind two gates (**I3**). The only mechanical effect is resale value.
+  `UpgradeVersionTest.Capability` walks the whole catalogue to hold that line — keep it above all the
+  others here.
+- **The major tracks the HOST's tier**, so hard estates carry newer software; the market ships the
+  **middle** of the ladder (`MARKET_UPGRADE_VERSION_MAJOR` = 3) so neither raiding nor buying is
+  dominated. Deterministic from item + host, never drawn.
+- ⚠ **Two ints, not a string** — lexically `v1.10` sorts before `v1.9`, so the one question the type
+  exists for would get a wrong answer that looks right. Parsed tolerantly (it is a save field).
+- ⚠ **Recorded at ARRIVAL, never re-derived.** A host's tier can change, and a re-derived version
+  would silently change build while the package sat in Downloads.
+- ⚠ **An unversioned held item is OLDER, not SAME** — "you already have this build" about a build
+  nobody knows the number of is a claim the game cannot support.
+- ⚠ **Some bundles advertise upgrades for tools the catalogue does not carry** (`Breach.app`,
+  `Mining.app`). Those packages were always duds that `install` refuses *after* the transfer is paid
+  for; Get Info now names it beforehand. Filling the gap is content, not code.
+
+⚠ **`NetRules.reconcileFootholds` is what makes a breached machine YOURS, and for a while nothing
+called it.** It was written, documented and covered by five tests — every caller was a test — so a
+cleared breach left the machine reading `contact` on the map, refusing `connect`, and still holding
+its loot. Now `SoloGame.settleBreachOutcomes`, called from **`resume()` and `breachAction`**: the load
+path too, or the bug is permanent for any save that already breached something. Safe to call freely —
+it is idempotent *by construction* (`foothold` and `looted` are one-way flags, so there is no settled
+marker to desync).
+
+- ⚠ **The failure shape, not the fix, is the lesson.** Both pieces were correct and both suites green;
+  the defect was in the join, where a unit test cannot look. `NetRulesTest` even carried a comment
+  saying the caller existed — true of the design, false of the build. **A comment describing a caller
+  is not evidence of one.** `FootholdAfterBreachTest` tests one level up, against `SoloGame`, which is
+  the lowest level the bug is visible at; verified by neutering the fix first.
+- ⚠ **Map visibility keys on `knownNodes`; port scanning keys on `host.discovered`.** Two notions of
+  "found" that agree only because a sweep sets both. A fixture setting just the flag yields a host the
+  map has never heard of, failing with `NoSuchElement` rather than anything that names the problem.
+
+**Recon decides which breach puzzle you draw (2026-07-29).** The class was an even coin flip; it is
+now weighted by how complete the target's port-scan report is. **Offset Cipher is the DEFAULT** — the
+puzzle that needs nothing from the far side — and **Breach Protocol** is the puzzle of someone who
+knows the host, so a full report draws it ~95% (`Balance.breachProtocolShare`, linear at one seventh
+per finding). This is RECON's first mechanical consequence: a report used to be intelligence read by
+hand, and now it changes what the breach *is*.
+
+- ⚠ **It buys a DIFFERENT puzzle, never an easier one.** Tier, attention, strikes, layers and cycles
+  are identical either way (`BreachPuzzleWeightingTest.Pricing`). **If the two ever stop being
+  comparable in difficulty this becomes a discount**, and a proof-of-skill gate that can be bought
+  down is not one (**I7**) — re-check it whenever either puzzle is re-tuned.
+- ⚠ **0.95, not 1.0.** A guaranteed puzzle means the cipher stops being practised by anyone who
+  scans, which is `design/16` §5's original failure returning. The class is announced before anything
+  is spent, so the residual is a surprise the player can walk away from.
+- ⚠ **The roll is taken unconditionally, even at weight zero.** Skipping it for an unscanned machine
+  would make every later draw in the breach depend on whether the player had scanned — same seed,
+  different boards. `design/16` §2's replay rule.
+- ⚠ **Any breach fixture wanting BREACH_PROTOCOL must scan the target first** — `BreachTestKit
+  .fullyScanned`. Without it the class is unreachable and the helper loops every seed and throws.
+- ⚠ **Staleness deliberately does not count against a report.** A week-old finding still counts; its
+  age is already on screen, and discounting it silently would move the odds with nothing changing.
 
 **The client has an event bus, and it is CloudEvents v1.0.2 (2026-07-29)** — `client/.../events/`,
 over Spring's `SimpleApplicationEventMulticaster`. The LOG window gained an **EVENTS** tab beside

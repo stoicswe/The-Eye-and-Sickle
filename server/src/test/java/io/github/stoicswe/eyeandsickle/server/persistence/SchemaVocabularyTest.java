@@ -34,12 +34,14 @@ class SchemaVocabularyTest {
     private static final String CORE = "db/migration/core/V2__core_schema.sql";
     private static final String PUZZLE_CLASSES = "db/migration/core/V4__breach_puzzle_classes.sql";
     private static final String SHELL_SESSIONS = "db/migration/core/V5__shell_sessions.sql";
+    private static final String ETHECOIN_WEI = "db/migration/core/V6__ethecoin_wei.sql";
     private static final String FEDERATION = "db/migration/federation/V1001__federation_schema.sql";
 
     private static final String CORE_SQL = read(CORE);
     private static final String PUZZLE_CLASSES_SQL = read(PUZZLE_CLASSES);
     private static final String SHELL_SESSIONS_SQL = read(SHELL_SESSIONS);
     private static final String FEDERATION_SQL = read(FEDERATION);
+    private static final String ETHECOIN_WEI_SQL = read(ETHECOIN_WEI);
 
     // ------------------------------------------------------------------ vocabularies
 
@@ -180,21 +182,66 @@ class SchemaVocabularyTest {
         assertThat(stripComments(FEDERATION_SQL)).doesNotContainIgnoringCase("AS ENUM");
     }
 
-    @Test
-    @DisplayName("ethecoin columns are bigint and cycles columns are integral")
-    void economyColumnTypesFollowTheConvention() {
+    /**
+     * ⚠ The EFFECTIVE schema, not the CREATE TABLE text.
+     *
+     * <h2>Why this had to learn about ALTER</h2>
+     *
+     * Ethecoin moved from hundredths to wei in {@code V6}, which both widens the columns to
+     * {@code numeric(78,0)} and renames them off the now-false {@code _ec_minor} suffix. A test that
+     * only read {@code CREATE TABLE} would still be describing the schema as it was three migrations
+     * ago — and it would have passed, silently, while asserting nothing about the columns that
+     * actually exist.
+     *
+     * <p>So later migrations are replayed over the definitions: {@code ALTER COLUMN … TYPE} updates a
+     * type and {@code RENAME COLUMN … TO} updates a name. Every future migration is covered by the
+     * same mechanism rather than by remembering to edit this test.
+     */
+    private static List<String[]> effectiveColumns() {
         List<String[]> columns = new ArrayList<>();
         columns.addAll(columnDefinitions(CORE_SQL));
         columns.addAll(columnDefinitions(FEDERATION_SQL));
+
+        for (String sql : List.of(PUZZLE_CLASSES_SQL, SHELL_SESSIONS_SQL, ETHECOIN_WEI_SQL)) {
+            String body = stripComments(sql);
+            Matcher retyped = Pattern
+                    .compile("ALTER\\s+COLUMN\\s+(\\w+)\\s+TYPE\\s+([a-z]+(?:\\s*\\([^)]*\\))?)",
+                            Pattern.CASE_INSENSITIVE)
+                    .matcher(body);
+            while (retyped.find()) {
+                String name = retyped.group(1);
+                String type = retyped.group(2).replaceAll("\\s+", "");
+                columns.replaceAll(c -> c[0].equals(name) ? new String[] {c[0], type} : c);
+            }
+            Matcher renamed = Pattern
+                    .compile("RENAME\\s+COLUMN\\s+(\\w+)\\s+TO\\s+(\\w+)", Pattern.CASE_INSENSITIVE)
+                    .matcher(body);
+            while (renamed.find()) {
+                String from = renamed.group(1);
+                String to = renamed.group(2);
+                columns.replaceAll(c -> c[0].equals(from) ? new String[] {to, c[1]} : c);
+            }
+        }
+        return columns;
+    }
+
+    @Test
+    @DisplayName("ethecoin columns are numeric(78,0) and cycles columns are integral")
+    void economyColumnTypesFollowTheConvention() {
+        List<String[]> columns = effectiveColumns();
 
         List<String> ethecoin = new ArrayList<>();
         List<String> cycles = new ArrayList<>();
         for (String[] column : columns) {
             if (EconomyColumns.isEthecoinColumn(column[0])) {
                 ethecoin.add(column[0]);
+                // ⚠ numeric, not bigint. At 18 decimal places a bigint tops out at 9.22 EC — less
+                // than one firmware image — so the width is not a preference. Scale 0 keeps it an
+                // integral COUNT of the smallest unit, which is what stops the rounding the whole
+                // integral model exists to prevent.
                 assertThat(column[1])
-                        .as("%s must be bigint: ethecoin is an integral count of minor units", column[0])
-                        .isEqualTo("bigint");
+                        .as("%s must be numeric(78,0): ethecoin is an integral count of wei", column[0])
+                        .isEqualTo("numeric(78,0)");
             }
             if (EconomyColumns.isCyclesColumn(column[0])) {
                 cycles.add(column[0]);
@@ -206,7 +253,7 @@ class SchemaVocabularyTest {
 
         // The columns other systems will build against. If one disappears, that is a contract change.
         assertThat(ethecoin)
-                .containsExactlyInAnyOrder("ethecoin_balance_ec_minor", "amount_ec_minor", "buffer_ec_minor");
+                .containsExactlyInAnyOrder("ethecoin_balance_wei", "amount_wei", "buffer_wei");
         assertThat(cycles).containsExactlyInAnyOrder("total_cycles", "allocated_cycles");
     }
 

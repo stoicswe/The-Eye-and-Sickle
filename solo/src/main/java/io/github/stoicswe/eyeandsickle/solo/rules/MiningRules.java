@@ -1,5 +1,7 @@
 package io.github.stoicswe.eyeandsickle.solo.rules;
 
+import java.math.BigInteger;
+import java.math.BigDecimal;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningPool;
 import io.github.stoicswe.eyeandsickle.protocol.game.PoolScheme;
@@ -76,14 +78,19 @@ public final class MiningRules {
      * 0.4 EC per cycle-hour because {@code docs/design/03-economy.md} §1 prices both against it, and
      * the pooled self-mining rate is calibrated to land on exactly this figure.
      */
-    public static long deployedYield(long allocatedCycles, Duration elapsed) {
+    public static BigInteger deployedYield(long allocatedCycles, Duration elapsed) {
         if (allocatedCycles <= 0 || elapsed.isNegative() || elapsed.isZero()) {
-            return 0L;
+            return BigInteger.ZERO;
         }
-        // cycles × (minorUnits per cycle-hour) × hours, done in seconds to avoid truncating short
+        // cycles × (wei per cycle-hour) × hours, done in seconds to avoid truncating short
         // sessions to zero.
         long seconds = elapsed.toSeconds();
-        return Math.floorDiv(allocatedCycles * Balance.SELF_MINING_MINOR_UNITS_PER_CYCLE_HOUR * seconds, 3600L);
+        // ⚠ Exact integer arithmetic. At 18 decimals this product passes a long within seconds of
+        // one cycle mining, so narrowing it buys nothing and costs the low digits.
+        return Balance.SELF_MINING_WEI_PER_CYCLE_HOUR
+                .multiply(BigInteger.valueOf(allocatedCycles))
+                .multiply(BigInteger.valueOf(seconds))
+                .divide(BigInteger.valueOf(3600L));
     }
 
     /** The mode a rig is mining in, tolerant of a save that predates the field or was hand-edited. */
@@ -170,11 +177,11 @@ public final class MiningRules {
      * expected income for a payout that cannot miss; a PPLNS miner takes the block's luck in both
      * directions. Solo takes all of it.
      */
-    public static double rewardBaseMinorUnits(RigState rig) {
+    public static BigInteger rewardBaseWei(RigState rig) {
         boolean passesFeesOn = modeOf(rig) == MiningMode.SOLO
                 || poolOf(rig).scheme() == PoolScheme.PPLNS;
-        return Balance.BLOCK_SUBSIDY_MINOR_UNITS
-                + (passesFeesOn ? Balance.expectedBlockFeesMinorUnits() : 0.0d);
+        return Balance.BLOCK_SUBSIDY_WEI
+                .add(passesFeesOn ? Balance.expectedBlockFeesWei() : BigInteger.ZERO);
     }
 
     /**
@@ -187,18 +194,30 @@ public final class MiningRules {
      * which {@code ChainRules.Minted} carries — a published expectation and a realised payout are
      * different questions and only the second one can know which block it was.
      */
-    public static double payoutMinorUnits(RigState rig, ChainState chain) {
-        return rewardBaseMinorUnits(rig) * payoutFraction(rig, chain) * (1.0d - feeOf(rig));
+    public static BigDecimal payoutWei(RigState rig, ChainState chain) {
+        // ⚠ The money is BigDecimal; the two multipliers stay doubles and that is correct. A payout
+        // fraction and a pool fee are pure RATIOS with no scale in them, so a double carries them
+        // exactly as well as anything else. What must not be a double is the wei amount they scale.
+        return new BigDecimal(rewardBaseWei(rig))
+                .multiply(BigDecimal.valueOf(payoutFraction(rig, chain)))
+                .multiply(BigDecimal.valueOf(1.0d - feeOf(rig)));
     }
 
-    /** The long-run rate, in minor units per hour. Equal in both modes but for the pool's fee. */
-    public static long expectedMinorUnitsPerHour(RigState rig, ChainState chain) {
+    /** The long-run rate, in wei per hour. Equal in both modes but for the pool's fee. */
+    public static BigInteger expectedWeiPerHour(RigState rig, ChainState chain) {
         double seconds = ChainRules.expectedSeconds(
                 workingDifficulty(rig, chain), ChainRules.hashrate(rig.selfMiningCycles));
         if (!Double.isFinite(seconds) || seconds <= 0) {
-            return 0L;
+            return BigInteger.ZERO;
         }
-        return Math.round(payoutMinorUnits(rig, chain) * 3600.0d / seconds);
+        // ⚠ The wei amount stays in BigDecimal all the way to the rounding. `payout * 3600 / seconds`
+        // in double would round the amount to a double's 15-16 significant digits first, and at this
+        // scale that lands squarely inside the digits the readout now prints.
+        return payoutWei(rig, chain)
+                .multiply(BigDecimal.valueOf(3600.0d))
+                .divide(BigDecimal.valueOf(seconds), java.math.MathContext.DECIMAL128)
+                .setScale(0, java.math.RoundingMode.HALF_UP)
+                .toBigIntegerExact();
     }
 
     /**
@@ -225,14 +244,14 @@ public final class MiningRules {
      * and a view that did the multiplication itself would be the fourth copy of a rate that has
      * already been wrong once (see {@code RigStatus}).
      */
-    public static long rateFor(RigState rig, ChainState chain, long cycles) {
+    public static BigInteger rateFor(RigState rig, ChainState chain, long cycles) {
         if (chain == null || cycles <= 0) {
-            return 0L;
+            return BigInteger.ZERO;
         }
         long was = rig.selfMiningCycles;
         try {
             rig.selfMiningCycles = cycles;
-            return expectedMinorUnitsPerHour(rig, chain);
+            return expectedWeiPerHour(rig, chain);
         } finally {
             // Restored unconditionally. This mutates live state to reuse one equation rather than
             // maintaining a second copy of it, and a throw between the two would leave the rig
@@ -274,13 +293,13 @@ public final class MiningRules {
      * @param minted what the chain produced this tick, from {@code ChainRules.advanceNetwork}
      * @return minor units credited, which the caller ledgers
      */
-    public static long runSelfMining(
+    public static BigInteger runSelfMining(
             SoloSave save, Duration elapsed, Instant now, Rng rng, ChainRules.Minted minted) {
         RigState rig = save.rig;
         ChainState chain = save.chain;
         double seconds = elapsed.toMillis() / 1000.0d;
         if (chain == null || rig.selfMiningCycles <= 0 || seconds <= 0) {
-            return 0L;
+            return BigInteger.ZERO;
         }
         boolean solo = modeOf(rig) == MiningMode.SOLO;
         int payouts = 0;
@@ -289,7 +308,7 @@ public final class MiningRules {
             // ⚠ Subsidy PLUS the block's fees, which is what a real miner is paid. Until 2026-07-27
             // the fees players paid into the mempool were debited and then vanished, so the fee
             // market was a pure sink and the block card's "fees 0.38 EC" named money nobody ever
-            // received. See MempoolRules.blockFeesMinorUnits for the ~10.6% this adds and where the
+            // received. See MempoolRules.blockFeesWei for the ~10.6% this adds and where the
             // economy absorbs it.
             //
             // ⚠ Banked block by block rather than as one sum, so each block's own credit is known
@@ -297,19 +316,20 @@ public final class MiningRules {
             // floor(r+a+b) == floor(r+a) + floor(r+a-floor(r+a)+b) — so this is an attribution
             // change and not an economy one.
             for (ChainRules.Won block : minted.yourBlocks()) {
-                double value = Balance.BLOCK_SUBSIDY_MINOR_UNITS + (double) block.feesMinorUnits();
+                BigDecimal value = new BigDecimal(Balance.BLOCK_SUBSIDY_WEI.add(block.feesWei()));
                 record(save, block, bank(rig, value), true);
                 payouts++;
             }
         } else if (poolOf(rig).scheme() == PoolScheme.PPLNS) {
             // Paid out of blocks the POOL won, in proportion to what this rig contributed to it —
             // including their fees, because a block's fees are part of what the pool has to divide.
-            // ⚠ The REAL fees of the blocks that were won, not payoutMinorUnits' expectation: this
+            // ⚠ The REAL fees of the blocks that were won, not payoutWei' expectation: this
             // is a realised payout, and a PPLNS miner's exposure to what a block happened to carry
             // is the thing that distinguishes it from PPS.
             double cut = payoutFraction(rig, chain) * (1.0d - feeOf(rig));
             for (ChainRules.Won block : minted.poolBlocks()) {
-                double value = (Balance.BLOCK_SUBSIDY_MINOR_UNITS + (double) block.feesMinorUnits()) * cut;
+                BigDecimal value = new BigDecimal(Balance.BLOCK_SUBSIDY_WEI.add(block.feesWei()))
+                        .multiply(BigDecimal.valueOf(cut));
                 record(save, block, bank(rig, value), false);
                 payouts++;
             }
@@ -317,10 +337,10 @@ public final class MiningRules {
             // ⚠ PPS records the pool's blocks and takes NOTHING from them. The rig's hashrate really
             // did go into them, so they belong in the contributor record; a share pool simply is not
             // dividing a block up — it pays a fixed price per accepted share out of its own balance,
-            // which is the entire product. See rewardBaseMinorUnits. A zero in that column beside a
+            // which is the entire product. See rewardBaseWei. A zero in that column beside a
             // real hashrate is the difference between the two schemes, rendered.
             for (ChainRules.Won block : minted.poolBlocks()) {
-                record(save, block, 0L, false);
+                record(save, block, BigInteger.ZERO, false);
             }
             // PPS: a share clock, independent of the chain. Progress in units of "expected shares",
             // so the pool retuning this rig's target — or the player reallocating mid-flight —
@@ -328,13 +348,13 @@ public final class MiningRules {
             double mean = ChainRules.expectedSeconds(
                     workingDifficulty(rig, chain), ChainRules.hashrate(rig.selfMiningCycles));
             if (!Double.isFinite(mean) || mean <= 0) {
-                return 0L;
+                return BigInteger.ZERO;
             }
             rig.miningWorkDone += seconds / mean;
             while (rig.miningWorkDone >= rig.miningWorkTarget && payouts < 4096) {
                 rig.miningWorkDone -= rig.miningWorkTarget;
                 rig.miningWorkTarget = ChainRules.drawWork(rng);
-                bank(rig, payoutMinorUnits(rig, chain));
+                bank(rig, payoutWei(rig, chain));
                 payouts++;
             }
         }
@@ -364,11 +384,12 @@ public final class MiningRules {
      *
      * @return the whole minor units this payout added, which is what the contributor row records
      */
-    private static long bank(RigState rig, double value) {
-        rig.miningResidueMinorUnits += value;
-        long banked = (long) Math.floor(rig.miningResidueMinorUnits);
-        rig.miningResidueMinorUnits -= banked;
-        rig.miningPendingMinorUnits += banked;
+    private static BigInteger bank(RigState rig, BigDecimal value) {
+        rig.miningResidueWei = rig.miningResidueWei.add(value);
+        BigInteger banked = rig.miningResidueWei.setScale(0, java.math.RoundingMode.FLOOR)
+                .toBigIntegerExact();
+        rig.miningResidueWei = rig.miningResidueWei.subtract(new BigDecimal(banked));
+        rig.miningPendingWei = rig.miningPendingWei.add(banked);
         return banked;
     }
 
@@ -387,7 +408,8 @@ public final class MiningRules {
      * {@code ChainExplorer} derives them for the block card, so a contributor row and the card it
      * names cannot come apart. See {@code ContributionState}.
      */
-    private static void record(SoloSave save, ChainRules.Won block, long credited, boolean won) {
+    private static void record(
+            SoloSave save, ChainRules.Won block, BigInteger credited, boolean won) {
         ChainState chain = save.chain;
         if (chain == null) {
             return;
@@ -403,7 +425,7 @@ public final class MiningRules {
         row.hashrate = ChainRules.hashrate(save.rig.selfMiningCycles);
         row.networkHashrate = Math.round(chain.networkHashrate);
         row.difficulty = chain.difficulty;
-        row.creditedMinorUnits = credited;
+        row.creditedWei = credited;
 
         chain.contributions.add(row);
         while (chain.contributions.size() > ContributionState.LIMIT) {
@@ -422,11 +444,11 @@ public final class MiningRules {
      * would leave the balance ahead of the last ledger row, and {@code docs/design/04-mining.md} §3.1
      * makes a disagreement between two readouts the way a player detects an intruder.
      *
-     * @return minor units the caller should ledger, or 0 if the pool is still holding
+     * @return wei the caller should ledger, or zero if the pool is still holding
      */
-    private static long settle(RigState rig, Instant now, boolean solo) {
-        if (rig.miningPendingMinorUnits <= 0) {
-            return 0L;
+    private static BigInteger settle(RigState rig, Instant now, boolean solo) {
+        if (rig.miningPendingWei.signum() <= 0) {
+            return BigInteger.ZERO;
         }
         // ⚠ A null or BACKWARDS clock settles immediately, and both matter.
         //
@@ -441,18 +463,20 @@ public final class MiningRules {
                 ? Long.MAX_VALUE
                 : Duration.between(rig.miningSettledAt, now).toSeconds();
         if (!solo && elapsed >= 0 && elapsed < Balance.POOL_SETTLE_SECONDS) {
-            return 0L;
+            return BigInteger.ZERO;
         }
-        long paid = rig.miningPendingMinorUnits;
-        rig.miningPendingMinorUnits = 0L;
+        BigInteger paid = rig.miningPendingWei;
+        rig.miningPendingWei = BigInteger.ZERO;
         rig.miningPendingPayouts = 0;
         rig.miningSettledAt = now;
-        rig.miningMinorUnits += paid;
+        rig.miningWei = rig.miningWei.add(paid);
         return paid;
     }
-    /** The most a single miner's buffer may hold, in minor units. */
-    public static long bufferCap(MinerState miner) {
-        return miner.hostCycles * Balance.SELF_MINING_MINOR_UNITS_PER_CYCLE_HOUR * Balance.YIELD_BUFFER_HOURS;
+    /** The most a single miner's buffer may hold, in wei. */
+    public static BigInteger bufferCap(MinerState miner) {
+        return Balance.SELF_MINING_WEI_PER_CYCLE_HOUR
+                .multiply(BigInteger.valueOf(miner.hostCycles))
+                .multiply(BigInteger.valueOf(Balance.YIELD_BUFFER_HOURS));
     }
 
     /**
@@ -463,20 +487,20 @@ public final class MiningRules {
      *
      * @return total minor units added across all miners
      */
-    public static long accrueDeployedMiners(SoloSave save, Instant now) {
-        long added = 0L;
+    public static BigInteger accrueDeployedMiners(SoloSave save, Instant now) {
+        BigInteger added = BigInteger.ZERO;
         for (NodeState node : save.knownNodes) {
             for (MinerState miner : node.deployedMiners) {
                 Duration elapsed = Duration.between(miner.lastAccruedAt, now);
                 if (elapsed.isNegative() || elapsed.isZero()) {
                     continue;
                 }
-                long cap = bufferCap(miner);
-                long yield = deployedYield(miner.hostCycles, elapsed);
-                long before = miner.bufferedMinorUnits;
-                miner.bufferedMinorUnits = Math.min(cap, before + yield);
+                BigInteger cap = bufferCap(miner);
+                BigInteger yield = deployedYield(miner.hostCycles, elapsed);
+                BigInteger before = miner.bufferedWei;
+                miner.bufferedWei = before.add(yield).min(cap);
                 miner.lastAccruedAt = now;
-                added += miner.bufferedMinorUnits - before;
+                added = added.add(miner.bufferedWei.subtract(before));
             }
         }
         return added;
@@ -510,32 +534,32 @@ public final class MiningRules {
      *
      * @return total minor units added, which the player does not own and must never be credited
      */
-    public static long accrueForeignMiners(SoloSave save, Instant now) {
-        long added = 0L;
+    public static BigInteger accrueForeignMiners(SoloSave save, Instant now) {
+        BigInteger added = BigInteger.ZERO;
         for (MinerState miner : save.rig.foreignMiners) {
             Duration elapsed = Duration.between(miner.lastAccruedAt, now);
             if (elapsed.isNegative() || elapsed.isZero()) {
                 continue;
             }
-            long cap = bufferCap(miner);
-            long before = miner.bufferedMinorUnits;
-            miner.bufferedMinorUnits = Math.min(cap, before + deployedYield(miner.hostCycles, elapsed));
+            BigInteger cap = bufferCap(miner);
+            BigInteger before = miner.bufferedWei;
+            miner.bufferedWei = before.add(deployedYield(miner.hostCycles, elapsed)).min(cap);
             miner.lastAccruedAt = now;
-            added += miner.bufferedMinorUnits - before;
+            added = added.add(miner.bufferedWei.subtract(before));
         }
         return added;
     }
 
     /** Sweeps every buffer into the balance. This is what {@code collect} does. */
-    public static long collectAll(SoloSave save, Instant now) {
-        long collected = 0L;
+    public static BigInteger collectAll(SoloSave save, Instant now) {
+        BigInteger collected = BigInteger.ZERO;
         for (NodeState node : save.knownNodes) {
             for (MinerState miner : node.deployedMiners) {
-                collected += miner.bufferedMinorUnits;
-                miner.bufferedMinorUnits = 0L;
+                collected = collected.add(miner.bufferedWei);
+                miner.bufferedWei = BigInteger.ZERO;
             }
         }
-        if (collected > 0) {
+        if (collected.signum() > 0) {
             LedgerRules.apply(save, collected, "MINING_COLLECT", "Collected deployed-miner yield", now);
         }
         return collected;

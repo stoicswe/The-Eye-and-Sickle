@@ -44,6 +44,23 @@ public final class Apps {
     public static final String UPGRADES = "Upgrades";
 
     /**
+     * Whether the upgrade this bundle advertises is firmware.
+     *
+     * <p>⚠ Asks the CATALOGUE rather than carrying a flag here. A second place recording "this app's
+     * upgrade is firmware" is a second place for it to disagree with the offering that actually
+     * decides the install rules — and the listing would then promise something the install refuses,
+     * or hide something it enforces.
+     */
+    public static boolean isFirmwareApp(App app) {
+        return app != null && io.github.stoicswe.eyeandsickle.solo.Catalogue.offerings().stream()
+                .filter(offering -> app.itemPrefixes().stream()
+                        .anyMatch(prefix -> offering.id().startsWith(prefix)))
+                .findFirst()
+                .map(io.github.stoicswe.eyeandsickle.solo.Catalogue.Offering::firmware)
+                .orElse(false);
+    }
+
+    /**
      * Where the executable sits inside a bundle.
      *
      * <p>⚠ <b>{@code uOS}, not {@code MacOS}.</b> A real macOS bundle really does put its binary in
@@ -103,8 +120,12 @@ public final class Apps {
             new App("man", "Manual", "The offline manual and the term index.", List.of()),
             new App("market", "Market", "What is for sale and which gate stands in front of it.",
                     List.of()),
+            // ⚠ "firmware-" is here so the Firmware Implant image is reachable by BREACHING as well
+            // as by buying. docs/design/01-core-resources.md §6 makes raiding a first-class
+            // acquisition route, and the firmware design leans on it: an image you can only buy makes
+            // the raid route dead content and the two-part requirement pointless.
             new App("mining", "Mining", "Self-mining allocation and deployed-miner collection.",
-                    List.of("miner", "pool-")),
+                    List.of("miner", "pool-", "firmware-")),
             new App("netmap", "Network", "The network as a graph, and the sweeps that find it.",
                     List.of("net-sweep")),
             new App("recon", "Recon", "What is known about a target and what more would cost.",

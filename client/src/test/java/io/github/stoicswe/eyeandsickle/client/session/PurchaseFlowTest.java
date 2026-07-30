@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.client.session;
 
+import io.github.stoicswe.eyeandsickle.solo.Balance;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
@@ -50,13 +51,13 @@ class PurchaseFlowTest {
         Winding clock = new Winding(T0);
         SoloGame game = SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", clock);
         LocalGameSession session = new LocalGameSession(game);
-        game.credit(50_000L, "TEST", "seed");
-        long before = session.balance().minorUnits();
+        game.credit(Balance.ec("500"), "TEST", "seed");
+        java.math.BigInteger before = session.balance().wei();
 
         // ── paid, and nothing delivered ───────────────────────────────────────────────────────
         var bought = session.purchase(OFFERING);
         assertThat(bought.succeeded()).isTrue();
-        assertThat(session.balance().minorUnits())
+        assertThat(session.balance().wei())
                 .as("the money goes now — a real wallet deducts a send immediately")
                 .isLessThan(before);
         assertThat(session.items(StorageTier.VAULT)).isEmpty();
@@ -126,7 +127,7 @@ class PurchaseFlowTest {
         Winding clock = new Winding(T0);
         SoloGame game = SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", clock);
         LocalGameSession session = new LocalGameSession(game);
-        game.credit(50_000L, "TEST", "seed");
+        game.credit(Balance.ec("500"), "TEST", "seed");
         session.purchase(OFFERING);
         game.state().chain.networkWorkTarget = 500.0d;
         clock.advance(Duration.ofMinutes(2));
@@ -155,7 +156,7 @@ class PurchaseFlowTest {
         Winding clock = new Winding(T0);
         SoloGame game = SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", clock);
         LocalGameSession session = new LocalGameSession(game);
-        game.credit(50_000L, "TEST", "seed");
+        game.credit(Balance.ec("500"), "TEST", "seed");
         session.purchase(OFFERING);
         game.state().chain.networkWorkTarget = 500.0d;
         clock.advance(Duration.ofMinutes(2));
@@ -173,15 +174,15 @@ class PurchaseFlowTest {
         Winding clock = new Winding(T0);
         SoloGame game = SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", clock);
         LocalGameSession session = new LocalGameSession(game);
-        game.credit(50_000L, "TEST", "seed");
+        game.credit(Balance.ec("500"), "TEST", "seed");
 
         assertThat(session.purchase(OFFERING).succeeded()).isTrue();
-        long after = session.balance().minorUnits();
+        java.math.BigInteger after = session.balance().wei();
         // ⚠ The download is in flight and there is no item yet, so neither the old "already owned"
         // check nor a vault scan would catch this. Without the in-flight check the player pays twice
         // for one tool and the second package collides with the first.
         assertThat(session.purchase(OFFERING).succeeded()).isFalse();
-        assertThat(session.balance().minorUnits()).isEqualTo(after);
+        assertThat(session.balance().wei()).isEqualTo(after);
         assertThat(session.transfers()).hasSize(1);
     }
 
@@ -189,7 +190,7 @@ class PurchaseFlowTest {
 
     private static io.github.stoicswe.eyeandsickle.protocol.game.PackageManifest bought(
             Path dir, Winding clock, SoloGame game, LocalGameSession session) {
-        game.credit(50_000L, "TEST", "seed");
+        game.credit(Balance.ec("500"), "TEST", "seed");
         session.purchase(OFFERING);
         game.state().chain.networkWorkTarget = 500.0d;
         clock.advance(Duration.ofMinutes(2));

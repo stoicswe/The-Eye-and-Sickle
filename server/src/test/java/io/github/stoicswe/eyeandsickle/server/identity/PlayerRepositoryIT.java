@@ -201,7 +201,7 @@ class PlayerRepositoryIT extends PostgresIntegrationTestBase {
     private void rawInsert(String valuesClause) {
         jdbcClient()
                 .sql("INSERT INTO players (player_id, did, slot, handle, status, faction, personal_heat, "
-                        + "ethecoin_balance_ec_minor, created_at, last_seen_at, row_version) " + valuesClause)
+                        + "ethecoin_balance_wei, created_at, last_seen_at, row_version) " + valuesClause)
                 .param("id", UUID.randomUUID())
                 .param("did", DID.value())
                 .update();

@@ -179,7 +179,7 @@ class LedgerRepositoryIT extends PostgresIntegrationTestBase {
         @DisplayName("a caller cannot ask the server to scan the whole ledger — the page is clamped to MAX_LIMIT")
         void limitIsClampedToMax() {
             for (int i = 0; i < LedgerQuery.MAX_LIMIT + 5; i++) {
-                append(null, A, Ethecoin.ofMinorUnits(1), LedgerEntryType.MINING_REWARD, true, null, T0.plusSeconds(i));
+                append(null, A, Ethecoin.ofDecimal("0.01"), LedgerEntryType.MINING_REWARD, true, null, T0.plusSeconds(i));
             }
 
             assertThat(repository.query(LedgerQuery.recent(10_000), null)).hasSize(LedgerQuery.MAX_LIMIT);

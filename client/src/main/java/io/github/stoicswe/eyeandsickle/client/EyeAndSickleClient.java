@@ -846,7 +846,11 @@ public class EyeAndSickleClient extends Application {
                         address,
                         "Shell — " + address,
                         NodeShellView.create(session, address, () -> deck.closeShell(address)),
-                        () -> deck.closeShell(address));
+                        // ⚠ Closes the SESSION, not the window. The window is already going — this
+                        // is what hands its two cycles back. Pointing it at closeShell (as it was)
+                        // asked the desk to close a window it was in the middle of closing, which
+                        // did nothing and left the allocation held forever.
+                        () -> session.closeSession(address));
             }
 
             @Override
@@ -878,7 +882,10 @@ public class EyeAndSickleClient extends Application {
                         // would be the same sentence in two places — which is how a player comes to
                         // believe two things happened.
                         PortScanView.create(session, address, message -> {}),
-                        () -> deck.closeShell(key));
+                        // ⚠ Nothing to release. A scanner or a report is a VIEW onto state that exists
+                        // whether or not it is on screen — unlike a shell, which is an
+                        // instance holding cycles for as long as it lives.
+                        null);
             }
 
             /** Same per-subject window shape as the scanner — one file open per machine. */
@@ -893,7 +900,10 @@ public class EyeAndSickleClient extends Application {
                         "Report - " + address,
                         io.github.stoicswe.eyeandsickle.client.view.NodeReportView.create(
                                 session, address),
-                        () -> deck.closeShell(key));
+                        // ⚠ Nothing to release. A scanner or a report is a VIEW onto state that exists
+                        // whether or not it is on screen — unlike a shell, which is an
+                        // instance holding cycles for as long as it lives.
+                        null);
             }
         };
     }
@@ -951,7 +961,7 @@ public class EyeAndSickleClient extends Application {
             case TERMINAL -> TerminalView.create(shell);
             case BREACH -> BreachView.create(session, terms, profile, arming);
             case NETMAP -> NetMapView.create(session, arming, nodeActions());
-            case AUDIT -> Views.audit(session, shell);
+            case AUDIT -> io.github.stoicswe.eyeandsickle.client.view.AuditView.create(session, shell);
             case MINING -> Views.mining(session);
             case STORAGE -> Views.storage(session);
             case LEDGER -> Views.ledger(session);

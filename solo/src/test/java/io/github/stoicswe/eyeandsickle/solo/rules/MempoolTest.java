@@ -1,5 +1,7 @@
 package io.github.stoicswe.eyeandsickle.solo.rules;
 
+import java.math.BigInteger;
+import static io.github.stoicswe.eyeandsickle.solo.support.Money.ec;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 
@@ -207,29 +209,33 @@ class MempoolTest {
         @DisplayName("⚠ the mempool's two rates are the same unit, so they can be compared")
         void ratesAreComparable(@TempDir Path dir) {
             Rig rig = new Rig(dir);
-            rig.game.credit(50_000L, "TEST", "seed");
-            rig.game.debit(100L, "TRANSFER", "urgent", FeeTier.PRIORITY, "0x" + "ef".repeat(20));
+            rig.game.credit(Balance.ec("500"), "TEST", "seed");
+            rig.game.debit(Balance.ec("1"), "TRANSFER", "urgent", FeeTier.PRIORITY, "0x" + "ef".repeat(20));
 
             ChainMempool pool = rig.game.mempool();
             // The panel prints "cheapest slot X, top of the queue Y" side by side. Shipping one in
-            // minor units and the other as a gas price made an under-4x spread look like 180x.
-            assertThat(pool.highFeeRate()).isGreaterThanOrEqualTo(pool.lowFeeRate());
-            assertThat(pool.highFeeRate() / pool.lowFeeRate()).isLessThan(30.0d);
-            assertThat(pool.pending().getFirst().gasPriceMinorUnits())
-                    .isEqualTo(ChainExplorer.gasPrice(Balance.feeFor(FeeTier.PRIORITY)));
+            // minor units and the other as a gas price made an under-4x spread look like 180x — and
+            // once amounts were wei, a gas price printed as eighteen digits at the player. Both are
+            // now AMOUNTS, which is the unit the fee tiers are quoted in and the one a player is
+            // choosing between.
+            assertThat(pool.highFeeWei()).isGreaterThanOrEqualTo(pool.lowFeeWei());
+            assertThat(ec(pool.highFeeWei()) / ec(pool.lowFeeWei())).isLessThan(30.0d);
+            // ⚠ The top of the queue IS what the player is paying — an amount, comparable by eye to
+            // the tier they picked, rather than a derived rate they would have to divide back out.
+            assertThat(pool.highFeeWei()).isEqualTo(Balance.feeFor(FeeTier.PRIORITY));
         }
 
         @Test
         @DisplayName("⚠ the network never routinely outbids the top tier a player can pay")
         void npcsDoNotOutbidPriority(@TempDir Path dir) {
             Rig rig = new Rig(dir);
-            long priority = Balance.feeFor(FeeTier.PRIORITY);
+            BigInteger priority = Balance.feeFor(FeeTier.PRIORITY);
             for (long height = 1; height <= 124; height++) {
                 for (ChainTransaction tx : rig.game.chainBlock(height).body()) {
                     // If the NPC population could routinely pay more than the most a player can, the
                     // top tier would buy nothing and the mechanic would read as broken rather than
                     // competitive — FeeTier's promise failing from the other side.
-                    assertThat(tx.feeMinorUnits())
+                    assertThat(tx.feeWei())
                             .as("block %d tx fee", height)
                             .isLessThanOrEqualTo(priority);
                 }
@@ -252,39 +258,41 @@ class MempoolTest {
         @DisplayName("⚠ the fee is negligible against income — it orders a queue, it is not a sink")
         void feesAreNotASink(@TempDir Path dir) {
             Rig rig = new Rig(dir);
-            long hourlyIncome = 100 * Balance.SELF_MINING_MINOR_UNITS_PER_CYCLE_HOUR;
+            java.math.BigInteger hourlyIncome =
+                    Balance.SELF_MINING_WEI_PER_CYCLE_HOUR.multiply(java.math.BigInteger.valueOf(100));
             // docs/design/03 §4 lists the sinks the economy is balanced against and this is not one.
             // If a priority fee ever costs more than a percent of an hour's income it has become a
             // sink and §4 has to know about it.
-            assertThat(Balance.feeFor(FeeTier.PRIORITY)).isLessThan(hourlyIncome / 100);
+            assertThat(Balance.feeFor(FeeTier.PRIORITY))
+                    .isLessThan(hourlyIncome.divide(java.math.BigInteger.valueOf(100)));
         }
 
         @Test
         @DisplayName("the fee is charged on top, so a sender cannot short the recipient")
         void feeIsChargedOnTop(@TempDir Path dir) {
             Rig rig = new Rig(dir);
-            rig.game.credit(1_000L, "TEST", "seed");
-            long before = rig.game.balance().minorUnits();
+            rig.game.credit(Balance.ec("10"), "TEST", "seed");
+            java.math.BigInteger before = rig.game.balance().wei();
 
-            assertThat(rig.game.debit(500L, "TRANSFER", "test", FeeTier.PRIORITY, "0x" + "ab".repeat(20)))
+            assertThat(rig.game.debit(Balance.ec("5"), "TRANSFER", "test", FeeTier.PRIORITY, "0x" + "ab".repeat(20)))
                     .isTrue();
 
             // Amount AND fee. Folding the fee into the amount would leave the recipient short and the
             // ledger's arithmetic wrong.
-            assertThat(rig.game.balance().minorUnits())
-                    .isEqualTo(before - 500L - Balance.feeFor(FeeTier.PRIORITY));
+            assertThat(rig.game.balance().wei())
+                    .isEqualTo(before.subtract(Balance.ec("5")).subtract(Balance.feeFor(FeeTier.PRIORITY)));
         }
 
         @Test
         @DisplayName("a sender who cannot cover amount plus fee is refused, and nothing moves")
         void insufficientFundsChangeNothing(@TempDir Path dir) {
             Rig rig = new Rig(dir);
-            long balance = rig.game.balance().minorUnits();
+            java.math.BigInteger balance = rig.game.balance().wei();
 
             assertThat(rig.game.debit(balance, "TRANSFER", "test", FeeTier.PRIORITY, ""))
                     .as("spending the whole balance leaves nothing for the fee")
                     .isFalse();
-            assertThat(rig.game.balance().minorUnits()).isEqualTo(balance);
+            assertThat(rig.game.balance().wei()).isEqualTo(balance);
             assertThat(rig.game.mempool().pending()).isEmpty();
         }
     }
@@ -297,8 +305,8 @@ class MempoolTest {
         @DisplayName("a spend enters the mempool, then confirms into a block")
         void pendingThenConfirmed(@TempDir Path dir) {
             Rig rig = new Rig(dir);
-            rig.game.credit(50_000L, "TEST", "seed");
-            rig.game.debit(1_000L, "TRANSFER", "a purchase", FeeTier.PRIORITY, "0x" + "cd".repeat(20));
+            rig.game.credit(Balance.ec("500"), "TEST", "seed");
+            rig.game.debit(Balance.ec("10"), "TRANSFER", "a purchase", FeeTier.PRIORITY, "0x" + "cd".repeat(20));
 
             ChainMempool pool = rig.game.mempool();
             assertThat(pool.yoursPending()).isEqualTo(1);
@@ -359,7 +367,7 @@ class MempoolTest {
             // transaction to have executed. Explorers really do render it this way.
             assertThat(payout.from()).isEqualTo(ChainTransaction.ZERO_ADDRESS);
             assertThat(payout.gasUsed()).isZero();
-            assertThat(payout.feeMinorUnits()).isZero();
+            assertThat(payout.feeWei()).isZero();
         }
 
         @Test
@@ -391,8 +399,8 @@ class MempoolTest {
         @DisplayName("a label is only ever attached to an address the client can verify")
         void strangersGetNoLabel(@TempDir Path dir) {
             Rig rig = new Rig(dir);
-            rig.game.credit(50_000L, "TEST", "seed");
-            rig.game.debit(100L, "TRANSFER", "to a stranger", FeeTier.STANDARD,
+            rig.game.credit(Balance.ec("500"), "TEST", "seed");
+            rig.game.debit(Balance.ec("1"), "TRANSFER", "to a stranger", FeeTier.STANDARD,
                     "0x" + "ab".repeat(20));
             ChainTransaction sent = rig.game.chainTransactions(10).stream()
                     .filter(tx -> "TRANSFER".equals(tx.kind()))
@@ -421,12 +429,12 @@ class MempoolTest {
             // player catches a hidden miner, so these two surfaces must be incapable of disagreeing.
             for (int i = 0; i < chain.size(); i++) {
                 var entry = ledger.get(ledger.size() - 1 - i);
-                assertThat(chain.get(i).valueMinorUnits())
+                assertThat(chain.get(i).valueWei())
                         .as("row %d value", i)
-                        .isEqualTo(Math.abs(entry.deltaMinorUnits));
-                assertThat(chain.get(i).balanceAfterMinorUnits())
+                        .isEqualTo(entry.deltaWei.abs());
+                assertThat(chain.get(i).balanceAfterWei())
                         .as("row %d balance", i)
-                        .isEqualTo(entry.balanceAfterMinorUnits);
+                        .isEqualTo(entry.balanceAfterWei);
             }
         }
     }
@@ -443,22 +451,22 @@ class MempoolTest {
         @DisplayName("a boost charges the difference, not the whole new fee")
         void chargesTheDifference(@TempDir Path dir) {
             Rig rig = new Rig(dir);
-            rig.game.credit(50_000L, "TEST", "seed");
-            rig.game.debit(500L, "TRANSFER", "Sent", FeeTier.ECONOMY, "0xabc");
-            long before = rig.game.balance().minorUnits();
-            long was = pendingOn(rig).feeMinorUnits();
+            rig.game.credit(Balance.ec("500"), "TEST", "seed");
+            rig.game.debit(Balance.ec("5"), "TRANSFER", "Sent", FeeTier.ECONOMY, "0xabc");
+            java.math.BigInteger before = rig.game.balance().wei();
+            java.math.BigInteger was = pendingOn(rig).feeWei();
 
             var boost = MempoolRules.boost(
                     rig.game.state(), pendingOn(rig).hash(), FeeTier.PRIORITY, rig.game.now());
 
             assertThat(boost.ok()).isTrue();
-            long difference = Balance.FEE_PRIORITY_MINOR_UNITS - was;
-            assertThat(boost.paidMinorUnits()).isEqualTo(difference);
+            java.math.BigInteger difference = Balance.FEE_PRIORITY_WEI.subtract(was);
+            assertThat(boost.paidWei()).isEqualTo(difference);
             // ⚠ The DIFFERENCE. The first fee was debited when the transaction was broadcast, so
             // charging the new tier in full would take it twice — and the player would end up having
             // paid more than priority costs.
-            assertThat(rig.game.balance().minorUnits()).isEqualTo(before - difference);
-            assertThat(pendingOn(rig).feeMinorUnits()).isEqualTo(Balance.FEE_PRIORITY_MINOR_UNITS);
+            assertThat(rig.game.balance().wei()).isEqualTo(before.subtract(difference));
+            assertThat(pendingOn(rig).feeWei()).isEqualTo(Balance.FEE_PRIORITY_WEI);
         }
 
         /**
@@ -473,8 +481,8 @@ class MempoolTest {
         @DisplayName("the boost reaches the ledger row as well as the pending record")
         void bothRecordsMove(@TempDir Path dir) {
             Rig rig = new Rig(dir);
-            rig.game.credit(50_000L, "TEST", "seed");
-            rig.game.debit(500L, "TRANSFER", "Sent", FeeTier.ECONOMY, "0xabc");
+            rig.game.credit(Balance.ec("500"), "TEST", "seed");
+            rig.game.debit(Balance.ec("5"), "TRANSFER", "Sent", FeeTier.ECONOMY, "0xabc");
             String hash = pendingOn(rig).hash();
             MempoolRules.boost(rig.game.state(), hash, FeeTier.PRIORITY, rig.game.now());
 
@@ -482,7 +490,7 @@ class MempoolTest {
                     .filter(e -> "TRANSFER".equals(e.type))
                     .findFirst()
                     .orElseThrow();
-            assertThat(entry.feeMinorUnits).isEqualTo(Balance.FEE_PRIORITY_MINOR_UNITS);
+            assertThat(entry.feeWei).isEqualTo(Balance.FEE_PRIORITY_WEI);
         }
 
         /**
@@ -494,9 +502,9 @@ class MempoolTest {
         @DisplayName("a bump only ever goes up")
         void neverDownwards(@TempDir Path dir) {
             Rig rig = new Rig(dir);
-            rig.game.credit(50_000L, "TEST", "seed");
-            rig.game.debit(500L, "TRANSFER", "Sent", FeeTier.PRIORITY, "0xabc");
-            long before = rig.game.balance().minorUnits();
+            rig.game.credit(Balance.ec("500"), "TEST", "seed");
+            rig.game.debit(Balance.ec("5"), "TRANSFER", "Sent", FeeTier.PRIORITY, "0xabc");
+            java.math.BigInteger before = rig.game.balance().wei();
 
             for (FeeTier down : new FeeTier[] {FeeTier.ECONOMY, FeeTier.STANDARD, FeeTier.PRIORITY}) {
                 var boost = MempoolRules.boost(
@@ -504,15 +512,15 @@ class MempoolTest {
                 assertThat(boost.ok()).as("%s", down).isFalse();
                 assertThat(boost.refusal()).isEqualTo(MempoolRules.BoostRefusal.NOT_HIGHER);
             }
-            assertThat(rig.game.balance().minorUnits()).isEqualTo(before);
+            assertThat(rig.game.balance().wei()).isEqualTo(before);
         }
 
         @Test
         @DisplayName("a confirmed transaction cannot be boosted, and says why")
         void notAfterItIsMined(@TempDir Path dir) {
             Rig rig = new Rig(dir);
-            rig.game.credit(50_000L, "TEST", "seed");
-            rig.game.debit(500L, "TRANSFER", "Sent", FeeTier.PRIORITY, "0xabc");
+            rig.game.credit(Balance.ec("500"), "TEST", "seed");
+            rig.game.debit(Balance.ec("5"), "TRANSFER", "Sent", FeeTier.PRIORITY, "0xabc");
             String hash = pendingOn(rig).hash();
 
             MempoolRules.confirmInto(rig.game.state(), rig.game.state().chain.height + 1, rig.game.now());
@@ -528,15 +536,15 @@ class MempoolTest {
         @DisplayName("a boost that cannot be afforded takes nothing")
         void cannotAfford(@TempDir Path dir) {
             Rig rig = new Rig(dir);
-            rig.game.credit(Balance.FEE_ECONOMY_MINOR_UNITS + 10L, "TEST", "seed");
-            rig.game.debit(0L, "TRANSFER", "Sent", FeeTier.ECONOMY, "0xabc");
-            long before = rig.game.balance().minorUnits();
+            rig.game.credit(Balance.FEE_ECONOMY_WEI.add(Balance.ec("0.1")), "TEST", "seed");
+            rig.game.debit(Balance.ec("0"), "TRANSFER", "Sent", FeeTier.ECONOMY, "0xabc");
+            java.math.BigInteger before = rig.game.balance().wei();
 
             var boost = MempoolRules.boost(
                     rig.game.state(), pendingOn(rig).hash(), FeeTier.PRIORITY, rig.game.now());
             assertThat(boost.refusal()).isEqualTo(MempoolRules.BoostRefusal.CANNOT_AFFORD);
-            assertThat(rig.game.balance().minorUnits()).isEqualTo(before);
-            assertThat(pendingOn(rig).feeMinorUnits()).isEqualTo(Balance.FEE_ECONOMY_MINOR_UNITS);
+            assertThat(rig.game.balance().wei()).isEqualTo(before);
+            assertThat(pendingOn(rig).feeWei()).isEqualTo(Balance.FEE_ECONOMY_WEI);
         }
 
         /** The whole point: a boosted transaction is packed before one that did not boost. */
@@ -544,9 +552,9 @@ class MempoolTest {
         @DisplayName("boosting moves a transaction ahead of one that did not")
         void boostingJumpsTheQueue(@TempDir Path dir) {
             Rig rig = new Rig(dir);
-            rig.game.credit(50_000L, "TEST", "seed");
-            rig.game.debit(100L, "TRANSFER", "first, cheap", FeeTier.ECONOMY, "0xaaa");
-            rig.game.debit(100L, "TRANSFER", "second, cheap", FeeTier.ECONOMY, "0xbbb");
+            rig.game.credit(Balance.ec("500"), "TEST", "seed");
+            rig.game.debit(Balance.ec("1"), "TRANSFER", "first, cheap", FeeTier.ECONOMY, "0xaaa");
+            rig.game.debit(Balance.ec("1"), "TRANSFER", "second, cheap", FeeTier.ECONOMY, "0xbbb");
 
             var second = rig.game.state().chain.mempool.get(1);
             MempoolRules.boost(rig.game.state(), second.txHash, FeeTier.PRIORITY, rig.game.now());
@@ -618,9 +626,9 @@ class MempoolTest {
 
             for (ChainMempool.ProjectedBlock p : pool.projected()) {
                 long at = height + 1 + p.index();
-                assertThat(p.feesMinorUnits())
+                assertThat(p.feesWei())
                         .as("projection %d must agree with block %d", p.index(), at)
-                        .isEqualTo(MempoolRules.blockFeesMinorUnits(rig.game.state(), at));
+                        .isEqualTo(MempoolRules.blockFeesWei(rig.game.state(), at));
                 assertThat(p.transactions())
                         .as("and so must its transaction count")
                         .isEqualTo(MempoolRules.blockTransactionCount(rig.game.state(), at));
@@ -644,15 +652,16 @@ class MempoolTest {
 
             assertThat(pool.projected()).allSatisfy(p -> {
                 assertThat(p.yours()).isZero();
-                assertThat(p.feesMinorUnits())
+                assertThat(p.feesWei())
                         .as("mining the next block is not worth nothing")
                         .isPositive();
                 // Sanity on the magnitude: a block carries 12–200 transactions between the floor and
                 // priority fee, so the total has to sit inside those bounds by construction.
-                assertThat(p.feesMinorUnits())
+                assertThat(p.feesWei())
                         .isBetween(
-                                12L * Balance.FEE_ECONOMY_MINOR_UNITS,
-                                (long) Balance.BLOCK_TRANSACTION_LIMIT * Balance.FEE_PRIORITY_MINOR_UNITS);
+                                Balance.FEE_ECONOMY_WEI.multiply(java.math.BigInteger.valueOf(12)),
+                                Balance.FEE_PRIORITY_WEI.multiply(
+                                        java.math.BigInteger.valueOf(Balance.BLOCK_TRANSACTION_LIMIT)));
             });
         }
 
@@ -690,8 +699,8 @@ class MempoolTest {
         @DisplayName("a priority transaction projects into the next block; the queue is what it beats")
         void priorityProjectsSooner(@TempDir Path dir) {
             Rig rig = new Rig(dir);
-            rig.game.credit(50_000L, "TEST", "seed");
-            rig.game.debit(100L, "TRANSFER", "urgent", FeeTier.PRIORITY, "0x" + "ef".repeat(20));
+            rig.game.credit(Balance.ec("500"), "TEST", "seed");
+            rig.game.debit(Balance.ec("1"), "TRANSFER", "urgent", FeeTier.PRIORITY, "0x" + "ef".repeat(20));
 
             ChainMempool pool = rig.game.mempool();
             int placed = pool.projected().stream().mapToInt(ChainMempool.ProjectedBlock::yours).sum();
@@ -804,8 +813,8 @@ class MempoolTest {
         @DisplayName("a waiting transaction carries the block it projects into, and that block's ETA")
         void queuedCarriesItsProjection(@TempDir Path dir) {
             Rig rig = new Rig(dir);
-            rig.game.credit(50_000L, "TEST", "seed");
-            rig.game.debit(100L, "TRANSFER", "urgent", FeeTier.PRIORITY, "0x" + "ef".repeat(20));
+            rig.game.credit(Balance.ec("500"), "TEST", "seed");
+            rig.game.debit(Balance.ec("1"), "TRANSFER", "urgent", FeeTier.PRIORITY, "0x" + "ef".repeat(20));
 
             ChainMempool pool = rig.game.mempool();
             assertThat(pool.queued()).hasSize(1);

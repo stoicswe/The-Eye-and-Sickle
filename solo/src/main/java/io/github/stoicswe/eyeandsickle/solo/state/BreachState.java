@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.solo.state;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -127,7 +128,20 @@ public final class BreachState {
      * docs/design/03-economy.md} §5 rule 3, {@code 04} §5.1). An offensive breach yields items, never
      * ethecoin, for the same reason plus Invariants I1 and I2.
      */
-    public long resolvedLootMinorUnits = 0L;
+    /**
+     * ⚠ {@code @JsonAlias} carries the PRE-WEI key, and a save is lost without it.
+     *
+     * <p>The field was {@code resolvedLootMinorUnits} when an ethecoin was 100 minor units. Jackson has
+     * {@code FAIL_ON_UNKNOWN_PROPERTIES} off — deliberately, so a save from a newer build still opens
+     * — which means a key it does not recognise is <b>silently dropped</b>. Renaming the field without
+     * this alias therefore does not fail: it loads the save, leaves every amount at its initialiser,
+     * and hands the player a balance of zero with nothing anywhere saying why.
+     *
+     * <p>Measured, not theorised. A real pre-migration save loaded as {@code 0 EC} across the board,
+     * and the only reason it was noticed at all is that one field had no initialiser and threw.
+     */
+    @com.fasterxml.jackson.annotation.JsonAlias("resolvedLootMinorUnits")
+    public BigInteger resolvedLootWei = BigInteger.ZERO;
 
     public String resolvedLootLabel = "";
 

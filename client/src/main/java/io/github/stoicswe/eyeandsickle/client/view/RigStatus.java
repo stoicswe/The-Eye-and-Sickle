@@ -30,15 +30,15 @@ import java.util.Locale;
 public record RigStatus(
         ComputeBudget budget,
         long selfMiningCycles,
-        long incomeMinorUnitsPerHour,
+        java.math.BigInteger incomeWeiPerHour,
         int armedDefenses,
         long defenseCycles,
         DefensePosture posture,
         HeatBand heat,
         int personalHeat,
         int deployedMiners,
-        long bufferedMinorUnits,
-        long bufferCapMinorUnits,
+        java.math.BigInteger bufferedWei,
+        java.math.BigInteger bufferCapWei,
         double noise,
         boolean connected) {
 
@@ -62,15 +62,15 @@ public record RigStatus(
         return new RigStatus(
                 budget,
                 mining.selfMiningCycles(),
-                session.miningChain().expectedMinorUnitsPerHour(),
+                session.miningChain().expectedWeiPerHour(),
                 defenses.size(),
                 defenseCycles,
                 DefensePosture.of(defenses.size(), defenseCycles),
                 HeatBand.of(session.personalHeat()),
                 session.personalHeat(),
                 mining.deployedMiners(),
-                mining.bufferedMinorUnits(),
-                mining.bufferCapMinorUnits(),
+                mining.bufferedWei(),
+                mining.bufferCapWei(),
                 session.noise(),
                 session.connected());
     }
@@ -84,12 +84,21 @@ public record RigStatus(
      * is the one a player actually reasons with.
      */
     public String incomePerSecond() {
-        double perSecond = incomeMinorUnitsPerHour / 100.0d / 3600.0d;
-        return String.format(Locale.ROOT, "%.4f", perSecond);
+        // ⚠ EC per second, computed in BigDecimal. This divided a hundredths-scale long by 100;
+        // at 18 decimals the same expression would round the amount to a double before dividing.
+        return new java.math.BigDecimal(incomeWeiPerHour)
+                .divide(new java.math.BigDecimal(
+                        io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.WEI_PER_ETHECOIN))
+                .divide(java.math.BigDecimal.valueOf(3600), 4, java.math.RoundingMode.HALF_UP)
+                .toPlainString();
     }
 
     public String incomePerHour() {
-        return String.format(Locale.ROOT, "%.2f", incomeMinorUnitsPerHour / 100.0d);
+        return new java.math.BigDecimal(incomeWeiPerHour)
+                .divide(new java.math.BigDecimal(
+                        io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.WEI_PER_ETHECOIN))
+                .setScale(2, java.math.RoundingMode.HALF_UP)
+                .toPlainString();
     }
 
     // ⚠ `noise` is a component, read straight off the port, and this class no longer derives it.
@@ -109,7 +118,13 @@ public record RigStatus(
 
     /** How full the deployed-miner buffers are, 0–1. The cap is what bounds offline income. */
     public double bufferFill() {
-        return bufferCapMinorUnits == 0 ? 0 : (double) bufferedMinorUnits / bufferCapMinorUnits;
+        // ⚠ A FRACTION, so a double output is right and the division is what makes it safe: both
+        // operands are wei and the scale cancels. Converting either alone would be the lossy step.
+        return bufferCapWei.signum() == 0
+                ? 0
+                : new java.math.BigDecimal(bufferedWei)
+                        .divide(new java.math.BigDecimal(bufferCapWei), java.math.MathContext.DECIMAL64)
+                        .doubleValue();
     }
 
     /**

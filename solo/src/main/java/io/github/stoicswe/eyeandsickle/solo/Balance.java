@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.solo;
 
+import java.math.BigInteger;
 import io.github.stoicswe.eyeandsickle.protocol.game.FeeTier;
 import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
 
@@ -30,6 +31,22 @@ import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
  * @see io.github.stoicswe.eyeandsickle.solo.rules.MiningRules
  */
 public final class Balance {
+
+    /**
+     * An amount of ethecoin, as wei — the one way a price is written in this file.
+     *
+     * <h2>⚠ Written as the DECIMAL a designer reads, never as a wei literal</h2>
+     *
+     * A price is {@code ec("180")}, not {@code 180000000000000000000L}. Eighteen zeros is not a
+     * number anybody can check by eye, and every balance figure in this file has to be checkable
+     * against {@code docs/design/03-economy.md} — which quotes ethecoin, not wei. The constants were
+     * previously hundredths ({@code 18_000L} meaning 180 EC), which had the same readability problem
+     * on a smaller scale and produced exactly one confusion per new reader.
+     */
+    public static BigInteger ec(String amount) {
+        return io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.ofDecimal(amount).wei();
+    }
+
 
     private Balance() {}
 
@@ -65,7 +82,7 @@ public final class Balance {
      * <p>Expressed in minor units per cycle-hour so the arithmetic stays integral; see {@link
      * io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin} on why money is never a double.
      */
-    public static final long SELF_MINING_MINOR_UNITS_PER_CYCLE_HOUR = 40L;
+    public static final BigInteger SELF_MINING_WEI_PER_CYCLE_HOUR = ec("0.4");
 
     // ---------------------------------------------------------------- the chain
     //
@@ -75,7 +92,7 @@ public final class Balance {
     // economy table in docs/design/03 §1 keeps its meaning without being re-tuned.
     //
     // ⚠ The anchor is the fixed point and the chain bends to it, never the other way round. If
-    // SELF_MINING_MINOR_UNITS_PER_CYCLE_HOUR ever moves, chainNetworkHashrate() follows it
+    // SELF_MINING_WEI_PER_CYCLE_HOUR ever moves, chainNetworkHashrate() follows it
     // automatically and every figure here stays consistent. Hardcoding the network hashrate would
     // silently decouple the two and the first symptom would be an income table that is wrong.
 
@@ -159,7 +176,7 @@ public final class Balance {
      * — about a 22% chance in any given hour, and about 6% at a quarter rig. That is the reading of
      * "a percent chance of a large payout, and you need a lot of cycles to make it likely".
      */
-    public static final long BLOCK_SUBSIDY_MINOR_UNITS = 16_000L;
+    public static final BigInteger BLOCK_SUBSIDY_WEI = ec("160");
 
     /**
      * The pool takes 2%.
@@ -278,20 +295,20 @@ public final class Balance {
      * by design: the fee exists to <b>order a queue</b>, not to drain a balance. If it ever grows
      * enough to matter it becomes a sink and §4 has to know about it.
      */
-    public static final long FEE_ECONOMY_MINOR_UNITS = 2L;
+    public static final BigInteger FEE_ECONOMY_WEI = ec("0.02");
 
     /** What {@link FeeTier#STANDARD} pays. Still negligible against income; still enough to sort on. */
-    public static final long FEE_STANDARD_MINOR_UNITS = 6L;
+    public static final BigInteger FEE_STANDARD_WEI = ec("0.06");
 
     /** What {@link FeeTier#PRIORITY} pays. Fifteen times the floor and still under a cycle-minute. */
-    public static final long FEE_PRIORITY_MINOR_UNITS = 30L;
+    public static final BigInteger FEE_PRIORITY_WEI = ec("0.30");
 
-    /** What a tier costs, in minor units. */
-    public static long feeFor(FeeTier tier) {
+    /** What a tier costs, in wei. */
+    public static BigInteger feeFor(FeeTier tier) {
         return switch (tier == null ? FeeTier.STANDARD : tier) {
-            case ECONOMY -> FEE_ECONOMY_MINOR_UNITS;
-            case STANDARD -> FEE_STANDARD_MINOR_UNITS;
-            case PRIORITY -> FEE_PRIORITY_MINOR_UNITS;
+            case ECONOMY -> FEE_ECONOMY_WEI;
+            case STANDARD -> FEE_STANDARD_WEI;
+            case PRIORITY -> FEE_PRIORITY_WEI;
         };
     }
 
@@ -326,13 +343,29 @@ public final class Balance {
      * absorb it, so self-mining now pays about a tenth more than {@code design/03} §1's
      * 0.40 EC/cycle-hour anchor. See `03` §1.1 for what that re-rated and what it did not.
      */
-    public static double expectedBlockFeesMinorUnits() {
-        // Both means are of a floorMod over a half-open range, so each is (span − 1) / 2 above its
-        // floor — 93.5 transactions above 12, and 14 minor units above the economy rate.
-        double meanTransactions = 12 + (BLOCK_TRANSACTION_LIMIT - 12 - 1) / 2.0d;
-        double meanFee = FEE_ECONOMY_MINOR_UNITS
-                + (FEE_PRIORITY_MINOR_UNITS - FEE_ECONOMY_MINOR_UNITS) / 2.0d;
-        return meanTransactions * meanFee;
+    /**
+     * The fees an average block carries, in wei.
+     *
+     * <h2>⚠ BigDecimal, not double, and the reason is now visible on screen</h2>
+     *
+     * This used to return a {@code double} and that was harmless while an amount had two decimal
+     * places: any float noise sat far below the last digit anybody saw. At 18 decimals the formatter
+     * prints every significant digit, so a double result of {@code 3.0000000000000004e19} wei would
+     * render as <b>{@code 30.000000000000004 EC}</b> — a plausible-looking figure with four digits of
+     * arithmetic residue in it. Doubles hold integers exactly only below 2^53 (~9×10^15), and a wei
+     * amount passes that at nine thousandths of an ethecoin.
+     *
+     * <p>The means themselves are genuinely fractional — both are of a {@code floorMod} over a
+     * half-open range, so each sits {@code (span − 1) / 2} above its floor, i.e. 93.5 transactions
+     * above 12 — so the calculation is done in {@link BigDecimal} and lands on an exact wei count.
+     */
+    public static BigInteger expectedBlockFeesWei() {
+        java.math.BigDecimal meanTransactions = java.math.BigDecimal.valueOf(
+                12 + (BLOCK_TRANSACTION_LIMIT - 12 - 1) / 2.0d);
+        java.math.BigDecimal meanFee = new java.math.BigDecimal(
+                FEE_ECONOMY_WEI.add(FEE_PRIORITY_WEI.subtract(FEE_ECONOMY_WEI)
+                        .divide(BigInteger.TWO)));
+        return meanTransactions.multiply(meanFee).toBigInteger();
     }
 
     /**
@@ -357,9 +390,14 @@ public final class Balance {
      * reachable at all.
      */
     public static double chainNetworkHashrate() {
-        double perCycleHour = SELF_MINING_MINOR_UNITS_PER_CYCLE_HOUR;
-        double cycles = BLOCK_SUBSIDY_MINOR_UNITS * (1.0d - POOL_FEE) * 3600.0d
-                / (CHAIN_TARGET_BLOCK_SECONDS * perCycleHour);
+        // ⚠ A RATIO of two wei amounts, so the scale cancels and a double is exact enough — the
+        // subsidy and the per-cycle-hour rate are both in wei and divide into a pure number around
+        // 2352. Converting either to double on its own would be the lossy step; dividing them is not.
+        double subsidyOverRate = new java.math.BigDecimal(BLOCK_SUBSIDY_WEI)
+                .divide(new java.math.BigDecimal(SELF_MINING_WEI_PER_CYCLE_HOUR),
+                        java.math.MathContext.DECIMAL64)
+                .doubleValue();
+        double cycles = subsidyOverRate * (1.0d - POOL_FEE) * 3600.0d / CHAIN_TARGET_BLOCK_SECONDS;
         return cycles * HASHES_PER_CYCLE_SECOND;
     }
 
@@ -417,6 +455,48 @@ public final class Balance {
     }
 
     /**
+     * What a solo rig's share of the network counts for while the client was closed.
+     *
+     * <h2>Why an absence pays at half weight</h2>
+     *
+     * {@link #OFFLINE_MINING_HOURS} caps <em>how long</em> the rig goes on hashing; this caps
+     * <em>how well</em> it does while it is. They are separate levers on purpose. The window is what
+     * stops a longer absence being worth more — past four hours nothing accrues, so there is no
+     * absence to optimise toward. This is the second half of the same argument: within that window,
+     * time away should not be worth as much as time played, or the four hours become a thing to
+     * collect rather than a courtesy. Play stays strictly better per hour, and it now stays better
+     * per hour <em>inside</em> the buffered window as well as outside it.
+     *
+     * <h2>⚠ It applies to SELF-MINING only, and only during a fill</h2>
+     *
+     * The live tick is untouched — a player who leaves the client running is playing, and this is not
+     * an idle-time penalty. Pooled mining is untouched as well: a pool's hashrate is the pool's, it
+     * competes whether or not one member's client is open, and scaling it here would be this rig
+     * reaching into somebody else's rate. What is halved is the <b>player's own</b> share of the draw
+     * ({@code ChainRules.drawWinner}); the probability mass that frees up goes to the unpooled
+     * population, because somebody still mined the block.
+     *
+     * <h2>⚠ Invariants this must not disturb</h2>
+     *
+     * <b>I4</b> — self-mining is still immune to detection and seizure and still generates zero heat;
+     * a smaller number is not a risk. <b>I5</b> — offline income remains capped and non-proportional,
+     * and this only lowers the cap's value. <b>I2</b> — nothing here is purchasable, so no ceiling
+     * moved.
+     *
+     * <p>⚠ <b>It must never change how much RNG is consumed.</b> The draw is one {@code nextDouble}
+     * per block whatever the outcome; this scales the threshold it is compared against, not the
+     * number of draws. A generator whose consumption varied with the mode would stop a stored seed
+     * being a replay — {@code Rng}'s stated contract, and the reason {@code drawWinner} rolls even
+     * for blocks the rig is not contesting.
+     *
+     * <p>⚠ <b>Deliberately invisible.</b> No readout names it and none should: the SYNCHRONIZING
+     * screen reports what the chain did, and a player comparing blocks-won to hashrate share over a
+     * few sessions is doing arithmetic on a Poisson process with a sample size of about two. Logged
+     * as a decision in {@code docs/design/15-open-questions.md} §3.
+     */
+    public static final double OFFLINE_SOLO_WIN_WEIGHT = 0.5d;
+
+    /**
      * The most blocks one synchronisation will fill in, block by block.
      *
      * <p>At a 14-minute interval this is a little over five years of absence, so it is a runaway
@@ -426,6 +506,85 @@ public final class Balance {
      * load, and because {@code advanceNetwork} already takes the same precaution per tick.
      */
     public static final int CHAIN_SYNC_BLOCK_LIMIT = 200_000;
+
+    /**
+     * How much more a resold upgrade fetches per major version, in percent.
+     *
+     * <p>⚠ <b>The only mechanical consequence a version has.</b> A newer build is worth more and
+     * supersedes an older one; it is not a better tool, because a capability that rises with the
+     * hardness of the machine you take it off would be a ceiling reachable by grinding with no gate
+     * on it — Invariant <b>I2</b>, and <b>I3</b> as well since the item would then sit behind two
+     * gates. See {@code solo/rules/Versions} and {@code protocol/game/UpgradeVersion}.
+     *
+     * <p>Twelve percent per major, so the spread from a tier-1 desktop to a tier-5 estate is about
+     * 1.5× — enough that a player prefers the harder target, not so much that raiding stops being
+     * about what the tool is. {@code Versions.resaleWei} clamps the result below retail
+     * whatever this is set to, because a resale above retail would make buy-to-resell a money printer
+     * and that must not be one re-tune away.
+     */
+    public static final long UPGRADE_VERSION_RESALE_PERCENT_PER_MAJOR = 12L;
+
+    /**
+     * The build the vendor ships.
+     *
+     * <p>⚠ Deliberately in the MIDDLE of the tier ladder, and that placement is the loop. If the
+     * market sold the newest build there would be no reason to raid for one; if it sold the oldest,
+     * buying would be strictly dominated and the catalogue would be a trap. At three, a tier-4 or
+     * tier-5 estate carries something the shop does not, a tier-1 desktop carries something worse
+     * than the shop, and both facts are things a player can discover and act on.
+     *
+     * <p>It buys no capability either way — see {@link #UPGRADE_VERSION_RESALE_PERCENT_PER_MAJOR}.
+     * What a newer build is worth is resale and supersession, so this decides how good a deal the
+     * shop is, not how good the tool is.
+     */
+    public static final int MARKET_UPGRADE_VERSION_MAJOR = 3;
+
+    /**
+     * What the Firmware Implant image costs at the vendor.
+     *
+     * <h2>⚠ Firmware is priced well above software, and this is the cheapest firmware there is</h2>
+     *
+     * 180 EC — roughly three times the deepest sweep tier (55 EC) and above every other single
+     * purchase in the catalogue. Three reasons, and the third is the one that sets the floor:
+     *
+     * <ul>
+     *   <li>It is the payload of a <b>permanent</b> capability, not a consumable. Everything else the
+     *       vendor sells is losable and replaceable ({@code docs/design/02} §2.1); this is not.
+     *   <li>It is inert without the schematic, so a player who buys it speculatively has spent real
+     *       money on a file — and the price has to make that a decision rather than a shrug.
+     *   <li>⚠ It must stay <b>expensive enough that stealing one is worth the breach</b>. A firmware
+     *       image is deliberately available both ways ({@code docs/design/01} §6's raiding route), and
+     *       if buying were cheap the raid would be pointless — which would quietly delete the reason
+     *       the two-part requirement exists at all.
+     * </ul>
+     *
+     * <p>⚠ It buys <b>no ceiling</b>. The schematic is the gate and no amount of ethecoin produces
+     * one ({@code 02} §2.2), so this price can move freely without touching <b>I2</b>. What it must
+     * never become is cheap enough to make the raid route dead content.
+     */
+    public static final BigInteger FIRMWARE_IMPLANT_IMAGE_PRICE = ec("180"); // 180 EC
+
+    /**
+     * How long flashing firmware takes.
+     *
+     * <h2>⚠ Long enough to be a commitment, and it is a commitment with the tool DOWN</h2>
+     *
+     * Ninety seconds. Every other install in this game is instantaneous because the interesting wait
+     * — somebody else's uplink — already happened during the download. Firmware is the exception on
+     * purpose: the mining tool is frozen for the whole flash, so the cost is real income foregone
+     * rather than a progress bar to watch.
+     *
+     * <p>The figure is bounded at both ends. Much shorter and freezing the tool costs nothing, so the
+     * "stop the tool first" rule becomes ceremony. Much longer and a player flashing between sessions
+     * is simply denied their rig, which is a punishment rather than a decision. At a minute and a
+     * half it is roughly six blocks of self-mining given up — visible on the ledger, and small enough
+     * that nobody plans a day around it.
+     *
+     * <p>⚠ It is <b>not</b> derived from the image's size. A download is bounded by the far end's
+     * uplink and its duration should track bytes; a flash is bounded by the device writing its own
+     * memory, and a bigger image does not make a slower flash on any hardware a player has met.
+     */
+    public static final long FIRMWARE_FLASH_SECONDS = 90L;
 
     // ------------------------------------------------------------------ scanning
 
@@ -529,9 +688,9 @@ public final class Balance {
     public static final long DEFENSE_DETECTION_ARRAY_T3_CYCLES = 25L;
 
     /** Ethecoin prices for the purchasable defences — {@code docs/design/09-defense-and-hardening.md} §1. */
-    public static final long DEFENSE_CANARY_PRICE = 800L; // 8 EC
+    public static final BigInteger DEFENSE_CANARY_PRICE = ec("8"); // 8 EC
 
-    public static final long DEFENSE_TARPIT_PRICE = 7_000L; // 70 EC
+    public static final BigInteger DEFENSE_TARPIT_PRICE = ec("70"); // 70 EC
 
     // ------------------------------------------------------------------ market price bands
 
@@ -542,15 +701,15 @@ public final class Balance {
      * is a content decision, and a solo catalogue that invented precise numbers would be asserting
      * authority it does not have. Offerings are priced inside these bands and say so.
      */
-    public static final long PRICE_CONSUMABLE_MIN = 500L; // 5 EC
+    public static final BigInteger PRICE_CONSUMABLE_MIN = ec("5");
 
-    public static final long PRICE_CONSUMABLE_MAX = 1_500L; // 15 EC
-    public static final long PRICE_MID_TIER_MIN = 4_000L; // 40 EC
-    public static final long PRICE_MID_TIER_MAX = 6_000L; // 60 EC
-    public static final long PRICE_TOP_PURCHASABLE = 20_000L; // ~200 EC
+    public static final BigInteger PRICE_CONSUMABLE_MAX = ec("15");
+    public static final BigInteger PRICE_MID_TIER_MIN = ec("40");
+    public static final BigInteger PRICE_MID_TIER_MAX = ec("60");
+    public static final BigInteger PRICE_TOP_PURCHASABLE = ec("200");
 
     /** Relay-chain upkeep, ~8 EC per hop per session — {@code docs/design/03-economy.md} §4. */
-    public static final long RELAY_HOP_UPKEEP = 800L;
+    public static final BigInteger RELAY_HOP_UPKEEP = ec("8");
 
     // ------------------------------------------------------------------ thermal budget
 
@@ -641,7 +800,7 @@ public final class Balance {
      * here because it is the option that cannot be wrong in the direction that matters: a grant can be
      * added later without invalidating anyone's save, whereas taking one away cannot.
      */
-    public static final long STARTING_ETHECOIN_MINOR_UNITS = 0L;
+    public static final BigInteger STARTING_ETHECOIN_WEI = ec("0");
 
     /** The Encrypted Vault's starting capacity, in items — {@code docs/design/01-core-resources.md} §6. */
     public static final int STARTING_VAULT_CAPACITY = 6;
@@ -1263,7 +1422,7 @@ public final class Balance {
      * the 15 EC Passive Sniffer, which is the intended first purchase and the intended second or
      * third session's worth of work. <strong>[PROPOSAL]</strong>.
      */
-    public static final long NET_LOOT_FLOOR_MINOR_UNITS = 300L;
+    public static final BigInteger NET_LOOT_FLOOR_WEI = ec("3");
 
     // ------------------------------------------------------------------ network: the sweep line
 
@@ -1351,9 +1510,9 @@ public final class Balance {
      * <p>55 EC is squarely inside the mid-tier band and is about one cautious session — {@code 03}
      * §2's own rule for that band is that losing one costs an evening. <strong>[PROPOSAL]</strong>.
      */
-    public static final long NET_SWEEP_WIDE_PRICE = 2_500L; // 25 EC
+    public static final BigInteger NET_SWEEP_WIDE_PRICE = ec("25"); // 25 EC
 
-    public static final long NET_SWEEP_DEEP_PRICE = 5_500L; // 55 EC
+    public static final BigInteger NET_SWEEP_DEEP_PRICE = ec("55"); // 55 EC
 
     /**
      * Depth 0 is never counter-hacked, and this is a constant rather than a table row that happens to
@@ -1438,13 +1597,56 @@ public final class Balance {
     // ------------------------------------------------------------------ the two minigames
 
     /**
-     * How often an attempt draws Breach Protocol rather than the offset cipher.
+     * How often an attempt draws Breach Protocol rather than the offset cipher, against a machine
+     * <b>nothing is known about</b>.
      *
-     * <p>An even split. Neither is the "real" puzzle and neither is the punishment — they test
-     * different things ({@code PuzzleClass}) and a player who is worse at one should meet it as often
-     * as the other, or the weaker skill never improves. <strong>[PROPOSAL]</strong>.
+     * <h2>The offset cipher is the default, and recon is what buys the other one</h2>
+     *
+     * This used to be an even coin flip and the split is now earned. Walking blind into a machine
+     * gets the cipher: it is the puzzle that needs no knowledge of the far side, because working an
+     * offset out from ciphertext is exactly what you do when you have nothing else. Breach Protocol
+     * is the puzzle of someone who knows the machine — its grid is that host's own protocol surface —
+     * so it is what a filled-in port-scan report unlocks.
+     *
+     * <p>That gives RECON a mechanical consequence it did not have. A report was intelligence a
+     * player read and acted on by hand; it now changes what the breach <em>is</em>.
+     *
+     * <p>⚠ <b>It buys a different puzzle, not an easier one.</b> The two are priced the same — same
+     * tier, same attention budget, same strike limit, same layer count — and the intended reading is
+     * that a player picks up recon to reach the puzzle they are better at, not to lower the bar. If
+     * the two ever stop being comparable in difficulty, this stops being a choice and becomes a
+     * discount, which is the thing to watch when either is re-tuned. <strong>[PROPOSAL]</strong>.
+     *
+     * @see #BREACH_PROTOCOL_SHARE_INFORMED
      */
-    public static final double BREACH_PROTOCOL_SHARE = 0.5d;
+    public static final double BREACH_PROTOCOL_SHARE = 0.0d;
+
+    /**
+     * How often a <b>fully scanned</b> machine draws Breach Protocol.
+     *
+     * <p>⚠ Not 1.0, deliberately. A complete report should make the protocol grid the overwhelming
+     * expectation without making it a certainty — a machine that can still surprise a well-prepared
+     * operator once in twenty is the fiction working, and a guaranteed puzzle means the cipher stops
+     * being practised by anyone who scans. The player is told which one they drew before they spend
+     * anything ({@code BoardFactory}), so the residual is a surprise they can walk away from.
+     */
+    public static final double BREACH_PROTOCOL_SHARE_INFORMED = 0.95d;
+
+    /**
+     * The chance of drawing Breach Protocol against a machine whose report is {@code known} complete.
+     *
+     * <p>Linear between {@link #BREACH_PROTOCOL_SHARE} and {@link #BREACH_PROTOCOL_SHARE_INFORMED},
+     * so each of the seven findings is worth the same increment and there is no threshold to
+     * discover — a player who scans one more thing sees the odds move, which is what makes the
+     * relationship learnable at all.
+     *
+     * @param known how much of the report is filled in, 0…1
+     */
+    public static double breachProtocolShare(double known) {
+        double fraction = Math.clamp(known, 0.0d, 1.0d);
+        return BREACH_PROTOCOL_SHARE
+                + (BREACH_PROTOCOL_SHARE_INFORMED - BREACH_PROTOCOL_SHARE) * fraction;
+    }
 
     /**
      * How much louder the offset cipher is than Breach Protocol, as a multiplier on the layer's noise.
@@ -1918,32 +2120,46 @@ public final class Balance {
      *
      * @param u a roll in {@code [0, 1)}
      */
-    public static long netLootMinorUnits(int tier, double u) {
-        long lo;
-        long hi;
+    public static BigInteger netLootWei(int tier, double u) {
+        // ⚠ Written as the EC bands docs/design quotes, not as wei. These were hundredths (300L for
+        // 3 EC), which was already a number nobody could check against the doc without dividing.
+        String lo;
+        String hi;
         switch (clampTier(tier)) {
             case 1 -> {
-                lo = 300L;
-                hi = 600L;
+                lo = "3";
+                hi = "6";
             }
             case 2 -> {
-                lo = 700L;
-                hi = 1_200L;
+                lo = "7";
+                hi = "12";
             }
             case 3 -> {
-                lo = 1_400L;
-                hi = 2_200L;
+                lo = "14";
+                hi = "22";
             }
             case 4 -> {
-                lo = 2_600L;
-                hi = 3_800L;
+                lo = "26";
+                hi = "38";
             }
             default -> {
-                lo = 4_500L;
-                hi = 6_500L;
+                lo = "45";
+                hi = "65";
             }
         }
-        return lo + Math.round(Math.max(0.0d, Math.min(1.0d, u)) * (hi - lo));
+        BigInteger floor = ec(lo);
+        BigInteger span = ec(hi).subtract(floor);
+        // ⚠ The roll is a fraction, so it scales the SPAN in BigDecimal rather than being applied to
+        // a double amount. Rounded to whole hundredths afterwards: a loot figure with eighteen
+        // digits of interpolation residue reads as machine output, and these are meant to read as
+        // amounts somebody left lying about.
+        BigInteger step = ec("0.01");
+        BigInteger scaled = new java.math.BigDecimal(span)
+                .multiply(java.math.BigDecimal.valueOf(Math.clamp(u, 0.0d, 1.0d)))
+                .toBigInteger()
+                .divide(step)
+                .multiply(step);
+        return floor.add(scaled);
     }
 
     /**

@@ -89,4 +89,27 @@ public record Cycles(long cycles) implements Comparable<Cycles> {
     public int compareTo(Cycles other) {
         return Long.compare(cycles, other.cycles);
     }
+
+    /**
+     * The canonical form: {@code 12 cycles}.
+     *
+     * <h2>⚠ Here for the same reason {@link Ethecoin#toString()} is, and BEFORE it fires</h2>
+     *
+     * {@code Ethecoin} reached five player-facing surfaces printing {@code Ethecoin[wei=480]}
+     * because a record's generated {@code toString} is what a bare concatenation gets, and nothing
+     * about that is loud. This type has exactly the same shape — a value wrapper over a {@code long},
+     * accessed everywhere as {@code .cycles()} — and every site is currently correct only because the
+     * accessor happens to have been reached for each time.
+     *
+     * <p>No leak has been found for this one. That is not a reason to leave it: the cost of being
+     * wrong is a player reading {@code Cycles[cycles=12]} on a readout, and the cost of being right is
+     * four lines.
+     *
+     * <p>⚠ Singular for one, because "1 cycles" is the kind of detail this client's readouts do not
+     * get wrong elsewhere.
+     */
+    @Override
+    public String toString() {
+        return cycles + (cycles == 1 ? " cycle" : " cycles");
+    }
 }

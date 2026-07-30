@@ -283,7 +283,7 @@ class NetCommandsTest {
             // a number, not a route.
             var wide = shell(dir).session().sweepOptions().get(1);
             assertThat(wide.requirement()).contains("Net Sweep (Wide)").contains("EC");
-            assertThat(wide.priceMinorUnits()).isPositive();
+            assertThat(wide.priceWei()).isPositive();
         }
 
         @Test

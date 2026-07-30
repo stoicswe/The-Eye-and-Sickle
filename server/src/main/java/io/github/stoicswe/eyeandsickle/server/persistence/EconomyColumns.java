@@ -12,7 +12,7 @@ import java.util.Objects;
  * "Compute is never purchasable with ethecoin." The protocol module keeps {@link Ethecoin} and {@link
  * Cycles} as separate types with no conversion, no shared supertype and no cross-type arithmetic —
  * but the moment either becomes a column, both are a {@code bigint} and the type system stops
- * helping. {@code row.int64("amount_ec_minor")} and {@code row.int64("allocated_cycles")} are the same
+ * helping. {@code row.int64("amount_wei")} and {@code row.int64("allocated_cycles")} are the same
  * expression with a different string in it.
  *
  * <p>So the column NAME carries the type. An ethecoin column ends in {@value #ETHECOIN_SUFFIX}; a
@@ -26,8 +26,8 @@ import java.util.Objects;
  *
  * <h2>Columns this covers today</h2>
  *
- * Ethecoin: {@code players.ethecoin_balance_ec_minor}, {@code ledger_transactions.amount_ec_minor},
- * {@code deployed_miners.buffer_ec_minor}. Cycles: {@code rigs.total_cycles},
+ * Ethecoin: {@code players.ethecoin_balance_wei}, {@code ledger_transactions.amount_wei},
+ * {@code deployed_miners.buffer_wei}. Cycles: {@code rigs.total_cycles},
  * {@code compute_allocations.allocated_cycles}, and the {@code rig_compute_reconciliation} view's
  * {@code active_cycles} / {@code recovering_cycles} / {@code available_cycles}.
  *
@@ -44,10 +44,15 @@ import java.util.Objects;
 public final class EconomyColumns {
 
     /**
-     * Required suffix for a column holding ethecoin, in integral hundredths (protocol {@link
-     * Ethecoin}).
+     * Required suffix for a column holding ethecoin, as an integral count of wei — {@code 1e-18} EC
+     * (protocol {@link Ethecoin}).
+     *
+     * <p>⚠ Was {@code _wei}, meaning integral hundredths. The scale moved to Ethereum's 18
+     * places (migration {@code V6}), and a column still named for the old unit would be a lie that
+     * outlives everyone who knew better — while this suffix is exactly what the I1 guard below keys
+     * on, so it has to keep naming the truth.
      */
-    public static final String ETHECOIN_SUFFIX = "_ec_minor";
+    public static final String ETHECOIN_SUFFIX = "_wei";
 
     /** Required suffix for a column holding compute, in whole cycles (protocol {@link Cycles}). */
     public static final String CYCLES_SUFFIX = "_cycles";
@@ -68,7 +73,7 @@ public final class EconomyColumns {
     public static Ethecoin ethecoin(Row row, String column) {
         Objects.requireNonNull(row, "row");
         requireEthecoinColumn(column);
-        return Ethecoin.ofMinorUnits(row.int64(column));
+        return Ethecoin.ofWei(row.integer(column));
     }
 
     /**
@@ -82,8 +87,8 @@ public final class EconomyColumns {
     public static Ethecoin ethecoinOrNull(Row row, String column) {
         Objects.requireNonNull(row, "row");
         requireEthecoinColumn(column);
-        Long minorUnits = row.int64OrNull(column);
-        return minorUnits == null ? null : Ethecoin.ofMinorUnits(minorUnits);
+        java.math.BigInteger wei = row.integerOrNull(column);
+        return wei == null ? null : Ethecoin.ofWei(wei);
     }
 
     /**
@@ -95,13 +100,13 @@ public final class EconomyColumns {
      *
      * @param column a column named {@code *}{@value #ETHECOIN_SUFFIX}
      * @param amount the amount
-     * @return the integral hundredths to bind
+     * @return the integral wei to bind
      * @throws IllegalArgumentException if the column is not named as an ethecoin column
      */
-    public static long ethecoinValue(String column, Ethecoin amount) {
+    public static java.math.BigInteger ethecoinValue(String column, Ethecoin amount) {
         requireEthecoinColumn(column);
         Objects.requireNonNull(amount, "amount");
-        return amount.minorUnits();
+        return amount.wei();
     }
 
     // ------------------------------------------------------------------ cycles

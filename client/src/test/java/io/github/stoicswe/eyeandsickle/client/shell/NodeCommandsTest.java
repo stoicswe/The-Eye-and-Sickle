@@ -317,9 +317,30 @@ class NodeCommandsTest {
         @Test
         @DisplayName("an unknown verb is `command not found`, and it names the way out")
         void unknownVerb(@TempDir Path dir) {
-            assertThat(output(session(dir), "rm -rf /"))
+            // ⚠ Was `rm -rf /`, which became a REAL command when delete was added. The test caught
+            // that correctly; the verb here just has to be one the shell genuinely does not have.
+            assertThat(output(session(dir), "chmod 777 /"))
                     .contains("command not found")
                     .contains("help");
+        }
+
+        /**
+         * ⚠ The command that used to stand in for "not a real verb" is now real, so it gets a guard.
+         *
+         * <p>It resolves to the root, the root is a directory, and {@code rm} refuses a directory by
+         * name exactly as the real one does. There is no recursive delete in this shell and there must
+         * not be: the filesystem is generated from game state, so there is no tree to walk, and the
+         * only thing that would make such a command meaningful is the thing it must never do.
+         */
+        @Test
+        @DisplayName("rm -rf / is refused, and rm on a directory says so by name")
+        void rmMinusRfSlashIsSafe(@TempDir Path dir) {
+            // ⚠ Two different refusals, and both matter. `-rf` is not a flag this shell knows, so it
+            // swallows the operand and nothing is named — real `rm`'s "missing operand". Naming the
+            // root directly gets the directory refusal, which is the one that proves there is no
+            // recursive delete hiding behind the flags.
+            assertThat(output(session(dir), "rm -rf /")).contains("missing operand");
+            assertThat(output(session(dir), "rm /")).contains("Is a directory");
         }
 
         @Test

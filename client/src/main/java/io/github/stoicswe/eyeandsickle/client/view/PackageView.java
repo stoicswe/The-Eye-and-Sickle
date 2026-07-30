@@ -2,6 +2,7 @@ package io.github.stoicswe.eyeandsickle.client.view;
 
 import io.github.stoicswe.eyeandsickle.client.session.GameSession;
 import io.github.stoicswe.eyeandsickle.client.ui.Ui;
+import io.github.stoicswe.eyeandsickle.client.ui.Pulse;
 import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
 import io.github.stoicswe.eyeandsickle.protocol.game.PackageManifest;
 import java.util.Locale;
@@ -9,6 +10,9 @@ import javafx.geometry.Pos;
 import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.StackPane;
+import javafx.scene.shape.Polygon;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
@@ -66,9 +70,8 @@ public final class PackageView {
             Mode mode,
             Runnable onAction,
             java.util.function.Consumer<String> report) {
-        VBox root = new VBox(UiTokens.SPACE_3);
-        root.getStyleClass().addAll("es-package", "es-body-pad");
-        root.setMinWidth(640);
+        VBox body = new VBox(UiTokens.SPACE_3);
+        body.getStyleClass().add("es-package-body");
 
         Label title = new Label(mode == Mode.INSPECT ? "INSPECT PACKAGE" : "INSTALL PACKAGE");
         title.getStyleClass().add("es-panel-title");
@@ -92,11 +95,15 @@ public final class PackageView {
         contents.setWrapText(true);
         contents.getStyleClass().add("es-package-summary");
 
-        root.getChildren().addAll(title, file, facts, heading("CONTENTS"), contents,
+        body.getChildren().addAll(title, file, facts, heading("CONTENTS"), contents,
                 heading("INTEGRITY"), integrity(pkg), heading("STATUS"), status(pkg));
 
         if (mode == Mode.INSTALL) {
-            root.getChildren().add(actions(session, pkg, onAction, report));
+            // ⚠ Firmware takes over the panel while it writes. A StackPane rather than a swap so the
+            // panel underneath is never torn down — the flash ends and the facts are simply there
+            // again. The overlay is OPAQUE, so it names what it is writing itself.
+            return flashable(session, pkg,
+                    frame(body, actions(session, pkg, onAction, report)));
         } else {
             // Said out loud, because a panel with facts and no buttons otherwise reads as one whose
             // buttons failed to appear.
@@ -104,10 +111,56 @@ public final class PackageView {
                     + "anything — close it and choose Install when you have decided.");
             note.setWrapText(true);
             note.getStyleClass().add("es-package-note");
-            root.getChildren().add(note);
+            return frame(body, note);
         }
+    }
+
+    /**
+     * Puts the panel's content in a bounded, scrolling frame.
+     *
+     * <h2>⚠ The width is CAPPED, and that is what makes wrapping happen at all</h2>
+     *
+     * The panel used to pin {@code setMinWidth(640)} and let its content decide the rest — so the two
+     * SHA digests, at 71 unbreakable monospace characters each, set the width of the whole window and
+     * every other line stretched to match. A cap plus {@code setFitToWidth} inverts that: the frame
+     * decides the width and the content wraps into it.
+     *
+     * <p>⚠ {@code setFitToWidth(true)} is the load-bearing half. Without it a {@code ScrollPane}
+     * hands its content the content's <em>preferred</em> width, which for an unwrapped digest is the
+     * full 71 characters — so the wrapping never happens and a horizontal scrollbar appears instead.
+     * Same trap as {@code Views.scrollable}'s {@code fillHeight}, from the other side.
+     *
+     * <p>The height is capped too, so a package with a long summary and a long refusal cannot grow a
+     * popup taller than the window it is shown over.
+     */
+    private static Region frame(Region body, Region pinned) {
+        ScrollPane scroll = new ScrollPane(body);
+        scroll.setFitToWidth(true);
+        scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scroll.getStyleClass().add("es-package-scroll");
+
+        // ⚠ The actions are PINNED below the scroll, never inside it. A package with a long summary
+        // and a long refusal pushes them past the fold, and a panel whose Install button has to be
+        // scrolled to reads as a panel with no Install button. The read-only note is pinned for the
+        // same reason: it is the answer to "where are the buttons".
+        VBox root = new VBox(UiTokens.SPACE_3, scroll, pinned);
+        root.getStyleClass().addAll("es-package", "es-body-pad");
+        root.setPrefWidth(PANEL_WIDTH);
+        root.setMaxWidth(PANEL_WIDTH);
+        root.setMaxHeight(PANEL_HEIGHT);
+        // ⚠ Vgrow AND an explicit max. A layout constraint grows a child only up to its maximum, and
+        // a Control's computed maximum is not the unbounded value a Pane reports — so a ScrollPane
+        // with Vgrow.ALWAYS silently stops at its preferred height. Settings hit exactly this.
+        scroll.setMaxHeight(Double.MAX_VALUE);
+        VBox.setVgrow(scroll, Priority.ALWAYS);
         return root;
     }
+
+    /** How wide the panel is allowed to be. Everything inside wraps into it. */
+    private static final double PANEL_WIDTH = 560;
+
+    /** And how tall, before the content scrolls rather than growing the popup. */
+    private static final double PANEL_HEIGHT = 560;
 
     /**
      * The two digests, then the verdict.
@@ -179,6 +232,174 @@ public final class PackageView {
      * so the button never has to carry the explanation and never appears refused for no visible
      * reason.
      */
+    /**
+     * Wraps the panel so a running firmware flash covers it.
+     *
+     * <h2>⚠ Driven by {@code Pulse.every}, i.e. DATA — not an animation</h2>
+     *
+     * The bar's fill is the task's real progress against the session clock, so it is a readout rather
+     * than decoration. That matters twice: {@code UiContractTest} rations continuous animation by
+     * filename (§5.1), and Reduce motion must not suppress this — a player who cannot see that the
+     * flash is progressing has no way to distinguish it from a frozen client.
+     *
+     * <p>⚠ The subscription is closed when the panel leaves the scene. A tool window is destroyed and
+     * rebuilt every time it is opened ({@code DeskManager} calls the factory afresh), so a pulse that
+     * outlived the panel would be one leaked repaint per open, forever.
+     */
+    private static Region flashable(GameSession session, PackageManifest pkg, Region panel) {
+        // ⚠ A null session is a supported call — the snapshot mains render this panel with no game
+        // behind it, which is what makes the four package states checkable without a save. There is
+        // no task list to ask, so there is no flash to draw.
+        if (session == null) {
+            return panel;
+        }
+        StackPane stack = new StackPane(panel);
+        Region overlay = flashOverlay(pkg);
+        overlay.setVisible(false);
+        overlay.setManaged(false);
+        stack.getChildren().add(overlay);
+
+        ProgressState state = new ProgressState(overlay);
+        Runnable refresh = () -> state.apply(session);
+        refresh.run();
+        AutoCloseable subscription = Pulse.shared().every(250, refresh);
+        stack.sceneProperty().addListener((obs, was, now) -> {
+            if (now == null) {
+                try {
+                    subscription.close();
+                } catch (Exception ignored) {
+                    // Nothing to do and nothing to say: unsubscribing is best-effort teardown.
+                }
+            }
+        });
+        return stack;
+    }
+
+    /** The overlay's live parts, so the pulse updates rather than rebuilds. */
+    private static final class ProgressState {
+
+        private final Region overlay;
+        private final Label caption;
+        private final javafx.beans.property.SimpleDoubleProperty progress =
+                new javafx.beans.property.SimpleDoubleProperty(0);
+
+        ProgressState(Region overlay) {
+            this.overlay = overlay;
+            this.caption = (Label) overlay.lookup(".es-flash-caption");
+            Region fill = (Region) overlay.lookup(".es-flash-fill");
+            Region track = (Region) overlay.lookup(".es-flash-track");
+            // ⚠ BOUND, not assigned on each pulse, and this was a real bug caught by a render: the
+            // first version set `fill.setPrefWidth(track.getWidth() * progress)`, and `getWidth()` is
+            // 0 until the first layout pass — so the bar was empty on the frame the panel opened and
+            // stayed empty in any render, which is a progress bar that does not show progress. A
+            // binding is also the only version that stays correct when the window is resized.
+            fill.prefWidthProperty().bind(track.widthProperty().multiply(progress));
+        }
+
+        void apply(GameSession session) {
+            var flash = session.tasks().stream()
+                    .filter(task -> "flash".equals(task.facility()))
+                    .findFirst();
+            boolean running = flash.isPresent();
+            overlay.setVisible(running);
+            overlay.setManaged(running);
+            if (!running) {
+                return;
+            }
+            double done = Math.clamp(flash.get().progress(), 0.0d, 1.0d);
+            progress.set(done);
+            long left = Math.max(0,
+                    java.time.Duration.between(flash.get().asOf(), flash.get().endsAt()).toSeconds());
+            caption.setText(Math.round(done * 100) + "%  ·  " + left + "s remaining");
+        }
+    }
+
+    /**
+     * The flashing overlay: a drawn warning mark, the words, and a bar.
+     *
+     * <h2>⚠ The mark is a PATH this repo draws, not a glyph</h2>
+     *
+     * {@code U+26A0} is in neither bundled face — {@code GlyphCoverageTest} has already rejected it
+     * once, in {@code PortScanView} — and a character that falls back to a host font has different
+     * shapes and different advance widths per platform. Drawing it is also the only way to get one
+     * big enough to read as a warning rather than as punctuation.
+     */
+    private static Region flashOverlay(PackageManifest pkg) {
+        VBox box = new VBox(UiTokens.SPACE_4);
+        box.getStyleClass().add("es-flash-overlay");
+        box.setAlignment(Pos.CENTER);
+
+        box.getChildren().add(warningMark());
+
+        Label title = new Label("FLASHING FIRMWARE");
+        title.getStyleClass().add("es-flash-title");
+
+        // ⚠ WHAT is being flashed, named on the overlay. It covers the panel completely — opaque, so
+        // the facts underneath are unreadable — and an overlay that says only "flashing firmware"
+        // leaves a player who opened two packages unable to tell which one they committed to.
+        Label what = new Label(pkg.displayName());
+        what.getStyleClass().add("es-flash-what");
+
+        Label caption = new Label("0%");
+        caption.getStyleClass().add("es-flash-caption");
+
+        // ⚠ Square corners. §9's radius ban is unamended for anything a value is read off, and a
+        // progress bar is exactly that — a soft-ended fill reads as a shorter fill.
+        Region track = new Region();
+        track.getStyleClass().add("es-flash-track");
+        track.setPrefSize(360, 14);
+        track.setMinSize(360, 14);
+        Region fill = new Region();
+        fill.getStyleClass().add("es-flash-fill");
+        fill.setPrefHeight(14);
+        fill.setMaxWidth(Region.USE_PREF_SIZE);
+        StackPane bar = new StackPane(track, fill);
+        StackPane.setAlignment(fill, Pos.CENTER_LEFT);
+        bar.setMaxWidth(360);
+
+        Label note = new Label("The mining tool is frozen until this finishes. Closing this window "
+                + "does not stop it — firmware is written by the device, not by this panel.");
+        note.setWrapText(true);
+        note.setMaxWidth(420);
+        note.getStyleClass().add("es-flash-note");
+        note.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+
+        box.getChildren().addAll(title, what, caption, bar, note);
+        return box;
+    }
+
+    /**
+     * A warning triangle, drawn.
+     *
+     * <p>⚠ {@code FillRule} is irrelevant here but the composition is not: the bar and the dot are
+     * separate nodes over the triangle rather than a hole punched in it, because a hole would show
+     * the panel's own content through the mark and make it unreadable against the facts underneath.
+     */
+    private static Region warningMark() {
+        Polygon triangle = new Polygon(48.0, 4.0, 94.0, 84.0, 2.0, 84.0);
+        triangle.getStyleClass().add("es-flash-mark");
+
+        Region bar = new Region();
+        bar.getStyleClass().add("es-flash-mark-bar");
+        bar.setPrefSize(8, 30);
+        bar.setMaxSize(8, 30);
+        Region dot = new Region();
+        dot.getStyleClass().add("es-flash-mark-bar");
+        dot.setPrefSize(8, 8);
+        dot.setMaxSize(8, 8);
+
+        VBox stroke = new VBox(6, bar, dot);
+        stroke.setAlignment(Pos.CENTER);
+        stroke.setMouseTransparent(true);
+
+        StackPane mark = new StackPane(triangle, stroke);
+        mark.setPrefSize(96, 88);
+        mark.setMaxSize(96, 88);
+        StackPane.setAlignment(stroke, Pos.BOTTOM_CENTER);
+        StackPane.setMargin(stroke, new javafx.geometry.Insets(0, 0, 12, 0));
+        return mark;
+    }
+
     private static Region actions(
             GameSession session,
             PackageManifest pkg,
@@ -213,9 +434,24 @@ public final class PackageView {
         return row;
     }
 
+    /**
+     * One labelled digest.
+     *
+     * <h2>⚠ Wrapped, and shown in FULL rather than shortened</h2>
+     *
+     * A digest is 71 monospace characters with no break opportunities, and it was what set the whole
+     * panel's width. {@code PackageManifest.shorten} exists and is deliberately not used here: this
+     * class's whole argument is that <em>"you are shown both figures and can see for yourself that
+     * they are the same, which is what makes the day they differ mean anything"</em>, and an elided
+     * middle is exactly where a substituted payload would hide.
+     *
+     * <p>Both wrap at the same width, so they stay line-for-line comparable — which is how anybody
+     * actually checks two hashes by eye.
+     */
     private static Region digest(String name, String sha) {
         Label label = new Label(pad(name) + sha);
         label.getStyleClass().addAll("es-mono", "es-package-sha");
+        label.setWrapText(true);
         return label;
     }
 

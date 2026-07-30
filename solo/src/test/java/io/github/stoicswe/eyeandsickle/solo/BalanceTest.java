@@ -179,19 +179,19 @@ class BalanceTest {
         @Test
         @DisplayName("payout rises with tier, and every band is a real range")
         void lootRisesWithTier() {
-            long previousTop = -1;
+            java.math.BigInteger previousTop = java.math.BigInteger.valueOf(-1);
             for (int tier = DifficultyTier.LOWEST; tier <= DifficultyTier.HIGHEST; tier++) {
-                long low = Balance.netLootMinorUnits(tier, 0.0d);
-                long high = Balance.netLootMinorUnits(tier, 1.0d);
+                java.math.BigInteger low = Balance.netLootWei(tier, 0.0d);
+                java.math.BigInteger high = Balance.netLootWei(tier, 1.0d);
                 assertThat(low).as("tier %d floor", tier).isGreaterThan(previousTop);
                 assertThat(high).as("tier %d ceiling", tier).isGreaterThan(low);
                 previousTop = high;
             }
             // The T1 floor is what the home contact floor promises, so the two must agree.
-            assertThat(Balance.netLootMinorUnits(1, 0.0d)).isEqualTo(Balance.NET_LOOT_FLOOR_MINOR_UNITS);
+            assertThat(Balance.netLootWei(1, 0.0d)).isEqualTo(Balance.NET_LOOT_FLOOR_WEI);
             // Out-of-range rolls clamp rather than extrapolate past the band.
-            assertThat(Balance.netLootMinorUnits(1, -3.0d)).isEqualTo(Balance.netLootMinorUnits(1, 0.0d));
-            assertThat(Balance.netLootMinorUnits(1, 4.0d)).isEqualTo(Balance.netLootMinorUnits(1, 1.0d));
+            assertThat(Balance.netLootWei(1, -3.0d)).isEqualTo(Balance.netLootWei(1, 0.0d));
+            assertThat(Balance.netLootWei(1, 4.0d)).isEqualTo(Balance.netLootWei(1, 1.0d));
         }
     }
 
@@ -257,7 +257,7 @@ class BalanceTest {
             // Above the 15 EC Passive Sniffer, because it is a permanent tool; below the mid-tier
             // band's floor, because at 40 EC the first upgrade a new player buys would be two hours
             // out of reach on docs/design/03-economy.md §3's cautious net.
-            assertThat(Balance.NET_SWEEP_WIDE_PRICE).isGreaterThan(1_500L);
+            assertThat(Balance.NET_SWEEP_WIDE_PRICE).isGreaterThan(Balance.ec("15"));
             assertThat(Balance.NET_SWEEP_WIDE_PRICE).isLessThan(Balance.PRICE_MID_TIER_MIN);
             // Squarely inside the mid-tier band — about one cautious session.
             assertThat(Balance.NET_SWEEP_DEEP_PRICE)

@@ -49,9 +49,9 @@ class LedgerServiceIT extends PostgresIntegrationTestBase {
     void mintCreditsAndRecords() {
         insertPlayer(ALICE_ACCOUNT, 1, 1_000L);
 
-        transactions().executeWithoutResult(status -> service.mint(ALICE, Ethecoin.ofMinorUnits(250), null));
+        transactions().executeWithoutResult(status -> service.mint(ALICE, Ethecoin.ofDecimal("2.5"), null));
 
-        assertThat(balanceOf(ALICE)).isEqualTo(Ethecoin.ofMinorUnits(1_250));
+        assertThat(balanceOf(ALICE)).isEqualTo(Ethecoin.ofDecimal("12.5"));
         assertThat(ledger.query(LedgerQuery.forParticipant(ALICE, LedgerQuery.Direction.RECEIVED, 10), null))
                 .singleElement()
                 .satisfies(row -> {
@@ -66,15 +66,15 @@ class LedgerServiceIT extends PostgresIntegrationTestBase {
     void transferConservesSupply() {
         insertPlayer(ALICE_ACCOUNT, 1, 1_000L);
         insertPlayer(BOB_ACCOUNT, 1, 400L);
-        long before = balanceOf(ALICE).minorUnits() + balanceOf(BOB).minorUnits();
+        java.math.BigInteger before = balanceOf(ALICE).wei().add(balanceOf(BOB).wei());
 
         transactions()
                 .executeWithoutResult(status ->
-                        service.transfer(ALICE, BOB, Ethecoin.ofMinorUnits(300), LedgerEntryType.TRADE, true, null));
+                        service.transfer(ALICE, BOB, Ethecoin.ofDecimal("3"), LedgerEntryType.TRADE, true, null));
 
-        assertThat(balanceOf(ALICE)).isEqualTo(Ethecoin.ofMinorUnits(700));
-        assertThat(balanceOf(BOB)).isEqualTo(Ethecoin.ofMinorUnits(700));
-        assertThat(balanceOf(ALICE).minorUnits() + balanceOf(BOB).minorUnits()).isEqualTo(before);
+        assertThat(balanceOf(ALICE)).isEqualTo(Ethecoin.ofDecimal("7"));
+        assertThat(balanceOf(BOB)).isEqualTo(Ethecoin.ofDecimal("7"));
+        assertThat(balanceOf(ALICE).wei().add(balanceOf(BOB).wei())).isEqualTo(before);
 
         // Queryable from both counterparties (docs/design/01 §2.2).
         assertThat(ledger.query(LedgerQuery.forParticipant(ALICE, LedgerQuery.Direction.SENT, 10), null))
@@ -92,11 +92,11 @@ class LedgerServiceIT extends PostgresIntegrationTestBase {
 
         transactions()
                 .executeWithoutResult(status -> service.transfer(
-                        ALICE, ALICE_SLOT_2, Ethecoin.ofMinorUnits(300), LedgerEntryType.TRADE, true, null));
+                        ALICE, ALICE_SLOT_2, Ethecoin.ofDecimal("3"), LedgerEntryType.TRADE, true, null));
 
         // The money left one character and arrived at the other — proof they are not one shared balance.
-        assertThat(balanceOf(ALICE)).isEqualTo(Ethecoin.ofMinorUnits(700));
-        assertThat(balanceOf(ALICE_SLOT_2)).isEqualTo(Ethecoin.ofMinorUnits(300));
+        assertThat(balanceOf(ALICE)).isEqualTo(Ethecoin.ofDecimal("7"));
+        assertThat(balanceOf(ALICE_SLOT_2)).isEqualTo(Ethecoin.ofDecimal("3"));
 
         // The ledger recorded the two character DIDs as the parties — and accepted them into the
         // is_did-constrained from_did/to_did columns with no schema change.
@@ -115,9 +115,9 @@ class LedgerServiceIT extends PostgresIntegrationTestBase {
 
         transactions()
                 .executeWithoutResult(status -> service.transfer(
-                        NPC_HOST, BOB, Ethecoin.ofMinorUnits(80), LedgerEntryType.CRACK_SEIZURE, true, null));
+                        NPC_HOST, BOB, Ethecoin.ofDecimal("0.8"), LedgerEntryType.CRACK_SEIZURE, true, null));
 
-        assertThat(balanceOf(BOB)).isEqualTo(Ethecoin.ofMinorUnits(180));
+        assertThat(balanceOf(BOB)).isEqualTo(Ethecoin.ofDecimal("1.8"));
         assertThat(ledger.query(LedgerQuery.forParticipant(BOB, LedgerQuery.Direction.RECEIVED, 10), null))
                 .singleElement()
                 .satisfies(row -> {
@@ -135,11 +135,11 @@ class LedgerServiceIT extends PostgresIntegrationTestBase {
 
         assertThatThrownBy(() -> transactions()
                         .executeWithoutResult(status -> service.transfer(
-                                ALICE, BOB, Ethecoin.ofMinorUnits(50), LedgerEntryType.MINING_REWARD, true, null)))
+                                ALICE, BOB, Ethecoin.ofDecimal("0.5"), LedgerEntryType.MINING_REWARD, true, null)))
                 .isInstanceOf(IllegalArgumentException.class);
 
         // Nothing moved, nothing recorded.
-        assertThat(balanceOf(ALICE)).isEqualTo(Ethecoin.ofMinorUnits(1_000));
+        assertThat(balanceOf(ALICE)).isEqualTo(Ethecoin.ofDecimal("10"));
         assertThat(ledger.query(LedgerQuery.recent(10), null)).isEmpty();
     }
 
@@ -151,10 +151,10 @@ class LedgerServiceIT extends PostgresIntegrationTestBase {
 
         assertThatThrownBy(() -> transactions()
                         .executeWithoutResult(status -> service.transfer(
-                                ALICE, BOB, Ethecoin.ofMinorUnits(101), LedgerEntryType.TRADE, true, null)))
+                                ALICE, BOB, Ethecoin.ofDecimal("1.01"), LedgerEntryType.TRADE, true, null)))
                 .isInstanceOf(InsufficientFundsException.class);
 
-        assertThat(balanceOf(ALICE)).isEqualTo(Ethecoin.ofMinorUnits(100));
+        assertThat(balanceOf(ALICE)).isEqualTo(Ethecoin.ofDecimal("1"));
         assertThat(balanceOf(BOB)).isEqualTo(Ethecoin.ZERO);
         assertThat(ledger.query(LedgerQuery.recent(10), null)).isEmpty();
     }
@@ -166,9 +166,9 @@ class LedgerServiceIT extends PostgresIntegrationTestBase {
 
         transactions()
                 .executeWithoutResult(status -> service.transfer(
-                        ALICE, NPC_VENDOR, Ethecoin.ofMinorUnits(120), LedgerEntryType.PURCHASE, true, null));
+                        ALICE, NPC_VENDOR, Ethecoin.ofDecimal("1.2"), LedgerEntryType.PURCHASE, true, null));
 
-        assertThat(balanceOf(ALICE)).isEqualTo(Ethecoin.ofMinorUnits(380));
+        assertThat(balanceOf(ALICE)).isEqualTo(Ethecoin.ofDecimal("3.8"));
         assertThat(ledger.query(LedgerQuery.recent(10), null))
                 .singleElement()
                 .satisfies(row -> assertThat(row.type()).isEqualTo(LedgerEntryType.PURCHASE));
@@ -182,7 +182,7 @@ class LedgerServiceIT extends PostgresIntegrationTestBase {
 
         transactions()
                 .executeWithoutResult(status ->
-                        service.transfer(ALICE, BOB, Ethecoin.ofMinorUnits(200), LedgerEntryType.TRADE, false, null));
+                        service.transfer(ALICE, BOB, Ethecoin.ofDecimal("2"), LedgerEntryType.TRADE, false, null));
 
         // The row exists — laundering leaves something to find — but only its counterparties see it.
         assertThat(service.ledger(LedgerQuery.recent(10), null)).isEmpty();
@@ -197,7 +197,7 @@ class LedgerServiceIT extends PostgresIntegrationTestBase {
     private void insertPlayer(String accountDid, int slot, long balanceMinor) {
         jdbcClient()
                 .sql("""
-                        INSERT INTO players (player_id, did, slot, handle, ethecoin_balance_ec_minor)
+                        INSERT INTO players (player_id, did, slot, handle, ethecoin_balance_wei)
                         VALUES (:id, :did, :slot, 'operator', :balance)
                         """)
                 .param("id", UUID.randomUUID())

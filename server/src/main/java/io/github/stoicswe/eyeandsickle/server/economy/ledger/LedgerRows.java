@@ -18,7 +18,7 @@ final class LedgerRows {
     static final String TX_ID = "tx_id";
     static final String FROM_DID = "from_did";
     static final String TO_DID = "to_did";
-    static final String AMOUNT = "amount_ec_minor";
+    static final String AMOUNT = "amount_wei";
     static final String TX_TYPE = "tx_type";
     static final String TRACEABLE = "traceable";
     static final String MEMO = "memo";

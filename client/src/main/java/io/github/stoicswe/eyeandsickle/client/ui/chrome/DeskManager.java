@@ -249,7 +249,7 @@ public final class DeskManager {
 
         WindowFrame frame = new WindowFrame(spec.title(), spec.identifier());
         frame.setContent(spec.content());
-        DeskWindow window = new DeskWindow(spec.id(), frame, spec.closable());
+        DeskWindow window = new DeskWindow(spec.id(), frame, spec.closable(), spec.onClosed());
         frame.setControls(
                 () -> window.setMinimized(true),
                 () -> window.toggleMaximized(),
@@ -306,6 +306,14 @@ public final class DeskManager {
         }
         desk.getChildren().remove(window.frame);
         publish("closed", id);
+        // ⚠ AFTER the window is off the desk, and it may re-enter close() for the same id — the
+        // shell's callback ends the session, which is also what an `exit` typed inside the shell
+        // does, and that path closes the window itself. The window is already out of the map by
+        // now, so the second call finds nothing and returns; firing before the removal would
+        // recurse. The rules' own close is idempotent for the same reason.
+        if (window.onClosed != null) {
+            window.onClosed.run();
+        }
         if (focused == window) {
             focused = null;
             windows.values().stream()
@@ -734,6 +742,16 @@ public final class DeskManager {
     public record Geometry(double x, double y, double width, double height) {}
 
     /** What to open. Mirrors the fields {@code WindowSpec} already carries. */
+    /**
+     * What to open.
+     *
+     * @param onClosed run when the window is closed, for a window whose existence <em>is</em> game
+     *     state. ⚠ Most windows have none and pass {@code null}: a tool window is a view onto state
+     *     that exists whether or not it is on screen, so closing one must change nothing. A shell is
+     *     the exception — it is an instance created by an act in the game, holding
+     *     {@code Balance.SESSION_CYCLES} for as long as it lives, and a window manager that closed it
+     *     silently would leak those cycles with nothing left on screen to release them.
+     */
     public record Spec(
             String id,
             String title,
@@ -741,7 +759,15 @@ public final class DeskManager {
             Node content,
             double width,
             double height,
-            boolean closable) {}
+            boolean closable,
+            Runnable onClosed) {
+
+        /** The ordinary window: a view onto state, with nothing to release when it goes. */
+        public Spec(String id, String title, String identifier, Node content,
+                double width, double height, boolean closable) {
+            this(id, title, identifier, content, width, height, closable, null);
+        }
+    }
 
     /** One window on the desk. */
     public final class DeskWindow {
@@ -749,6 +775,7 @@ public final class DeskManager {
         private final String id;
         private final WindowFrame frame;
         private final boolean closable;
+        private final Runnable onClosed;
         private double x;
         private double y;
         private double width;
@@ -758,10 +785,11 @@ public final class DeskManager {
         private boolean expanded;
         private Geometry restoreGeometry;
 
-        private DeskWindow(String id, WindowFrame frame, boolean closable) {
+        private DeskWindow(String id, WindowFrame frame, boolean closable, Runnable onClosed) {
             this.id = id;
             this.frame = frame;
             this.closable = closable;
+            this.onClosed = onClosed;
         }
 
         public String id() {

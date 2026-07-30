@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.solo.state;
 
+import java.math.BigInteger;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -8,7 +9,7 @@ import java.util.UUID;
  *
  * <p>Two invariants live in these fields. The miner's work is charged to the <em>host</em>, never the
  * deployer (I6) — so {@link #hostCycles} is not subtracted from the player's rig, while the control
- * channel is. And it is the only source of offline income (I5), which is why {@link #bufferedMinorUnits}
+ * channel is. And it is the only source of offline income (I5), which is why {@link #bufferedWei}
  * accrues while the player is away and why it stops dead at the cap.
  */
 public final class MinerState {
@@ -24,7 +25,20 @@ public final class MinerState {
     public Instant lastAccruedAt = Instant.now();
 
     /** Yield sitting on the host, waiting to be collected. Capped — see {@code Balance}. */
-    public long bufferedMinorUnits = 0L;
+    /**
+     * ⚠ {@code @JsonAlias} carries the PRE-WEI key, and a save is lost without it.
+     *
+     * <p>The field was {@code bufferedMinorUnits} when an ethecoin was 100 minor units. Jackson has
+     * {@code FAIL_ON_UNKNOWN_PROPERTIES} off — deliberately, so a save from a newer build still opens
+     * — which means a key it does not recognise is <b>silently dropped</b>. Renaming the field without
+     * this alias therefore does not fail: it loads the save, leaves every amount at its initialiser,
+     * and hands the player a balance of zero with nothing anywhere saying why.
+     *
+     * <p>Measured, not theorised. A real pre-migration save loaded as {@code 0 EC} across the board,
+     * and the only reason it was noticed at all is that one field had no initialiser and threw.
+     */
+    @com.fasterxml.jackson.annotation.JsonAlias("bufferedMinorUnits")
+    public BigInteger bufferedWei = BigInteger.ZERO;
 
     /** Hidden from routine listings but not from a manual audit ({@code docs/design/09}). */
     public boolean rootkitWrapped = false;

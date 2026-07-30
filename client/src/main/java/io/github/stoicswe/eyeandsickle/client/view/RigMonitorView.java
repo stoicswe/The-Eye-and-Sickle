@@ -73,6 +73,14 @@ public final class RigMonitorView {
             ComputeConsumer.DEPLOYED_MINER,
             ComputeConsumer.DEFENSIVE_ARRAY,
             ComputeConsumer.ACTIVE_TOOL,
+            // ⚠ A shell was MISSING from this list, and the omission was invisible in every other
+            // readout. `owner()` and `label()` both handled it, the allocation was real, and the
+            // headline "84 / 100 CYCLES CLAIMED" counted it — but the grid and the legend are built
+            // by walking THIS list, so the two cycles produced no slice at all. The panel showed 84
+            // claimed and accounted for 80, with four fewer coloured cells than the number above
+            // them. That is exactly the discrepancy {@code docs/design/04-mining.md} §3.1 teaches a
+            // player to read as a parasite they have not audited — produced here by opening a shell.
+            ComputeConsumer.SHELL_SESSION,
             ComputeConsumer.RELAY_HOP);
 
     private RigMonitorView() {}
@@ -349,11 +357,23 @@ public final class RigMonitorView {
      */
     private static String detail(ComputeConsumer consumer, MiningSnapshot mining) {
         if (consumer == ComputeConsumer.SELF_MINING) {
-            return String.format(Locale.ROOT, "~%.1f EC/hr %s",
-                    mining.expectedMinorUnitsPerHour() / 100.0d,
-                    mining.mode() == MiningMode.SOLO ? "solo" : "pooled");
+            // ⚠ formatApprox, not format, and the tilde in front is the reason. This is a RATE
+            // derived through the network hashrate — a double — so its low digits are arithmetic
+            // residue, and printed in full it read `~39.99999999999999802 EC/hr`. That is not a more
+            // precise answer than 40; it is the same answer wearing seventeen digits of noise, on the
+            // line a player checks against the published figure. Four places is well past anything
+            // this rate varies by and still short of where the double stops being exact.
+            return "~" + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.formatApprox(
+                            mining.expectedWeiPerHour(), 4)
+                    + "/hr " + (mining.mode() == MiningMode.SOLO ? "solo" : "pooled");
         }
-        return consumer == ComputeConsumer.DEPLOYED_MINER ? "on your rig" : "held";
+        return switch (consumer) {
+            case DEPLOYED_MINER -> "on your rig";
+            // Says what a player needs to know about a hold they may have forgotten: it ends when
+            // the window does. Closing a shell gives the cycles straight back, without recovery.
+            case SHELL_SESSION -> "while open";
+            default -> "held";
+        };
     }
 
     /**
@@ -393,7 +413,7 @@ public final class RigMonitorView {
                             + "back, and cracking on your own rig costs no heat."));
         }
 
-        if (status.bufferCapMinorUnits() > 0 && status.bufferFill() >= 1.0) {
+        if (status.bufferCapWei().signum() > 0 && status.bufferFill() >= 1.0) {
             notes.add(Note.loss(
                     "Deployed buffers are full.",
                     "Everything they mine from here is discarded until you collect."));

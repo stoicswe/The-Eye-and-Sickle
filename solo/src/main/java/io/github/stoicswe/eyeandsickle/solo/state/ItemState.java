@@ -32,6 +32,17 @@ public final class ItemState {
     /** Where it came from, in words. Shown by {@code item-history} in place of a chain. */
     public String origin = "";
 
+    /**
+     * Which build of the tool this is — {@code "v2.4"}, or empty for anything acquired before
+     * versions existed.
+     *
+     * <p>⚠ Stored as TEXT and parsed through {@code UpgradeVersion.parse}, which returns UNKNOWN on
+     * anything it cannot read. A save is a file the player can edit and an older save has no field
+     * here at all, so this has to open rather than fail. It is a label and a resale multiplier and
+     * nothing else — see {@code solo/rules/Versions}.
+     */
+    public String version = "";
+
     /** Compute reserved while this item is equipped, if any. */
     public long equippedCycles = 0L;
 

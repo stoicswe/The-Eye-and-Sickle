@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.client.ui.breach;
 
+import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.client.ui.Ui;
 import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachLayer;
@@ -109,8 +110,8 @@ public final class OutcomeSlate extends VBox {
         row(3, "Heat gained", resolution.heatGained() + (snapshot.minerCrack() ? "  (own rig)" : ""),
                 "Cycles released", Long.toString(snapshot.reservedCycles()));
 
-        if (resolution.lootMinorUnits() > 0) {
-            Label extracted = Ui.value(money(resolution.lootMinorUnits()));
+        if (resolution.lootWei().signum() > 0) {
+            Label extracted = Ui.value(Ethecoin.format(resolution.lootWei()));
             // D-7. The only amber in the breach. Do not add a second use of this class.
             extracted.getStyleClass().add("es-breach-extract");
             HBox line = Ui.row(UiTokens.SPACE_4, Ui.label("Extracted"), extracted,
@@ -198,10 +199,6 @@ public final class OutcomeSlate extends VBox {
         };
     }
 
-    /** Matches {@code BuiltinCommands.money} exactly, so the window and the shell never disagree. */
-    private static String money(long minorUnits) {
-        return String.format(Locale.ROOT, "%d.%02d EC", minorUnits / 100, Math.abs(minorUnits % 100));
-    }
 
     private static String describe(BreachSnapshot snapshot, BreachResolution resolution,
             BreachOutcome outcome, int probes) {
@@ -213,8 +210,8 @@ public final class OutcomeSlate extends VBox {
                 .append(", ").append(probes).append(" probes, noise ")
                 .append(resolution.noiseGenerated())
                 .append(", heat gained ").append(resolution.heatGained()).append(". ");
-        if (resolution.lootMinorUnits() > 0) {
-            out.append("Extracted ").append(money(resolution.lootMinorUnits())).append(". ");
+        if (resolution.lootWei().signum() > 0) {
+            out.append("Extracted ").append(Ethecoin.format(resolution.lootWei())).append(". ");
         }
         for (String line : resolution.consequences()) {
             out.append(line).append(". ");

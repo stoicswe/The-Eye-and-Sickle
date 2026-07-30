@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.client.shell;
 
+import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.client.session.GameSession;
 import io.github.stoicswe.eyeandsickle.protocol.game.AttentionEntry;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachAction;
@@ -284,8 +285,8 @@ public final class BreachCommands {
             out.add("outcome " + resolution.record().outcome().name().toLowerCase(Locale.ROOT)
                     + " · noise " + resolution.noiseGenerated()
                     + " · heat +" + resolution.heatGained()
-                    + (resolution.lootMinorUnits() > 0
-                            ? " · extracted " + money(resolution.lootMinorUnits()) : "")
+                    + (resolution.lootWei().signum() > 0
+                            ? " · extracted " + Ethecoin.format(resolution.lootWei()) : "")
                     + (resolution.schematicMaterial() > 0
                             ? " · material +" + resolution.schematicMaterial() : ""));
             for (String line : resolution.consequences()) {
@@ -346,8 +347,8 @@ public final class BreachCommands {
                 + " · " + defences(target));
         if (target.minerCrack()) {
             out.add("a crack on your own rig: no heat, on any outcome, including a failure (I9)");
-            if (target.estimatedBufferMinorUnits() > 0) {
-                out.add("estimated buffer: ~" + money(target.estimatedBufferMinorUnits())
+            if (target.estimatedBufferWei().signum() > 0) {
+                out.add("estimated buffer: ~" + Ethecoin.format(target.estimatedBufferWei())
                         + ", swept on success — a transfer, not a payout");
             }
         } else if (target.liveOrDormant() == TargetState.DORMANT) {
@@ -384,8 +385,8 @@ public final class BreachCommands {
         }
         if (target.minerCrack()) {
             return "crack · no heat, win or lose"
-                    + (target.estimatedBufferMinorUnits() > 0
-                            ? " · buffer ~" + money(target.estimatedBufferMinorUnits()) : "");
+                    + (target.estimatedBufferWei().signum() > 0
+                            ? " · buffer ~" + Ethecoin.format(target.estimatedBufferWei()) : "");
         }
         return target.liveOrDormant() == TargetState.DORMANT
                 ? "dormant · loot, never an unlock"
@@ -405,10 +406,6 @@ public final class BreachCommands {
         return s.length() >= width ? s + " " : " ".repeat(width - s.length()) + s;
     }
 
-    /** See {@code BreachTargetList#money} — {@code Ethecoin} ships no formatting on purpose. */
-    private static String money(long minorUnits) {
-        return String.format(Locale.ROOT, "%d.%02d EC", minorUnits / 100, Math.abs(minorUnits % 100));
-    }
 
     private interface Body {
         Command.Output apply(Command.Invocation invocation);

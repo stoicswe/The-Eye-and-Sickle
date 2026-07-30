@@ -219,7 +219,7 @@ public interface GameSession extends AutoCloseable {
      * <p>Asked of the engine rather than scaled locally. The rate depends on the mode and the pool's
      * fee, and a view doing its own arithmetic has already been wrong about it once.
      */
-    long miningRateFor(long cycles);
+    java.math.BigInteger miningRateFor(long cycles);
 
     /** This character's chain address, or {@code ""} when not connected. */
     String chainAddress();
@@ -286,7 +286,7 @@ public interface GameSession extends AutoCloseable {
      * packs it into a block. The fee is charged on top, so a sender who cannot afford
      * {@code amount + fee} is refused rather than shorting the recipient.
      */
-    Outcome send(String toAddress, long minorUnits, FeeTier tier);
+    Outcome send(String toAddress, java.math.BigInteger wei, FeeTier tier);
 
     /** The mempool: what is waiting, and what the next blocks would hold. */
     ChainMempool mempool();
@@ -505,7 +505,7 @@ public interface GameSession extends AutoCloseable {
      * @param available the rules' verdict, rendered as received. Never computed by a view
      * @param requirement what it would take, in words, when it is not available. Empty when it is.
      *     Words rather than a price, because {@code docs/client/05} §5 forbids a generic "locked"
-     * @param priceMinorUnits what the market charges, or 0 when it is not something you buy
+     * @param priceWei what the market charges, or 0 when it is not something you buy
      * @param sensitivity 1, 2 or 3 — and ⚠ <b>never a reach value.</b> Invariant <b>I2</b>: no tier
      *     changes the hop ceiling at any price, and this record carries nothing that could
      * @param cycles compute held for the sweep's whole duration
@@ -517,7 +517,7 @@ public interface GameSession extends AutoCloseable {
             String name,
             boolean available,
             String requirement,
-            long priceMinorUnits,
+            java.math.BigInteger priceWei,
             int sensitivity,
             long cycles,
             long seconds,
@@ -582,7 +582,35 @@ public interface GameSession extends AutoCloseable {
      * this is "what am I looking at" and is what a right-click means. It is also the one that works
      * on a <b>directory</b>, where there are no contents to show but there is plenty to say.
      */
+    /**
+     * Completed audits, newest first — the AUDIT window's history.
+     *
+     * <p>Capped by the rules at the most recent hundred. A clean scan is a row like any other: it is
+     * what gives a later finding its date.
+     */
+    java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.ScanReport> scanReports();
+
+    /**
+     * Every file an audit walks on this rig, in the order it walks them.
+     *
+     * <p>⚠ Stable across calls, because the SCANNER panel repaints once a second and prints the
+     * files a scan has reached so far. A list that re-ordered itself would rewrite lines already on
+     * screen — which reads as the scan going backwards.
+     */
+    java.util.List<String> auditPaths();
+
     List<String> info(String address, String path);
+
+    /**
+     * What the upgrade at {@code path} on {@code address} is, and how it compares to what you hold.
+     *
+     * <p>Answers for a package the player has <b>not</b> taken — a real package carries this
+     * metadata so a manager can say what it is about to install. The payload still costs a transfer.
+     *
+     * @return empty when the path is not an upgrade, or names a tool with no catalogue entry
+     */
+    java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.UpgradeOffer> upgradeAt(
+            String address, String path);
 
     /**
      * Records that the player deliberately opened something — what fills Recents.
@@ -629,6 +657,16 @@ public interface GameSession extends AutoCloseable {
      * let anybody with enough money buy a ceiling, which is Invariant <b>I2</b>. The refusal says so.
      */
     Outcome sell(String path);
+
+    /**
+     * Deletes a file this rig stores.
+     *
+     * <p>⚠ Destructive and not undoable. The rules do not ask — asking is this layer's job, and the
+     * shell's {@code rm} would be wrong to — so any GUI surface must confirm before calling it.
+     *
+     * @param address the machine, for the own-rig check. Blank or the rig's own address
+     */
+    Outcome delete(String address, String path);
 
     /** Transfers currently in flight, for a progress readout. A subset of {@link #tasks()}. */
     List<RunningTask> transfers();
@@ -831,7 +869,11 @@ public interface GameSession extends AutoCloseable {
             boolean hasProvenance) {}
 
     /** One ledger row. */
-    record LedgerRow(String entryId, java.time.Instant at, long deltaMinorUnits, long balanceAfterMinorUnits, String type, String description) {}
+    record LedgerRow(
+            String entryId,
+            java.time.Instant at,
+            java.math.BigInteger deltaWei,
+            java.math.BigInteger balanceAfterWei, String type, String description) {}
 
     /** One discovered machine. Undiscovered nodes are never in this list — recon is a paid service. */
     record KnownNode(String address, String label, int reconLevel, int tier, int deployedMiners, boolean hostsForeignMiner) {}
@@ -852,17 +894,18 @@ public interface GameSession extends AutoCloseable {
      * Mining, summarised.
      *
      * @param selfMiningCycles cycles committed to self-mining; earns only while the client is open
-     * @param bufferedMinorUnits yield sitting on hosts, waiting to be collected
-     * @param bufferCapMinorUnits the ceiling those buffers stop at — the reason time away is worth
+     * @param bufferedWei yield sitting on hosts, waiting to be collected
+     * @param bufferCapWei the ceiling those buffers stop at — the reason time away is worth
      *     something but not proportionally
      * @param deployedMiners how many are live
      */
     record MiningSummary(
-            long selfMiningCycles, long bufferedMinorUnits, long bufferCapMinorUnits, int deployedMiners) {
+            long selfMiningCycles, java.math.BigInteger bufferedWei,
+            java.math.BigInteger bufferCapWei, int deployedMiners) {
 
         /** True once every buffer is full, which is when being away stops paying at all. */
         public boolean buffersFull() {
-            return deployedMiners > 0 && bufferedMinorUnits >= bufferCapMinorUnits;
+            return deployedMiners > 0 && bufferedWei.compareTo(bufferCapWei) >= 0;
         }
     }
 

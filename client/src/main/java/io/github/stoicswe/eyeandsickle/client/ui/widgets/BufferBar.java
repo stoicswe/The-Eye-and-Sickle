@@ -48,13 +48,13 @@ public final class BufferBar extends VBox {
     }
 
     /**
-     * @param heldMinorUnits what is sitting on the host now
-     * @param capMinorUnits the ceiling it stops at
+     * @param heldWei what is sitting on the host now
+     * @param capWei the ceiling it stops at
      * @param hoursCap the real-time span the cap represents, for the caption
      */
-    public void show(long heldMinorUnits, long capMinorUnits, double hoursCap) {
-        double fraction = capMinorUnits <= 0 ? 0 : Math.min(1, (double) heldMinorUnits / capMinorUnits);
-        boolean full = capMinorUnits > 0 && heldMinorUnits >= capMinorUnits;
+    public void show(long heldWei, long capWei, double hoursCap) {
+        double fraction = capWei <= 0 ? 0 : Math.min(1, (double) heldWei / capWei);
+        boolean full = capWei > 0 && heldWei >= capWei;
         int lit = (int) Math.floor(fraction * UiTokens.BUFFER_CELLS);
         if (full) {
             lit = UiTokens.BUFFER_CELLS;

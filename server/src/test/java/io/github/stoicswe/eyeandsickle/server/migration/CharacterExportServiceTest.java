@@ -110,7 +110,7 @@ class CharacterExportServiceTest {
 
         assertThat(export.accountDid()).isEqualTo(ACCOUNT.value());
         assertThat(export.faction()).isEqualTo(Faction.SICKLE);
-        assertThat(export.ethecoinBalance()).isEqualTo(Ethecoin.ofMinorUnits(1000));
+        assertThat(export.ethecoinBalance()).isEqualTo(Ethecoin.ofDecimal("10"));
         assertThat(export.personalHeat().value()).isEqualByComparingTo(BigDecimal.valueOf(7));
         assertThat(export.itemChains()).hasSize(1);
     }

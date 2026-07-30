@@ -54,7 +54,7 @@ public class LedgerRepository {
         int affected = jdbcClient
                 .sql("""
                         INSERT INTO ledger_transactions
-                            (tx_id, from_did, to_did, amount_ec_minor, tx_type, traceable, memo, created_at)
+                            (tx_id, from_did, to_did, amount_wei, tx_type, traceable, memo, created_at)
                         VALUES (:txId, :fromDid, :toDid, :amount, :txType, :traceable, :memo::jsonb, :createdAt)
                         """)
                 .param("txId", transaction.txId())

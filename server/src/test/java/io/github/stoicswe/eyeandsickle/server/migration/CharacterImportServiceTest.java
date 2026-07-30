@@ -184,7 +184,7 @@ class CharacterImportServiceTest {
                 0,
                 "neo",
                 Faction.SICKLE,
-                Ethecoin.ofMinorUnits(1000),
+                Ethecoin.ofDecimal("10"),
                 Heat.ZERO.plus(BigDecimal.valueOf(7)),
                 List.of(FakeMigrationItemImporter.ok(UUID.randomUUID())));
 

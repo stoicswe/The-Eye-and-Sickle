@@ -68,13 +68,13 @@ public final class CharacterSlots {
             if (save == null) {
                 return Slot.empty(index, file);
             }
-            return new Slot(index, file, true, save.handle, save.ethecoinMinorUnits, save.rig.totalCycles,
+            return new Slot(index, file, true, save.handle, save.ethecoinWei, save.rig.totalCycles,
                     save.playedSeconds, save.lastPlayedAt, save.createdAt, null, save.avatarPng);
         } catch (RuntimeException unreadable) {
             // A corrupt or future-format save is shown as such rather than hidden. A slot that
             // silently reads as empty invites the player to overwrite the thing they were trying to
             // recover.
-            return new Slot(index, file, false, "", 0, 0, 0, null, null, unreadable.getMessage(), "");
+            return new Slot(index, file, false, "", java.math.BigInteger.ZERO, 0, 0, null, null, unreadable.getMessage(), "");
         }
     }
 
@@ -113,7 +113,7 @@ public final class CharacterSlots {
             Path file,
             boolean occupied,
             String handle,
-            long ethecoinMinorUnits,
+            java.math.BigInteger ethecoinWei,
             long totalCycles,
             long playedSeconds,
             Instant lastPlayedAt,
@@ -130,7 +130,7 @@ public final class CharacterSlots {
             String avatarPng) {
 
         static Slot empty(int index, Path file) {
-            return new Slot(index, file, false, "", 0, 0, 0, null, null, null, "");
+            return new Slot(index, file, false, "", java.math.BigInteger.ZERO, 0, 0, null, null, null, "");
         }
 
         public boolean unreadable() {
@@ -145,7 +145,9 @@ public final class CharacterSlots {
             if (!occupied) {
                 return "empty";
             }
-            return handle + "  ·  " + (ethecoinMinorUnits / 100) + " EC  ·  " + totalCycles + " cycles";
+            return handle + "  ·  "
+                    + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.format(ethecoinWei)
+                    + "  ·  " + totalCycles + " cycles";
         }
 
         /** "3 hours played, last seen 2 days ago" — the thing that identifies a run at a glance. */

@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.protocol.game;
 
+import java.math.BigInteger;
 import java.time.Instant;
 
 /**
@@ -24,15 +25,15 @@ import java.time.Instant;
  * @param at when it happened
  * @param from sender address; the zero address for a block reward
  * @param to recipient address
- * @param valueMinorUnits the amount moved, always positive — direction is {@link #incoming}
+ * @param valueWei the amount moved, always positive — direction is {@link #incoming}
  * @param incoming whether this rig received it
- * @param balanceAfterMinorUnits the running balance, carried so the log reconciles
+ * @param balanceAfterWei the running balance, carried so the log reconciles
  * @param nonce this sender's transaction count at the time
  * @param gasUsed 21 000 for a transfer, 0 for a block reward
  * @param kind the engine's own type, e.g. {@code SELF_MINING}
  * @param description the engine's own words
- * @param feeMinorUnits what the sender paid a miner to include it; 0 for a coinbase
- * @param gasPriceMinorUnits fee per gas — what a miner sorts on, and what buys priority
+ * @param feeWei what the sender paid a miner to include it; 0 for a coinbase
+ * @param gasPriceWei fee per gas — what a miner sorts on, and what buys priority
  * @param yours whether this rig sent or received it
  */
 public record ChainTransaction(
@@ -41,15 +42,15 @@ public record ChainTransaction(
         Instant at,
         String from,
         String to,
-        long valueMinorUnits,
+        BigInteger valueWei,
         boolean incoming,
-        long balanceAfterMinorUnits,
+        BigInteger balanceAfterWei,
         long nonce,
         long gasUsed,
         String kind,
         String description,
-        long feeMinorUnits,
-        double gasPriceMinorUnits,
+        BigInteger feeWei,
+        double gasPriceWei,
         boolean yours,
         String counterpartyLabel) {
 

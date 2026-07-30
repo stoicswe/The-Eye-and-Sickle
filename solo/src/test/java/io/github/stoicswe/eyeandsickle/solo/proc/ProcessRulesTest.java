@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.solo.proc;
 
+import io.github.stoicswe.eyeandsickle.solo.Balance;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeConsumer;
@@ -136,8 +137,8 @@ class ProcessRulesTest {
         void killIsNotACrack() {
             SoloSave save = SoloGame.newCharacter("operator", T0);
             MinerState miner = save.rig.foreignMiners.getFirst();
-            miner.bufferedMinorUnits = 5_000L;
-            long balance = save.ethecoinMinorUnits;
+            miner.bufferedWei = Balance.ec("50");
+            java.math.BigInteger balance = save.ethecoinWei;
             long free = ComputeRules.availableCycles(save.rig);
 
             assertThat(ProcessRules.kill(save, "miner:" + miner.minerId, T0).refused()).isFalse();
@@ -147,7 +148,7 @@ class ProcessRulesTest {
             // ⚠ docs/design/04 §5 prices four responses against each other. A kill that also swept
             // the buffer would collapse three of those four into one; what a kill buys is
             // immediacy — no breach, no attention, no puzzle.
-            assertThat(save.ethecoinMinorUnits).isEqualTo(balance);
+            assertThat(save.ethecoinWei).isEqualTo(balance);
         }
 
         @Test

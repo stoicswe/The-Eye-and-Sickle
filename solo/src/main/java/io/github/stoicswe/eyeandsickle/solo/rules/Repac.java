@@ -1,14 +1,18 @@
 package io.github.stoicswe.eyeandsickle.solo.rules;
 
+import java.math.BigInteger;
+import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.protocol.game.PackageManifest;
 import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
 import io.github.stoicswe.eyeandsickle.protocol.game.UnlockGate;
+import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.Catalogue;
 import io.github.stoicswe.eyeandsickle.solo.fs.VirtualFs;
 import io.github.stoicswe.eyeandsickle.solo.net.TransferRules;
 import io.github.stoicswe.eyeandsickle.solo.state.ItemState;
 import io.github.stoicswe.eyeandsickle.solo.state.LedgerEntryState;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
+import io.github.stoicswe.eyeandsickle.solo.state.TaskState;
 import io.github.stoicswe.eyeandsickle.solo.state.StoredFileState;
 import java.time.Instant;
 import java.util.Optional;
@@ -56,8 +60,33 @@ public final class Repac {
 
     private Repac() {}
 
-    /** What Repac produces. Installable, sellable, and gone once either happens. */
+    /** What Repac produces for ordinary software. Installable, sellable, gone once either happens. */
     public static final String PACKAGE_SUFFIX = ".upg";
+
+    /**
+     * What Repac produces for <b>firmware</b>.
+     *
+     * <h2>⚠ It replaces {@code .upg}, and it does NOT replace {@code .pkg}</h2>
+     *
+     * The pipeline is {@code .pkg → .frm} for firmware and {@code .pkg → .upg} for software. The
+     * first arrow is unchanged on purpose: <b>the {@code .pkg} rename IS the confirmation lock</b>
+     * (`docs/design/04-mining.md` §1.3e) — a bought package stays a vendor package until its payment
+     * is mined, and it is derived from the ledger row on every read so no flag can disagree with the
+     * chain. Naming firmware {@code .frm} at both ends would leave firmware with no rename to make,
+     * and a firmware image bought from the market would become installable before its money moved.
+     *
+     * <p>What {@code .frm} buys is that the class is visible in {@code ls}, the file manager and the
+     * shell without any of them knowing what firmware is — the same argument that made
+     * {@code .pkg}/{@code .upg} worth distinguishing in the first place.
+     */
+    public static final String FIRMWARE_SUFFIX = ".frm";
+
+    /** The suffix Repac gives this item: {@code .frm} for firmware, {@code .upg} for everything else. */
+    public static String installableSuffix(String itemType) {
+        return Catalogue.byId(itemType).map(Catalogue.Offering::firmware).orElse(false)
+                ? FIRMWARE_SUFFIX
+                : PACKAGE_SUFFIX;
+    }
 
     /** What arrives off somebody else's machine — a vendor package, not yet ours. */
     public static final String PAYLOAD_SUFFIX = ".pkg";
@@ -83,7 +112,8 @@ public final class Repac {
      */
     public static StoredFileState arrive(
             SoloSave save, String directory, String name, String sourceAddress,
-            long bytes, String itemType, Instant now) {
+            long bytes, String itemType,
+            io.github.stoicswe.eyeandsickle.protocol.game.UpgradeVersion version, Instant now) {
         StoredFileState file = new StoredFileState();
         file.directory = VirtualFs.normalise(directory);
         file.name = name;
@@ -92,6 +122,7 @@ public final class Repac {
         file.itemType = itemType == null ? "" : itemType;
         file.kind = name.endsWith(PAYLOAD_SUFFIX) ? "payload" : "document";
         file.at = now;
+        file.version = version == null ? "" : version.toString();
         save.files.add(file);
         return file;
     }
@@ -110,7 +141,7 @@ public final class Repac {
             return Optional.empty();
         }
         file.name = file.name.substring(0, file.name.length() - PAYLOAD_SUFFIX.length())
-                + PACKAGE_SUFFIX;
+                + installableSuffix(file.itemType);
         file.kind = "package";
         file.at = now;
         return Optional.of(file);
@@ -252,7 +283,26 @@ public final class Repac {
          * transaction was mined would be a purchase with no settlement, which is the one thing a
          * chain is for.
          */
-        UNCONFIRMED
+        UNCONFIRMED,
+
+        /**
+         * Firmware whose schematic the player does not hold.
+         *
+         * <p>⚠ The image is the payload and the schematic is the authorisation; neither alone does
+         * anything. This is the half that keeps <b>I2</b> intact — the image is purchasable, so if
+         * flashing it needed nothing else, money would have bought a permanent capability.
+         */
+        NO_SCHEMATIC,
+
+        /**
+         * Firmware for a tool that is currently running.
+         *
+         * <p>⚠ A refusal, never a warning, and never an offer to stop the tool automatically. Firmware
+         * sits underneath the program using it, real flashing tools refuse for exactly this reason,
+         * and a half-written firmware is how a device is bricked. Stopping the player's mining on
+         * their behalf would also silently cost them income they did not agree to lose.
+         */
+        TOOL_RUNNING
     }
 
     /**
@@ -287,10 +337,15 @@ public final class Repac {
 
 
     /** The outcome of an install or a sale. */
-    public record Result(boolean ok, Refusal refusal, String message, long minorUnits) {
+    public record Result(boolean ok, Refusal refusal, String message, BigInteger wei) {
 
         static Result refused(Refusal refusal, String message) {
-            return new Result(false, refusal, message, 0L);
+            return new Result(false, refusal, message, BigInteger.ZERO);
+        }
+
+        /** The same, for a caller outside this package that has its own refusal to report. */
+        public static Result refusedPublic(Refusal refusal, String message) {
+            return refused(refusal, message);
         }
     }
 
@@ -336,17 +391,266 @@ public final class Repac {
                             + ". This copy is worth more sold than installed.");
         }
 
+        // ── firmware: two conditions, in the order the player can act on them ─────────────────
+        //
+        // ⚠ The schematic check comes FIRST. A player who is missing both is told the thing they
+        // cannot fix by stopping mining — telling them to stop mining, and then refusing again for a
+        // schematic they were never going to have, costs them their hashrate for nothing.
+        var offering = Catalogue.byId(file.itemType);
+        if (offering.map(Catalogue.Offering::firmware).orElse(false)) {
+            String schematic = offering.get().requiresSchematic();
+            if (save.schematics == null || !save.schematics.contains(schematic)) {
+                return Result.refused(Refusal.NO_SCHEMATIC,
+                        displayName(file.itemType) + " is firmware. Flashing it needs the "
+                                + schematic + " schematic, which is recovered rather than bought -- "
+                                + "the image on its own is inert. Keep it; it does not expire.");
+            }
+            String running = runningTool(save, offering.get().stopsTool());
+            if (!running.isBlank()) {
+                return Result.refused(Refusal.TOOL_RUNNING,
+                        displayName(file.itemType) + " is firmware, and firmware sits underneath the "
+                                + "program using it. " + running + " Stop it and flash again.");
+            }
+        }
+
+        // ⚠ Firmware does not install; it FLASHES, and flashing is a task. The file stays on disk
+        // for the duration and is consumed on completion — a file removed at the start would leave a
+        // player who quit mid-flash with neither the image nor the tool.
+        if (offering.map(Catalogue.Offering::firmware).orElse(false)) {
+            return beginFlash(save, file, now);
+        }
+
         ItemState item = new ItemState();
         item.itemType = file.itemType;
         item.displayName = displayName(file.itemType);
         item.tier = StorageTier.VAULT.name();
         item.acquiredAt = now;
         item.origin = file.sourceAddress.isBlank() ? "recovered" : "taken from " + file.sourceAddress;
+        // The build carries over from the package. Without this an installed tool would have no
+        // version at all and every later comparison against it would be against nothing.
+        item.version = file.version;
         save.items.add(item);
         save.files.remove(file);
 
         return new Result(true, null,
-                "installed " + item.displayName + " — the package is consumed", 0L);
+                "installed " + item.displayName + " — the package is consumed", BigInteger.ZERO);
+    }
+
+    // ── flashing ──────────────────────────────────────────────────────────────────────────────
+
+    /** The task kind a firmware flash runs under. */
+    public static final String FLASH_KIND = "flash";
+
+    /**
+     * Starts the flash.
+     *
+     * <h2>⚠ A task, not a pause — it survives a quit and settles on the way back in</h2>
+     *
+     * Every other timed thing in this game is a {@code TaskState} in {@code save.tasks} and this is
+     * no different: closing the client mid-flash must not lose the image, and a flash that only
+     * advanced while a window was open would be a device that stops writing its own memory when
+     * nobody is looking. {@code SoloGame.resume} settles it on load for the same reason a scan does.
+     *
+     * <p>⚠ <b>It holds no compute.</b> Flashing is the device writing itself, not this rig computing
+     * — the same argument that makes a transfer free of cycles ({@code TransferRules}). What it costs
+     * is the tool being down, which is a real cost precisely because mining is frozen.
+     */
+    private static Result beginFlash(SoloSave save, StoredFileState file, Instant now) {
+        if (flashing(save).isPresent()) {
+            return Result.refused(Refusal.TOOL_RUNNING,
+                    "A firmware flash is already running. One at a time — two writes to the same "
+                            + "device is how it is bricked.");
+        }
+        TaskState task = new TaskState(
+                FLASH_KIND,
+                "flashing " + displayName(file.itemType),
+                "",
+                0L,
+                now,
+                now.plusSeconds(Balance.FIRMWARE_FLASH_SECONDS));
+        // The file's path rides on the task: the tick that completes this minutes later has no other
+        // way to know which image it was writing.
+        task.outcome = file.path();
+        save.tasks.add(task);
+        EventLog.notice(save, "storage",
+                "flashing " + displayName(file.itemType) + " -- "
+                        + Balance.FIRMWARE_FLASH_SECONDS + "s. The mining tool is frozen until it "
+                        + "finishes. Do not expect it back before then.", now);
+        return new Result(true, null,
+                "flashing " + displayName(file.itemType) + " — the mining tool is frozen for "
+                        + Balance.FIRMWARE_FLASH_SECONDS + "s", BigInteger.ZERO);
+    }
+
+    /** The flash in progress, if there is one. */
+    public static Optional<TaskState> flashing(SoloSave save) {
+        return save == null || save.tasks == null
+                ? Optional.empty()
+                : save.tasks.stream().filter(task -> FLASH_KIND.equals(task.kind)).findFirst();
+    }
+
+    /**
+     * Which tool a running flash has frozen, or empty.
+     *
+     * <p>⚠ Read from the CATALOGUE via the task's file, not stored on the task. A tool id copied onto
+     * the task is a second record of which tool this firmware affects, and the two would eventually
+     * disagree with the offering that decides every other rule about it.
+     */
+    public static String frozenTool(SoloSave save) {
+        return flashing(save)
+                .flatMap(task -> save.files.stream()
+                        .filter(file -> file.path().equals(task.outcome))
+                        .findFirst())
+                .flatMap(file -> Catalogue.byId(file.itemType))
+                .map(Catalogue.Offering::stopsTool)
+                .orElse("");
+    }
+
+    /**
+     * Completes a flash: the item is owned and the image is consumed.
+     *
+     * <p>⚠ Consumed HERE rather than at the start. A player who quits mid-flash comes back to the
+     * image still on disk and the flash settling on load; had it been removed up front, an
+     * interrupted flash would have cost them the image and given nothing back.
+     */
+    public static Optional<ItemState> completeFlash(SoloSave save, TaskState task, Instant now) {
+        Optional<StoredFileState> file = save.files.stream()
+                .filter(entry -> entry.path().equals(task.outcome))
+                .findFirst();
+        if (file.isEmpty()) {
+            // The image is gone — a hand-edited save, or a delete during the flash. Nothing to grant,
+            // and nothing to repair: silently dropping the task is the only honest outcome.
+            return Optional.empty();
+        }
+        StoredFileState image = file.get();
+        ItemState item = new ItemState();
+        item.itemType = image.itemType;
+        item.displayName = displayName(image.itemType);
+        item.tier = StorageTier.VAULT.name();
+        item.acquiredAt = now;
+        item.origin = image.sourceAddress.isBlank() ? "flashed" : "flashed from " + image.sourceAddress;
+        item.version = image.version;
+        save.items.add(item);
+        save.files.remove(image);
+        return Optional.of(item);
+    }
+
+    /**
+     * Why the tool this firmware affects cannot be interrupted right now, or empty if it can.
+     *
+     * <h2>⚠ Deployed miners count, and they are the case worth getting right</h2>
+     *
+     * Self-mining is the obvious half and a player will think of it. A miner sitting on somebody
+     * else's machine is the half they will not: it is <em>this rig's</em> mining tool driving it
+     * (the host supplies the compute — <b>I6</b> — not the software), so flashing while one runs is
+     * the same interrupted write. Naming the count in the refusal is what makes that discoverable
+     * rather than mystifying.
+     *
+     * <p>Returns a sentence rather than a boolean because the caller has to say <em>what</em> is
+     * running; "the tool is running" about a rig with five deployed miners and no self-mining sends
+     * the player to look at the wrong readout.
+     */
+    /**
+     * Why {@code offering}'s firmware cannot be flashed right now, or empty.
+     *
+     * <p>Public so Get Info can say it <b>before</b> the transfer, using the same call
+     * {@code install} refuses with. Two derivations of "is the tool running" would eventually
+     * disagree, and the shape of that bug is a panel promising an install that then refuses.
+     */
+    public static String blockedBy(SoloSave save, Catalogue.Offering offering) {
+        return offering == null || !offering.firmware()
+                ? ""
+                : runningTool(save, offering.stopsTool());
+    }
+
+    private static String runningTool(SoloSave save, String tool) {
+        if (!Catalogue.MINING_TOOL.equals(tool)) {
+            // Only the mining tool has a running state modelled today. Anything else is refused
+            // nothing — an unknown tool must not silently block an install forever.
+            return "";
+        }
+        long deployed = save.knownNodes.stream()
+                .mapToLong(node -> node.deployedMiners.size())
+                .sum();
+        boolean selfMining = save.rig != null && save.rig.selfMiningCycles > 0;
+        if (selfMining && deployed > 0) {
+            return "Mining is running: " + save.rig.selfMiningCycles + " cycles self-mining and "
+                    + deployed + " deployed miner(s).";
+        }
+        if (selfMining) {
+            return "Mining is running: " + save.rig.selfMiningCycles + " cycles self-mining.";
+        }
+        if (deployed > 0) {
+            return deployed + " deployed miner(s) are still running this rig's mining tool -- they "
+                    + "spend the host's compute, not yours, but the software being flashed is ours.";
+        }
+        return "";
+    }
+
+    // ── deleting ──────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Deletes a file from this rig.
+     *
+     * <h2>Why this is allowed freely, and why it is not a menu item that just does it</h2>
+     *
+     * Downloads accumulate. A player who has raided a dozen machines has a dozen packages they will
+     * never install and cannot sell (the schematic-gated ones — <b>I2</b>), and a filesystem you can
+     * only add to is not a filesystem. Deleting your own files is the most ordinary thing a computer
+     * does, and refusing it would be the fiction breaking in a way nothing else here does.
+     *
+     * <p>⚠ <b>Only files this rig actually stores.</b> Everything else in the tree is <em>generated</em>
+     * — {@code VirtualFs} derives the system tree, the app bundles and the vault views from state and
+     * stores none of it, deliberately ({@code VirtualFs}'s class comment: a stored tree is a cache of
+     * game state that eventually disagrees with it). There is nothing to delete, so the refusal says
+     * so rather than pretending to succeed and leaving the entry on screen.
+     *
+     * <h2>⚠ It is genuinely destructive, and the caller must have confirmed</h2>
+     *
+     * A {@code .frm} is worth 180 EC and a {@code .upg} rather less, and neither comes back. This rule
+     * does not ask — asking is the interface's job and the shell's {@code rm} would be wrong to — but
+     * it <b>logs what was lost</b>, including the resale value, because an item that vanishes with no
+     * trace is indistinguishable from a bug.
+     *
+     * @return what happened, in the rules' own words
+     */
+    public static Result delete(SoloSave save, String path, Instant now) {
+        Optional<StoredFileState> found = at(save, path);
+        if (found.isEmpty()) {
+            return Result.refused(Refusal.NO_SUCH_FILE,
+                    "Nothing to delete at " + path + ". Only files this rig actually stores can be "
+                            + "removed -- the system tree, application bundles and vault views are "
+                            + "generated from state, not kept on disk.");
+        }
+        StoredFileState file = found.get();
+        // ⚠ A file being written cannot be deleted. `completeFlash` handles a missing image by
+        // dropping the task silently, so without this the player would delete mid-flash, wait out
+        // the remaining minute, and get nothing — with the log saying a flash had run.
+        if (flashing(save).filter(task -> file.path().equals(task.outcome)).isPresent()) {
+            return Result.refused(Refusal.TOOL_RUNNING,
+                    file.name + " is being flashed right now. Deleting the image mid-write is how a "
+                            + "device is bricked -- wait for it to finish.");
+        }
+
+        save.files.remove(file);
+        // ⚠ The value is named on the way out. A player who deletes a 180 EC firmware image by
+        // accident deserves to find out from the log rather than from the market three days later.
+        BigInteger worth = "package".equals(file.kind) && sellable(file.itemType)
+                ? resaleValue(file.itemType,
+                        io.github.stoicswe.eyeandsickle.protocol.game.UpgradeVersion.parse(file.version))
+                : BigInteger.ZERO;
+        EventLog.notice(save, "storage",
+                "deleted " + file.name + " from " + file.directory
+                        + (worth.signum() > 0 ? " -- it would have sold for " + Ethecoin.format(worth) + "." : "."),
+                now);
+        return new Result(true, null, "deleted " + file.name, BigInteger.ZERO);
+    }
+
+    /** The stored file at this path, if this rig has one. */
+    private static Optional<StoredFileState> at(SoloSave save, String path) {
+        String normalised = VirtualFs.normalise(path);
+        return save == null || save.files == null
+                ? Optional.empty()
+                : save.files.stream().filter(file -> file.path().equals(normalised)).findFirst();
     }
 
     // ── selling ───────────────────────────────────────────────────────────────────────────────
@@ -365,11 +669,30 @@ public final class Repac {
                 .orElse(false);
     }
 
-    /** What a copy fetches. Below retail — see {@link #RESALE_PERCENT}. */
-    public static long resaleValue(String itemType) {
+    /**
+     * What a copy of this build fetches.
+     *
+     * <p>⚠ The version is the <b>only</b> thing about a package that changes a number anywhere in the
+     * game — see {@code solo/rules/Versions}. It moves what a copy is worth and nothing else, which
+     * is what keeps raiding harder machines a reward in value rather than a ladder to a capability
+     * ceiling nobody sold (<b>I2</b>).
+     */
+    public static BigInteger resaleValue(String itemType, io.github.stoicswe.eyeandsickle.protocol.game.UpgradeVersion version) {
+        return Versions.resaleWei(
+                resaleValue(itemType),
+                Catalogue.byId(itemType).map(Catalogue.Offering::priceWei).orElse(BigInteger.ZERO),
+                version == null
+                        ? io.github.stoicswe.eyeandsickle.protocol.game.UpgradeVersion.UNKNOWN
+                        : version);
+    }
+
+    /** What a copy fetches before its build is taken into account. See {@link #RESALE_PERCENT}. */
+    public static BigInteger resaleValue(String itemType) {
         return Catalogue.byId(itemType)
-                .map(offering -> offering.priceMinorUnits() * RESALE_PERCENT / 100L)
-                .orElse(0L);
+                .map(offering -> offering.priceWei()
+                        .multiply(BigInteger.valueOf(RESALE_PERCENT))
+                        .divide(BigInteger.valueOf(100L)))
+                .orElse(BigInteger.ZERO);
     }
 
     /**
@@ -405,7 +728,7 @@ public final class Repac {
                             + "into ethecoin. Nobody sells a way past a schematic. You can still "
                             + "use it.");
         }
-        long value = resaleValue(file.itemType);
+        BigInteger value = resaleValue(file.itemType);
         save.files.remove(file);
         return new Result(true, null,
                 "sold " + displayName(file.itemType) + " on the secondary market", value);

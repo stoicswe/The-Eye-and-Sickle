@@ -101,6 +101,37 @@ public final class NodeReports {
         return report;
     }
 
+    /**
+     * How complete a machine's file is, {@code 0} to {@code 1}.
+     *
+     * <p>The fraction of {@link PortScanTarget}s that have ever been established, which is what
+     * "how much do I know about this machine" means when the findings are the only things knowable.
+     * Every finding counts the same: they are ordered by how hard they are to reach
+     * ({@code PortScanTarget}'s depth), and that ordering is already priced into what a scan costs —
+     * weighting them here as well would charge for the same difficulty twice.
+     *
+     * <p>⚠ <b>Staleness is deliberately not considered.</b> A finding that was true a week ago still
+     * counts as known. The report already carries a per-finding {@code learnedAt} and shows its age,
+     * so a player can see what has gone cold; making an old finding silently stop counting would move
+     * the odds under them with nothing on screen changing.
+     *
+     * <p>A machine with no file at all is {@code 0}, which is the honest answer and the one that
+     * makes an unscanned target behave as the default.
+     */
+    public static double known(SoloSave save, String address) {
+        return find(save, address)
+                .map(state -> {
+                    int found = 0;
+                    for (PortScanTarget target : PortScanTarget.values()) {
+                        if (state.learnedAt.containsKey(target.name())) {
+                            found++;
+                        }
+                    }
+                    return found / (double) PortScanTarget.values().length;
+                })
+                .orElse(0.0d);
+    }
+
     /** One machine's file, rendered for the interface. */
     public static NodeReport read(SoloSave save, NodeReportState state) {
         String label = save.knownNodes.stream()

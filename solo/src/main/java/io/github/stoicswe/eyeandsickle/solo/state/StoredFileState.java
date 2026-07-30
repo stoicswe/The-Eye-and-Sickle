@@ -65,6 +65,16 @@ public final class StoredFileState {
      */
     public String payloadSalt = "";
 
+    /**
+     * Which build this package carries — {@code "v2.4"}, empty for anything that is not an upgrade.
+     *
+     * <p>⚠ Recorded at ARRIVAL, not derived on read. The version comes from the machine it was taken
+     * off, and that machine's tier can change (it can be patched, or the world re-generated around
+     * it) — a package whose version was re-derived every time it was looked at would silently change
+     * build while sitting in Downloads, which is the one thing a version must never do.
+     */
+    public String version = "";
+
     public String path() {
         return directory + "/" + name;
     }

@@ -64,7 +64,8 @@ class GateEvaluatorTest {
                 UUID.randomUUID(),
                 character.accountDid(),
                 character.slot(),
-                Ethecoin.ofMinorUnits(balanceMinor),
+                Ethecoin.ofWei(java.math.BigInteger.valueOf(balanceMinor)
+                        .multiply(Ethecoin.WEI_PER_ETHECOIN).divide(java.math.BigInteger.valueOf(100))),
                 new BigDecimal(heat),
                 0L);
     }
@@ -117,7 +118,7 @@ class GateEvaluatorTest {
     class EthecoinGate {
 
         private final GatedOffering offering =
-                GatedOffering.single("fuzzer", new EthecoinCost(Ethecoin.ofMinorUnits(2_500)));
+                GatedOffering.single("fuzzer", new EthecoinCost(Ethecoin.ofDecimal("25")));
 
         @Test
         @DisplayName("a balance above the price satisfies the gate")
@@ -366,7 +367,7 @@ class GateEvaluatorTest {
         private final GatedOffering relayChain = GatedOffering.split(
                 "relay-chain",
                 new SchematicRequirement("relay-chain-framework"),
-                new EthecoinCost(Ethecoin.ofMinorUnits(500)));
+                new EthecoinCost(Ethecoin.ofDecimal("5")));
 
         @Test
         @DisplayName("both halves met -> satisfied, and both outcomes are reported, primary first")
@@ -424,8 +425,8 @@ class GateEvaluatorTest {
         void accountReadOnce() {
             accounts.with(account(DID, 1_000, "10"));
             List<GatedOffering> offerings = List.of(
-                    GatedOffering.single("a", new EthecoinCost(Ethecoin.ofMinorUnits(500))),
-                    GatedOffering.single("b", new EthecoinCost(Ethecoin.ofMinorUnits(2_000))),
+                    GatedOffering.single("a", new EthecoinCost(Ethecoin.ofDecimal("5"))),
+                    GatedOffering.single("b", new EthecoinCost(Ethecoin.ofDecimal("20"))),
                     GatedOffering.single(
                             "c", new HeatStateRequirement(HeatDirection.COLD_GATED, new BigDecimal("20"))));
 

@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.solo.net;
 
+import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeConsumer;
 import io.github.stoicswe.eyeandsickle.protocol.game.DifficultyTier;
 import io.github.stoicswe.eyeandsickle.protocol.game.HostKind;
@@ -625,11 +626,11 @@ public final class NetRules {
             if (!host.looted) {
                 host.looted = true;
                 changed = true;
-                if (host.lootMinorUnits > 0) {
-                    LedgerRules.apply(save, host.lootMinorUnits, LOOT_LEDGER_TYPE,
+                if (host.lootWei.signum() > 0) {
+                    LedgerRules.apply(save, host.lootWei, LOOT_LEDGER_TYPE,
                             "Recovered from " + host.address, now);
                     EventLog.info(save, "net",
-                            money(host.lootMinorUnits) + " recovered from " + host.address + ".", now);
+                            Ethecoin.format(host.lootWei) + " recovered from " + host.address + ".", now);
                 }
             }
         }
@@ -868,8 +869,4 @@ public final class NetRules {
         }
     }
 
-    /** Matches {@code SoloGame}'s formatting, so the two never print the same figure differently. */
-    private static String money(long minorUnits) {
-        return String.format(Locale.ROOT, "%d.%02d EC", minorUnits / 100, Math.abs(minorUnits % 100));
-    }
 }

@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.protocol.game;
 
+import java.math.BigInteger;
 import java.time.Instant;
 
 /**
@@ -27,14 +28,14 @@ import java.time.Instant;
  * @param blocksUntilRetarget how many blocks until difficulty is recalculated
  * @param expectedPayoutSeconds mean seconds between payouts at this hashrate and mode
  * @param secondsSinceLastPayout how long it has actually been, or -1 if nothing has ever landed
- * @param expectedMinorUnitsPerHour the long-run rate — equal in both modes but for the pool's fee
- * @param payoutMinorUnits what one payout is worth: a whole block subsidy, or one share
+ * @param expectedWeiPerHour the long-run rate — equal in both modes but for the pool's fee
+ * @param payoutWei what one payout is worth: a whole block subsidy, or one share
  * @param lifetimePayouts blocks found, or shares accepted
- * @param lifetimeMinorUnits everything mining has ever paid this character
+ * @param lifetimeWei everything mining has ever paid this character
  * @param poolFeeBasisPoints the pool's cut, in hundredths of a percent; 0 when solo
  * @param lastPayoutAt when the last payout landed, or null
  * @param pool the pool this rig mines with, or null when solo
- * @param pendingMinorUnits earned but not yet paid out — the pool's internal balance for this rig
+ * @param pendingWei earned but not yet paid out — the pool's internal balance for this rig
  * @param secondsUntilSettle how long until the pool pays up, or 0 when solo or nothing is pending
  * @param noiseCycles how loud being pooled makes this rig, in cycle-equivalents; 0 when solo
  */
@@ -49,14 +50,14 @@ public record MiningSnapshot(
         long blocksUntilRetarget,
         double expectedPayoutSeconds,
         long secondsSinceLastPayout,
-        long expectedMinorUnitsPerHour,
-        long payoutMinorUnits,
+        BigInteger expectedWeiPerHour,
+        BigInteger payoutWei,
         long lifetimePayouts,
-        long lifetimeMinorUnits,
+        BigInteger lifetimeWei,
         int poolFeeBasisPoints,
         Instant lastPayoutAt,
         MiningPool pool,
-        long pendingMinorUnits,
+        BigInteger pendingWei,
         long secondsUntilSettle,
         long noiseCycles) {
 

@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.protocol.game;
 
+import java.math.BigInteger;
 import java.time.Instant;
 
 /**
@@ -14,9 +15,9 @@ import java.time.Instant;
  * is "where did my hashrate go", and a tab that showed only the blocks that paid would make PPS look
  * like a mode that mines nothing.
  *
- * <p>That is also the tab's teaching. {@link #creditedMinorUnits} sitting at zero on a PPS row beside
+ * <p>That is also the tab's teaching. {@link #creditedWei} sitting at zero on a PPS row beside
  * a real {@link #hashrate} is the difference between the two pool schemes rendered as a table, which
- * is a thing {@code MiningRules.rewardBaseMinorUnits} spends three paragraphs on and no screen had
+ * is a thing {@code MiningRules.rewardBaseWei} spends three paragraphs on and no screen had
  * ever shown.
  *
  * <h2>⚠ The subsidy and the fees are separate fields and must stay separate</h2>
@@ -24,7 +25,7 @@ import java.time.Instant;
  * They are one credit in the ledger and two different things on the chain: the subsidy is
  * <b>minted</b> — those coins did not exist before this block — and the fees were <b>paid by the
  * senders</b> of the transactions in it. {@code proof-of-work(7)} teaches exactly that split, and a
- * single "reward" total hides it. {@link #rewardMinorUnits()} adds them for anyone who wants the sum.
+ * single "reward" total hides it. {@link #rewardWei()} adds them for anyone who wants the sum.
  *
  * <h2>Nothing here is stored except what was rolled</h2>
  *
@@ -45,9 +46,9 @@ import java.time.Instant;
  * @param networkHashrate the whole chain's, at the time
  * @param difficulty the difficulty the block was mined against
  * @param transactions how many transactions it carried
- * @param subsidyMinorUnits the coinbase — newly minted coins
- * @param feesMinorUnits what the senders in the block paid, collected by whoever mined it
- * @param creditedMinorUnits what actually reached this character. The whole reward when solo, a cut
+ * @param subsidyWei the coinbase — newly minted coins
+ * @param feesWei what the senders in the block paid, collected by whoever mined it
+ * @param creditedWei what actually reached this character. The whole reward when solo, a cut
  *     of it under PPLNS, and zero under PPS, which pays per share instead.
  */
 public record BlockContribution(
@@ -63,13 +64,13 @@ public record BlockContribution(
         long networkHashrate,
         double difficulty,
         int transactions,
-        long subsidyMinorUnits,
-        long feesMinorUnits,
-        long creditedMinorUnits) {
+        BigInteger subsidyWei,
+        BigInteger feesWei,
+        BigInteger creditedWei) {
 
     /** Everything the block was worth to whoever mined it: minted coins plus collected fees. */
-    public long rewardMinorUnits() {
-        return subsidyMinorUnits + feesMinorUnits;
+    public BigInteger rewardWei() {
+        return subsidyWei.add(feesWei);
     }
 
     /**
@@ -85,13 +86,21 @@ public record BlockContribution(
 
     /** What this row paid as a fraction of what the block was worth. 1 when solo, 0 under PPS. */
     public double takeFraction() {
-        long reward = rewardMinorUnits();
-        return reward <= 0 ? 0.0d : creditedMinorUnits / (double) reward;
+        BigInteger reward = rewardWei();
+        // ⚠ A ratio, so a double is the right output type — but the DIVISION is done in BigDecimal.
+        // At 18 decimals a wei count routinely exceeds 2^53, past which a double cannot hold an
+        // integer exactly, and `credited / (double) reward` would quietly lose the low digits of both
+        // operands before dividing them.
+        return reward.signum() <= 0
+                ? 0.0d
+                : new java.math.BigDecimal(creditedWei)
+                        .divide(new java.math.BigDecimal(reward), java.math.MathContext.DECIMAL64)
+                        .doubleValue();
     }
 
     /** Whether this row paid anything at all — false for a PPS block, which pays per share. */
     public boolean paid() {
-        return creditedMinorUnits > 0;
+        return creditedWei.signum() > 0;
     }
 
     /** Who mined it, for a column that has to name one: this rig, or the pool it was in. */

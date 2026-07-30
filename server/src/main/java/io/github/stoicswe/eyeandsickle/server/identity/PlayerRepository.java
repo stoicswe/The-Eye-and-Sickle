@@ -28,7 +28,7 @@ import org.springframework.stereotype.Repository;
  *
  * <h2>What this repository will not do (Invariant I1, I14)</h2>
  *
- * It never writes {@code ethecoin_balance_ec_minor} — a balance change is a ledger transaction owned by
+ * It never writes {@code ethecoin_balance_wei} — a balance change is a ledger transaction owned by
  * the economy, written in the same transaction as its ledger row, not a side effect here. New characters
  * are created with a zero balance and the schema's defaults, and this repository leaves it there. It also
  * does not create a {@code rigs} row: a starting rig is the compute system's concern, and this slice
@@ -134,7 +134,7 @@ public class PlayerRepository {
         return jdbcClient
                 .sql("""
                         INSERT INTO players (player_id, did, slot, handle, status, faction, personal_heat,
-                                             ethecoin_balance_ec_minor, created_at, last_seen_at, row_version)
+                                             ethecoin_balance_wei, created_at, last_seen_at, row_version)
                         VALUES (:playerId, :did, :slot, :handle, :status, 'none', 0, 0, :now, :now, 0)
                         RETURNING """
                         // Explicit space: a text block strips trailing whitespace from each line, so
@@ -167,7 +167,7 @@ public class PlayerRepository {
         return jdbcClient
                 .sql("""
                         INSERT INTO players (player_id, did, slot, handle, status, faction, personal_heat,
-                                             ethecoin_balance_ec_minor, created_at, last_seen_at, row_version)
+                                             ethecoin_balance_wei, created_at, last_seen_at, row_version)
                         VALUES (:playerId, NULL, NULL, :handle, :status, 'none', 0, 0, :now, :now, 0)
                         RETURNING """ + " " + PlayerRows.COLUMNS)
                 .param("playerId", UUID.randomUUID())

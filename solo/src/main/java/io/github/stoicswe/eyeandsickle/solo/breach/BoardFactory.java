@@ -23,6 +23,20 @@ import java.util.List;
  * the deeper layers of a hard target a lottery between "the thing I am good at" and "the thing I am
  * not" — which turns a difficulty tier into a coin flip. One roll per attempt means a player who
  * draws the puzzle they are worse at knows it before they spend anything, and can walk away.
+ *
+ * <h2>⚠ The roll is weighted by what the player knows about the machine</h2>
+ *
+ * The <b>offset cipher is the default</b>: it is the puzzle that needs nothing from the far side,
+ * because deriving an offset from ciphertext is what you do when you have no other handle. Breach
+ * Protocol is the puzzle of someone who already knows the host, so the odds of drawing it rise with
+ * how much of the port-scan report is filled in — from {@code BREACH_PROTOCOL_SHARE} against a
+ * machine nobody has looked at to {@code BREACH_PROTOCOL_SHARE_INFORMED} against a fully scanned one.
+ *
+ * <p>That is the whole of RECON's mechanical consequence. Before this, a report was intelligence the
+ * player read and acted on by hand; now it changes what the breach <em>is</em>. ⚠ It buys a
+ * <b>different</b> puzzle rather than an easier one — nothing about the tier, the attention budget,
+ * the strike limit or the layer count moves — so it must not become a discount if either puzzle is
+ * ever re-tuned.
  */
 public final class BoardFactory {
 
@@ -41,10 +55,20 @@ public final class BoardFactory {
     private static final List<String> GOAL_LABELS =
             List.of("BASIC DATAMINE", "ADVANCED DATAMINE", "MASTER DATAMINE");
 
-    /** Builds every layer and its board. Called once, from {@code BreachRules.begin}. */
-    public static void build(BreachState breach, Rng rng) {
+    /**
+     * Builds every layer and its board. Called once, from {@code BreachRules.begin}.
+     *
+     * @param known how complete the target's port-scan report is, {@code 0} to {@code 1}. Zero for a
+     *     machine nothing has been learned about, and for the tutorial miner crack — which has no
+     *     address to hold a report and correctly gets the default puzzle
+     */
+    public static void build(BreachState breach, Rng rng, double known) {
         int tier = breach.difficultyTier;
-        PuzzleClass puzzle = rng.nextDouble() < Balance.BREACH_PROTOCOL_SHARE
+        // ⚠ One draw, unconditionally, whatever the weight — including at a weight of zero. Rng's
+        // contract is that consumption must not depend on what was produced or on the inputs, or a
+        // stored seed stops being a replay; skipping the roll for an unscanned machine would make
+        // every later draw in the breach depend on whether the player had scanned it.
+        PuzzleClass puzzle = rng.nextDouble() < Balance.breachProtocolShare(known)
                 ? PuzzleClass.BREACH_PROTOCOL
                 : PuzzleClass.OFFSET_CIPHER;
         breach.puzzleClass = puzzle.name();

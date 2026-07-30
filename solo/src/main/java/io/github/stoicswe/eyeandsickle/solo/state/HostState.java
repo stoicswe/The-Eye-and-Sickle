@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.solo.state;
 
+import java.math.BigInteger;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -170,7 +171,20 @@ public final class HostState {
      * {@code NetRules.reconcileFootholds} rather than created by the attempt. Flagged for the
      * integrator to log in {@code docs/design/15-open-questions.md} §3.
      */
-    public long lootMinorUnits = 0L;
+    /**
+     * ⚠ {@code @JsonAlias} carries the PRE-WEI key, and a save is lost without it.
+     *
+     * <p>The field was {@code lootMinorUnits} when an ethecoin was 100 minor units. Jackson has
+     * {@code FAIL_ON_UNKNOWN_PROPERTIES} off — deliberately, so a save from a newer build still opens
+     * — which means a key it does not recognise is <b>silently dropped</b>. Renaming the field without
+     * this alias therefore does not fail: it loads the save, leaves every amount at its initialiser,
+     * and hands the player a balance of zero with nothing anywhere saying why.
+     *
+     * <p>Measured, not theorised. A real pre-migration save loaded as {@code 0 EC} across the board,
+     * and the only reason it was noticed at all is that one field had no initialiser and threw.
+     */
+    @com.fasterxml.jackson.annotation.JsonAlias("lootMinorUnits")
+    public BigInteger lootWei = BigInteger.ZERO;
 
     /** Whether the payout has been taken. Checked before crediting, so a host pays exactly once. */
     public boolean looted = false;

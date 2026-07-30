@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.client.view;
 
+import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.client.session.GameSession;
 import io.github.stoicswe.eyeandsickle.protocol.game.UnlockGate;
 import java.util.List;
@@ -88,7 +89,7 @@ public final class MoreViews {
             name.getStyleClass().add("es-panel-title");
             Label desc = wrapped(o.description());
             Label terms = new Label(o.purchasable()
-                    ? money(o.priceMinorUnits()) + (o.equippedCycles() > 0
+                    ? Ethecoin.format(o.priceWei()) + (o.equippedCycles() > 0
                             ? "   ·   " + o.equippedCycles() + " cycles while armed" : "")
                     : o.gate().name().toLowerCase(Locale.ROOT).replace('_', '-') + " gate");
             terms.getStyleClass().add(o.purchasable() ? "es-ethecoin" : "es-state-unreachable");
@@ -306,9 +307,6 @@ public final class MoreViews {
         return l;
     }
 
-    private static String money(long minorUnits) {
-        return String.format(Locale.ROOT, "%d.%02d EC", minorUnits / 100, Math.abs(minorUnits % 100));
-    }
 
     private static void styleByOutcome(Label label, GameSession.Outcome outcome) {
         label.getStyleClass().removeAll("es-state-refused", "es-state-unreachable");

@@ -151,8 +151,9 @@ public final class BootSequence extends StackPane {
                 : "[  ok  ] self-mining " + mining.selfMiningCycles() + " cycles",
                 mining.selfMiningCycles() == 0 ? "es-boot-warn" : "es-boot-ok", false));
 
-        script.add(new Line("[  ok  ] ledger " + String.format(
-                Locale.ROOT, "%.2f EC", session.balance().minorUnits() / 100.0d), "es-boot-ok", true));
+        // ⚠ Ethecoin.format, not a local "%.2f" — that was one of the thirteen private formatters, and
+        // at 18 decimals a fixed two-place format would round a real amount away on the boot screen.
+        script.add(new Line("[  ok  ] ledger " + session.balance(), "es-boot-ok", true));
 
         // The one line that is not reassuring. It is also true: this is a game about being watched,
         // and the client genuinely does not know whether anything is looking.

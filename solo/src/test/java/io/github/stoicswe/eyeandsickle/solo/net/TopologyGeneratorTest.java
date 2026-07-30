@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.solo.net;
 
+import static io.github.stoicswe.eyeandsickle.solo.support.Money.ec;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.stoicswe.eyeandsickle.protocol.game.DifficultyTier;
@@ -274,7 +275,7 @@ class TopologyGeneratorTest {
                     // the target list — a save that cannot render its own network.
                     assertThat(host.firewallTier).as("firewall of %s", host.address).isBetween(0, 3);
                     assertThat(host.detectRoll).isBetween(0.0d, 1.0d);
-                    assertThat(host.lootMinorUnits).isNotNegative();
+                    assertThat(host.lootWei).isNotNegative();
                 }
             }
         }
@@ -286,7 +287,7 @@ class TopologyGeneratorTest {
                 TopologyState topology = NetTestKit.world(seed(i)).topology;
                 for (HostState host : topology.hosts) {
                     if (HostKind.GATEWAY.name().equals(host.kind)) {
-                        assertThat(host.lootMinorUnits).isZero();
+                        assertThat(host.lootWei).isZero();
                         assertThat(host.documentId).isEmpty();
                     }
                 }
@@ -399,7 +400,7 @@ class TopologyGeneratorTest {
         @Test
         @DisplayName("deeper servers carry more machines and more of the world's money")
         void depthRaisesReward() {
-            long[] lootSum = new long[5];
+            double[] lootSum = new double[5];
             long[] count = new long[5];
             for (int i = 0; i < 1_000; i++) {
                 TopologyState topology = NetTestKit.world(seed(i)).topology;
@@ -408,7 +409,10 @@ class TopologyGeneratorTest {
                         continue;
                     }
                     int d = Balance.netDepth(NetTestKit.server(topology, host.serverId).depthFromHome);
-                    lootSum[d] += host.lootMinorUnits;
+                    // ⚠ Summed in EC rather than wei. These are statistical checks over hundreds
+                    // of hosts and the array is a double[]; a wei total passes a double's exact range
+                    // immediately, and the band assertions below are quoted in EC anyway.
+                    lootSum[d] += ec(host.lootWei);
                     count[d]++;
                 }
             }
@@ -431,15 +435,17 @@ class TopologyGeneratorTest {
             // change. docs/design/03-economy.md §5 rule 1's 70 EC/hr cap is untouched because nothing
             // here repeats. If this figure ever climbs into the hundreds, the home server has quietly
             // become a faucet.
-            long total = 0;
+            double total = 0;
             int worlds = 500;
             for (int i = 0; i < worlds; i++) {
                 TopologyState topology = NetTestKit.world(seed(i)).topology;
                 for (HostState host : NetTestKit.hostsOn(topology, NetTestKit.home(topology).serverId)) {
-                    total += host.lootMinorUnits;
+                    total += ec(host.lootWei);
                 }
             }
-            double meanEc = total / (double) worlds / 100.0d;
+            // ⚠ Already in EC — `ec()` divides by the wei scale, so the old /100 for
+            // hundredths would now be a hundredfold understatement.
+            double meanEc = total / worlds;
             assertThat(meanEc).isBetween(40.0d, 130.0d);
         }
     }

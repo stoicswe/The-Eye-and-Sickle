@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.client.view;
 
+import io.github.stoicswe.eyeandsickle.solo.Balance;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.stoicswe.eyeandsickle.protocol.game.BlockContribution;
@@ -73,7 +74,7 @@ class LedgerWindowTest {
         private ChainSync away(long awaySeconds, long minedSeconds, int blocks, int competed) {
             return new ChainSync(
                     T0, T0.plusSeconds(awaySeconds), awaySeconds, minedSeconds,
-                    4412L, 4412L + blocks, blocks, competed, 1, 0, 17_530L, 1,
+                    4412L, 4412L + blocks, blocks, competed, 1, 0, Balance.ec("175.30"), 1,
                     344.53d, 351.06d, 2, false);
         }
 
@@ -149,12 +150,12 @@ class LedgerWindowTest {
         @DisplayName("withCredit changes the credit and nothing else")
         void withCreditKeepsEverythingElse() {
             ChainSync sync = away(604_800, 14_400, 720, 17);
-            ChainSync credited = sync.withCredit(9_999L);
+            ChainSync credited = sync.withCredit(Balance.ec("99.99"));
 
-            assertThat(credited.creditedMinorUnits()).isEqualTo(9_999L);
-            assertThat(credited).isEqualTo(sync.withCredit(sync.creditedMinorUnits())
-                    .withCredit(9_999L));
-            assertThat(credited.withCredit(sync.creditedMinorUnits())).isEqualTo(sync);
+            assertThat(credited.creditedWei()).isEqualTo(Balance.ec("99.99"));
+            assertThat(credited).isEqualTo(sync.withCredit(sync.creditedWei())
+                    .withCredit(Balance.ec("99.99")));
+            assertThat(credited.withCredit(sync.creditedWei())).isEqualTo(sync);
         }
 
         @Test
@@ -174,21 +175,21 @@ class LedgerWindowTest {
     @DisplayName("a contributor row")
     class Contributions {
 
-        private BlockContribution row(String scheme, long credited) {
+        private BlockContribution row(String scheme, java.math.BigInteger credited) {
             return new BlockContribution(
                     4428L, T0, scheme.equals("SOLO") ? MiningMode.SOLO : MiningMode.POOLED,
                     scheme, scheme.equals("SOLO") ? "" : "commons",
                     scheme.equals("SOLO") ? "" : "THE COMMONS",
                     scheme.equals("SOLO"), false,
-                    62_914_560L, 1_761_607_680L, 344.53d, 143, 16_000L, 1_730L, credited);
+                    62_914_560L, 1_761_607_680L, 344.53d, 143, Balance.ec("160"), Balance.ec("17.30"), credited);
         }
 
         @Test
         @DisplayName("a solo win takes the whole reward — both halves of it")
         void soloTakesEverything() {
-            BlockContribution solo = row("SOLO", 17_730L);
-            assertThat(solo.rewardMinorUnits()).isEqualTo(17_730L);
-            assertThat(solo.creditedMinorUnits()).isEqualTo(solo.rewardMinorUnits());
+            BlockContribution solo = row("SOLO", Balance.ec("177.3"));
+            assertThat(solo.rewardWei()).isEqualTo(Balance.ec("177.30"));
+            assertThat(solo.creditedWei()).isEqualTo(solo.rewardWei());
             assertThat(solo.takeFraction()).isEqualTo(1.0d);
             assertThat(solo.minerLabel()).isEqualTo("YOUR RIG");
             assertThat(solo.paid()).isTrue();
@@ -206,11 +207,11 @@ class LedgerWindowTest {
         @Test
         @DisplayName("pay-per-share credits nothing from the block and still names a real hashrate")
         void payPerShareCreditsNothing() {
-            BlockContribution pps = row("PPS", 0L);
+            BlockContribution pps = row("PPS", Balance.ec("0.0"));
             assertThat(pps.paid()).isFalse();
             assertThat(pps.takeFraction()).isZero();
             assertThat(pps.hashrate()).isPositive();
-            assertThat(pps.rewardMinorUnits()).isPositive();
+            assertThat(pps.rewardWei()).isPositive();
             assertThat(pps.minerLabel()).isEqualTo("THE COMMONS");
         }
 
@@ -221,16 +222,16 @@ class LedgerWindowTest {
         @Test
         @DisplayName("share is the rig's fraction of the chain, clamped and never dividing by zero")
         void shareIsTheDrawProbability() {
-            assertThat(row("SOLO", 1L).networkShare()).isCloseTo(0.0357d, org.assertj.core.data.Offset.offset(0.001d));
+            assertThat(row("SOLO", Balance.ec("0.01")).networkShare()).isCloseTo(0.0357d, org.assertj.core.data.Offset.offset(0.001d));
 
             BlockContribution noNetwork = new BlockContribution(
                     1L, T0, MiningMode.SOLO, "SOLO", "", "", true, false,
-                    1_000L, 0L, 1.0d, 1, 16_000L, 0L, 16_000L);
+                    1_000L, 0L, 1.0d, 1, Balance.ec("160"), java.math.BigInteger.ZERO, Balance.ec("160"));
             assertThat(noNetwork.networkShare()).isZero();
 
             BlockContribution wholeChain = new BlockContribution(
                     1L, T0, MiningMode.SOLO, "SOLO", "", "", true, false,
-                    9_000L, 1_000L, 1.0d, 1, 16_000L, 0L, 16_000L);
+                    9_000L, 1_000L, 1.0d, 1, Balance.ec("160"), java.math.BigInteger.ZERO, Balance.ec("160"));
             assertThat(wholeChain.networkShare())
                     .as("a rig cannot be more than all of the chain")
                     .isEqualTo(1.0d);
@@ -239,14 +240,14 @@ class LedgerWindowTest {
         @Test
         @DisplayName("the coinbase and the fees stay separate, and sum to the reward")
         void subsidyAndFeesAreSeparate() {
-            BlockContribution any = row("PPLNS", 3_500L);
+            BlockContribution any = row("PPLNS", Balance.ec("35.0"));
             // One credit in the ledger, two different things on the chain: the subsidy is minted and
             // the fees were paid by the senders. proof-of-work(7) teaches that split and a single
             // "reward" total is exactly the readout that hides it.
-            assertThat(any.subsidyMinorUnits()).isEqualTo(16_000L);
-            assertThat(any.feesMinorUnits()).isEqualTo(1_730L);
-            assertThat(any.rewardMinorUnits())
-                    .isEqualTo(any.subsidyMinorUnits() + any.feesMinorUnits());
+            assertThat(any.subsidyWei()).isEqualTo(Balance.ec("160"));
+            assertThat(any.feesWei()).isEqualTo(Balance.ec("17.30"));
+            assertThat(any.rewardWei())
+                    .isEqualTo(any.subsidyWei().add(any.feesWei()));
             assertThat(any.takeFraction()).isLessThan(1.0d);
         }
     }

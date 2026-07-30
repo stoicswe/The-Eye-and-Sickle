@@ -133,7 +133,7 @@ class NetMapViewTest {
                 String flag, String name, boolean available, String requirement,
                 int sensitivity, long cycles, long seconds) {
             return new io.github.stoicswe.eyeandsickle.client.session.GameSession.SweepOption(
-                    flag, name, available, requirement, 0, sensitivity, cycles, seconds, cycles);
+                    flag, name, available, requirement, java.math.BigInteger.ZERO, sensitivity, cycles, seconds, cycles);
         }
 
         @Test

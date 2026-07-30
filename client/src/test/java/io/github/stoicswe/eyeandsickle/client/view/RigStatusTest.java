@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.client.view;
 
+import static org.assertj.core.api.Assertions.withinPercentage;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 
@@ -35,9 +36,13 @@ class RigStatusTest {
 
     /** How much a block's fees add to a reward that includes them. See MiningRules.rewardBase. */
     private static final double FEE_EXPOSURE =
-            (io.github.stoicswe.eyeandsickle.solo.Balance.BLOCK_SUBSIDY_MINOR_UNITS
-                            + io.github.stoicswe.eyeandsickle.solo.Balance.expectedBlockFeesMinorUnits())
-                    / io.github.stoicswe.eyeandsickle.solo.Balance.BLOCK_SUBSIDY_MINOR_UNITS;
+            new java.math.BigDecimal(
+                            io.github.stoicswe.eyeandsickle.solo.Balance.BLOCK_SUBSIDY_WEI
+                                    .add(io.github.stoicswe.eyeandsickle.solo.Balance.expectedBlockFeesWei()))
+                    .divide(new java.math.BigDecimal(
+                                    io.github.stoicswe.eyeandsickle.solo.Balance.BLOCK_SUBSIDY_WEI),
+                            java.math.MathContext.DECIMAL64)
+                    .doubleValue();
 
     @Nested
     @DisplayName("income projection")
@@ -108,12 +113,15 @@ class RigStatusTest {
             // What the MINING panel prices its slider with while the player is still dragging. The
             // panel must not scale the committed figure itself — that is how the third copy of this
             // rate got into the client and stayed wrong.
-            assertThat(s.miningRateFor(100)).isEqualTo(4_000L);
-            assertThat(s.miningRateFor(50)).isEqualTo(2_000L);
+            // ⚠ To double precision, not to the wei — the rate is derived through the network
+            // hashrate, which is a double. See MiningChainTest.defaultPoolIsTheAnchor.
+            assertThat(ec(s.miningRateFor(100))).isCloseTo(40.0d, withinPercentage(1e-10d));
+            assertThat(ec(s.miningRateFor(50))).isCloseTo(20.0d, withinPercentage(1e-10d));
             assertThat(s.miningRateFor(0)).isZero();
             // And the preview must not disturb what the rig is actually doing.
             assertThat(s.mining().selfMiningCycles()).isEqualTo(100L);
-            assertThat(s.miningChain().expectedMinorUnitsPerHour()).isEqualTo(4_000L);
+            assertThat(ec(s.miningChain().expectedWeiPerHour()))
+                    .isCloseTo(40.0d, withinPercentage(1e-10d));
         }
 
         @Test
@@ -134,14 +142,14 @@ class RigStatusTest {
             LocalGameSession s = session(dir);
             s.allocateSelfMining(100);
 
-            long projectedPerHour = RigStatus.of(s).incomeMinorUnitsPerHour();
-            long enginePerHour = s.miningChain().expectedMinorUnitsPerHour();
+            java.math.BigInteger projectedPerHour = RigStatus.of(s).incomeWeiPerHour();
+            java.math.BigInteger enginePerHour = s.miningChain().expectedWeiPerHour();
 
             // ⚠ Read off the port, not recomputed. Since self-mining became a Poisson process the
             // rate depends on the MODE — a solo miner keeps the pool's fee — so a readout with its
             // own constant would be right for pooled players and wrong for everyone else.
             assertThat(projectedPerHour).isEqualTo(enginePerHour);
-            assertThat(projectedPerHour).isEqualTo(4_000L);
+            assertThat(ec(projectedPerHour)).isCloseTo(40.0d, withinPercentage(1e-10d));
         }
     }
 
@@ -260,4 +268,19 @@ class RigStatusTest {
             assertThat(s.bufferFill()).isZero();
         }
     }
+
+    /**
+     * A wei amount as ethecoin, for the rate assertions below.
+     *
+     * <p>⚠ Local rather than shared: {@code solo}'s test helper is not on this module's test
+     * classpath, and adding a test-jar dependency between modules to reach one method would be a
+     * build change with a much longer shadow than three lines.
+     */
+    private static double ec(java.math.BigInteger wei) {
+        return new java.math.BigDecimal(wei)
+                .divide(new java.math.BigDecimal(
+                        io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.WEI_PER_ETHECOIN))
+                .doubleValue();
+    }
+
 }

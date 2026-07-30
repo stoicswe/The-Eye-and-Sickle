@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.client.ui;
 
+import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.client.profile.ClientProfile;
 import io.github.stoicswe.eyeandsickle.client.session.LocalGameSession;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeManager;
@@ -74,7 +75,7 @@ public final class PackageSnapshot {
         Winding clock = new Winding(T0);
         SoloGame game = SoloGame.open(new SaveStore(profileDir.resolve("save.json")), "halflight", clock);
         LocalGameSession session = new LocalGameSession(game);
-        game.credit(50_000L, "TEST", "seed");
+        game.credit(Balance.ec("500"), "TEST", "seed");
         session.purchase("canary-token");
         // Hold the chain off so the download lands while the payment is still pending — see
         // PurchaseFlowTest for why this is a fixture control rather than a mock.
@@ -233,18 +234,18 @@ public final class PackageSnapshot {
         Region panel = PackageView.create(null, pkg, mode, () -> {}, message -> {});
         StackPane host = new StackPane(panel);
         host.getStyleClass().add("es-scene-ground");
-        Scene scene = new Scene(host, 700, 620);
+        Scene scene = new Scene(host, 760, 620);
         themes.adopt(scene);
         scene.getRoot().applyCss();
         host.layout();
         scene.getRoot().applyCss();
         host.layout();
 
-        WritableImage image = scene.snapshot(new WritableImage(700, 620));
-        BufferedImage png = new BufferedImage(700, 620, BufferedImage.TYPE_INT_ARGB);
+        WritableImage image = scene.snapshot(new WritableImage(760, 620));
+        BufferedImage png = new BufferedImage(760, 620, BufferedImage.TYPE_INT_ARGB);
         PixelReader pixels = image.getPixelReader();
         for (int y = 0; y < 620; y++) {
-            for (int x = 0; x < 700; x++) {
+            for (int x = 0; x < 760; x++) {
                 png.setRGB(x, y, pixels.getArgb(x, y));
             }
         }

@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.protocol.game;
 
+import java.math.BigInteger;
 import java.time.Instant;
 
 /**
@@ -30,8 +31,8 @@ import java.time.Instant;
  * @param gasUsed 21 000 per transfer
  * @param gasLimit the block's ceiling
  * @param sizeBytes serialised size
- * @param rewardMinorUnits the subsidy the miner took
- * @param feesMinorUnits the transaction fees the miner also collected
+ * @param rewardWei the subsidy the miner took
+ * @param feesWei the transaction fees the miner also collected
  * @param extraData whatever the miner wrote in it
  * @param body every transaction in the block, highest fee first — empty until asked for
  */
@@ -49,8 +50,8 @@ public record ChainBlock(
         long gasUsed,
         long gasLimit,
         int sizeBytes,
-        long rewardMinorUnits,
-        long feesMinorUnits,
+        BigInteger rewardWei,
+        BigInteger feesWei,
         String extraData,
         java.util.List<ChainTransaction> body) {
 
@@ -61,13 +62,13 @@ public record ChainBlock(
     /** The same header with its transactions attached. Bodies are derived on demand, never stored. */
     public ChainBlock withBody(java.util.List<ChainTransaction> transactions) {
         return new ChainBlock(number, hash, parentHash, timestamp, minerLabel, minerAddress, yours,
-                difficulty, nonce, this.transactions, gasUsed, gasLimit, sizeBytes, rewardMinorUnits,
-                feesMinorUnits, extraData, transactions);
+                difficulty, nonce, this.transactions, gasUsed, gasLimit, sizeBytes, rewardWei,
+                feesWei, extraData, transactions);
     }
 
     /** What the miner took home: the subsidy plus every fee in the block. */
-    public long minerTakeMinorUnits() {
-        return rewardMinorUnits + feesMinorUnits;
+    public BigInteger minerTakeWei() {
+        return rewardWei.add(feesWei);
     }
 
     /** Gas used as a fraction of the limit, for a fill bar. */

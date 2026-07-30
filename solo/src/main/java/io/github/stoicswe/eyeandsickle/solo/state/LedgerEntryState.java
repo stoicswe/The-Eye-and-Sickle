@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.solo.state;
 
+import java.math.BigInteger;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -18,10 +19,36 @@ public final class LedgerEntryState {
     public Instant at = Instant.now();
 
     /** Signed: positive is income, negative is a sink. */
-    public long deltaMinorUnits = 0L;
+    /**
+     * ⚠ {@code @JsonAlias} carries the PRE-WEI key, and a save is lost without it.
+     *
+     * <p>The field was {@code deltaMinorUnits} when an ethecoin was 100 minor units. Jackson has
+     * {@code FAIL_ON_UNKNOWN_PROPERTIES} off — deliberately, so a save from a newer build still opens
+     * — which means a key it does not recognise is <b>silently dropped</b>. Renaming the field without
+     * this alias therefore does not fail: it loads the save, leaves every amount at its initialiser,
+     * and hands the player a balance of zero with nothing anywhere saying why.
+     *
+     * <p>Measured, not theorised. A real pre-migration save loaded as {@code 0 EC} across the board,
+     * and the only reason it was noticed at all is that one field had no initialiser and threw.
+     */
+    @com.fasterxml.jackson.annotation.JsonAlias("deltaMinorUnits")
+    public BigInteger deltaWei = BigInteger.ZERO;
 
     /** Balance after this entry, so the log reconciles without replaying it. */
-    public long balanceAfterMinorUnits = 0L;
+    /**
+     * ⚠ {@code @JsonAlias} carries the PRE-WEI key, and a save is lost without it.
+     *
+     * <p>The field was {@code balanceAfterMinorUnits} when an ethecoin was 100 minor units. Jackson has
+     * {@code FAIL_ON_UNKNOWN_PROPERTIES} off — deliberately, so a save from a newer build still opens
+     * — which means a key it does not recognise is <b>silently dropped</b>. Renaming the field without
+     * this alias therefore does not fail: it loads the save, leaves every amount at its initialiser,
+     * and hands the player a balance of zero with nothing anywhere saying why.
+     *
+     * <p>Measured, not theorised. A real pre-migration save loaded as {@code 0 EC} across the board,
+     * and the only reason it was noticed at all is that one field had no initialiser and threw.
+     */
+    @com.fasterxml.jackson.annotation.JsonAlias("balanceAfterMinorUnits")
+    public BigInteger balanceAfterWei = BigInteger.ZERO;
 
     public String type = "";
     public String description = "";
@@ -42,7 +69,17 @@ public final class LedgerEntryState {
     public String counterparty = "";
 
     /**
-     * What this transaction paid to be included, in minor units. {@code -1} when it never had a fee.
+     * The sentinel for "no fee was ever recorded on this row".
+     *
+     * <p>⚠ A NEGATIVE amount, which no real fee can be, so it cannot collide with a genuine value.
+     * It was {@code -1L} when this field was a {@code long}; it has to be a named constant now
+     * because {@code BigInteger.valueOf(-1)} scattered through comparisons is unreadable and
+     * {@code equals} on it is easy to get wrong.
+     */
+    public static final BigInteger MISSING = BigInteger.valueOf(-1L);
+
+    /**
+     * What this transaction paid to be included, in wei. {@link #MISSING} when it never had a fee.
      *
      * <h2>⚠ Stored, because the mempool record is DESTROYED on confirmation</h2>
      *
@@ -53,8 +90,22 @@ public final class LedgerEntryState {
      * sorted into the wrong group: they paid for the top of the block and were rendered in the
      * middle of it. Found by rendering a block that contained one.
      *
-     * <p>-1 rather than 0 on an entry that predates this field, so "no fee recorded" and "a fee of
-     * zero" stay different answers — the explorer falls back only for the first.
+     * <p>{@link #MISSING} rather than zero on an entry that predates this field, so "no fee
+     * recorded" and "a fee of zero" stay different answers — the explorer falls back only for the
+     * first.
      */
-    public long feeMinorUnits = -1L;
+    /**
+     * ⚠ {@code @JsonAlias} carries the PRE-WEI key, and a save is lost without it.
+     *
+     * <p>The field was {@code feeMinorUnits} when an ethecoin was 100 minor units. Jackson has
+     * {@code FAIL_ON_UNKNOWN_PROPERTIES} off — deliberately, so a save from a newer build still opens
+     * — which means a key it does not recognise is <b>silently dropped</b>. Renaming the field without
+     * this alias therefore does not fail: it loads the save, leaves every amount at its initialiser,
+     * and hands the player a balance of zero with nothing anywhere saying why.
+     *
+     * <p>Measured, not theorised. A real pre-migration save loaded as {@code 0 EC} across the board,
+     * and the only reason it was noticed at all is that one field had no initialiser and threw.
+     */
+    @com.fasterxml.jackson.annotation.JsonAlias("feeMinorUnits")
+    public BigInteger feeWei = MISSING;
 }

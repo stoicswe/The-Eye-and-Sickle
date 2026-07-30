@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.protocol.game;
 
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Objects;
 
@@ -23,7 +24,7 @@ import java.util.Objects;
  * their first breach repeatedly and be no worse off for it. This record cannot tell on its own whether
  * the attempt was a crack; {@link BreachSnapshot} can, and checks.
  *
- * <h2>{@code lootMinorUnits} is a transfer, never a faucet</h2>
+ * <h2>{@code lootWei} is a transfer, never a faucet</h2>
  *
  * {@code docs/design/04-mining.md} §5.1: a cracked miner's buffer "physically resides on the host's
  * machine … so the EC is already there to take — a transfer, not a faucet; no new currency enters the
@@ -45,7 +46,7 @@ import java.util.Objects;
  * @param traceProgress attention consumed over the whole attempt as a fraction of the whole budget,
  *     0..1; §4's redefinition of §2's field
  * @param heatGained personal heat added by this attempt; always 0 on a miner crack (Invariant I9)
- * @param lootMinorUnits ethecoin seized, in minor units; non-zero only on a successful crack
+ * @param lootWei ethecoin seized, in minor units; non-zero only on a successful crack
  * @param lootLabel what was taken, in words; {@code ""} when nothing was
  * @param schematicMaterial tier-gated partial-progress material awarded ({@code
  *     docs/design/02-unlock-gates.md} §2.2, Invariant I13); 0 when the gate did not open
@@ -56,7 +57,7 @@ public record BreachResolution(
         int noiseGenerated,
         double traceProgress,
         int heatGained,
-        long lootMinorUnits,
+        BigInteger lootWei,
         String lootLabel,
         int schematicMaterial,
         List<String> consequences) {
@@ -79,12 +80,12 @@ public record BreachResolution(
         if (heatGained < 0) {
             throw new IllegalArgumentException("heatGained must not be negative, was " + heatGained);
         }
-        if (lootMinorUnits < 0) {
-            throw new IllegalArgumentException("lootMinorUnits must not be negative, was " + lootMinorUnits);
+        if (lootWei.signum() < 0) {
+            throw new IllegalArgumentException("lootWei must not be negative, was " + lootWei);
         }
-        if (lootMinorUnits > 0 && lootLabel.isEmpty()) {
+        if (lootWei.signum() > 0 && lootLabel.isEmpty()) {
             throw new IllegalArgumentException(
-                    "Loot without a label is an unattributable payout: " + lootMinorUnits + " minor units, no name");
+                    "Loot without a label is an unattributable payout: " + lootWei + " wei, no name");
         }
         if (schematicMaterial < 0) {
             throw new IllegalArgumentException("schematicMaterial must not be negative, was " + schematicMaterial);

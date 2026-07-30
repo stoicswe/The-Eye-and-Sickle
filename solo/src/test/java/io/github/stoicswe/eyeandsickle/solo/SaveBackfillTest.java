@@ -42,7 +42,7 @@ class SaveBackfillTest {
         SoloSave save = SoloGame.newCharacter("operator", T0);
         save.topology = null;
         save.knownNodes.clear();
-        save.ethecoinMinorUnits = 1_153L;
+        save.ethecoinWei = Balance.ec("11.53");
         return save;
     }
 

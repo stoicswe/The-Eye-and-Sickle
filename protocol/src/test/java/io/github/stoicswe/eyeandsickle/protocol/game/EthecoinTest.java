@@ -28,7 +28,7 @@ class EthecoinTest {
         @Test
         @DisplayName("a negative amount is rejected — the ledger carries a direction, not a sign")
         void negativeAmountsRejected() {
-            assertThatThrownBy(() -> Ethecoin.ofMinorUnits(-1))
+            assertThatThrownBy(() -> Ethecoin.ofWei(-1))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("never negative");
         }
@@ -36,23 +36,37 @@ class EthecoinTest {
         @Test
         @DisplayName("zero is a legal amount")
         void zeroIsLegal() {
-            assertThat(Ethecoin.ZERO.minorUnits()).isZero();
+            assertThat(Ethecoin.ZERO.wei().signum()).isZero();
             assertThat(Ethecoin.ZERO.isZero()).isTrue();
-            assertThat(Ethecoin.ofMinorUnits(0)).isEqualTo(Ethecoin.ZERO);
+            assertThat(Ethecoin.ofWei(0)).isEqualTo(Ethecoin.ZERO);
         }
 
         @Test
         @DisplayName("whole ethecoin scales by the minor-unit factor")
         void wholeUnitsScale() {
             assertThat(Ethecoin.ofWholeEthecoin(25))
-                    .isEqualTo(Ethecoin.ofMinorUnits(25 * Ethecoin.MINOR_UNITS_PER_ETHECOIN));
+                    .isEqualTo(Ethecoin.ofWei(
+                            java.math.BigInteger.valueOf(25).multiply(Ethecoin.WEI_PER_ETHECOIN)));
             assertThat(Ethecoin.ofWholeEthecoin(0)).isEqualTo(Ethecoin.ZERO);
         }
 
+        /**
+         * ⚠ Was "a whole amount too large to scale fails loudly instead of wrapping".
+         *
+         * <p>{@link BigInteger} does not overflow, so the failure mode that test guarded — a wrapped
+         * balance that looks legitimate to every layer above it — cannot occur any more. The property
+         * worth keeping is the one underneath it: a very large amount stays exact rather than
+         * silently losing its low digits, which is what a {@code double} would have done.
+         */
         @Test
-        @DisplayName("a whole amount too large to scale fails loudly instead of wrapping")
-        void wholeUnitsOverflow() {
-            assertThatThrownBy(() -> Ethecoin.ofWholeEthecoin(Long.MAX_VALUE)).isInstanceOf(ArithmeticException.class);
+        @DisplayName("a very large amount stays exact rather than wrapping or rounding")
+        void hugeAmountsAreExact() {
+            Ethecoin huge = Ethecoin.ofWholeEthecoin(Long.MAX_VALUE);
+            assertThat(huge.wei())
+                    .isEqualTo(java.math.BigInteger.valueOf(Long.MAX_VALUE)
+                            .multiply(Ethecoin.WEI_PER_ETHECOIN));
+            assertThat(huge.plus(Ethecoin.ofWei(1)).wei())
+                    .isEqualTo(huge.wei().add(java.math.BigInteger.ONE));
         }
 
         @Test
@@ -69,22 +83,24 @@ class EthecoinTest {
         @Test
         @DisplayName("addition sums minor units")
         void additionSums() {
-            assertThat(Ethecoin.ofMinorUnits(2_500).plus(Ethecoin.ofMinorUnits(267)))
-                    .isEqualTo(Ethecoin.ofMinorUnits(2_767));
+            assertThat(Ethecoin.ofWei(2_500).plus(Ethecoin.ofWei(267)))
+                    .isEqualTo(Ethecoin.ofWei(2_767));
         }
 
         @Test
-        @DisplayName("addition that would overflow throws rather than wrapping into a plausible balance")
-        void additionOverflows() {
-            Ethecoin huge = Ethecoin.ofMinorUnits(Long.MAX_VALUE);
-            assertThatThrownBy(() -> huge.plus(Ethecoin.ofMinorUnits(1))).isInstanceOf(ArithmeticException.class);
+        @DisplayName("addition is exact at any magnitude")
+        void additionIsExact() {
+            // Was "addition that would overflow throws rather than wrapping". BigInteger has no
+            // overflow, so exactness is the property left to assert.
+            Ethecoin huge = Ethecoin.ofWholeEthecoin(Long.MAX_VALUE);
+            assertThat(huge.plus(huge).wei()).isEqualTo(huge.wei().shiftLeft(1));
         }
 
         @Test
         @DisplayName("subtraction reduces the amount")
         void subtractionReduces() {
-            assertThat(Ethecoin.ofMinorUnits(2_500).minus(Ethecoin.ofMinorUnits(500)))
-                    .isEqualTo(Ethecoin.ofMinorUnits(2_000));
+            assertThat(Ethecoin.ofWei(2_500).minus(Ethecoin.ofWei(500)))
+                    .isEqualTo(Ethecoin.ofWei(2_000));
         }
 
         @Test
@@ -97,7 +113,7 @@ class EthecoinTest {
         @Test
         @DisplayName("an overdraw is rejected — balances do not go negative")
         void subtractionBelowZeroRejected() {
-            assertThatThrownBy(() -> Ethecoin.ofMinorUnits(100).minus(Ethecoin.ofMinorUnits(101)))
+            assertThatThrownBy(() -> Ethecoin.ofWei(100).minus(Ethecoin.ofWei(101)))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("never negative");
         }
@@ -117,9 +133,9 @@ class EthecoinTest {
         @Test
         @DisplayName("orders by amount")
         void ordersByAmount() {
-            assertThat(Ethecoin.ofMinorUnits(100)).isLessThan(Ethecoin.ofMinorUnits(101));
-            assertThat(Ethecoin.ofMinorUnits(101)).isGreaterThan(Ethecoin.ofMinorUnits(100));
-            assertThat(Ethecoin.ofMinorUnits(100)).isEqualByComparingTo(Ethecoin.ofMinorUnits(100));
+            assertThat(Ethecoin.ofWei(100)).isLessThan(Ethecoin.ofWei(101));
+            assertThat(Ethecoin.ofWei(101)).isGreaterThan(Ethecoin.ofWei(100));
+            assertThat(Ethecoin.ofWei(100)).isEqualByComparingTo(Ethecoin.ofWei(100));
         }
 
         @Test
@@ -137,9 +153,12 @@ class EthecoinTest {
         @Test
         @DisplayName("equal amounts are equal values")
         void valueEquality() {
+            // ⚠ Both sides built the SAME way is not a test. One side is the whole-unit factory and
+            // the other is the decimal parser, so this checks the two entry points agree — which is
+            // the property that broke when the scale moved from 2 places to 18.
             assertThat(Ethecoin.ofWholeEthecoin(25))
-                    .isEqualTo(Ethecoin.ofMinorUnits(2_500))
-                    .hasSameHashCodeAs(Ethecoin.ofMinorUnits(2_500));
+                    .isEqualTo(Ethecoin.ofDecimal("25"))
+                    .hasSameHashCodeAs(Ethecoin.ofDecimal("25.000000000000000000"));
         }
     }
 
@@ -194,8 +213,8 @@ class EthecoinTest {
         void sameMagnitudeIsNotEquality() {
             // 100 minor units of ethecoin and a starting rig's 100 cycles are the same number and
             // nothing else. A collection that accepted both would have already lost the invariant.
-            assertThat((Object) Ethecoin.ofMinorUnits(100)).isNotEqualTo(Cycles.of(100));
-            assertThat((Object) Cycles.of(100)).isNotEqualTo(Ethecoin.ofMinorUnits(100));
+            assertThat((Object) Ethecoin.ofWei(100)).isNotEqualTo(Cycles.of(100));
+            assertThat((Object) Cycles.of(100)).isNotEqualTo(Ethecoin.ofWei(100));
         }
 
         @Test
@@ -219,17 +238,59 @@ class EthecoinTest {
     void scaleIsSane() {
         // Not a balance value — a precision decision (see the class javadoc). It still has to be a
         // positive whole factor, or every amount in the game rounds differently on the two sides.
-        assertThat(Ethecoin.MINOR_UNITS_PER_ETHECOIN).isPositive();
-        assertThat(Ethecoin.ofWholeEthecoin(1).minorUnits()).isEqualTo(Ethecoin.MINOR_UNITS_PER_ETHECOIN);
+        assertThat(Ethecoin.WEI_PER_ETHECOIN).isPositive();
+        assertThat(Ethecoin.ofWholeEthecoin(1).wei()).isEqualTo(Ethecoin.WEI_PER_ETHECOIN);
     }
 
+    /**
+     * ⚠ This test used to assert the OPPOSITE, and the reversal is worth reading.
+     *
+     * <p>It required that no {@code format} method exist here at all, reasoning that <em>"a wire type
+     * that formats invites a second, subtly different formatter to appear on the server."</em> The
+     * risk was real and the conclusion was backwards: what a type with <b>no</b> formatter invites is
+     * a private copy everywhere one is needed. There were <b>thirteen</b>, twelve of them carrying
+     * the same sign bug — {@code minorUnits / 100} truncates toward zero, so every fee in the game
+     * rendered without its minus sign. The canonical formatter is the fix for the very thing the old
+     * test was guarding against.
+     *
+     * <p>The surviving half of the original guarantee is asserted below: no <b>localized</b>
+     * formatting here. A grouped, symbol-placed, abbreviated amount is a presentation decision and
+     * still belongs to the client; what lives on the type is the invariant machine form.
+     */
     @Test
-    @DisplayName("no display formatting leaks into the wire type")
-    void noDisplayFormatting() {
-        // Localized currency formatting is the client's job; a wire type that formats invites a
-        // second, subtly different formatter to appear on the server.
-        Method[] methods = Ethecoin.class.getDeclaredMethods();
-        assertThat(Arrays.stream(methods).map(Method::getName))
-                .doesNotContain("format", "toDisplayString", "toPlainString");
+    @DisplayName("one canonical formatter, and no localized one")
+    void oneCanonicalFormatter() {
+assertThat(Ethecoin.format(Ethecoin.ofDecimal("4.80").wei())).isEqualTo("4.8 EC");
+        // ⚠ The bug the consolidation fixed: a debit under one whole ethecoin kept its magnitude and
+        // lost its sign, which on a ledger makes a fee indistinguishable from a credit.
+        assertThat(Ethecoin.format(Ethecoin.ofDecimal("0.05").wei().negate())).isEqualTo("-0.05 EC");
+        assertThat(Ethecoin.format(Ethecoin.ofDecimal("0.99").wei().negate())).isEqualTo("-0.99 EC");
+        assertThat(Ethecoin.format(Ethecoin.ofDecimal("1.50").wei().negate())).isEqualTo("-1.5 EC");
+        assertThat(Ethecoin.format(java.math.BigInteger.ZERO)).isEqualTo("0 EC");
+
+        // No Locale-taking overload: that is where a localized format would arrive, and it belongs to
+        // the client. Reflection rather than a comment, because the point is to notice a new one.
+        assertThat(Arrays.stream(Ethecoin.class.getDeclaredMethods())
+                .filter(method -> method.getName().equals("format"))
+                .flatMap(method -> Arrays.stream(method.getParameterTypes()))
+                .map(Class::getName))
+                .as("a localized formatter belongs to the client, not to the wire type")
+                .doesNotContain("java.util.Locale");
+        assertThat(Arrays.stream(Ethecoin.class.getDeclaredMethods()).map(Method::getName))
+                .doesNotContain("toDisplayString", "toPlainString");
+    }
+
+    /**
+     * ⚠ {@code Long.MIN_VALUE} has no positive counterpart, so {@code Math.abs} returns it unchanged.
+     *
+     * <p>Guarded because the obvious implementation — absolute value first, sign bolted on after —
+     * produces a negative magnitude here and prints something impossible. It cannot arise from play;
+     * it can arise from a hand-edited save, and a formatter that throws on a value a readout is
+     * trying to draw takes the window down with it.
+     */
+    @Test
+    @DisplayName("the extreme negative renders without blowing up")
+    void extremeNegative() {
+        assertThat(Ethecoin.format(Long.MIN_VALUE)).startsWith("-").endsWith(" EC");
     }
 }

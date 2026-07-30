@@ -636,6 +636,14 @@ public final class FileManagerView {
             sell.setOnAction(event -> refusal.setText(session.sell(entry.path()).message()));
             menu.getItems().addAll(new SeparatorMenuItem(), install, inspect, sell);
         }
+        // ⚠ Own rig only, and on ANY file rather than only packages — the point of being able to
+        // delete is the accumulated junk, and most of it is not a package. The rules refuse anything
+        // generated (the system tree, bundles, vault views), so this offering it costs nothing.
+        if (here.rig() && !entry.directory()) {
+            MenuItem delete = new MenuItem("Delete…");
+            delete.setOnAction(event -> confirmDelete(session, entry, here, refusal));
+            menu.getItems().addAll(new SeparatorMenuItem(), delete);
+        }
         row.setOnContextMenuRequested(event -> {
             menu.show(row, event.getScreenX(), event.getScreenY());
             event.consume();
@@ -699,7 +707,12 @@ public final class FileManagerView {
 
     /** Whether this is an upgrade package in either of its two states — vendor's, or this rig's. */
     private static boolean isPackage(FsEntry entry) {
-        return entry.name().endsWith(".upg") || entry.name().endsWith(".pkg");
+        // ⚠ `.frm` too. A firmware image is a package that installs by flashing, and leaving it out
+        // here hid Install, Inspect and Sell from the one file class where Inspect matters most —
+        // firmware has two conditions attached to flashing it and a panel that explains them.
+        return entry.name().endsWith(".upg")
+                || entry.name().endsWith(".pkg")
+                || entry.name().endsWith(".frm");
     }
 
     /**
@@ -724,9 +737,77 @@ public final class FileManagerView {
         javafx.stage.Window window = javafx.stage.Window.getWindows().stream()
                 .filter(javafx.stage.Window::isShowing).findFirst().orElse(null);
         if (window != null) {
+            // ⚠ Centred on the PANEL's own width, not on a literal. It was 640 — the floor the panel
+            // used to pin — so narrowing the panel would have left it centred for a width it no
+            // longer has, sitting visibly off to one side.
             popup.show(window,
-                    window.getX() + (window.getWidth() - 640) / 2,
+                    window.getX() + (window.getWidth() - panel.prefWidth(-1)) / 2,
                     window.getY() + 90);
+        }
+    }
+
+    /**
+     * Asks before deleting, and says what is being lost.
+     *
+     * <h2>⚠ The GUI confirms and the shell's {@code rm} does not, deliberately</h2>
+     *
+     * A real {@code rm} does not ask — that is what {@code rm -i} is for — and a terminal that
+     * behaved otherwise would teach something false about a command this client's manual documents.
+     * A right-click and a menu item is a different act: it is two cheap gestures, easy to make by
+     * accident, and the thing at the end of it can be worth 180 EC and does not come back.
+     *
+     * <p>The dialog names the <b>resale value</b> where there is one, because "delete this file?" and
+     * "burn 108 EC?" are different questions and only the second is the one being asked.
+     */
+    private static void confirmDelete(
+            GameSession session, FsEntry entry, Place here, Label refusal) {
+        javafx.stage.Popup popup = new javafx.stage.Popup();
+        popup.setAutoHide(true);
+        VBox panel = new VBox(UiTokens.SPACE_3);
+        panel.getStyleClass().addAll("es-files", "es-body-pad", "es-files-dialog");
+        panel.setMinWidth(460);
+
+        Label heading = new Label("DELETE " + Ui.upper(entry.name()));
+        heading.getStyleClass().add("es-panel-title");
+
+        Label what = new Label(entry.path() + "\n" + human(entry.sizeBytes()));
+        what.getStyleClass().add("es-files-fileline");
+
+        VBox body = new VBox(UiTokens.SPACE_1, heading, what);
+
+        // The value is the whole reason this dialog exists rather than an immediate delete.
+        session.upgradeAt(here.address(), entry.path())
+                .filter(offer -> offer.sellable() && offer.resaleWei().signum() > 0)
+                .ifPresent(offer -> {
+                    Label worth = new Label("This would sell for "
+                            + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin
+                                    .ofWei(offer.resaleWei())
+                            + " on the secondary market.");
+                    worth.setWrapText(true);
+                    worth.getStyleClass().add("es-files-refusal");
+                    body.getChildren().add(worth);
+                });
+
+        Label note = new Label("This cannot be undone. Nothing on this rig keeps a copy.");
+        note.setWrapText(true);
+        note.getStyleClass().add("es-text-secondary");
+        body.getChildren().add(note);
+
+        BreachView.Chip cancel = key("Cancel");
+        cancel.onInvoke(popup::hide);
+        BreachView.Chip confirm = key("Delete");
+        confirm.onInvoke(() -> {
+            refusal.setText(session.delete(here.address(), entry.path()).message());
+            popup.hide();
+        });
+        HBox buttons = new HBox(UiTokens.SPACE_2, cancel, confirm);
+
+        panel.getChildren().addAll(body, buttons);
+        popup.getContent().add(panel);
+        javafx.stage.Window window = javafx.stage.Window.getWindows().stream()
+                .filter(javafx.stage.Window::isShowing).findFirst().orElse(null);
+        if (window != null) {
+            popup.show(window);
         }
     }
 
@@ -759,7 +840,94 @@ public final class FileManagerView {
             lines.add("");
             lines.addAll(note);
         }
-        showFile(session, entry, lines);
+        // ⚠ The compare block goes ABOVE the text, because it answers the question the player opened
+        // this for. `session.info` carries the same facts as prose so that `stat` is not the poorer
+        // surface — see SoloGame.describe — and the two must not disagree, which is why both read the
+        // same UpgradeOffer rather than each deriving their own.
+        showFile(session, entry, lines,
+                session.upgradeAt(here.address(), entry.path()).map(FileManagerView::compare).orElse(null));
+    }
+
+    /**
+     * The compare block: this build against the one you hold.
+     *
+     * <h2>Why a block rather than another paragraph of the note</h2>
+     *
+     * The decision it feeds is a comparison, and a comparison read out of running prose is one the
+     * player has to reassemble. Two versions side by side with a verdict under them is the whole
+     * question in one glance, which is what makes it worth a widget.
+     *
+     * <p>⚠ Follows {@code docs/design/ui-design-language.md} §4.4 — never colour alone. The verdict is
+     * a sentence and the standing is a word; a player who cannot distinguish the accent from the body
+     * text loses nothing, because nothing here is encoded in the colour.
+     */
+    // Package-private, not private: `UpgradeCompareSnapshot` renders it. A block whose layout is
+    // only ever seen inside a Popup is a block nobody has looked at.
+    static Region compare(io.github.stoicswe.eyeandsickle.protocol.game.UpgradeOffer offer) {
+        VBox block = new VBox(UiTokens.SPACE_1);
+        block.getStyleClass().add("es-upgrade-compare");
+
+        Label heading = new Label(Ui.upper(offer.displayName()));
+        heading.getStyleClass().add("es-panel-title");
+        block.getChildren().add(heading);
+
+        HBox versions = new HBox(UiTokens.SPACE_3);
+        // ⚠ THEIRS is the prominent one and YOURS is always the quiet reference — fixed emphasis,
+        // never varied by the standing. Two reasons. The block's subject is the build on the machine,
+        // and a render showed the emphasis inverted, which read as the panel being about the player's
+        // vault. And emphasis that MOVED with the verdict would be encoding the comparison in
+        // contrast, which §4.4 forbids — the verdict sentence below already says it in words.
+        versions.getChildren().add(cell("ON THIS MACHINE", offer.version().toString(), false));
+        // ⚠ "none" rather than a blank or a dash. A player who owns nothing of this tool is being told
+        // something useful, and an empty cell reads as a readout that failed.
+        versions.getChildren().add(cell("YOURS",
+                offer.yourVersion().known() ? offer.yourVersion().toString() : "none", true));
+        block.getChildren().add(versions);
+
+        Label verdict = new Label(offer.verdict());
+        verdict.getStyleClass().add("es-text-secondary");
+        verdict.setWrapText(true);
+        block.getChildren().add(verdict);
+
+        // ⚠ Firmware's conditions, on the same surface and before the transfer. §4.4 — never colour
+        // alone: the word FIRMWARE leads the line, so the state is legible with the accent ignored.
+        if (offer.firmware()) {
+            Label firmware = new Label("FIRMWARE — " + offer.flashRequirement());
+            firmware.getStyleClass().add(
+                    offer.readyToFlash() ? "es-upgrade-flashable" : "es-upgrade-blocked");
+            firmware.setWrapText(true);
+            block.getChildren().add(firmware);
+        }
+
+        // ⚠ Capability is stated explicitly, and it is the most important line here. A version ladder
+        // with no such line reads as a power ladder — which is exactly what it is not, and what
+        // Invariant I2 requires it never becomes.
+        Label same = new Label("Capability is identical at every build. A newer one is worth more "
+                + "and replaces an older one; it is not a better tool.");
+        same.getStyleClass().add("es-text-secondary");
+        same.setWrapText(true);
+        block.getChildren().add(same);
+
+        return block;
+    }
+
+    /**
+     * One labelled version cell.
+     *
+     * <p>⚠ A fixed minimum width, so the two cells form columns rather than sitting wherever their
+     * contents end. Without it {@code none} and {@code v4.0} start at different x and the pair stops
+     * reading as a comparison — which is the one thing this block is for.
+     */
+    private static Region cell(String caption, String value, boolean quiet) {
+        VBox box = new VBox(UiTokens.SPACE_1);
+        box.setMinWidth(150);
+        box.getStyleClass().add("es-upgrade-cell");
+        Label head = new Label(caption);
+        head.getStyleClass().add("es-text-secondary");
+        Label body = new Label(value);
+        body.getStyleClass().add(quiet ? "es-upgrade-version-quiet" : "es-upgrade-version");
+        box.getChildren().addAll(head, body);
+        return box;
     }
 
     /**
@@ -772,6 +940,11 @@ public final class FileManagerView {
      * meaningless from both directions.
      */
     private static void showFile(GameSession session, FsEntry entry, List<String> lines) {
+        showFile(session, entry, lines, null);
+    }
+
+    private static void showFile(
+            GameSession session, FsEntry entry, List<String> lines, Region banner) {
         javafx.stage.Popup popup = new javafx.stage.Popup();
         popup.setAutoHide(true);
         VBox panel = new VBox(UiTokens.SPACE_2);
@@ -780,6 +953,9 @@ public final class FileManagerView {
         panel.setMaxHeight(520);
 
         panel.getChildren().add(Ui.label(entry.path()));
+        if (banner != null) {
+            panel.getChildren().add(banner);
+        }
         VBox body = new VBox(UiTokens.SPACE_1);
         for (String line : lines) {
             Label row = new Label(line);

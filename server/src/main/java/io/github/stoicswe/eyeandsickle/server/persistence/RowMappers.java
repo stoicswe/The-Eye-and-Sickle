@@ -19,7 +19,7 @@ import org.springframework.jdbc.core.RowMapper;
  *     static final String TX_ID = "tx_id";
  *     static final String FROM_DID = "from_did";
  *     static final String TO_DID = "to_did";
- *     static final String AMOUNT = "amount_ec_minor";
+ *     static final String AMOUNT = "amount_wei";
  *     static final String TX_TYPE = "tx_type";
  *     static final String TRACEABLE = "traceable";
  *     static final String CREATED_AT = "created_at";
@@ -45,7 +45,7 @@ import org.springframework.jdbc.core.RowMapper;
  * List<LedgerTransaction> byEitherCounterparty(String did) {
  *     return jdbcClient
  *             .sql("""
- *                  SELECT tx_id, from_did, to_did, amount_ec_minor, tx_type, traceable, created_at
+ *                  SELECT tx_id, from_did, to_did, amount_wei, tx_type, traceable, created_at
  *                    FROM ledger_transactions
  *                   WHERE from_did = :did OR to_did = :did
  *                   ORDER BY created_at DESC

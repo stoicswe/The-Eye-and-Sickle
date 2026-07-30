@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.client.view;
 
+import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.client.session.GameSession;
 import io.github.stoicswe.eyeandsickle.client.ui.Ui;
 import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
@@ -283,12 +284,12 @@ public final class BreachTargetList extends VBox {
                 KeyValue.of("State", target.liveOrDormant().name()),
                 KeyValue.of("Compute", target.computeCost() + " CYCLES"),
                 KeyValue.of("Defences", defences(target)));
-        if (target.minerCrack() && target.estimatedBufferMinorUnits() > 0) {
+        if (target.minerCrack() && target.estimatedBufferWei().signum() > 0) {
             // An estimate, and labelled as one: the buffer is a figure recon inferred, and a crack
             // that sweeps it is a transfer of what is actually there (03 §5 rule 3 — nothing here
             // creates currency).
             facts.getChildren().add(
-                    KeyValue.of("Buffer", "APPROX " + money(target.estimatedBufferMinorUnits())));
+                    KeyValue.of("Buffer", "APPROX " + Ethecoin.format(target.estimatedBufferWei())));
         }
 
         box.getChildren().addAll(title, facts, teaching(target));
@@ -371,15 +372,4 @@ public final class BreachTargetList extends VBox {
         return String.join(" · ", marks);
     }
 
-    /**
-     * Minor units as ethecoin.
-     *
-     * <p>{@code Ethecoin} deliberately ships no display formatting — separator, symbol placement and
-     * abbreviation are localization decisions and localization belongs to the client. {@link
-     * Locale#ROOT} for the same reason every other formatted number in this client uses it: a German
-     * player must not read {@code 12,40 EC} beside a figure another panel rendered with a period.
-     */
-    private static String money(long minorUnits) {
-        return String.format(Locale.ROOT, "%d.%02d EC", minorUnits / 100, Math.abs(minorUnits % 100));
-    }
 }

@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.solo.fs;
 
+import java.math.BigInteger;
 import io.github.stoicswe.eyeandsickle.protocol.game.FsEntry;
 import io.github.stoicswe.eyeandsickle.protocol.game.FsKind;
 import io.github.stoicswe.eyeandsickle.solo.state.HostState;
@@ -273,7 +274,11 @@ public final class VirtualFs {
             if (file.directory.equals(p)) {
                 out.add(new FsEntry(
                         file.name, file.path(),
-                        file.name.endsWith(".upg") ? FsKind.EXECUTABLE : FsKind.FILE,
+                        // ⚠ Both installable suffixes mark as executable. `.frm` is firmware and
+                        // `.upg` is software, and `ls -F` marks a thing you can run — a firmware
+                        // image that listed as a plain file would read as inert data.
+                        file.name.endsWith(".upg") || file.name.endsWith(".frm")
+                                ? FsKind.EXECUTABLE : FsKind.FILE,
                         file.bytes, "-rw-r--r--", user, user, file.at, true));
             }
         }
@@ -326,9 +331,11 @@ public final class VirtualFs {
                     // ⚠ Readable to the owner, always. Whether a REMOTE actor may take it is the
                     // tier's answer and is decided in AccessLog, not here — this is a view onto an
                     // item, not a second place it lives.
+                    String suffix = io.github.stoicswe.eyeandsickle.solo.rules.Repac
+                            .installableSuffix(item.itemType());
                     out.add(new FsEntry(
-                            slug(item.displayName()) + ".upg",
-                            dir + "/" + slug(item.displayName()) + ".upg",
+                            slug(item.displayName()) + suffix,
+                            dir + "/" + slug(item.displayName()) + suffix,
                             FsKind.FILE, upgradeBytes(item.itemType()),
                             "-rw-r--r--", user, user, now, true));
                 }
@@ -459,7 +466,13 @@ public final class VirtualFs {
         } else if (parts.length == 3 && parts[2].equals(Apps.UPGRADES)) {
             // ⚠ `.pkg` on somebody else's machine, `.upg` on yours. A vendor package is not the
             // same object as an installable one, and Repac is the step between — see solo/rules/Repac.
-            String name = app.get().binary() + "-upgrade";
+            //
+            // ⚠ `-firmware` rather than `-upgrade` when it is one, so the distinction is visible in
+            // `ls` before anything is spent. Same reasoning as the `.pkg`/`.upg` rename: a fact the
+            // player can see in the listing is a fact they do not have to be told twice, and firmware
+            // is the class with conditions attached to installing it.
+            String name = app.get().binary()
+                    + (Apps.isFirmwareApp(app.get()) ? "-firmware" : "-upgrade");
             out.add(new FsEntry(
                     name + ".pkg", bundle + "/Contents/" + Apps.UPGRADES + "/" + name + ".pkg",
                     FsKind.FILE, upgradeBytes(app.get().id() + host.address),
@@ -488,10 +501,15 @@ public final class VirtualFs {
                     FsKind.DOCUMENT, 2_400 + random.nextInt(6_000), "-rw-r--r--",
                     user, user, now, readable));
         }
-        if (host.lootMinorUnits > 0 && !host.looted) {
+        if (host.lootWei.signum() > 0 && !host.looted) {
             out.add(new FsEntry(
                     "wallet.dat", home + "/wallet.dat", FsKind.LOOT,
-                    host.lootMinorUnits, "-rw-------", user, user, now, readable));
+                    // ⚠ A file SIZE, so bytes rather than money — the loot amount doubles as the
+                    // wallet's size on disk, which is the joke and is why it is not reformatted.
+                    // Clamped into a long because a size is one; a wallet over nine exabytes is not
+                    // a case this filesystem has to render.
+                    host.lootWei.min(BigInteger.valueOf(Long.MAX_VALUE)).longValueExact(),
+                    "-rw-------", user, user, now, readable));
         }
     }
 

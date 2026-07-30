@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.protocol.game;
 
+import java.math.BigInteger;
 import java.util.Objects;
 
 /**
@@ -54,7 +55,7 @@ import java.util.Objects;
  * @param canaries whether canary tokens are believed present; touching one tags the player's handle
  *     ({@code docs/design/09-defense-and-hardening.md} §2)
  * @param honeypotSuspected whether this looks like a decoy — a suspicion, never a finding
- * @param estimatedBufferMinorUnits the crack prize, estimated, in minor units; 0 for anything that is
+ * @param estimatedBufferWei the crack prize, estimated, in minor units; 0 for anything that is
  *     not a crack
  * @param computeCost cycles the attempt will reserve for its whole duration
  * @param available whether a breach can be opened against it right now
@@ -72,7 +73,7 @@ public record BreachTarget(
         boolean tarpit,
         boolean canaries,
         boolean honeypotSuspected,
-        long estimatedBufferMinorUnits,
+        BigInteger estimatedBufferWei,
         long computeCost,
         boolean available,
         String refusal) {
@@ -93,17 +94,17 @@ public record BreachTarget(
                     "firewallTier is 0 (none) or 1..3 (docs/design/09-defense-and-hardening.md §1), was "
                             + firewallTier);
         }
-        if (estimatedBufferMinorUnits < 0) {
+        if (estimatedBufferWei.signum() < 0) {
             throw new IllegalArgumentException(
-                    "estimatedBufferMinorUnits must not be negative, was " + estimatedBufferMinorUnits);
+                    "estimatedBufferWei must not be negative, was " + estimatedBufferWei);
         }
         // A buffer estimate on a non-crack is not harmless flavour: a buffer is the accumulated yield of
         // a miner sitting on the player's own rig, so quoting one against an offensive target promises
         // an ethecoin payout that 03 §5 rule 3 forbids an offensive breach from ever making.
-        if (!minerCrack && estimatedBufferMinorUnits != 0) {
+        if (!minerCrack && estimatedBufferWei.signum() != 0) {
             throw new IllegalArgumentException("Only a miner crack has a yield buffer to seize "
                     + "(docs/design/04-mining.md §5.1); a non-crack target quoted "
-                    + estimatedBufferMinorUnits + " minor units");
+                    + estimatedBufferWei + " wei");
         }
         if (computeCost < 0) {
             throw new IllegalArgumentException("computeCost must not be negative, was " + computeCost);

@@ -260,6 +260,14 @@ On load the missed span is filled in **block by block**, and the LEDGER window s
 
 **What the sync must never do is pay for the whole absence.** Only blocks inside the spin-down window are contested; past it the rig is off and its hashrate is zero. That is the whole of I5's remaining force, and it is what stops the sync screen becoming a reward for closing the game.
 
+**And inside the window, a solo rig competes at half weight** (`Balance.OFFLINE_SOLO_WIN_WEIGHT`, 2026-07-29). The window caps how *long* an absent rig hashes; this caps how *well* it does while it is. They are separate levers because the window on its own only guarantees that a longer absence is not worth more — it says nothing about an hour away versus an hour played, and four hours of full-rate mining for closing the client is a thing to collect rather than a courtesy. Halving the draw makes play strictly better per hour *inside* the buffered window as well as past it.
+
+- **Self-mining only.** A pool's hashrate is the pool's and competes whether or not one member's client is open; scaling it during a fill would be this rig reaching into somebody else's rate, and would quietly make pooling the better way to be absent.
+- **The live tick is untouched.** A player who leaves the client running is playing. This is not an idle-time penalty.
+- **The freed probability goes to the unpooled population**, because a block this rig did not win was still won by somebody. Every pool keeps its exact published share either way.
+- **No invariant moves.** Self-mining is still zero-heat, undetectable and unseizable (**I4**) — a smaller number is not a risk; offline income is still capped and non-proportional (**I5**), only lower; nothing here is purchasable (**I2**).
+- ⚠ **It is deliberately invisible.** No readout names it and none should. The SYNCHRONIZING screen reports what the chain did; a player comparing blocks-won against hashrate share across a couple of sessions is doing arithmetic on a Poisson process with a sample size of about two, and a figure on screen would invite exactly that.
+
 ---
 
 ---

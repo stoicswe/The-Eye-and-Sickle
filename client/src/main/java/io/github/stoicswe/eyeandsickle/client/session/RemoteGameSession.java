@@ -47,7 +47,7 @@ public final class RemoteGameSession implements GameSession {
     /** The last thing the server told us. Shown as stale rather than blanked. */
     private ComputeBudget lastBudget;
 
-    private Ethecoin lastBalance = Ethecoin.ofMinorUnits(0);
+    private Ethecoin lastBalance = Ethecoin.ofWei(0);
     private int lastHeat;
     private boolean connected;
 
@@ -133,7 +133,7 @@ public final class RemoteGameSession implements GameSession {
 
     @Override
     public MiningSummary mining() {
-        return new MiningSummary(0, 0, 0, 0);
+        return new MiningSummary(0, java.math.BigInteger.ZERO, java.math.BigInteger.ZERO, 0);
     }
 
     @Override
@@ -143,7 +143,9 @@ public final class RemoteGameSession implements GameSession {
         // that does not exist.
         return new io.github.stoicswe.eyeandsickle.protocol.game.MiningSnapshot(
                 io.github.stoicswe.eyeandsickle.protocol.game.MiningMode.POOLED,
-                0L, 0L, 0L, 0.0d, 0.0d, 0L, 0L, 0.0d, -1L, 0L, 0L, 0L, 0L, 0, null, null, 0L, 0L, 0L);
+                0L, 0L, 0L, 0.0d, 0.0d, 0L, 0L, 0.0d, -1L,
+                java.math.BigInteger.ZERO, java.math.BigInteger.ZERO, 0L,
+                java.math.BigInteger.ZERO, 0, null, null, java.math.BigInteger.ZERO, 0L, 0L);
     }
 
     @Override
@@ -214,8 +216,8 @@ public final class RemoteGameSession implements GameSession {
     }
 
     @Override
-    public long miningRateFor(long cycles) {
-        return 0L;
+    public java.math.BigInteger miningRateFor(long cycles) {
+        return java.math.BigInteger.ZERO;
     }
 
     @Override
@@ -224,7 +226,7 @@ public final class RemoteGameSession implements GameSession {
     }
 
     @Override
-    public Outcome send(String toAddress, long minorUnits,
+    public Outcome send(String toAddress, java.math.BigInteger wei,
             io.github.stoicswe.eyeandsickle.protocol.game.FeeTier tier) {
         return unavailable();
     }
@@ -251,7 +253,8 @@ public final class RemoteGameSession implements GameSession {
         // rendered from a projection's etaAt, and a placeholder card would give the panel an instant
         // to count down to on a session that has no chain behind it at all.
         return new io.github.stoicswe.eyeandsickle.protocol.game.ChainMempool(
-                java.util.List.of(), 0, java.util.List.of(), 0, 0, 0, 0);
+                java.util.List.of(), 0, java.util.List.of(), 0, 0,
+                java.math.BigInteger.ZERO, java.math.BigInteger.ZERO);
     }
 
     @Override
@@ -535,6 +538,33 @@ public final class RemoteGameSession implements GameSession {
     @Override
     public java.util.List<String> info(String address, String path) {
         return java.util.List.of();
+    }
+
+    @Override
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.ScanReport> scanReports() {
+        // No endpoint publishes a scan history yet. Empty is the honest answer: the panel renders
+        // "no audits yet", which is true of what this client can see, rather than inventing rows.
+        return java.util.List.of();
+    }
+
+    @Override
+    public java.util.List<String> auditPaths() {
+        return java.util.List.of();
+    }
+
+    @Override
+    public Outcome delete(String address, String path) {
+        // No endpoint publishes the rig's stored files yet, so refusing is the honest answer. A
+        // silent success here would tell a player their file was gone when the server still has it.
+        return Outcome.refused("deleting files is not wired up for a home server yet");
+    }
+
+    @Override
+    public java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.UpgradeOffer> upgradeAt(
+            String address, String path) {
+        // Empty, like every other filesystem answer here: the server owns the far machine's tree and
+        // no endpoint publishes it yet. The panel renders nothing rather than something wrong.
+        return java.util.Optional.empty();
     }
 
     @Override

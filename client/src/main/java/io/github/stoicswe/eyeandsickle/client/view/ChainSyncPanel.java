@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.client.view;
 
+import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.client.ui.Pulse;
 import io.github.stoicswe.eyeandsickle.client.ui.Ui;
 import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
@@ -186,9 +187,9 @@ public final class ChainSyncPanel {
                             + " while your rig was still contributing.",
                     "es-sync-note"));
         }
-        if (sync.creditedMinorUnits() > 0) {
+        if (sync.creditedWei().signum() > 0) {
             summary.getChildren().add(line(
-                    money(sync.creditedMinorUnits()) + " settled — subsidy and fees together.",
+                    Ethecoin.format(sync.creditedWei()) + " settled — subsidy and fees together.",
                     "es-sync-win"));
         }
         if (sync.transactionsConfirmed() > 0) {
@@ -245,9 +246,6 @@ public final class ChainSyncPanel {
         return rest == 0 ? days + "d" : days + "d " + rest + "h";
     }
 
-    private static String money(long minorUnits) {
-        return String.format(Locale.ROOT, "%d.%02d EC", minorUnits / 100, Math.abs(minorUnits % 100));
-    }
 
     /**
      * The panel and the one thing the caller has to remember.

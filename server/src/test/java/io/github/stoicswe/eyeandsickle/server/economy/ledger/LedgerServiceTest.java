@@ -50,16 +50,17 @@ class LedgerServiceTest {
                 UUID.randomUUID(),
                 character.accountDid(),
                 character.slot(),
-                Ethecoin.ofMinorUnits(balanceMinor),
+                Ethecoin.ofWei(java.math.BigInteger.valueOf(balanceMinor)
+                        .multiply(Ethecoin.WEI_PER_ETHECOIN).divide(java.math.BigInteger.valueOf(100))),
                 java.math.BigDecimal.ZERO,
                 0L);
     }
 
-    private long localSupply() {
-        return accounts.balanceOf(ALICE).minorUnits()
-                + (accounts.currentByCharacter(BOB)
-                        .map(a -> a.balance().minorUnits())
-                        .orElse(0L));
+    private java.math.BigInteger localSupply() {
+        return accounts.balanceOf(ALICE).wei()
+                .add(accounts.currentByCharacter(BOB)
+                        .map(a -> a.balance().wei())
+                        .orElse(java.math.BigInteger.ZERO));
     }
 
     // ------------------------------------------------------------------ mint (the faucet)
@@ -73,9 +74,9 @@ class LedgerServiceTest {
         void mintsIntoBalance() {
             accounts.with(account(ALICE, 1_000));
 
-            LedgerTransaction row = service.mint(ALICE, Ethecoin.ofMinorUnits(250), Map.of("block", 7));
+            LedgerTransaction row = service.mint(ALICE, Ethecoin.ofDecimal("2.5"), Map.of("block", 7));
 
-            assertThat(accounts.balanceOf(ALICE)).isEqualTo(Ethecoin.ofMinorUnits(1_250));
+            assertThat(accounts.balanceOf(ALICE)).isEqualTo(Ethecoin.ofDecimal("12.5"));
             assertThat(ledger.appended).hasSize(1);
             assertThat(row.fromDid()).as("the faucet has no payer").isNull();
             assertThat(row.toDid()).isEqualTo(ALICE);
@@ -87,7 +88,7 @@ class LedgerServiceTest {
         @Test
         @DisplayName("minting to an unknown player is refused and writes nothing")
         void unknownRecipientRejected() {
-            assertThatThrownBy(() -> service.mint(GHOST, Ethecoin.ofMinorUnits(10), null))
+            assertThatThrownBy(() -> service.mint(GHOST, Ethecoin.ofDecimal("0.1"), null))
                     .isInstanceOf(UnknownPlayerException.class);
             assertThat(ledger.appended).isEmpty();
         }
@@ -114,24 +115,24 @@ class LedgerServiceTest {
             accounts.with(account(ALICE, 1_000)).with(account(BOB, 0));
 
             assertThatThrownBy(() -> service.transfer(
-                            ALICE, BOB, Ethecoin.ofMinorUnits(100), LedgerEntryType.MINING_REWARD, true, null))
+                            ALICE, BOB, Ethecoin.ofDecimal("1"), LedgerEntryType.MINING_REWARD, true, null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("faucet");
             assertThat(ledger.appended).isEmpty();
-            assertThat(accounts.balanceOf(ALICE)).isEqualTo(Ethecoin.ofMinorUnits(1_000));
+            assertThat(accounts.balanceOf(ALICE)).isEqualTo(Ethecoin.ofDecimal("10"));
         }
 
         @Test
         @DisplayName("between two local players, total supply is conserved — a transfer moves, it does not mint")
         void supplyIsConserved() {
             accounts.with(account(ALICE, 1_000)).with(account(BOB, 400));
-            long before = localSupply();
+            java.math.BigInteger before = localSupply();
 
             LedgerTransaction row =
-                    service.transfer(ALICE, BOB, Ethecoin.ofMinorUnits(300), LedgerEntryType.TRADE, true, null);
+                    service.transfer(ALICE, BOB, Ethecoin.ofDecimal("3"), LedgerEntryType.TRADE, true, null);
 
-            assertThat(accounts.balanceOf(ALICE)).isEqualTo(Ethecoin.ofMinorUnits(700));
-            assertThat(accounts.balanceOf(BOB)).isEqualTo(Ethecoin.ofMinorUnits(700));
+            assertThat(accounts.balanceOf(ALICE)).isEqualTo(Ethecoin.ofDecimal("7"));
+            assertThat(accounts.balanceOf(BOB)).isEqualTo(Ethecoin.ofDecimal("7"));
             assertThat(localSupply()).as("no ethecoin was created or destroyed").isEqualTo(before);
             assertThat(row.type()).isEqualTo(LedgerEntryType.TRADE);
             assertThat(row.fromDid()).isEqualTo(ALICE);
@@ -144,11 +145,11 @@ class LedgerServiceTest {
             accounts.with(account(BOB, 100));
 
             LedgerTransaction row = service.transfer(
-                    NPC_HOST, BOB, Ethecoin.ofMinorUnits(80), LedgerEntryType.CRACK_SEIZURE, true, null);
+                    NPC_HOST, BOB, Ethecoin.ofDecimal("0.8"), LedgerEntryType.CRACK_SEIZURE, true, null);
 
             // The buffer already existed on the host and the mining slice debited it; here only the local
             // payee is credited, and the row records a CRACK_SEIZURE — never a MINING_REWARD.
-            assertThat(accounts.balanceOf(BOB)).isEqualTo(Ethecoin.ofMinorUnits(180));
+            assertThat(accounts.balanceOf(BOB)).isEqualTo(Ethecoin.ofDecimal("1.8"));
             assertThat(row.type()).isEqualTo(LedgerEntryType.CRACK_SEIZURE);
             assertThat(row.type().isFaucet()).isFalse();
             assertThat(row.fromDid()).isEqualTo(NPC_HOST);
@@ -161,9 +162,9 @@ class LedgerServiceTest {
         void purchaseToNpcVendorIsASink() {
             accounts.with(account(ALICE, 500));
 
-            service.transfer(ALICE, NPC_VENDOR, Ethecoin.ofMinorUnits(120), LedgerEntryType.PURCHASE, true, null);
+            service.transfer(ALICE, NPC_VENDOR, Ethecoin.ofDecimal("1.2"), LedgerEntryType.PURCHASE, true, null);
 
-            assertThat(accounts.balanceOf(ALICE)).isEqualTo(Ethecoin.ofMinorUnits(380));
+            assertThat(accounts.balanceOf(ALICE)).isEqualTo(Ethecoin.ofDecimal("3.8"));
             assertThat(ledger.appended).hasSize(1);
             assertThat(ledger.appended.get(0).type()).isEqualTo(LedgerEntryType.PURCHASE);
         }
@@ -173,7 +174,7 @@ class LedgerServiceTest {
         void selfTransferRejected() {
             accounts.with(account(ALICE, 1_000));
             assertThatThrownBy(() ->
-                            service.transfer(ALICE, ALICE, Ethecoin.ofMinorUnits(1), LedgerEntryType.TRADE, true, null))
+                            service.transfer(ALICE, ALICE, Ethecoin.ofDecimal("0.01"), LedgerEntryType.TRADE, true, null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("two distinct parties");
             assertThat(ledger.appended).isEmpty();
@@ -194,15 +195,15 @@ class LedgerServiceTest {
             accounts.with(account(ALICE, 100)).with(account(BOB, 0));
 
             assertThatThrownBy(() ->
-                            service.transfer(ALICE, BOB, Ethecoin.ofMinorUnits(101), LedgerEntryType.TRADE, true, null))
+                            service.transfer(ALICE, BOB, Ethecoin.ofDecimal("1.01"), LedgerEntryType.TRADE, true, null))
                     .isInstanceOfSatisfying(InsufficientFundsException.class, insufficient -> {
                         assertThat(insufficient.did()).isEqualTo(ALICE);
-                        assertThat(insufficient.balance()).isEqualTo(Ethecoin.ofMinorUnits(100));
-                        assertThat(insufficient.required()).isEqualTo(Ethecoin.ofMinorUnits(101));
+                        assertThat(insufficient.balance()).isEqualTo(Ethecoin.ofDecimal("1"));
+                        assertThat(insufficient.required()).isEqualTo(Ethecoin.ofDecimal("1.01"));
                     });
 
             // Affordability is asked BEFORE the subtraction: no half-transfer, no ledger row.
-            assertThat(accounts.balanceOf(ALICE)).isEqualTo(Ethecoin.ofMinorUnits(100));
+            assertThat(accounts.balanceOf(ALICE)).isEqualTo(Ethecoin.ofDecimal("1"));
             assertThat(accounts.balanceOf(BOB)).isEqualTo(Ethecoin.ZERO);
             assertThat(ledger.appended).isEmpty();
         }
@@ -211,7 +212,7 @@ class LedgerServiceTest {
         @DisplayName("a transfer where neither party is local is refused — this server has no stake")
         void neitherPartyLocalRejected() {
             assertThatThrownBy(() -> service.transfer(
-                            NPC_HOST, NPC_VENDOR, Ethecoin.ofMinorUnits(10), LedgerEntryType.TRADE, true, null))
+                            NPC_HOST, NPC_VENDOR, Ethecoin.ofDecimal("0.1"), LedgerEntryType.TRADE, true, null))
                     .isInstanceOf(UnknownPlayerException.class);
             assertThat(ledger.appended).isEmpty();
         }
@@ -222,7 +223,7 @@ class LedgerServiceTest {
             accounts.with(account(ALICE, 500)).with(account(BOB, 0));
 
             LedgerTransaction row =
-                    service.transfer(ALICE, BOB, Ethecoin.ofMinorUnits(200), LedgerEntryType.TRADE, false, null);
+                    service.transfer(ALICE, BOB, Ethecoin.ofDecimal("2"), LedgerEntryType.TRADE, false, null);
 
             assertThat(row.traceable()).isFalse();
             assertThat(ledger.appended).hasSize(1);
@@ -243,8 +244,8 @@ class LedgerServiceTest {
 
             // Same account DID, different slots: two save games, two balances. Keying on the account DID
             // (the old bug) would have made these one shared balance.
-            assertThat(service.balanceOf(ALICE)).isEqualTo(Ethecoin.ofMinorUnits(1_000));
-            assertThat(service.balanceOf(ALICE_SLOT_2)).isEqualTo(Ethecoin.ofMinorUnits(50));
+            assertThat(service.balanceOf(ALICE)).isEqualTo(Ethecoin.ofDecimal("10"));
+            assertThat(service.balanceOf(ALICE_SLOT_2)).isEqualTo(Ethecoin.ofDecimal("0.5"));
         }
 
         @Test
@@ -253,12 +254,12 @@ class LedgerServiceTest {
             accounts.with(account(ALICE, 1_000)).with(account(ALICE_SLOT_2, 0));
 
             LedgerTransaction row = service.transfer(
-                    ALICE, ALICE_SLOT_2, Ethecoin.ofMinorUnits(300), LedgerEntryType.TRADE, true, null);
+                    ALICE, ALICE_SLOT_2, Ethecoin.ofDecimal("3"), LedgerEntryType.TRADE, true, null);
 
             // Only reachable because the two characters are distinct money holders: the debit lands on one,
             // the credit on the other, and the ledger records the character DIDs as the two parties.
-            assertThat(service.balanceOf(ALICE)).isEqualTo(Ethecoin.ofMinorUnits(700));
-            assertThat(service.balanceOf(ALICE_SLOT_2)).isEqualTo(Ethecoin.ofMinorUnits(300));
+            assertThat(service.balanceOf(ALICE)).isEqualTo(Ethecoin.ofDecimal("7"));
+            assertThat(service.balanceOf(ALICE_SLOT_2)).isEqualTo(Ethecoin.ofDecimal("3"));
             assertThat(row.fromDid()).isEqualTo(ALICE);
             assertThat(row.toDid()).isEqualTo(ALICE_SLOT_2);
         }
@@ -274,7 +275,7 @@ class LedgerServiceTest {
         @DisplayName("balanceOf returns the materialised balance, and refuses an unknown player")
         void balanceOf() {
             accounts.with(account(ALICE, 4_200));
-            assertThat(service.balanceOf(ALICE)).isEqualTo(Ethecoin.ofMinorUnits(4_200));
+            assertThat(service.balanceOf(ALICE)).isEqualTo(Ethecoin.ofDecimal("42"));
             assertThatThrownBy(() -> service.balanceOf(GHOST)).isInstanceOf(UnknownPlayerException.class);
         }
 

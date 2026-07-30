@@ -41,7 +41,7 @@ class AccountRepositoryIT extends PostgresIntegrationTestBase {
 
         Optional<Account> found = repository.findByCharacter(ALICE);
         assertThat(found).isPresent();
-        assertThat(found.get().balance()).isEqualTo(Ethecoin.ofMinorUnits(4_200));
+        assertThat(found.get().balance()).isEqualTo(Ethecoin.ofDecimal("42"));
         assertThat(found.get().personalHeat()).isEqualByComparingTo(new java.math.BigDecimal("37.5000"));
         assertThat(found.get().accountDid()).isEqualTo(ALICE_ACCOUNT);
         assertThat(found.get().slot()).isEqualTo(1);
@@ -65,8 +65,8 @@ class AccountRepositoryIT extends PostgresIntegrationTestBase {
         Account first = repository.findByCharacter(ALICE).orElseThrow();
         Account second = repository.findByCharacter(ALICE_SLOT_2).orElseThrow();
 
-        assertThat(first.balance()).isEqualTo(Ethecoin.ofMinorUnits(1_000));
-        assertThat(second.balance()).isEqualTo(Ethecoin.ofMinorUnits(250));
+        assertThat(first.balance()).isEqualTo(Ethecoin.ofDecimal("10"));
+        assertThat(second.balance()).isEqualTo(Ethecoin.ofDecimal("2.5"));
         assertThat(first.personalHeat()).isEqualByComparingTo(new java.math.BigDecimal("10"));
         assertThat(second.personalHeat()).isEqualByComparingTo(new java.math.BigDecimal("90"));
         assertThat(first.playerId()).isNotEqualTo(second.playerId());
@@ -99,7 +99,7 @@ class AccountRepositoryIT extends PostgresIntegrationTestBase {
         assertThat(locked).extracting(Account::characterDid).containsExactly(ALICE);
         assertThat(locked)
                 .singleElement()
-                .satisfies(a -> assertThat(a.balance()).isEqualTo(Ethecoin.ofMinorUnits(100)));
+                .satisfies(a -> assertThat(a.balance()).isEqualTo(Ethecoin.ofDecimal("1")));
     }
 
     @Test
@@ -116,10 +116,10 @@ class AccountRepositoryIT extends PostgresIntegrationTestBase {
 
         transactions()
                 .executeWithoutResult(status ->
-                        repository.writeBalance(before.playerId(), Ethecoin.ofMinorUnits(1_500), before.rowVersion()));
+                        repository.writeBalance(before.playerId(), Ethecoin.ofDecimal("15"), before.rowVersion()));
 
         Account after = repository.findByCharacter(ALICE).orElseThrow();
-        assertThat(after.balance()).isEqualTo(Ethecoin.ofMinorUnits(1_500));
+        assertThat(after.balance()).isEqualTo(Ethecoin.ofDecimal("15"));
         assertThat(after.rowVersion()).isEqualTo(before.rowVersion() + 1);
     }
 
@@ -131,22 +131,22 @@ class AccountRepositoryIT extends PostgresIntegrationTestBase {
 
         // First writer moves the version from 0 to 1.
         transactions()
-                .executeWithoutResult(status -> repository.writeBalance(playerId, Ethecoin.ofMinorUnits(1_500), 0L));
+                .executeWithoutResult(status -> repository.writeBalance(playerId, Ethecoin.ofDecimal("15"), 0L));
 
         // Second writer still believes it holds version 0 — the classic lost update, which here would be
         // a player spending the same ethecoin twice. It must be refused, not silently dropped.
         assertThatThrownBy(() -> transactions()
                         .executeWithoutResult(
-                                status -> repository.writeBalance(playerId, Ethecoin.ofMinorUnits(9_000), 0L)))
+                                status -> repository.writeBalance(playerId, Ethecoin.ofDecimal("90"), 0L)))
                 .isInstanceOf(OptimisticLockingFailureException.class);
 
-        assertThat(repository.findByCharacter(ALICE).orElseThrow().balance()).isEqualTo(Ethecoin.ofMinorUnits(1_500));
+        assertThat(repository.findByCharacter(ALICE).orElseThrow().balance()).isEqualTo(Ethecoin.ofDecimal("15"));
     }
 
     private void insertPlayer(String accountDid, int slot, long balanceMinor, String heat) {
         jdbcClient()
                 .sql("""
-                        INSERT INTO players (player_id, did, slot, handle, ethecoin_balance_ec_minor, personal_heat)
+                        INSERT INTO players (player_id, did, slot, handle, ethecoin_balance_wei, personal_heat)
                         VALUES (:id, :did, :slot, 'operator', :balance, CAST(:heat AS numeric))
                         """)
                 .param("id", UUID.randomUUID())

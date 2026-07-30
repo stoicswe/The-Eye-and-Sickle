@@ -30,7 +30,7 @@ final class PlayerRows {
     static final String STATUS = "status";
     static final String FACTION = "faction";
     static final String PERSONAL_HEAT = "personal_heat";
-    static final String BALANCE = "ethecoin_balance_ec_minor";
+    static final String BALANCE = "ethecoin_balance_wei";
     static final String CREATED_AT = "created_at";
     static final String LAST_SEEN_AT = "last_seen_at";
     static final String ROW_VERSION = Mutations.ROW_VERSION;

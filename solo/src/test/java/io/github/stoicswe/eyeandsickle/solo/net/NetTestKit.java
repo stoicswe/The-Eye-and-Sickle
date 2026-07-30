@@ -213,7 +213,7 @@ final class NetTestKit {
                     .append(host.firewallTier).append(' ')
                     .append(host.tarpit).append(host.canaries).append(host.defended).append(host.honeypot)
                     .append(' ').append(host.detectRoll)
-                    .append(' ').append(host.lootMinorUnits)
+                    .append(' ').append(host.lootWei)
                     .append(' ').append(host.documentId)
                     .append(' ').append(host.bridgePeer)
                     .append(' ').append(String.join(",", host.links))

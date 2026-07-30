@@ -138,7 +138,7 @@ public final class LocalGameSession implements GameSession {
         int from = Math.max(0, rows.size() - Math.max(0, limit));
         List<LedgerRow> out = new ArrayList<>();
         for (LedgerEntryState e : rows.subList(from, rows.size())) {
-            out.add(new LedgerRow(e.entryId, e.at, e.deltaMinorUnits, e.balanceAfterMinorUnits, e.type, e.description));
+            out.add(new LedgerRow(e.entryId, e.at, e.deltaWei, e.balanceAfterWei, e.type, e.description));
         }
         out.sort((a, b) -> b.at().compareTo(a.at()));
         return out;
@@ -176,13 +176,13 @@ public final class LocalGameSession implements GameSession {
 
     @Override
     public MiningSummary mining() {
-        long buffered = 0;
-        long cap = 0;
+        java.math.BigInteger buffered = java.math.BigInteger.ZERO;
+        java.math.BigInteger cap = java.math.BigInteger.ZERO;
         int miners = 0;
         for (NodeState node : game.state().knownNodes) {
             for (var miner : node.deployedMiners) {
-                buffered += miner.bufferedMinorUnits;
-                cap += io.github.stoicswe.eyeandsickle.solo.rules.MiningRules.bufferCap(miner);
+                buffered = buffered.add(miner.bufferedWei);
+                cap = cap.add(io.github.stoicswe.eyeandsickle.solo.rules.MiningRules.bufferCap(miner));
                 miners++;
             }
         }
@@ -201,6 +201,23 @@ public final class LocalGameSession implements GameSession {
      * on — a scan — sits above the background heat the rig is shedding, because that is the order
      * the questions get asked in.
      */
+    /** The caption under a running task, by kind. */
+    private static String detailFor(String kind) {
+        return switch (kind) {
+            case "transfer" -> "bounded by the far end's uplink";
+            // ⚠ Names the consequence, not the act. "writing firmware" is what it is doing; "the
+            // mining tool is frozen" is what the player needs to know while it does.
+            case "flash" -> "the mining tool is frozen until this finishes";
+            // ⚠ Says what the scan is LOOKING FOR. It read "signal strength, not certainty", which is
+            // an answer to a different question — how much a dearer tier buys — and left the readout
+            // never naming the subject at all. An audit is a search of this rig for processes that
+            // are not the player's, and a progress bar with no stated subject is a progress bar
+            // nobody can decide to cancel.
+            case "scan" -> "checking for adversarial processes";
+            default -> "signal strength, not certainty";
+        };
+    }
+
     @Override
     public java.util.List<RunningTask> tasks() {
         java.util.List<RunningTask> out = new java.util.ArrayList<>();
@@ -213,7 +230,11 @@ public final class LocalGameSession implements GameSession {
                     task.taskId,
                     task.kind,
                     task.label,
-                    "signal strength, not certainty",
+                    // ⚠ Per KIND. This was one hardcoded string — "signal strength, not certainty",
+                    // which is a scan's caption — printed under every task in the rig monitor
+                    // whatever it was. Harmless while scans were the only kind and visibly wrong the
+                    // moment a second one existed.
+                    detailFor(task.kind),
                     task.startedAt,
                     task.endsAt,
                     task.cycles,
@@ -401,7 +422,7 @@ public final class LocalGameSession implements GameSession {
     }
 
     @Override
-    public long miningRateFor(long cycles) {
+    public java.math.BigInteger miningRateFor(long cycles) {
         return game.miningRateFor(cycles);
     }
 
@@ -411,27 +432,27 @@ public final class LocalGameSession implements GameSession {
     }
 
     @Override
-    public Outcome send(String toAddress, long minorUnits,
+    public Outcome send(String toAddress, java.math.BigInteger wei,
             io.github.stoicswe.eyeandsickle.protocol.game.FeeTier tier) {
-        return announce("chain", sendIntent(toAddress, minorUnits, tier));
+        return announce("chain", sendIntent(toAddress, wei, tier));
     }
 
-    private Outcome sendIntent(String toAddress, long minorUnits,
+    private Outcome sendIntent(String toAddress, java.math.BigInteger wei,
             io.github.stoicswe.eyeandsickle.protocol.game.FeeTier tier) {
         if (toAddress == null || !toAddress.matches("0x[0-9a-fA-F]{40}")) {
             return Outcome.usage("send <0x…40 hex> <amount> — an address is 20 bytes of hex");
         }
-        if (minorUnits <= 0) {
+        if (wei.signum() <= 0) {
             return Outcome.usage("send: the amount must be positive");
         }
-        long fee = game.feeFor(tier);
-        if (!game.debit(minorUnits, "TRANSFER", "Sent to " + toAddress, tier, toAddress)) {
-            return Outcome.refused("not enough ethecoin — " + money(minorUnits + fee)
-                    + " needed including the " + money(fee) + " fee, "
-                    + money(game.balance().minorUnits()) + " held");
+        java.math.BigInteger fee = game.feeFor(tier);
+        if (!game.debit(wei, "TRANSFER", "Sent to " + toAddress, tier, toAddress)) {
+            return Outcome.refused("not enough ethecoin — " + Ethecoin.format(wei.add(fee))
+                    + " needed including the " + Ethecoin.format(fee) + " fee, "
+                    + Ethecoin.format(game.balance().wei()) + " held");
         }
-        return Outcome.ok("broadcast " + money(minorUnits) + " to " + toAddress
-                + " with a " + money(fee) + " fee — waiting for a miner");
+        return Outcome.ok("broadcast " + Ethecoin.format(wei) + " to " + toAddress
+                + " with a " + Ethecoin.format(fee) + " fee — waiting for a miner");
     }
 
     @Override
@@ -588,7 +609,7 @@ public final class LocalGameSession implements GameSession {
         // Both numbers, always. The fee is what changed the income and the interval is what changed
         // the feel, and a player told only one of them will conclude the other did not move.
         return Outcome.ok("joined " + after.pool().name() + " — "
-                + String.format(java.util.Locale.ROOT, "%.2f EC", after.expectedMinorUnitsPerHour() / 100.0d)
+                + Ethecoin.format(after.expectedWeiPerHour())
                 + "/hr expected, paid about every "
                 + Math.round(after.expectedPayoutSeconds()) + "s");
     }
@@ -851,6 +872,32 @@ public final class LocalGameSession implements GameSession {
     }
 
     @Override
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.ScanReport> scanReports() {
+        return game.scanReports();
+    }
+
+    @Override
+    public java.util.List<String> auditPaths() {
+        return game.auditPaths();
+    }
+
+    @Override
+    public java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.UpgradeOffer> upgradeAt(
+            String address, String path) {
+        return game.upgradeAt(address, path);
+    }
+
+    @Override
+    public Outcome delete(String address, String path) {
+        var result = game.delete(address, path);
+        if (!result.ok()) {
+            return announce("storage", Outcome.refused(result.message()));
+        }
+        persist();
+        return changed(Outcome.ok(result.message()));
+    }
+
+    @Override
     public Outcome download(
             String address,
             io.github.stoicswe.eyeandsickle.protocol.game.FsEntry entry,
@@ -905,7 +952,7 @@ public final class LocalGameSession implements GameSession {
         var result = game.sell(path);
         return result.ok()
                 ? announce("ledger", changed(Outcome.ok(
-                        result.message() + " for " + money(result.minorUnits()))))
+                        result.message() + " for " + Ethecoin.format(result.wei()))))
                 // 77 rather than 1 for the gate case: it is "not this way", not "no".
                 : new Outcome(
                         result.refusal() == io.github.stoicswe.eyeandsickle.solo.rules.Repac
@@ -989,14 +1036,15 @@ public final class LocalGameSession implements GameSession {
             boolean owned = game.ownsSweep(tier);
             var offering = io.github.stoicswe.eyeandsickle.solo.Catalogue.byId(tier.itemId());
             String name = offering.map(o -> o.name()).orElse(tier.label());
-            long price = offering.map(o -> o.priceMinorUnits()).orElse(0L);
+            java.math.BigInteger price = offering.map(o -> o.priceWei())
+                .orElse(java.math.BigInteger.ZERO);
             // Words, never a bare price: docs/client/05 §5 forbids a generic "locked" and requires
             // the requirement itself be stated. A player who is told "25.00 EC" without being told
             // WHAT costs it has been given a number, not a route.
             String requirement = owned
                     ? ""
-                    : price > 0
-                            ? "the " + name + " tool, " + money(price) + " in the market"
+                    : price.signum() > 0
+                            ? "the " + name + " tool, " + Ethecoin.format(price) + " in the market"
                             : "the " + name + " tool";
             options.add(new SweepOption(
                     flagFor(tier),
@@ -1104,11 +1152,11 @@ public final class LocalGameSession implements GameSession {
     }
 
     private Outcome collectIntent() {
-        long collected = game.collect();
-        if (collected == 0) {
+        java.math.BigInteger collected = game.collect();
+        if (collected.signum() == 0) {
             return Outcome.ok("nothing to collect");
         }
-        return changed(Outcome.ok("collected " + Ethecoin.ofMinorUnits(collected)));
+        return changed(Outcome.ok("collected " + Ethecoin.ofWei(collected)));
     }
 
     private Outcome moveItemIntent(String itemId, StorageTier to) {
@@ -1168,11 +1216,11 @@ public final class LocalGameSession implements GameSession {
         // two — the purchase and a separate TX_FEE line — and only the first is broadcast, so
         // reaching for the end of the ledger gets the fee, which never confirms and would hold the
         // package forever with the money gone.
-        var paid = game.spend(o.priceMinorUnits(), "MARKET", "Bought " + o.name(),
+        var paid = game.spend(o.priceWei(), "MARKET", "Bought " + o.name(),
                 io.github.stoicswe.eyeandsickle.protocol.game.FeeTier.STANDARD, "");
         if (paid.isEmpty()) {
             return Outcome.refused("not enough ethecoin — " + o.name() + " costs "
-                    + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.ofMinorUnits(o.priceMinorUnits())
+                    + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.ofWei(o.priceWei())
                     + ", you have " + balance());
         }
         var started = io.github.stoicswe.eyeandsickle.solo.net.TransferRules.beginPurchase(
@@ -1367,9 +1415,6 @@ public final class LocalGameSession implements GameSession {
                 failed.printStackTrace();
             }
         }
-    }
-    private static String money(long minorUnits) {
-        return String.format(java.util.Locale.ROOT, "%d.%02d EC", minorUnits / 100, Math.abs(minorUnits % 100));
     }
 
 }

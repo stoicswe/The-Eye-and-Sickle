@@ -94,14 +94,14 @@ class NetRulesTest {
             SweepReport report = NetTestKit.sweep(save, SweepTier.BASE, NetTestKit.T0);
             String address = report.foundAddresses().getFirst();
             HostState host = NetTestKit.host(save.topology, address);
-            long before = save.ethecoinMinorUnits;
+            java.math.BigInteger before = save.ethecoinWei;
 
             save.resolutions.add(breached(address));
             assertThat(NetRules.reconcileFootholds(save, NetTestKit.T0)).isTrue();
 
             assertThat(host.foothold).isTrue();
             assertThat(host.looted).isTrue();
-            assertThat(save.ethecoinMinorUnits - before).isEqualTo(host.lootMinorUnits);
+            assertThat(save.ethecoinWei.subtract(before)).isEqualTo(host.lootWei);
             assertThat(NetRules.connect(save, address, NetTestKit.T0)).isTrue();
         }
 
@@ -117,18 +117,18 @@ class NetRulesTest {
             SweepReport report = NetTestKit.sweep(save, SweepTier.BASE, NetTestKit.T0);
             String address = report.foundAddresses().getFirst();
             HostState host = NetTestKit.host(save.topology, address);
-            long before = save.ethecoinMinorUnits;
+            java.math.BigInteger before = save.ethecoinWei;
 
             save.resolutions.add(breached(address));
             for (int i = 0; i < 10; i++) {
                 NetRules.reconcileFootholds(save, NetTestKit.T0.plusSeconds(i));
             }
-            assertThat(save.ethecoinMinorUnits - before).isEqualTo(host.lootMinorUnits);
+            assertThat(save.ethecoinWei.subtract(before)).isEqualTo(host.lootWei);
 
             // And a duplicated resolution row — a bad merge, a hand-edited save — still pays once.
             save.resolutions.add(breached(address));
             NetRules.reconcileFootholds(save, NetTestKit.T0.plusSeconds(99));
-            assertThat(save.ethecoinMinorUnits - before).isEqualTo(host.lootMinorUnits);
+            assertThat(save.ethecoinWei.subtract(before)).isEqualTo(host.lootWei);
         }
 
         @Test
@@ -137,7 +137,7 @@ class NetRulesTest {
             SoloSave save = NetTestKit.world(seed(5));
             SweepReport report = NetTestKit.sweep(save, SweepTier.BASE, NetTestKit.T0);
             String address = report.foundAddresses().getFirst();
-            long before = save.ethecoinMinorUnits;
+            java.math.BigInteger before = save.ethecoinWei;
 
             ResolutionState failed = breached(address);
             failed.outcome = "FAILED";
@@ -148,7 +148,7 @@ class NetRulesTest {
 
             assertThat(NetRules.reconcileFootholds(save, NetTestKit.T0)).isFalse();
             assertThat(NetTestKit.host(save.topology, address).foothold).isFalse();
-            assertThat(save.ethecoinMinorUnits).isEqualTo(before);
+            assertThat(save.ethecoinWei).isEqualTo(before);
         }
 
         @Test

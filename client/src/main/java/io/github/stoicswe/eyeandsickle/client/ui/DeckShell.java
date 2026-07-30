@@ -360,11 +360,17 @@ public final class DeckShell {
      */
     public void showShell(String address, String title, Region content, Runnable onClosed) {
         String id = "shell:" + address;
+        // ⚠ `onClosed` is WIRED, and for a long time it was accepted and dropped. A shell holds
+        // Balance.SESSION_CYCLES for as long as it exists; typing `exit` released them because the
+        // shell view asked the rules to close the session, but clicking the window's [×] went
+        // straight to the window manager — the frame vanished and the cycles stayed reserved, with
+        // nothing left on screen to give them back. The rig monitor showed compute held by a shell
+        // the player could not see, and only a restart cleared it.
         if (desk.find(id).isPresent()) {
-            desk.open(new DeskManager.Spec(id, title, address, content, 760, 520, true));
+            desk.open(new DeskManager.Spec(id, title, address, content, 760, 520, true, onClosed));
             return;
         }
-        desk.open(new DeskManager.Spec(id, title, address, content, 760, 520, true))
+        desk.open(new DeskManager.Spec(id, title, address, content, 760, 520, true, onClosed))
                 .ifPresent(window -> Motion.reveal(window.frame(), 0));
     }
 
@@ -623,10 +629,10 @@ public final class DeckShell {
         // double-sample and compress the window — so the push lives in the clock tick, not here.
 
         // Counts to the new figure and flashes the movement that caused it. See BalanceReadout.
-        balance.setMinorUnits(session.balance().minorUnits());
+        balance.setWei(session.balance().wei());
         balance.valueNode().getStyleClass().removeAll("es-value-live");
         income.getStyleClass().removeAll("es-income-live");
-        if (status.incomeMinorUnitsPerHour() > 0) {
+        if (status.incomeWeiPerHour().signum() > 0) {
             balance.valueNode().getStyleClass().add("es-value-live");
             income.getStyleClass().add("es-income-live");
         }

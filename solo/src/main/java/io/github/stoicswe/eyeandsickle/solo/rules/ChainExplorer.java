@@ -1,5 +1,7 @@
 package io.github.stoicswe.eyeandsickle.solo.rules;
 
+import java.math.BigInteger;
+import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.protocol.game.BlockContribution;
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainBlock;
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainMempool;
@@ -135,10 +137,10 @@ public final class ChainExplorer {
 
         String label = yours ? "YOUR RIG" : winnerLabel(derivedWinner(chain, height));
         // ⚠ The rules' total, not a sum of the rendered body. This is the figure the winner is
-        // actually PAID (MempoolRules.blockFeesMinorUnits), and summing the body instead would make
+        // actually PAID (MempoolRules.blockFeesWei), and summing the body instead would make
         // the card disagree with the ledger row the moment the player has a transaction in the
         // block — their row displaces network traffic rather than adding to it.
-        long fees = MempoolRules.blockFeesMinorUnits(save, height);
+        BigInteger fees = MempoolRules.blockFeesWei(save, height);
         return new ChainBlock(
                 height,
                 blockHash(chain, height),
@@ -153,7 +155,7 @@ public final class ChainExplorer {
                 gasUsed,
                 BLOCK_GAS_LIMIT,
                 sizeBytes,
-                Balance.BLOCK_SUBSIDY_MINOR_UNITS,
+                Balance.BLOCK_SUBSIDY_WEI,
                 fees,
                 label,
                 List.of());
@@ -187,7 +189,7 @@ public final class ChainExplorer {
      * A pay-per-share pool does not divide up the blocks it finds — it pays a fixed price per accepted
      * share out of its own balance — so a PPS row carries a real hashrate and a zero credit. That is
      * not a gap in the record; it is the difference between the two pool schemes, which
-     * {@code MiningRules.rewardBaseMinorUnits} spends three paragraphs on and no screen had ever
+     * {@code MiningRules.rewardBaseWei} spends three paragraphs on and no screen had ever
      * shown.
      */
     public static List<BlockContribution> contributions(SoloSave save, int limit) {
@@ -230,9 +232,9 @@ public final class ChainExplorer {
                 row.networkHashrate,
                 row.difficulty,
                 MempoolRules.blockTransactionCount(save, row.height),
-                Balance.BLOCK_SUBSIDY_MINOR_UNITS,
-                MempoolRules.blockFeesMinorUnits(save, row.height),
-                row.creditedMinorUnits);
+                Balance.BLOCK_SUBSIDY_WEI,
+                MempoolRules.blockFeesWei(save, row.height),
+                row.creditedWei);
     }
 
     /**
@@ -308,7 +310,7 @@ public final class ChainExplorer {
     /**
      * How many transactions a block carries, stable per height.
      *
-     * <p>⚠ Delegates. This number decides what {@code MempoolRules.blockFeesMinorUnits} pays a
+     * <p>⚠ Delegates. This number decides what {@code MempoolRules.blockFeesWei} pays a
      * miner, so it stopped being a presentation detail on 2026-07-27 and moved to the rules — see
      * this class's own charter, which is that nothing here decides anything.
      */
@@ -342,11 +344,15 @@ public final class ChainExplorer {
         int npc = Math.max(0, bodySize(save, height) - out.size());
         for (int i = 0; i < npc; i++) {
             byte[] seed = digest(save.chain.blockSeed + ":" + height + ":" + i);
-            long value = 25L + Math.floorMod(readLong(seed, 0), 250_000L);
+            // ⚠ Drawn in hundredths and scaled up, not drawn across the wei range. A uniform draw
+            // over 18 decimals gives every NPC transfer an eighteen-digit tail, and a block full of
+            // those reads as machine output rather than as people sending each other money.
+            BigInteger value = Ethecoin.ofDecimal("0.01").wei()
+                    .multiply(BigInteger.valueOf(25L + Math.floorMod(readLong(seed, 0), 250_000L)));
             // ⚠ The rules' fee, not a second derivation of one. These are summed and PAID to whoever
             // mined the block, so a copy here would be a block whose card and whose payout disagreed
             // — the exact class of bug the mempool projection had until this morning.
-            long fee = MempoolRules.npcFeeMinorUnits(save, height, i);
+            BigInteger fee = MempoolRules.npcFeeWei(save, height, i);
             out.add(new ChainTransaction(
                     "0x" + hex(seed, 32),
                     height,
@@ -355,7 +361,7 @@ public final class ChainExplorer {
                     "0x" + hex(digest("npc:" + height + ":" + i + ":to"), 20),
                     value,
                     false,
-                    0L,
+                    BigInteger.ZERO,
                     Math.floorMod(readLong(seed, 16), 4096L),
                     GAS_PER_TRANSFER,
                     "TRANSFER",
@@ -365,7 +371,7 @@ public final class ChainExplorer {
                     false,
                     ""));
         }
-        out.sort(Comparator.comparingDouble(ChainTransaction::gasPriceMinorUnits).reversed());
+        out.sort(Comparator.comparingDouble(ChainTransaction::gasPriceWei).reversed());
         return out;
     }
 
@@ -430,7 +436,7 @@ public final class ChainExplorer {
     /** One ledger row as a chain transaction. The single builder both surfaces go through. */
     private static ChainTransaction transaction(
             SoloSave save, LedgerEntryState entry, int nonce, String mine) {
-        boolean incoming = entry.deltaMinorUnits >= 0;
+        boolean incoming = entry.deltaWei.signum() >= 0;
         // A block reward has no sender: the coins did not exist before the block. Explorers render
         // that as a transfer from the zero address, and a coinbase costs no gas because there was no
         // transaction to execute.
@@ -445,45 +451,45 @@ public final class ChainExplorer {
         String counterparty = fromNamedParty
                 ? entry.counterparty
                 : address("counterparty:" + entry.type);
-        long fee = feeOf(save, entry);
+        BigInteger fee = feeOf(save, entry);
         return new ChainTransaction(
                 txHash(save, entry),
                 entry.blockNumber,
                 entry.at,
                 coinbase ? ChainTransaction.ZERO_ADDRESS : incoming ? counterparty : mine,
                 incoming ? mine : counterparty,
-                Math.abs(entry.deltaMinorUnits),
+                entry.deltaWei.abs(),
                 incoming,
-                entry.balanceAfterMinorUnits,
+                entry.balanceAfterWei,
                 nonce,
                 coinbase ? 0L : GAS_PER_TRANSFER,
                 entry.type,
                 entry.description,
-                coinbase ? 0L : fee,
+                coinbase ? BigInteger.ZERO : fee,
                 coinbase ? 0.0d : gasPrice(fee),
                 true,
                 labelFor(counterparty));
     }
 
     /** What this entry paid to be included, from the mempool record if it is still waiting. */
-    private static long feeOf(SoloSave save, LedgerEntryState entry) {
+    private static BigInteger feeOf(SoloSave save, LedgerEntryState entry) {
         // ⚠ The ROW's own record first. The mempool loop below only ever answered for a transaction
         // still waiting — confirmInto deletes the pending record — so a confirmed priority
         // transaction reported the STANDARD fee, and a block's rows are sorted by fee rate, so the
         // player's own row also sorted into the wrong part of the block they had paid to be at the
         // top of. Caught by rendering a block that contained one.
-        if (entry.feeMinorUnits >= 0) {
-            return entry.feeMinorUnits;
+        if (entry.feeWei.signum() >= 0) {
+            return entry.feeWei;
         }
         if (save.chain != null) {
             for (PendingTxState pending : save.chain.mempool) {
                 if (pending.entryId.equals(entry.entryId)) {
-                    return pending.feeMinorUnits;
+                    return pending.feeWei;
                 }
             }
         }
         // Only reached by an entry written before the fee was recorded on the row.
-        return Balance.FEE_STANDARD_MINOR_UNITS;
+        return Balance.FEE_STANDARD_WEI;
     }
 
     /**
@@ -548,7 +554,8 @@ public final class ChainExplorer {
     public static ChainMempool mempool(SoloSave save, Instant now) {
         ChainState chain = save.chain;
         if (chain == null) {
-            return new ChainMempool(List.of(), 0, List.of(), 0, 0, 0, 0);
+            return new ChainMempool(List.of(), 0, List.of(), 0, 0,
+                    BigInteger.ZERO, BigInteger.ZERO);
         }
         String mine = addressOf(save);
         List<ChainTransaction> pending = new ArrayList<>();
@@ -559,24 +566,24 @@ public final class ChainExplorer {
                     tx.createdAt,
                     tx.outgoing ? mine : tx.counterparty,
                     tx.outgoing ? tx.counterparty : mine,
-                    tx.valueMinorUnits,
+                    tx.valueWei,
                     !tx.outgoing,
-                    0L,
+                    BigInteger.ZERO,
                     chain.nonce,
                     GAS_PER_TRANSFER,
                     tx.kind,
                     tx.description,
-                    tx.feeMinorUnits,
-                    gasPrice(tx.feeMinorUnits),
+                    tx.feeWei,
+                    gasPrice(tx.feeWei),
                     true,
                     labelFor(tx.counterparty)));
         }
-        pending.sort(Comparator.comparingDouble(ChainTransaction::gasPriceMinorUnits).reversed());
+        pending.sort(Comparator.comparingDouble(ChainTransaction::gasPriceWei).reversed());
 
         // The network's queue is a depth, not a list — see MempoolRules for why it is derived. The
         // projections pack the player's transactions against it rather than instead of it.
         int backlog = MempoolRules.backlog(save);
-        double clearing = MempoolRules.clearingFee(save);
+        BigInteger clearing = MempoolRules.clearingFee(save);
 
         // The anchor. Falls back to now only on a chain that has never recorded a block, which is a
         // state genesis() does not produce — without the fallback a fresh save would date every ETA
@@ -605,7 +612,7 @@ public final class ChainExplorer {
             // is a fee market to bid into. See MempoolRules.backlogAt.
             long height = chain.height + 1L + index;
             int npc = Math.min(slots, MempoolRules.backlogAt(save, height));
-            double clearingHere = MempoolRules.clearingFeeAt(save, height);
+            BigInteger clearingHere = MempoolRules.clearingFeeAt(save, height);
             // ⚠ MempoolRules' rule, not a second copy of it. The old local `slots - npc` had no
             // floor, so a block the backlog filled reported zero slots for the player here while
             // confirmInto went on giving them one — a 0.30 EC priority transaction whose card
@@ -618,7 +625,7 @@ public final class ChainExplorer {
                 // shared price and became wrong the moment they each quoted their own: a transaction
                 // outbid for the next block would then be placed unconditionally in the one after,
                 // however expensive that block's queue happened to be.
-                if (pending.get(placed).feeMinorUnits() < Math.floor(clearingHere)) {
+                if (pending.get(placed).feeWei().compareTo(clearingHere) < 0) {
                     // Outbid for this block. It shows up in a later projection instead, which is
                     // exactly what an under-priced transaction does rather than vanishing.
                     break;
@@ -651,14 +658,14 @@ public final class ChainExplorer {
             // makes at the same height, so the estimate and the realised figure are the same number
             // arrived at once. The rig's own fee is deliberately not added: it displaces network
             // traffic rather than adding to it, so the block's total does not move for it — see
-            // MempoolRules.blockFeesMinorUnits.
-            long fees = MempoolRules.blockFeesMinorUnits(save, height);
+            // MempoolRules.blockFeesWei.
+            BigInteger fees = MempoolRules.blockFeesWei(save, height);
             // ⚠ THIS block's clearing price, not the strip's. Every card quoted the current one
             // before the queues were split apart, so five cards printed the same figure five times
             // and a player comparing them learned nothing from looking past the first.
             projected.add(new ChainMempool.ProjectedBlock(
                     index, total, ours, (long) total * GAS_PER_TRANSFER,
-                    BLOCK_GAS_LIMIT, fees, clearingHere, etaOf(anchor, index)));
+                    BLOCK_GAS_LIMIT, fees, gasPrice(clearingHere), etaOf(anchor, index)));
         }
 
         List<ChainMempool.Queued> queued = new ArrayList<>();
@@ -668,11 +675,13 @@ public final class ChainExplorer {
                     pending.get(i), index, index < 0 ? null : etaOf(anchor, index)));
         }
 
-        // ⚠ BOTH as gas prices. clearingFee() is in minor units and gasPriceMinorUnits() is per
-        // million gas, and the panel prints them side by side — shipping them in different units made
-        // "cheapest slot 8, top of the queue 1429" look like a 180x spread when it is under 4x.
-        double clearingRate = gasPrice(clearing);
-        double top = pending.isEmpty() ? clearingRate : pending.getFirst().gasPriceMinorUnits();
+        // ⚠ BOTH as fee AMOUNTS, in the unit the fee tiers are quoted in. They used to be gas
+        // prices — fee per million gas — which was readable at two decimal places and became an
+        // eighteen-digit integer the moment the scale moved to wei. The comparison the pairing exists
+        // for survives: shipping them in different units is what made "cheapest slot 8, top of the
+        // queue 1429" read as a 180x spread when it was under 4x, and two amounts are comparable.
+        BigInteger clearingRate = clearing;
+        BigInteger top = pending.isEmpty() ? clearingRate : pending.getFirst().feeWei();
         long since = chain.lastBlockAt == null
                 ? 0L
                 : Math.max(0L, java.time.Duration.between(chain.lastBlockAt, now).toSeconds());
@@ -683,7 +692,7 @@ public final class ChainExplorer {
                 Balance.CHAIN_TARGET_BLOCK_SECONDS,
                 since,
                 clearingRate,
-                Math.max(top, clearingRate));
+                top.max(clearingRate));
     }
 
     /** The mean arrival of the {@code (index + 1)}-th block after {@code anchor}. */
@@ -711,8 +720,23 @@ public final class ChainExplorer {
      * and the top of its queue look 180× apart when they were under 4×. Real explorers quote a rate
      * (sat/vB, gwei) for exactly this reason: a total tells you nothing about priority.
      */
-    public static double gasPrice(double feeMinorUnits) {
-        return feeMinorUnits / (double) GAS_PER_TRANSFER * 1_000_000;
+    public static double gasPrice(double feeWei) {
+        return feeWei / (double) GAS_PER_TRANSFER * 1_000_000;
+    }
+
+    /**
+     * The same, from a wei amount.
+     *
+     * <p>⚠ A gas price is a RATE — fee per million gas — so a double is the right output and the
+     * division is what makes it safe: the wei scale cancels. Converting the fee to a double first and
+     * then dividing would round the amount before using it, which at 18 decimals loses digits the
+     * sort actually depends on.
+     */
+    public static double gasPrice(BigInteger feeWei) {
+        return new java.math.BigDecimal(feeWei)
+                .divide(java.math.BigDecimal.valueOf(GAS_PER_TRANSFER), java.math.MathContext.DECIMAL64)
+                .multiply(java.math.BigDecimal.valueOf(1_000_000))
+                .doubleValue();
     }
 
     /** Eight bytes of a digest as a non-negative long, for a derived value. */

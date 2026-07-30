@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.client.view;
 
+import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.client.profile.ClientProfile;
 import io.github.stoicswe.eyeandsickle.client.session.GameSession;
 import io.github.stoicswe.eyeandsickle.client.shell.BuiltinCommands;
@@ -235,8 +236,7 @@ public final class Views {
                 // monitor shows the same balance two panels away, and docs/design/04 §3.1 makes
                 // noticing that two readouts disagree the way a player catches a hidden miner. Two
                 // different-looking renderings of one number destroy that.
-                current.setText(String.format(
-                        Locale.ROOT, "%.2f EC", session.balance().minorUnits() / 100.0d));
+                current.setText(session.balance().toString());
 
                 chain.setText(String.format(Locale.ROOT,
                         "height %d   difficulty %.2f   retarget in %d blocks   network %s",
@@ -269,8 +269,12 @@ public final class Views {
                     // four hours and calling that "40 EC/hr" would be the most misleading true
                     // sentence on the panel.
                     projection.setText(String.format(Locale.ROOT,
-                            "%.2f EC per %s, about one every %s  →  %.2f EC/hr expected",
-                            m.payoutMinorUnits() / 100.0d,
+                            "%s per %s, about one every %s  →  %s/hr expected",
+                            // ⚠ Both are EXPECTATIONS — a long-run payout and a long-run rate, both
+                            // derived through the network hashrate, which is a double. Printed exact
+                            // they read `0.333333333333333361 EC per share`. The pending figure below
+                            // is NOT approximated: that is money the pool actually owes.
+                            Ethecoin.formatApprox(m.payoutWei(), 4),
                             // The payout EVENT differs by scheme: a block, a share, or a cut of a
                             // block the pool found. One word for all three would undo the
                             // distinction mining-pool(7) exists to teach.
@@ -279,10 +283,10 @@ public final class Views {
                                             ? "share"
                                             : "payout",
                             humanSeconds(m.expectedPayoutSeconds()),
-                            m.expectedMinorUnitsPerHour() / 100.0d));
-                    String pending = m.pendingMinorUnits() > 0
-                            ? String.format(Locale.ROOT, "   %.2f EC held by the pool, paid in %ds",
-                                    m.pendingMinorUnits() / 100.0d, m.secondsUntilSettle())
+                            Ethecoin.formatApprox(m.expectedWeiPerHour(), 4)));
+                    String pending = m.pendingWei().signum() > 0
+                            ? String.format(Locale.ROOT, "   %s held by the pool, paid in %ds",
+                                    Ethecoin.format(m.pendingWei()), m.secondsUntilSettle())
                             : "";
                     odds.setText(String.format(Locale.ROOT,
                             "%.0f%% chance of at least one in the next hour, %.0f%% in eight.%s",
@@ -299,8 +303,9 @@ public final class Views {
                     preview.setText(chosen <= 0
                             ? "Allocate would STOP mining."
                             : String.format(Locale.ROOT,
-                                    "Allocate would commit %d cycles → %.2f EC/hr expected.",
-                                    chosen, session.miningRateFor(chosen) / 100.0d));
+                                    "Allocate would commit %d cycles → %s/hr expected.",
+                                    chosen,
+                                    Ethecoin.formatApprox(session.miningRateFor(chosen), 4)));
                 }
 
                 if (isSolo) {
@@ -1009,11 +1014,11 @@ public final class Views {
 
         TableColumn<ChainTransaction, String> value = new TableColumn<>("Value");
         value.setCellValueFactory(c -> text((c.getValue().incoming() ? "+" : "−")
-                + money(c.getValue().valueMinorUnits())));
+                + Ethecoin.format(c.getValue().valueWei())));
         value.setPrefWidth(110);
 
         TableColumn<ChainTransaction, String> after = new TableColumn<>("Balance after");
-        after.setCellValueFactory(c -> text(money(c.getValue().balanceAfterMinorUnits())));
+        after.setCellValueFactory(c -> text(Ethecoin.format(c.getValue().balanceAfterWei())));
         after.setPrefWidth(120);
 
         TableColumn<ChainTransaction, String> what = new TableColumn<>("What");
@@ -1088,8 +1093,7 @@ public final class Views {
 
             MiningSnapshot m = session.miningChain();
             address.setText(session.chainAddress());
-            balance.setText(String.format(
-                    Locale.ROOT, "%.2f EC", session.balance().minorUnits() / 100.0d));
+            balance.setText(session.balance().toString());
             chainLine.setText(String.format(Locale.ROOT,
                     "height %d   difficulty %.2f   a block every ~%d min   retarget in %d",
                     m.height(), m.difficulty(),
@@ -1176,7 +1180,7 @@ public final class Views {
                     : etaPhrase(pool.projected().getFirst(), pool.expectedNextBlockSeconds());
             mempoolLine.setText(String.format(Locale.ROOT,
                     "%d waiting from you · next block %s · a block every ~%d min on average · "
-                            + "last one %s ago · cheapest slot going for %.0f",
+                            + "last one %s ago · cheapest slot going for %s",
                     pool.yoursPending(),
                     next,
                     Math.round(pool.expectedNextBlockSeconds() / 60),
@@ -1185,7 +1189,7 @@ public final class Views {
                     // found this very second printed "last one never ago". Caught by rendering it.
                     pool.secondsSinceLastBlock() <= 0
                             ? "0s" : humanSeconds(pool.secondsSinceLastBlock()),
-                    pool.lowFeeRate()));
+                    Ethecoin.format(pool.lowFeeWei())));
             for (Runnable age : ticking) {
                 age.run();
             }
@@ -1278,11 +1282,11 @@ public final class Views {
         transactions.setPrefWidth(70);
 
         TableColumn<BlockContribution, String> coinbase = new TableColumn<>("Coinbase");
-        coinbase.setCellValueFactory(c -> text(money(c.getValue().subsidyMinorUnits())));
+        coinbase.setCellValueFactory(c -> text(Ethecoin.format(c.getValue().subsidyWei())));
         coinbase.setPrefWidth(110);
 
         TableColumn<BlockContribution, String> fees = new TableColumn<>("Fees");
-        fees.setCellValueFactory(c -> text(money(c.getValue().feesMinorUnits())));
+        fees.setCellValueFactory(c -> text(Ethecoin.format(c.getValue().feesWei())));
         fees.setPrefWidth(110);
 
         // ⚠ "per share", not "0.00 EC", under pay-per-share.
@@ -1297,7 +1301,7 @@ public final class Views {
         TableColumn<BlockContribution, String> cut = new TableColumn<>("Your cut");
         cut.setCellValueFactory(c -> text("PPS".equals(c.getValue().scheme())
                 ? "per share"
-                : money(c.getValue().creditedMinorUnits())));
+                : Ethecoin.format(c.getValue().creditedWei())));
         cut.setCellFactory(column -> new TableCell<>() {
             @Override
             protected void updateItem(String value, boolean empty) {
@@ -1643,7 +1647,7 @@ public final class Views {
                 fill,
                 Ui.micro(p.yours() == 0 ? "none yours" : p.yours() + " yours"),
                 eta,
-                Ui.micro("fees " + money(p.feesMinorUnits())));
+                Ui.micro("fees " + Ethecoin.format(p.feesWei())));
         card.getStyleClass().addAll("es-block", "es-block-projected");
         if (p.yours() > 0) {
             card.getStyleClass().add("es-block-yours");
@@ -1694,10 +1698,10 @@ public final class Views {
 
         HBox row = Ui.row(UiTokens.SPACE_3,
                 Ui.small(q.tx().shortHash()),
-                Ui.small(money(q.tx().valueMinorUnits())),
+                Ui.small(Ethecoin.format(q.tx().valueWei())),
                 where,
                 eta,
-                Ui.micro("fee " + money(q.tx().feeMinorUnits())),
+                Ui.micro("fee " + Ethecoin.format(q.tx().feeWei())),
                 boostChip(session, q),
                 Ui.micro(q.tx().description()));
         row.setAlignment(Pos.CENTER_LEFT);
@@ -1705,8 +1709,8 @@ public final class Views {
         Runnable retime = () -> {
             if (q.beyondProjection()) {
                 eta.setText("no estimate — outbid by the queue");
-                row.setAccessibleText("Transaction " + q.tx().shortHash() + ", " + money(q.tx()
-                        .valueMinorUnits()) + ", waiting further out than the projections reach. "
+                row.setAccessibleText("Transaction " + q.tx().shortHash() + ", " + Ethecoin.format(q.tx()
+                        .valueWei()) + ", waiting further out than the projections reach. "
                         + "It is being outbid; it will confirm, but not in the next three blocks.");
                 return;
             }
@@ -1720,7 +1724,7 @@ public final class Views {
             // projection list, and anything the queue could not place is -1 and returned above.
             ChainMempool.ProjectedBlock into = pool.projected().get(q.projectedIndex());
             row.setAccessibleText("Transaction " + q.tx().shortHash() + ", "
-                    + money(q.tx().valueMinorUnits()) + ", projected into "
+                    + Ethecoin.format(q.tx().valueWei()) + ", projected into "
                     + (q.projectedIndex() == 0 ? "the next block" : "block plus "
                             + (q.projectedIndex() + 1))
                     + ", " + etaPhrase(into, mean) + ".");
@@ -1752,10 +1756,11 @@ public final class Views {
      */
     private static javafx.scene.Node boostChip(GameSession session, ChainMempool.Queued q) {
         FeeTier next = null;
-        long paying = q.tx().feeMinorUnits();
+        java.math.BigInteger paying = q.tx().feeWei();
         for (FeeTier tier : FeeTier.values()) {
-            long cost = Balance.feeFor(tier);
-            if (cost > paying && (next == null || cost < Balance.feeFor(next))) {
+            java.math.BigInteger cost = Balance.feeFor(tier);
+            if (cost.compareTo(paying) > 0
+                    && (next == null || cost.compareTo(Balance.feeFor(next)) < 0)) {
                 next = tier;
             }
         }
@@ -1763,11 +1768,11 @@ public final class Views {
             return Ui.micro("top of the queue");
         }
         FeeTier target = next;
-        long difference = Balance.feeFor(target) - paying;
+        java.math.BigInteger difference = Balance.feeFor(target).subtract(paying);
         BreachView.Chip chip = new BreachView.Chip(
-                "boost +" + money(difference), "es-breach-chip-quiet");
+                "boost +" + Ethecoin.format(difference), "es-breach-chip-quiet");
         chip.setAccessibleText("Raise this transaction's fee to " + target.label()
-                + " for " + money(difference) + " more. Miners sort by fee rate, so it moves up the "
+                + " for " + Ethecoin.format(difference) + " more. Miners sort by fee rate, so it moves up the "
                 + "queue: " + target.promise() + ". This is replace-by-fee.");
         javafx.scene.control.Tooltip boost = new javafx.scene.control.Tooltip(
                 "Replace-by-fee. A transaction waiting in the mempool is not committed to anything — "
@@ -1960,8 +1965,8 @@ public final class Views {
                 "gasUsed       " + b.gasUsed() + " / " + b.gasLimit()
                         + String.format(Locale.ROOT, "  (%.1f%%)", b.fullness() * 100),
                 "size          " + b.sizeBytes() + " bytes",
-                "reward        " + money(b.rewardMinorUnits()) + " subsidy + "
-                        + money(b.feesMinorUnits()) + " fees = " + money(b.minerTakeMinorUnits()))) {
+                "reward        " + Ethecoin.format(b.rewardWei()) + " subsidy + "
+                        + Ethecoin.format(b.feesWei()) + " fees = " + Ethecoin.format(b.minerTakeWei()))) {
             into.getChildren().add(detailLine(line, false));
         }
 
@@ -1992,9 +1997,12 @@ public final class Views {
                     + pad(ChainBlock.shorten(tx.hash()), 16)
                     + pad(tx.coinbase() ? "coinbase" : ChainBlock.shorten(tx.from()), 16)
                     + pad(ChainBlock.shorten(tx.to()), 16)
-                    + pad(money(tx.valueMinorUnits()), 13)
-                    + pad(tx.coinbase() ? "—" : money(tx.feeMinorUnits()), 9)
-                    + (tx.coinbase() ? "—" : String.format(Locale.ROOT, "%.1f", tx.gasPriceMinorUnits()));
+                    + pad(Ethecoin.format(tx.valueWei()), 13)
+                    + pad(tx.coinbase() ? "—" : Ethecoin.format(tx.feeWei()), 9)
+                    // ⚠ The gas price column is gone. It was fee-per-million-gas, which at wei
+                    // scale prints eighteen digits in a character-cell table — and the fee beside it
+                    // already answers the question the column was for, in the unit the player pays.
+                    + "";
             // The description is the one field the derived network traffic does not have — it is
             // read off the ledger row — so it doubles as proof that this row is really the player's.
             if (tx.yours() && !tx.description().isBlank()) {
@@ -2978,10 +2986,11 @@ public final class Views {
                 new Separator(),
                 Ui.label("This character"),
                 spec("Uptime", Ui.clock(uptime)),
-                // ⚠ money(), not String.valueOf. Ethecoin is a record, so its toString is
-                // "Ethecoin[minorUnits=0]" — which renders without complaint and reads as a leaked
-                // internal, on the one screen whose whole job is to look like a real spec sheet.
-                spec("Balance", money(session.balance().minorUnits())),
+                // The local Ethecoin.format() formatter, which is now the same string Ethecoin's own toString
+                // produces. This used to carry a warning that the record's generated toString leaked
+                // "Ethecoin[wei=0]" onto the screen — true at the time, and the reason the
+                // type now renders itself. See Ethecoin#toString for what it cost to find out.
+                spec("Balance", Ethecoin.format(session.balance().wei())),
                 new Separator(),
                 wrapped("Profile directory: " + profile.directory()),
                 wrapped("Everything this client writes lives in that one directory — settings, "
@@ -3163,7 +3172,7 @@ public final class Views {
         return root;
     }
 
-    private static Label wrapped(String text) {
+    static Label wrapped(String text) {
         Label l = new Label(text);
         l.setWrapText(true);
         return l;
@@ -3184,7 +3193,7 @@ public final class Views {
         return new HBox(8, n, v);
     }
 
-    private static void styleByOutcome(Label label, GameSession.Outcome outcome) {
+    static void styleByOutcome(Label label, GameSession.Outcome outcome) {
         label.getStyleClass().removeAll("es-state-refused", "es-state-unreachable");
         if (outcome.status() == GameSession.Outcome.UNAVAILABLE
                 || outcome.status() == GameSession.Outcome.TEMPFAIL) {
@@ -3194,7 +3203,4 @@ public final class Views {
         }
     }
 
-    private static String money(long minorUnits) {
-        return String.format(Locale.ROOT, "%d.%02d EC", minorUnits / 100, Math.abs(minorUnits % 100));
-    }
 }

@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.solo.state;
 
+import java.math.BigInteger;
 import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.Pools;
 import java.time.Instant;
@@ -73,7 +74,30 @@ public final class RigState {
      * ten. That is the exact class of bug {@code MiningRules} was already written to avoid, so the
      * remainder is carried instead of dropped.
      */
-    public double miningResidueMinorUnits = 0.0d;
+    /**
+     * ⚠ A {@link java.math.BigDecimal}, not a double, since the move to 18 decimals.
+     *
+     * <p>A residue is the fraction of a unit a payout did not fill, and it is carried so that a
+     * hundred payouts of a third of a unit bank thirty-three units rather than nothing. A double held
+     * that fine while a unit was a hundredth of an ethecoin; at 1e-18 EC the accumulated value passes
+     * a double's exact-integer range (2^53) within a single ordinary payout, and the residue would
+     * start absorbing rounding error instead of preventing it — which is the exact opposite of what
+     * it is for.
+     */
+    /**
+     * ⚠ {@code @JsonAlias} carries the PRE-WEI key, and a save is lost without it.
+     *
+     * <p>The field was {@code miningResidueMinorUnits} when an ethecoin was 100 minor units. Jackson has
+     * {@code FAIL_ON_UNKNOWN_PROPERTIES} off — deliberately, so a save from a newer build still opens
+     * — which means a key it does not recognise is <b>silently dropped</b>. Renaming the field without
+     * this alias therefore does not fail: it loads the save, leaves every amount at its initialiser,
+     * and hands the player a balance of zero with nothing anywhere saying why.
+     *
+     * <p>Measured, not theorised. A real pre-migration save loaded as {@code 0 EC} across the board,
+     * and the only reason it was noticed at all is that one field had no initialiser and threw.
+     */
+    @com.fasterxml.jackson.annotation.JsonAlias("miningResidueMinorUnits")
+    public java.math.BigDecimal miningResidueWei = java.math.BigDecimal.ZERO;
 
     /**
      * Earned but not yet paid out, in minor units — the pool's internal balance for this rig.
@@ -82,9 +106,22 @@ public final class RigState {
      * readable at 120 shares an hour. ⚠ Persisted, so a quit never loses it; the first tick back
      * settles it because the check is against the clock rather than a counter.
      */
-    public long miningPendingMinorUnits = 0L;
+    /**
+     * ⚠ {@code @JsonAlias} carries the PRE-WEI key, and a save is lost without it.
+     *
+     * <p>The field was {@code miningPendingMinorUnits} when an ethecoin was 100 minor units. Jackson has
+     * {@code FAIL_ON_UNKNOWN_PROPERTIES} off — deliberately, so a save from a newer build still opens
+     * — which means a key it does not recognise is <b>silently dropped</b>. Renaming the field without
+     * this alias therefore does not fail: it loads the save, leaves every amount at its initialiser,
+     * and hands the player a balance of zero with nothing anywhere saying why.
+     *
+     * <p>Measured, not theorised. A real pre-migration save loaded as {@code 0 EC} across the board,
+     * and the only reason it was noticed at all is that one field had no initialiser and threw.
+     */
+    @com.fasterxml.jackson.annotation.JsonAlias("miningPendingMinorUnits")
+    public BigInteger miningPendingWei = BigInteger.ZERO;
 
-    /** How many payouts are waiting in {@link #miningPendingMinorUnits}, for the ledger's wording. */
+    /** How many payouts are waiting in {@link #miningPendingWei}, for the ledger's wording. */
     public int miningPendingPayouts = 0;
 
     /** When the pool last settled up. */
@@ -94,7 +131,20 @@ public final class RigState {
     public long miningPayouts = 0L;
 
     /** Everything mining has ever paid this character, in minor units. */
-    public long miningMinorUnits = 0L;
+    /**
+     * ⚠ {@code @JsonAlias} carries the PRE-WEI key, and a save is lost without it.
+     *
+     * <p>The field was {@code miningMinorUnits} when an ethecoin was 100 minor units. Jackson has
+     * {@code FAIL_ON_UNKNOWN_PROPERTIES} off — deliberately, so a save from a newer build still opens
+     * — which means a key it does not recognise is <b>silently dropped</b>. Renaming the field without
+     * this alias therefore does not fail: it loads the save, leaves every amount at its initialiser,
+     * and hands the player a balance of zero with nothing anywhere saying why.
+     *
+     * <p>Measured, not theorised. A real pre-migration save loaded as {@code 0 EC} across the board,
+     * and the only reason it was noticed at all is that one field had no initialiser and threw.
+     */
+    @com.fasterxml.jackson.annotation.JsonAlias("miningMinorUnits")
+    public BigInteger miningWei = BigInteger.ZERO;
 
     /** When the last payout landed, or null if none ever has. */
     public Instant miningLastPayoutAt;

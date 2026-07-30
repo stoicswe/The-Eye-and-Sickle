@@ -221,7 +221,7 @@ public final class BreachSnapshots {
                 breach.resolvedNoise,
                 traceProgress,
                 breach.resolvedHeat,
-                breach.resolvedLootMinorUnits,
+                breach.resolvedLootWei,
                 breach.resolvedLootLabel,
                 breach.resolvedSchematicMaterial,
                 List.copyOf(breach.consequences));

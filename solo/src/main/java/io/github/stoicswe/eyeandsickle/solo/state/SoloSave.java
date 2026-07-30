@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.solo.state;
 
+import java.math.BigInteger;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -84,7 +85,20 @@ public final class SoloSave {
      * block zero, which is the same thing that happens to anyone who installs a wallet today.
      */
     public ChainState chain;
-    public long ethecoinMinorUnits = 0L;
+    /**
+     * ⚠ {@code @JsonAlias} carries the PRE-WEI key, and a save is lost without it.
+     *
+     * <p>The field was {@code ethecoinMinorUnits} when an ethecoin was 100 minor units. Jackson has
+     * {@code FAIL_ON_UNKNOWN_PROPERTIES} off — deliberately, so a save from a newer build still opens
+     * — which means a key it does not recognise is <b>silently dropped</b>. Renaming the field without
+     * this alias therefore does not fail: it loads the save, leaves every amount at its initialiser,
+     * and hands the player a balance of zero with nothing anywhere saying why.
+     *
+     * <p>Measured, not theorised. A real pre-migration save loaded as {@code 0 EC} across the board,
+     * and the only reason it was noticed at all is that one field had no initialiser and threw.
+     */
+    @com.fasterxml.jackson.annotation.JsonAlias("ethecoinMinorUnits")
+    public BigInteger ethecoinWei = BigInteger.ZERO;
 
     /** Long-horizon Eye attention. Distinct from noise, which decays and is not persisted. */
     public int personalHeat = 0;
@@ -185,6 +199,34 @@ public final class SoloSave {
      * is the same catch-up path deployed-miner buffers already take.
      */
     public List<TaskState> tasks = new ArrayList<>();
+    /**
+     * Which representation this save's money is written in.
+     *
+     * <h2>⚠ Absent means the OLD one, and that is the whole mechanism</h2>
+     *
+     * Jackson leaves a missing field at its declared default, so every save written before this field
+     * existed loads as {@code 0} — which is exactly the set of saves whose amounts are in hundredths
+     * of an ethecoin. {@link #MONEY_SCHEMA} is the current value, and {@code SoloGame.rescaleMoney}
+     * runs once for anything below it.
+     *
+     * <p>A version number rather than a heuristic: "is this balance suspiciously small?" is not
+     * answerable — a player can legitimately have 8 wei — and a migration that guesses is a migration
+     * that eventually multiplies somebody's balance twice.
+     */
+    public int moneySchema = 0;
+
+    /** The current money representation: wei, 18 decimals. See {@link #moneySchema}. */
+    public static final int MONEY_SCHEMA = 1;
+
+    /**
+     * Completed audits, oldest first, capped at {@link ScanReportState#LIMIT}.
+     *
+     * <p>⚠ Trimmed from the FRONT when it overflows, so the hundred kept are the hundred most
+     * recent. Dropping the newest instead would leave the list frozen at whatever the player did
+     * first, which is the opposite of what a history is for.
+     */
+    public List<ScanReportState> scanReports = new ArrayList<>();
+
     public List<String> schematics = new ArrayList<>();
 
     /** Terminal history, so `history` and Ctrl-R survive a restart the way a real shell's does. */

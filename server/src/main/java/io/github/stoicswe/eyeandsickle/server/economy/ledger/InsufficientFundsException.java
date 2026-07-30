@@ -29,8 +29,7 @@ public class InsufficientFundsException extends RuntimeException {
      * @param required what the transfer needs
      */
     public InsufficientFundsException(String did, Ethecoin balance, Ethecoin required) {
-        super("Player " + did + " holds " + balance.minorUnits() + " EC(minor) but the transfer requires "
-                + required.minorUnits());
+        super("Player " + did + " holds " + balance + " but the transfer requires " + required);
         this.did = did;
         this.balance = balance;
         this.required = required;

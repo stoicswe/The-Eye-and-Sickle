@@ -184,7 +184,7 @@ class SchemaIT extends PostgresIntegrationTestBase {
 
         // Evidence you can edit is not evidence. A reversal is a new row.
         assertThatThrownBy(() -> jdbcClient()
-                        .sql("UPDATE ledger_transactions SET amount_ec_minor = 1")
+                        .sql("UPDATE ledger_transactions SET amount_wei = 1")
                         .update())
                 .isInstanceOf(DataAccessException.class)
                 .hasMessageContaining("append-only");
@@ -642,7 +642,7 @@ class SchemaIT extends PostgresIntegrationTestBase {
         UUID minerId = insertDeployedMiner(DID_B, "player", hostRig, null);
 
         assertThatThrownBy(() -> jdbcClient()
-                        .sql("UPDATE deployed_miners SET buffer_ec_minor = -1 WHERE miner_id = :id")
+                        .sql("UPDATE deployed_miners SET buffer_wei = -1 WHERE miner_id = :id")
                         .param("id", minerId)
                         .update())
                 .isInstanceOf(DataIntegrityViolationException.class)
@@ -763,7 +763,7 @@ class SchemaIT extends PostgresIntegrationTestBase {
                 .isInstanceOf(OptimisticLockingFailureException.class);
 
         assertThat(jdbcClient()
-                        .sql("SELECT ethecoin_balance_ec_minor FROM players WHERE player_id = :id")
+                        .sql("SELECT ethecoin_balance_wei FROM players WHERE player_id = :id")
                         .param("id", playerId)
                         .query(Long.class)
                         .single())
@@ -808,13 +808,13 @@ class SchemaIT extends PostgresIntegrationTestBase {
     private void insertLedgerRow(String from, String to, Ethecoin amount, String type, boolean traceable) {
         jdbcClient()
                 .sql("""
-                        INSERT INTO ledger_transactions (tx_id, from_did, to_did, amount_ec_minor, tx_type, traceable)
+                        INSERT INTO ledger_transactions (tx_id, from_did, to_did, amount_wei, tx_type, traceable)
                         VALUES (:id, :from, :to, :amount, :type, :traceable)
                         """)
                 .param("id", UUID.randomUUID())
                 .param("from", from)
                 .param("to", to)
-                .param("amount", EconomyColumns.ethecoinValue("amount_ec_minor", amount))
+                .param("amount", EconomyColumns.ethecoinValue("amount_wei", amount))
                 .param("type", type)
                 .param("traceable", traceable)
                 .update();
@@ -1024,7 +1024,7 @@ class SchemaIT extends PostgresIntegrationTestBase {
         return jdbcClient()
                 .sql("""
                         UPDATE players
-                           SET ethecoin_balance_ec_minor = :balance,
+                           SET ethecoin_balance_wei = :balance,
                                row_version = row_version + 1
                          WHERE player_id = :id
                            AND row_version = :expected

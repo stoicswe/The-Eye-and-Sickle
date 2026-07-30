@@ -27,7 +27,7 @@ final class AccountRows {
     static final String PLAYER_ID = "player_id";
     static final String DID = "did";
     static final String SLOT = "slot";
-    static final String BALANCE = "ethecoin_balance_ec_minor";
+    static final String BALANCE = "ethecoin_balance_wei";
     static final String PERSONAL_HEAT = "personal_heat";
     static final String ROW_VERSION = Mutations.ROW_VERSION;
 

@@ -309,7 +309,7 @@ class BreachRulesTest {
             for (String ending : new String[] {"win", "lose"}) {
                 SoloSave save = save(7L);
                 MinerState miner = Targets.plantTutorialMiner(save, T0);
-                miner.bufferedMinorUnits = 5_000L;
+                miner.bufferedWei = Balance.ec("50");
                 BreachRules.begin(save, crackTarget(save), T0);
 
                 if ("win".equals(ending)) {
@@ -327,7 +327,7 @@ class BreachRulesTest {
         void crackSeizesTheBuffer() {
             SoloSave save = save(7L);
             MinerState miner = Targets.plantTutorialMiner(save, T0);
-            miner.bufferedMinorUnits = 5_000L;
+            miner.bufferedWei = Balance.ec("50");
             long reclaimable = miner.hostCycles;
             long freeBefore = ComputeRules.availableCycles(save.rig);
 
@@ -335,8 +335,8 @@ class BreachRulesTest {
             solveAll(save);
 
             assertThat(save.activeBreach.outcome).isEqualTo("BREACHED");
-            assertThat(save.ethecoinMinorUnits).isEqualTo(5_000L);
-            assertThat(save.activeBreach.resolvedLootMinorUnits).isEqualTo(5_000L);
+            assertThat(save.ethecoinWei).isEqualTo(Balance.ec("50"));
+            assertThat(save.activeBreach.resolvedLootWei).isEqualTo(Balance.ec("50"));
             // The EC was already on the player's own disk — design/04 §5.1, design/03 §5 rule 3.
             assertThat(save.ledger).hasSize(1);
             assertThat(save.ledger.getFirst().type).isEqualTo("CRACK");
@@ -352,7 +352,7 @@ class BreachRulesTest {
         void failedCrackFlushesToTheDeployer() {
             SoloSave save = save(7L);
             MinerState miner = Targets.plantTutorialMiner(save, T0);
-            miner.bufferedMinorUnits = 5_000L;
+            miner.bufferedWei = Balance.ec("50");
             miner.deployerHandle = "ninefold";
             BreachRules.begin(save, crackTarget(save), T0);
 
@@ -360,7 +360,7 @@ class BreachRulesTest {
 
             assertThat(save.activeBreach.outcome).isEqualTo("FAILED");
             // design/04 §5.1: "Without this, cracking would strictly dominate killing."
-            assertThat(save.ethecoinMinorUnits).isZero();
+            assertThat(save.ethecoinWei).isZero();
             assertThat(save.rig.foreignMiners).isEmpty();
             assertThat(save.activeBreach.consequences)
                     .anyMatch(line -> line.contains("dead-man switch"))
@@ -378,8 +378,8 @@ class BreachRulesTest {
             assertThat(save.activeBreach.outcome).isEqualTo("BREACHED");
             // Minting currency on a successful breach would be a faucet attached to the game's main
             // progression loop — design/03 §5 rule 3, and the shortest path to breaking I1 and I2.
-            assertThat(save.ethecoinMinorUnits).isZero();
-            assertThat(save.activeBreach.resolvedLootMinorUnits).isZero();
+            assertThat(save.ethecoinWei).isZero();
+            assertThat(save.activeBreach.resolvedLootWei).isZero();
             assertThat(save.items).anyMatch(item -> "breached".equals(item.origin));
         }
 

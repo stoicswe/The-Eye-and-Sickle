@@ -53,7 +53,7 @@ public class AccountRepository {
     }
 
     private static final String SELECT = """
-            SELECT player_id, did, slot, ethecoin_balance_ec_minor, personal_heat, row_version
+            SELECT player_id, did, slot, ethecoin_balance_wei, personal_heat, row_version
               FROM players
             """;
 
@@ -165,7 +165,7 @@ public class AccountRepository {
         int affected = jdbcClient
                 .sql("""
                         UPDATE players
-                           SET ethecoin_balance_ec_minor = :balance,
+                           SET ethecoin_balance_wei = :balance,
                                row_version = row_version + 1
                          WHERE player_id = :playerId
                            AND row_version = :expectedVersion

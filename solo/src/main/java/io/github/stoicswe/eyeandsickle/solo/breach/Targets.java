@@ -121,7 +121,7 @@ public final class Targets {
                     false,
                     false,
                     false,
-                    miner.bufferedMinorUnits,
+                    miner.bufferedWei,
                     cost,
                     refusal.isEmpty(),
                     refusal));
@@ -164,7 +164,7 @@ public final class Targets {
                     node.tarpit,
                     node.canaries,
                     node.honeypotSuspected,
-                    0L,
+                    java.math.BigInteger.ZERO,
                     cost,
                     nodeRefusal.isEmpty(),
                     nodeRefusal));

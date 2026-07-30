@@ -1,6 +1,8 @@
 package io.github.stoicswe.eyeandsickle.solo;
 
+import java.math.BigInteger;
 import io.github.stoicswe.eyeandsickle.protocol.game.UnlockGate;
+import io.github.stoicswe.eyeandsickle.protocol.game.UpgradeKind;
 import java.util.List;
 
 /**
@@ -43,7 +45,7 @@ public final class Catalogue {
     /**
      * One thing the market can offer.
      *
-     * @param priceMinorUnits the ethecoin price, or 0 when the gate is not ethecoin — a non-zero
+     * @param priceWei the ethecoin price, or 0 when the gate is not ethecoin — a non-zero
      *     price on a schematic-gated item would be exactly the I2 violation the gate exists to stop
      */
     public record Offering(
@@ -51,13 +53,43 @@ public final class Catalogue {
             String name,
             String description,
             UnlockGate gate,
-            long priceMinorUnits,
+            BigInteger priceWei,
             long equippedCycles,
-            String gateRequirement) {
+            String gateRequirement,
+            UpgradeKind kind,
+            String requiresSchematic,
+            String stopsTool) {
+
+        /** An ordinary software offering — the shape every entry had before firmware existed. */
+        public Offering(
+                String id, String name, String description, UnlockGate gate,
+                BigInteger priceWei, long equippedCycles, String gateRequirement) {
+            this(id, name, description, gate, priceWei, equippedCycles, gateRequirement,
+                    UpgradeKind.SOFTWARE, "", "");
+        }
+
+        public Offering {
+            kind = kind == null ? UpgradeKind.SOFTWARE : kind;
+            requiresSchematic = requiresSchematic == null ? "" : requiresSchematic;
+            stopsTool = stopsTool == null ? "" : stopsTool;
+            // ⚠ Firmware without a schematic would be a permanent capability reachable with money
+            // alone, which is Invariant I2 and docs/design/11 §4 rule 1 ("It MUST be schematic/story-
+            // gated. No EC path. No exceptions."). Enforced rather than documented, because the
+            // tempting edit is exactly to add a firmware entry and leave this blank.
+            if (kind == UpgradeKind.FIRMWARE && requiresSchematic.isBlank()) {
+                throw new IllegalArgumentException(
+                        "firmware must name the schematic that authorises it: " + id);
+            }
+        }
 
         /** Whether ethecoin alone unlocks this. */
         public boolean purchasable() {
             return gate == UnlockGate.ETHECOIN;
+        }
+
+        /** Whether this is firmware, with everything that implies — see {@link UpgradeKind}. */
+        public boolean firmware() {
+            return kind == UpgradeKind.FIRMWARE;
         }
     }
 
@@ -136,7 +168,7 @@ public final class Catalogue {
                         "Standing detection. Reserves compute permanently while armed, in exchange for "
                                 + "a continuous chance of noticing what routine listings miss.",
                         UnlockGate.SCHEMATIC,
-                        0,
+                        BigInteger.ZERO,
                         Balance.DEFENSE_DETECTION_ARRAY_T1_CYCLES,
                         "Requires the Detection Array schematic. Schematics are found or earned, never "
                                 + "bought — that is what stops ethecoin from buying a ceiling."),
@@ -146,7 +178,7 @@ public final class Catalogue {
                         "A decoy store of junk that a raider cannot tell from a real one until they "
                                 + "have paid to extract from it.",
                         UnlockGate.REPUTATION,
-                        0,
+                        BigInteger.ZERO,
                         Balance.DEFENSE_HONEYPOT_STASH_CYCLES,
                         "Requires standing with a faction. Decoy infrastructure would distort the "
                                 + "economy if anyone could simply buy it."),
@@ -156,10 +188,55 @@ public final class Catalogue {
                         "Fires back on your behalf while you are logged off. In this fiction. See "
                                 + "hack-back(7) before you assume that maps onto anything you may do.",
                         UnlockGate.SCHEMATIC,
-                        0,
+                        BigInteger.ZERO,
                         Balance.DEFENSE_AUTO_COUNTER_CYCLES,
-                        "Requires the schematic, and the heaviest standing compute cost of any defence."));
+                        "Requires the schematic, and the heaviest standing compute cost of any defence."),
+                // ── firmware (docs/design/11-rig-infrastructure.md §3) ───────────────────────────
+                //
+                // ⚠ THE IMAGE IS THE PURCHASABLE HALF; THE SCHEMATIC IS THE CEILING.
+                //
+                // `11` §1 establishes the Firmware Implant as "recovered from deep inside Eye
+                // infrastructure — acquiring it is itself a late-game objective, not a shop
+                // transaction", and §4 rule 1 forbids any EC path to a permanent capability. Both
+                // still hold: what the market sells here is the firmware IMAGE, which does nothing
+                // whatsoever without the schematic that authorises flashing it.
+                //
+                // That split is `02` §1.1's own sanctioned pattern — "Rainbow Table is EC + schematic
+                // (buy the table, but the capability to use it is found)" — under its standing
+                // condition that the ceiling component sits on the non-EC side. It does: no amount of
+                // ethecoin produces the schematic, and `02` §2.2 keeps schematics unsellable and
+                // un-farmable.
+                //
+                // ⚠ §4 rule 2: it touches mining income and adds NO cycles. Surviving a host wipe
+                // changes how long a deployed miner lives, never how much compute exists — so there
+                // is no compute-buys-compute loop (I1) and no ceiling bought with money (I2).
+                new Offering(
+                        "firmware-implant",
+                        "Firmware Implant (image)",
+                        "The flashable image for the Firmware Implant: deployed miners survive a host "
+                                + "wipe. Worthless on its own -- flashing it needs the schematic, which "
+                                + "is recovered rather than bought. Mining must be stopped to install, "
+                                + "because firmware sits underneath the program using it.",
+                        UnlockGate.ETHECOIN,
+                        Balance.FIRMWARE_IMPLANT_IMAGE_PRICE,
+                        0,
+                        "",
+                        UpgradeKind.FIRMWARE,
+                        FIRMWARE_IMPLANT_SCHEMATIC,
+                        MINING_TOOL));
     }
+
+    /**
+     * The schematic that authorises flashing the Firmware Implant.
+     *
+     * <p>Held in {@code SoloSave.schematics}. ⚠ Never sold, never RNG-farmable — {@code 02} §2.2, and
+     * {@code 11} §1 names where it comes from: deep inside Eye infrastructure, as a late-game
+     * objective. Nothing in this class or in {@code Repac} grants it; the progression slice does.
+     */
+    public static final String FIRMWARE_IMPLANT_SCHEMATIC = "firmware-implant";
+
+    /** The tool that must be stopped before mining firmware can be flashed. */
+    public static final String MINING_TOOL = "mining";
 
     /** Looks an offering up by id. */
     public static java.util.Optional<Offering> byId(String id) {

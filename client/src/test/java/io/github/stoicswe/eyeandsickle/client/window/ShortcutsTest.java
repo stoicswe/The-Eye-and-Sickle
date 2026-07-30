@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.client.window;
 
+import io.github.stoicswe.eyeandsickle.solo.Balance;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.stoicswe.eyeandsickle.client.session.LocalGameSession;
@@ -144,7 +145,7 @@ class ShortcutsTest {
         void purchaseWorks(@TempDir Path dir) {
             var session = shell(dir).session();
             session.getClass();
-            ((LocalGameSession) session).game().credit(5_000L, "TEST", "seed");
+            ((LocalGameSession) session).game().credit(Balance.ec("50"), "TEST", "seed");
 
             var outcome = session.purchase("canary-token");
             assertThat(outcome.succeeded()).isTrue();
@@ -186,9 +187,9 @@ class ShortcutsTest {
             // prevent: money buying a permanent ceiling.
             for (var o : io.github.stoicswe.eyeandsickle.solo.Catalogue.offerings()) {
                 if (o.purchasable()) {
-                    assertThat(o.priceMinorUnits()).as("%s", o.id()).isPositive();
+                    assertThat(o.priceWei()).as("%s", o.id()).isPositive();
                 } else {
-                    assertThat(o.priceMinorUnits()).as("%s", o.id()).isZero();
+                    assertThat(o.priceWei()).as("%s", o.id()).isZero();
                     assertThat(o.gateRequirement()).as("%s must say why", o.id()).isNotBlank();
                 }
             }
@@ -202,7 +203,7 @@ class ShortcutsTest {
             // content change's clothes.
             for (var o : io.github.stoicswe.eyeandsickle.solo.Catalogue.offerings()) {
                 if (o.purchasable()) {
-                    assertThat(o.priceMinorUnits())
+                    assertThat(o.priceWei())
                             .as("%s is outside every published band", o.id())
                             .isBetween(
                                     io.github.stoicswe.eyeandsickle.solo.Balance.PRICE_CONSUMABLE_MIN,

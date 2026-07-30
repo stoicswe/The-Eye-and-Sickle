@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.solo.breach;
 
+import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachAction;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachActionKind;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachOutcome;
@@ -7,6 +8,7 @@ import io.github.stoicswe.eyeandsickle.protocol.game.BreachTarget;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeConsumer;
 import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
 import io.github.stoicswe.eyeandsickle.solo.Balance;
+import io.github.stoicswe.eyeandsickle.solo.net.NodeReports;
 import io.github.stoicswe.eyeandsickle.solo.rules.ComputeRules;
 import io.github.stoicswe.eyeandsickle.solo.rules.EventLog;
 import io.github.stoicswe.eyeandsickle.solo.rules.LedgerRules;
@@ -132,7 +134,10 @@ public final class BreachRules {
         breach.reservedCycles = cycles;
 
         Rng rng = Rng.of(save);
-        BoardFactory.build(breach, rng);
+        // What the player has learned about this machine weights which puzzle they draw — see
+        // BoardFactory. A target with no address (the tutorial miner crack) has no report and no
+        // knowledge, which is the default and the right answer.
+        BoardFactory.build(breach, rng, NodeReports.known(save, target.address()));
         rng.commit(save);
 
         save.activeBreach = breach;
@@ -731,23 +736,23 @@ public final class BreachRules {
             breach.consequences.add("you backed out; it is still running, and still earning for somebody");
             return;
         }
-        long buffer = miner.bufferedMinorUnits;
+        java.math.BigInteger buffer = miner.bufferedWei;
         long reclaimed = miner.hostCycles;
-        miner.bufferedMinorUnits = 0L;
+        miner.bufferedWei = java.math.BigInteger.ZERO;
         save.rig.foreignMiners.remove(miner);
         ComputeRules.release(save.rig, miner.allocationId);
 
         if (outcome == BreachOutcome.BREACHED) {
-            if (buffer > 0) {
+            if (buffer.signum() > 0) {
                 LedgerRules.apply(save, buffer, "CRACK", "Cracked " + breach.targetLabel, now);
             }
-            breach.resolvedLootMinorUnits = buffer;
-            breach.resolvedLootLabel = money(buffer) + " seized from the buffer";
+            breach.resolvedLootWei = buffer;
+            breach.resolvedLootLabel = Ethecoin.format(buffer) + " seized from the buffer";
             breach.consequences.add("the miner is gone and " + reclaimed + " cycles came back");
             breach.consequences.add("the deployer learns nothing");
             return;
         }
-        breach.consequences.add("dead-man switch: " + money(buffer) + " flushed to the deployer");
+        breach.consequences.add("dead-man switch: " + Ethecoin.format(buffer) + " flushed to the deployer");
         breach.consequences.add("the miner self-destructed; " + reclaimed + " cycles came back and nothing else did");
         breach.consequences.add("your handle was exposed to "
                 + (miner.deployerHandle.isBlank() ? "the deployer" : miner.deployerHandle));
@@ -836,8 +841,4 @@ public final class BreachRules {
         return null;
     }
 
-    /** Matches {@code SoloGame}'s own formatting, so the two never print the same figure differently. */
-    private static String money(long minorUnits) {
-        return String.format(Locale.ROOT, "%d.%02d EC", minorUnits / 100, Math.abs(minorUnits % 100));
-    }
 }

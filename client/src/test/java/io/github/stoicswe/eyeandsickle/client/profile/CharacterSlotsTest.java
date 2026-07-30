@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.client.profile;
 
+import io.github.stoicswe.eyeandsickle.solo.Balance;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeId;
@@ -62,7 +63,7 @@ class CharacterSlotsTest {
             CharacterSlots slots = new CharacterSlots(profile);
 
             SoloGame game = SoloGame.open(new SaveStore(slots.saveFile(2)), "ghost", CLOCK);
-            game.credit(4_200L, "TEST", "seed");
+            game.credit(Balance.ec("42"), "TEST", "seed");
             game.persist();
 
             CharacterSlots.Slot slot = slots.soloSlots().get(1);

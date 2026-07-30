@@ -1,6 +1,7 @@
 package io.github.stoicswe.eyeandsickle.solo.breach;
 
 import static io.github.stoicswe.eyeandsickle.solo.breach.BreachTestKit.T0;
+import static io.github.stoicswe.eyeandsickle.solo.breach.BreachTestKit.fullyScanned;
 import static io.github.stoicswe.eyeandsickle.solo.breach.BreachTestKit.focus;
 import static io.github.stoicswe.eyeandsickle.solo.breach.BreachTestKit.nodeTarget;
 import static io.github.stoicswe.eyeandsickle.solo.breach.BreachTestKit.withNode;
@@ -43,6 +44,12 @@ class BreachBoardsTest {
 
     private static LayerState generate(long seed, int tier, String puzzleClass) {
         SoloSave save = withNode(seed, tier, 0, false, false);
+        // ⚠ Fully scanned, so BOTH classes are reachable. The offset cipher is the default against a
+        // machine nothing is known about, and a fixture that skipped this would generate ciphers
+        // forever and report "no BREACH_PROTOCOL layer was generated at all" — which is the weighting
+        // working, not a broken board. These tests are about what a board IS; which one you draw is
+        // BreachPuzzleWeightingTest's subject.
+        fullyScanned(save, "10.0.0.5");
         BreachRules.begin(save, nodeTarget(save), T0);
         for (LayerState layer : save.activeBreach.layers) {
             if (puzzleClass.equals(layer.puzzleClass)) {
@@ -77,6 +84,9 @@ class BreachBoardsTest {
             Set<String> seen = new HashSet<>();
             for (long seed = 1; seed <= SEEDS; seed++) {
                 SoloSave save = withNode(seed, 3, 0, false, false);
+                // Against a fully scanned machine both are on the table — the informed share is 0.95
+                // rather than 1.0 precisely so the cipher never stops appearing.
+                fullyScanned(save, "10.0.0.5");
                 BreachRules.begin(save, nodeTarget(save), T0);
                 for (LayerState layer : save.activeBreach.layers) {
                     seen.add(layer.puzzleClass);

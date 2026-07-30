@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.client.shell;
 
+import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.client.session.GameSession;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeAllocation;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeBudget;
@@ -125,8 +126,8 @@ public final class BuiltinCommands {
                     out.add(pad("WHEN", 22) + pad("DELTA", 12) + pad("BALANCE", 12) + "WHAT");
                     for (GameSession.LedgerRow row : inv.session().ledger(200)) {
                         out.add(pad(row.at().toString(), 22)
-                                + pad(signed(row.deltaMinorUnits()), 12)
-                                + pad(money(row.balanceAfterMinorUnits()), 12)
+                                + pad(signed(row.deltaWei()), 12)
+                                + pad(Ethecoin.format(row.balanceAfterWei()), 12)
                                 + row.description());
                     }
                     if (out.size() == 1) {
@@ -341,28 +342,35 @@ public final class BuiltinCommands {
                     if (to.isBlank() || amount.isBlank()) {
                         return Command.Output.usage("send <address> <amount in EC> [--fee=priority]");
                     }
-                    long minorUnits;
+                    // ⚠ Parsed through Ethecoin.ofDecimal, NEVER through a double. This is the one
+                    // place a player types an amount, and `0.037097927036961408` is exactly the kind
+                    // of amount they can now type — a double holds about 15-16 significant digits, so
+                    // parsing it that way would silently send a different number than was typed.
+                    // ofDecimal also REFUSES anything finer than 18 places rather than truncating it.
+                    java.math.BigInteger wei;
                     try {
-                        minorUnits = Math.round(Double.parseDouble(amount.trim()) * 100);
-                    } catch (NumberFormatException e) {
-                        return Command.Output.usage("send: not an amount: " + amount);
+                        wei = io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin
+                                .ofDecimal(amount.trim()).wei();
+                    } catch (NumberFormatException | ArithmeticException e) {
+                        return Command.Output.usage("send: not an amount: " + amount
+                                + " (up to 18 decimal places)");
                     }
                     if (inv.stage().isDryRun()) {
                         ChainMempool pool = inv.session().mempool();
                         // Published figures and no verdict: the player does the arithmetic (pillar C4).
                         return Command.Output.ok(
-                                "would send " + money(minorUnits) + " to " + to,
-                                "fee: " + money(Balance.feeFor(tier)) + " (" + tier.label() + ") — "
+                                "would send " + Ethecoin.format(wei) + " to " + to,
+                                "fee: " + Ethecoin.format(Balance.feeFor(tier)) + " (" + tier.label() + ") — "
                                         + tier.promise(),
                                 String.format(Locale.ROOT,
                                         "the cheapest slot in the next block is going for %.0f; "
                                                 + "a block arrives every ~%d min on average",
-                                        pool.lowFeeRate(),
+                                        Ethecoin.format(pool.lowFeeWei()),
                                         Math.round(pool.expectedNextBlockSeconds() / 60)),
                                 "the balance moves at once; the chain record confirms when a miner "
                                         + "picks it up");
                     }
-                    return Command.Output.of(inv.session().send(to, minorUnits, tier));
+                    return Command.Output.of(inv.session().send(to, wei, tier));
                 }));
 
         r.add(action("mempool", List.of(), "What is waiting for a miner, and what the next blocks hold.",
@@ -370,8 +378,9 @@ public final class BuiltinCommands {
                     ChainMempool pool = inv.session().mempool();
                     List<String> out = new ArrayList<>();
                     out.add(String.format(Locale.ROOT,
-                            "%d of yours waiting · cheapest slot %.0f · top of the queue %.0f",
-                            pool.yoursPending(), pool.lowFeeRate(), pool.highFeeRate()));
+                            "%d of yours waiting · cheapest slot %s · top of the queue %s",
+                            pool.yoursPending(), Ethecoin.format(pool.lowFeeWei()),
+                            Ethecoin.format(pool.highFeeWei())));
                     // The mean stays published beside the estimate: the ETA is derived from it, and
                     // a countdown with no stated average is a deadline. The elapsed figure is a fact.
                     out.add(String.format(Locale.ROOT,
@@ -389,7 +398,7 @@ public final class BuiltinCommands {
                                 + pad(String.valueOf(p.transactions()), 6)
                                 + pad(String.valueOf(p.yours()), 7)
                                 + pad(String.format(Locale.ROOT, "%.0f%%", p.fullness() * 100), 7)
-                                + pad(money(p.feesMinorUnits()), 10)
+                                + pad(Ethecoin.format(p.feesWei()), 10)
                                 + eta(p, pool.expectedNextBlockSeconds()));
                     }
                     if (!pool.queued().isEmpty()) {
@@ -399,8 +408,8 @@ public final class BuiltinCommands {
                             // Padded, because the row gained two columns and an unpadded amount put
                             // every fee at a different indent — a table the eye cannot scan down.
                             out.add("  " + pad(q.tx().shortHash(), 16)
-                                    + pad(money(q.tx().valueMinorUnits()), 12)
-                                    + pad("fee " + money(q.tx().feeMinorUnits()), 14)
+                                    + pad(Ethecoin.format(q.tx().valueWei()), 12)
+                                    + pad("fee " + Ethecoin.format(q.tx().feeWei()), 14)
                                     + pad(q.beyondProjection()
                                             ? "past +3"
                                             : q.projectedIndex() == 0
@@ -662,8 +671,8 @@ public final class BuiltinCommands {
         return " ".repeat(width - s.length()) + s;
     }
 
-    private static String signed(long minorUnits) {
-        return (minorUnits >= 0 ? "+" : "") + money(minorUnits);
+    private static String signed(java.math.BigInteger wei) {
+        return (wei.signum() >= 0 ? "+" : "") + Ethecoin.format(wei);
     }
 
     private interface Lines {
@@ -791,24 +800,24 @@ public final class BuiltinCommands {
         // block; PPS is paid per share; PPLNS is paid a cut of a block the POOL found, which is
         // neither. Calling all three "share" would undo the distinction mining-pool(7) teaches.
         String unit = solo ? "block" : m.pool().scheme() == PoolScheme.PPLNS ? "payout" : "share";
-        out.add("pays      " + money(m.payoutMinorUnits()) + " per " + unit
+        out.add("pays      " + Ethecoin.format(m.payoutWei()) + " per " + unit
                 + ", about one every " + duration(m.expectedPayoutSeconds()));
-        out.add("expected  " + money(m.expectedMinorUnitsPerHour()) + "/hr");
+        out.add("expected  " + Ethecoin.format(m.expectedWeiPerHour()) + "/hr");
         out.add("odds      " + String.format(Locale.ROOT, "%.0f%%", 100 * m.chanceWithin(3600))
                 + " of at least one in the next hour, "
                 + String.format(Locale.ROOT, "%.0f%%", 100 * m.chanceWithin(8 * 3600)) + " in eight");
         out.add("");
         out.add("found     " + m.lifetimePayouts() + " " + unit
-                + (m.lifetimePayouts() == 1 ? "" : "s") + ", " + money(m.lifetimeMinorUnits()) + " all told");
+                + (m.lifetimePayouts() == 1 ? "" : "s") + ", " + Ethecoin.format(m.lifetimeWei()) + " all told");
         if (m.secondsSinceLastPayout() >= 0) {
             out.add("last      " + duration(m.secondsSinceLastPayout()) + " ago");
         } else {
             out.add("last      nothing yet");
         }
-        if (!solo && m.pendingMinorUnits() > 0) {
+        if (!solo && m.pendingWei().signum() > 0) {
             // The pool's unpaid balance. Real dashboards show it, and without it a player watching a
             // static balance between settlements has no way to tell holding from broken.
-            out.add("unpaid    " + money(m.pendingMinorUnits())
+            out.add("unpaid    " + Ethecoin.format(m.pendingWei())
                     + " on the pool's books, settles in " + m.secondsUntilSettle() + "s");
         }
         if (solo) {
@@ -865,9 +874,6 @@ public final class BuiltinCommands {
         return String.format(Locale.ROOT, "%.1fh", total / 3600.0d);
     }
 
-    private static String money(long minorUnits) {
-        return String.format(Locale.ROOT, "%d.%02d EC", minorUnits / 100, Math.abs(minorUnits % 100));
-    }
 
     /**
      * A projection's ETA: the countdown while it holds, the distribution once it does not.

@@ -43,9 +43,9 @@ class RowTest {
     void nullIsNotZero() {
         // The JDBC quirk this guards: getLong returns 0 for SQL NULL. On this schema a silent zero is
         // an empty wallet, a cold player, or an unallocated rig — all entirely plausible downstream.
-        Row row = rowOf(withNull("ethecoin_balance_ec_minor"));
+        Row row = rowOf(withNull("ethecoin_balance_wei"));
 
-        assertThatThrownBy(() -> row.int64("ethecoin_balance_ec_minor"))
+        assertThatThrownBy(() -> row.int64("ethecoin_balance_wei"))
                 .isInstanceOf(RowMappingException.class)
                 .hasMessageContaining("was NULL")
                 .hasMessageContaining("OrNull");
@@ -76,13 +76,13 @@ class RowTest {
         values.put("from_did", null);
         values.put("counterparty_rig_id", null);
         values.put("recovers_at", null);
-        values.put("buffer_ec_minor", null);
+        values.put("buffer_wei", null);
         Row row = rowOf(values);
 
         assertThat(row.textOrNull("from_did")).isNull();
         assertThat(row.uuidOrNull("counterparty_rig_id")).isNull();
         assertThat(row.instantOrNull("recovers_at")).isNull();
-        assertThat(row.int64OrNull("buffer_ec_minor")).isNull();
+        assertThat(row.int64OrNull("buffer_wei")).isNull();
     }
 
     @Test

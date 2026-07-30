@@ -190,6 +190,29 @@ public final class Row {
      * @return the value, or {@code null}
      * @throws RowMappingException if the column is absent
      */
+    /**
+     * An exact integer of unbounded width — what an ethecoin column holds.
+     *
+     * <h2>⚠ Read through BigDecimal, never through {@code getLong}</h2>
+     *
+     * Ethecoin is stored as {@code numeric(78,0)} because at 18 decimal places a {@code bigint} tops
+     * out at 9.22 EC. {@code getLong} on such a column throws or silently truncates depending on the
+     * driver and the value, and a truncated balance is the one failure this layer exists to prevent.
+     *
+     * <p>{@code toBigIntegerExact} rather than {@code toBigInteger}: the column is declared with
+     * scale 0, so a fractional value there is a schema violation and must fail loudly rather than be
+     * rounded into something plausible.
+     */
+    public java.math.BigInteger integer(String column) {
+        return decimal(column).toBigIntegerExact();
+    }
+
+    /** The same, or {@code null} when the column is NULL. */
+    public java.math.BigInteger integerOrNull(String column) {
+        BigDecimal value = decimalOrNull(column);
+        return value == null ? null : value.toBigIntegerExact();
+    }
+
     public BigDecimal decimalOrNull(String column) {
         return read(column, () -> resultSet.getBigDecimal(column));
     }

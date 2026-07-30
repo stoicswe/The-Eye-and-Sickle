@@ -5,6 +5,7 @@ import io.github.stoicswe.eyeandsickle.solo.SoloGame;
 import io.github.stoicswe.eyeandsickle.solo.rules.ComputeRules;
 import io.github.stoicswe.eyeandsickle.solo.state.ItemState;
 import io.github.stoicswe.eyeandsickle.solo.state.LayerState;
+import io.github.stoicswe.eyeandsickle.solo.state.NodeReportState;
 import io.github.stoicswe.eyeandsickle.solo.state.NodeState;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
 import java.time.Instant;
@@ -76,6 +77,28 @@ final class BreachTestKit {
                 .orElseThrow();
     }
 
+    /**
+     * Fills in a machine's port-scan report completely, as if every finding had been established.
+     *
+     * <p>⚠ Needed by any fixture that wants <b>Breach Protocol</b>. The offset cipher is the default
+     * against a machine nothing is known about, and the protocol grid's odds rise with the report —
+     * so a fixture that skips this is asking for a puzzle it has a zero percent chance of drawing,
+     * and would loop through every seed and throw. Writing {@code learnedAt} directly is the same
+     * kind of scaffolding as the rest of this class: it reaches past the scan pipeline, which is
+     * {@code NodeReportTest}'s subject rather than this lane's.
+     */
+    static void fullyScanned(SoloSave save, String address) {
+        NodeReportState report = new NodeReportState();
+        report.address = address;
+        report.createdAt = T0;
+        report.updatedAt = T0;
+        report.scans = 1;
+        for (var target : io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget.values()) {
+            report.learnedAt.put(target.name(), T0);
+        }
+        save.nodeReports.add(report);
+    }
+
     /** A save holding one known node with the given tier and defence profile. */
     static SoloSave withNode(long seed, int tier, int firewallTier, boolean tarpit, boolean canaries) {
         SoloSave save = save(seed);
@@ -123,6 +146,11 @@ final class BreachTestKit {
     static SoloSave attemptWith(String puzzleClass, int tier) {
         for (long seed = 1; seed <= 500; seed++) {
             SoloSave save = withNode(seed, tier, 0, false, false);
+            // ⚠ A full report, always — for BREACH_PROTOCOL because it is otherwise unreachable, and
+            // for OFFSET_CIPHER because a fixture whose puzzle depends on what it happened to know
+            // is a fixture that changes meaning when the weighting is re-tuned. At full knowledge
+            // both still occur (the informed share is 0.95, not 1.0), so the search finds either.
+            fullyScanned(save, "10.0.0.5");
             BreachRules.begin(save, nodeTarget(save), T0);
             if (focus(save, puzzleClass) != null) {
                 return save;

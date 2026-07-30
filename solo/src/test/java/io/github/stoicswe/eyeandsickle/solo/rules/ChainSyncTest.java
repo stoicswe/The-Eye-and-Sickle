@@ -8,6 +8,7 @@ import io.github.stoicswe.eyeandsickle.protocol.game.FeeTier;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
 import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.SoloGame;
+import io.github.stoicswe.eyeandsickle.solo.breach.Rng;
 import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
 import java.nio.file.Path;
@@ -143,8 +144,8 @@ class ChainSyncTest {
         void pendingTransactionsConfirm(@TempDir Path dir) {
             Path file = dir.resolve("save.json");
             SoloGame game = at(file, T0);
-            game.credit(50_000L, "TEST", "seed");
-            assertThat(game.debit(500L, "TRANSFER", "Sent to an address",
+            game.credit(Balance.ec("500"), "TEST", "seed");
+            assertThat(game.debit(Balance.ec("5"), "TRANSFER", "Sent to an address",
                     FeeTier.PRIORITY, ChainExplorer.address("someone"))).isTrue();
             assertThat(game.state().chain.mempool).hasSize(1);
             game.persist();
@@ -284,10 +285,10 @@ class ChainSyncTest {
                 assertThat(row.minerLabel()).isEqualTo("YOUR RIG");
                 assertThat(row.offline()).isTrue();
                 // A solo miner keeps the whole block: subsidy plus that block's real fees.
-                assertThat(row.subsidyMinorUnits()).isEqualTo(Balance.BLOCK_SUBSIDY_MINOR_UNITS);
-                assertThat(row.creditedMinorUnits())
+                assertThat(row.subsidyWei()).isEqualTo(Balance.BLOCK_SUBSIDY_WEI);
+                assertThat(row.creditedWei())
                         .as("solo takes the whole reward, both halves")
-                        .isEqualTo(row.rewardMinorUnits());
+                        .isEqualTo(row.rewardWei());
                 // The share is the probability the block was going to be theirs, and it is what the
                 // draw actually used.
                 assertThat(row.networkShare()).isBetween(0.001d, 0.5d);
@@ -302,7 +303,7 @@ class ChainSyncTest {
          * ⚠ A pay-per-share row credits nothing from the block, and that is the record working.
          *
          * <p>A share pool does not divide up the blocks it finds — it buys accepted shares out of its
-         * own balance, which is the entire product ({@code MiningRules.rewardBaseMinorUnits}). The
+         * own balance, which is the entire product ({@code MiningRules.rewardBaseWei}). The
          * rig's hashrate still went into those blocks, so they belong in the record; recording only
          * the blocks that paid would make PPS look like a mode that mines nothing, and would delete
          * the one surface where the difference between the two schemes is visible.
@@ -318,14 +319,14 @@ class ChainSyncTest {
                 assertThat(row.won()).isFalse();
                 assertThat(row.offline()).isFalse();
                 assertThat(row.poolId()).isEqualTo("commons");
-                assertThat(row.creditedMinorUnits()).isZero();
+                assertThat(row.creditedWei()).isZero();
                 assertThat(row.paid()).isFalse();
                 // The hashrate is real even though the cut is not — that pairing IS the teaching.
                 assertThat(row.hashrate()).isPositive();
-                assertThat(row.feesMinorUnits()).isPositive();
+                assertThat(row.feesWei()).isPositive();
             });
             // And the rig was still paid, on its own share clock, out of the pool's balance.
-            assertThat(back.balance().minorUnits())
+            assertThat(back.balance().wei())
                     .as("PPS pays per share, so income arrives without any block paying it")
                     .isPositive();
         }
@@ -338,9 +339,9 @@ class ChainSyncTest {
             assertThat(rows).isNotEmpty();
             assertThat(rows).allSatisfy(row -> {
                 assertThat(row.scheme()).isEqualTo("PPLNS");
-                assertThat(row.creditedMinorUnits())
+                assertThat(row.creditedWei())
                         .as("a cut of the block, never more than the block")
-                        .isLessThan(row.rewardMinorUnits());
+                        .isLessThan(row.rewardWei());
                 assertThat(row.takeFraction()).isBetween(0.0d, 1.0d);
             });
         }
@@ -372,6 +373,136 @@ class ChainSyncTest {
     }
 
     /** A hand-wound clock. {@code solo.TestClock} is package-private and one package up. */
+    /**
+     * A rig mines its own hashrate share live, and <b>half</b> of it while the client was closed.
+     *
+     * <h2>What is being separated here</h2>
+     *
+     * {@code Balance.OFFLINE_MINING_HOURS} caps how <em>long</em> an absent rig keeps hashing;
+     * {@code Balance.OFFLINE_SOLO_WIN_WEIGHT} caps how <em>well</em> it does inside that window. The
+     * window alone already stopped a longer absence being worth more; the weight is what keeps an
+     * hour played strictly better than an hour away <em>within</em> the window as well as past it.
+     */
+    @Nested
+    @DisplayName("offline solo mining is weighted, and only offline solo mining")
+    class OfflineWeight {
+
+        /**
+         * A store holding one solo rig, ready to be loaded as many times as a test needs.
+         *
+         * <h2>⚠ Both runs must load the SAME save, not two saves built the same way</h2>
+         *
+         * A freshly opened game draws its own initial {@code networkWorkTarget}, seeded from the
+         * character's id — so two rigs created identically are already a fraction of a block apart
+         * before either of them starts, and the walks diverge by one block within the hour. That is
+         * not the feature failing; it is the fixture comparing two different chains, and it looked
+         * exactly like a broken RNG contract. Loading one persisted file twice gives two independent
+         * objects with byte-identical state, which is what makes a same-seed comparison mean anything.
+         */
+        private SaveStore soloRig(Path dir, String name) {
+            SaveStore store = new SaveStore(dir.resolve(name + ".json"));
+            SoloGame game = SoloGame.open(store, "operator", Clock.fixed(T0, ZoneOffset.UTC));
+            game.setMiningMode(MiningMode.SOLO);
+            // ⚠ 80, not 100 — a fresh rig's tutorial parasite holds some cycles and a full
+            // allocation is refused, leaving the rig mining nothing and the test asserting on zero.
+            assertThat(game.allocateSelfMining(80)).isTrue();
+            game.persist();
+            return store;
+        }
+
+        /**
+         * ⚠ The deterministic half, and the one that cannot go flaky.
+         *
+         * <p>Both runs walk the same save from the same instant with the same seed, and the weighting
+         * scales the <b>threshold</b> the roll is compared against without changing how many draws
+         * are taken. So the two streams are identical roll for roll, and every block the offline run
+         * wins is a block the online run also won — {@code roll < you/2} implies {@code roll < you}.
+         * A subset failure means the RNG consumption diverged, which would break replay for reasons
+         * far beyond this feature.
+         *
+         * <p>The span is inside the spin-down window on purpose, so the two runs differ by the weight
+         * and by nothing else — past it the offline rig stops competing at all and the comparison
+         * would be measuring I5 instead.
+         */
+        @Test
+        @DisplayName("every block won offline would also have been won online, with the same seed")
+        void offlineWinsAreASubsetOfOnlineWins(@TempDir Path dir) {
+            Duration span = Duration.ofHours(Balance.OFFLINE_MINING_HOURS);
+            SaveStore store = soloRig(dir, "solo");
+            for (long seed = 1; seed <= 40; seed++) {
+                SoloSave online = store.load();
+                SoloSave offline = store.load();
+
+                ChainRules.advanceNetwork(online, span, T0.plus(span), new Rng(seed));
+                ChainRules.sync(offline, T0, T0.plus(span), new Rng(seed));
+
+                assertThat(offline.chain.height)
+                        .as("the same seed must produce the same chain, seed %d", seed)
+                        .isEqualTo(online.chain.height);
+                assertThat(online.chain.blocksWon)
+                        .as("offline wins must be a subset of online wins, seed %d", seed)
+                        .containsAll(offline.chain.blocksWon);
+            }
+        }
+
+        /**
+         * The rate itself, over enough draws that the band is not luck.
+         *
+         * <p>⚠ Aggregated across many independent seeds rather than asserted per run. Block arrivals
+         * and the winner draw are both random, so a single fill of ~17 blocks says nothing at all —
+         * a per-run assertion here would be a coin flip dressed as a test, and its reader would learn
+         * to re-run it rather than to look at it.
+         */
+        @Test
+        @DisplayName("the offline win rate is about half the online win rate")
+        void offlineWinsAboutHalfAsOften(@TempDir Path dir) {
+            Duration span = Duration.ofHours(Balance.OFFLINE_MINING_HOURS);
+            int onlineWins = 0;
+            int offlineWins = 0;
+            SaveStore store = soloRig(dir, "solo");
+            for (long seed = 1; seed <= 300; seed++) {
+                SoloSave online = store.load();
+                SoloSave offline = store.load();
+                onlineWins += ChainRules.advanceNetwork(online, span, T0.plus(span), new Rng(seed))
+                        .yourBlocks().size();
+                offlineWins += ChainRules.sync(offline, T0, T0.plus(span), new Rng(seed))
+                        .minted().yourBlocks().size();
+            }
+            assertThat(onlineWins).as("the fixture must actually win blocks online").isGreaterThan(40);
+            assertThat(offlineWins)
+                    .as("offline %d vs online %d — expected about half", offlineWins, onlineWins)
+                    .isBetween((int) (onlineWins * 0.30d), (int) (onlineWins * 0.70d));
+        }
+
+        /**
+         * ⚠ Pools are NOT weighted, and this is the assertion that keeps it that way.
+         *
+         * <p>A pool's hashrate is the pool's. It competes whether or not one member's client happens
+         * to be open, so scaling its share during a fill would be this rig reaching into somebody
+         * else's rate — and it would quietly make pooled mining the better way to be absent, which is
+         * a balance decision nobody took. With the same seed, a pooled rig's fill is identical to its
+         * live run block for block.
+         */
+        @Test
+        @DisplayName("a pooled rig's fill is unchanged — the weight is self-mining only")
+        void poolsAreUntouched(@TempDir Path dir) {
+            Duration span = Duration.ofHours(Balance.OFFLINE_MINING_HOURS);
+            SaveStore store = soloRig(dir, "pooled");
+            for (long seed = 1; seed <= 40; seed++) {
+                SoloSave online = store.load();
+                SoloSave offline = store.load();
+                for (SoloSave save : java.util.List.of(online, offline)) {
+                    save.rig.miningMode = MiningMode.POOLED.name();
+                }
+                var live = ChainRules.advanceNetwork(online, span, T0.plus(span), new Rng(seed));
+                var filled = ChainRules.sync(offline, T0, T0.plus(span), new Rng(seed)).minted();
+                assertThat(filled.poolBlocks().stream().map(ChainRules.Won::height).toList())
+                        .as("a pool wins the same blocks either way, seed %d", seed)
+                        .isEqualTo(live.poolBlocks().stream().map(ChainRules.Won::height).toList());
+            }
+        }
+    }
+
     private static final class Winding extends Clock {
 
         private Instant instant;

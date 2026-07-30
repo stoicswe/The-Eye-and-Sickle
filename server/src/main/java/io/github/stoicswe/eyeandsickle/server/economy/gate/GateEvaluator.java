@@ -133,8 +133,10 @@ public class GateEvaluator {
         return new ConditionOutcome(
                 cost.gate(),
                 met,
-                "balance " + account.balance().minorUnits() + " vs price "
-                        + cost.price().minorUnits() + " EC(minor)");
+                // ⚠ Ethecoin.toString, not the raw count. This printed hundredths and called them
+                // "EC(minor)"; the same line in wei would be an eighteen-digit integer in a
+                // message a human reads to find out why a gate refused them.
+                "balance " + account.balance() + " vs price " + cost.price());
     }
 
     private ConditionOutcome schematic(Account account, SchematicRequirement requirement) {

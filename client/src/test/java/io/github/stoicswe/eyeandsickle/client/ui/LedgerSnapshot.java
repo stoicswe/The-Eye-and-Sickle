@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.client.ui;
 
+import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.client.profile.ClientProfile;
 import io.github.stoicswe.eyeandsickle.client.session.LocalGameSession;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeManager;
@@ -118,7 +119,7 @@ public final class LedgerSnapshot {
         played.setMiningMode(MiningMode.POOLED);
         // A pending transaction, so the mempool strip and the "confirmed while away" line both have
         // something to report after the absence.
-        played.debit(250L, "TRANSFER", "Sent to an address",
+        played.debit(Balance.ec("2.5"), "TRANSFER", "Sent to an address",
                 io.github.stoicswe.eyeandsickle.protocol.game.FeeTier.PRIORITY,
                 io.github.stoicswe.eyeandsickle.solo.rules.ChainExplorer.address("someone"));
         played.persist();
@@ -137,10 +138,10 @@ public final class LedgerSnapshot {
         // and not a stub.
         reopened.state().chain.blocksWon.add(reopened.state().chain.height - 2);
         // Two of the player's own rows, confirmed into a block near the tip.
-        reopened.debit(1_250L, "TRANSFER", "Sent to a broker",
+        reopened.debit(Balance.ec("12.5"), "TRANSFER", "Sent to a broker",
                 io.github.stoicswe.eyeandsickle.protocol.game.FeeTier.PRIORITY,
                 io.github.stoicswe.eyeandsickle.solo.rules.ChainExplorer.address("broker"));
-        reopened.debit(400L, "MARKET", "Bought Canary Token",
+        reopened.debit(Balance.ec("4"), "MARKET", "Bought Canary Token",
                 io.github.stoicswe.eyeandsickle.protocol.game.FeeTier.PRIORITY,
                 io.github.stoicswe.eyeandsickle.solo.rules.ChainExplorer.address("vendor"));
         for (int i = 0; i < 40 && reopened.state().chain.mempool.size() > 0; i++) {
@@ -158,7 +159,7 @@ public final class LedgerSnapshot {
         // ⚠ One transaction left DELIBERATELY PENDING and un-ticked, so the shot shows the YOUR
         // PENDING strip with its boost chip. Everything above it was drained on purpose; a snapshot
         // of an empty queue verifies nothing about the control that lives on a queued row.
-        reopened.debit(300L, "MARKET", "Bought Noise Damper",
+        reopened.debit(Balance.ec("3"), "MARKET", "Bought Noise Damper",
                 io.github.stoicswe.eyeandsickle.protocol.game.FeeTier.ECONOMY,
                 io.github.stoicswe.eyeandsickle.solo.rules.ChainExplorer.address("vendor"));
         System.out.println("sync: " + reopened.chainSync());

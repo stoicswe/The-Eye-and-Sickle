@@ -1,5 +1,7 @@
 package io.github.stoicswe.eyeandsickle.solo;
 
+import java.math.BigInteger;
+import static io.github.stoicswe.eyeandsickle.solo.support.Money.ec;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.withinPercentage;
@@ -223,14 +225,20 @@ class SoloGameTest {
             // Asserting both: the published figure is pinned to the minor unit, because that is the
             // number docs/design/03 §1 prices the whole economy against, and the simulation is
             // checked to actually track it.
-            assertThat(game.mining().expectedMinorUnitsPerHour()).isEqualTo(4_000L);
+            // ⚠ To double precision. The rate is derived through the network hashrate, which is a
+            // double, so it is exact to ~16 significant figures and no further — at 18 decimals that
+            // is a residue of ~2000 wei in 4e19. See MiningChainTest.defaultPoolIsTheAnchor.
+            assertThat(ec(game.mining().expectedWeiPerHour()))
+                    .isCloseTo(40.0d, withinPercentage(1e-10d));
 
             for (int hour = 0; hour < 24; hour++) {
                 clock.advance(Duration.ofHours(1));
                 game.tick();
             }
             // 24 hours is about 2880 pool shares; a 6% band is roughly three standard errors.
-            assertThat(game.balance().minorUnits()).isBetween(90_000L, 102_000L);
+            // ⚠ Compared in EC, not wei. The band is a statistical statement about a day's pooled
+            // income — 900-1020 EC — and eighteen-digit bounds would say the same thing unreadably.
+            assertThat(ec(game.balance().wei())).isBetween(900.0d, 1_020.0d);
         }
 
         @Test
@@ -240,11 +248,11 @@ class SoloGameTest {
             SoloGame game = bare(new SaveStore(dir.resolve("save.json")), clock);
             game.allocateSelfMining(100);
 
-            long previous = 0;
+            double previous = 0;
             for (int hour = 0; hour < 12; hour++) {
                 clock.advance(Duration.ofHours(1));
                 game.tick();
-                long now = game.balance().minorUnits();
+                double now = ec(game.balance().wei());
                 // docs/design/04 §1.1: heat can destroy a deployment network but never the floor.
                 // A floor with dry hours in it is not one, and a player who went hot and then earned
                 // nothing for an hour would be punished twice for the same mistake.
@@ -266,18 +274,19 @@ class SoloGameTest {
             // I1 and I2 are untouched, because the only thing that changed is where the cycles point.
             // Subsidy plus the block's fees — a solo miner keeps the whole block, and since
             // 2026-07-27 a block is worth both halves of what its miner collects.
-            assertThat(game.mining().payoutMinorUnits())
-                    .isEqualTo(Math.round(Balance.BLOCK_SUBSIDY_MINOR_UNITS
-                            + Balance.expectedBlockFeesMinorUnits()));
+            // ⚠ Exact, in wei: this is an identity rather than an estimate — a solo payout IS the
+            // subsidy plus the block's fees, and rounding it to compare would hide a real drift.
+            assertThat(game.mining().payoutWei())
+                    .isEqualTo(Balance.BLOCK_SUBSIDY_WEI.add(Balance.expectedBlockFeesWei()));
             assertThat(game.mining().expectedPayoutSeconds()).isBetween(13_000.0d, 15_000.0d);
             assertThat(game.mining().chanceWithin(3600)).isBetween(0.15d, 0.35d);
 
             int dry = 0;
             for (int hour = 0; hour < 24; hour++) {
-                long before = game.balance().minorUnits();
+                java.math.BigInteger before = game.balance().wei();
                 clock.advance(Duration.ofHours(1));
                 game.tick();
-                if (game.balance().minorUnits() == before) {
+                if (game.balance().wei().equals(before)) {
                     dry++;
                 }
             }
@@ -322,7 +331,7 @@ class SoloGameTest {
             // The same save reopened after four hours, a day, a week and a month. Same seed, same
             // rig, same chain — the only difference is how long the client was shut, which is
             // exactly the thing that must stop mattering at the cap.
-            long atCap = 0L;
+            double atCap = 0.0d;
             for (Duration away : List.of(
                     Duration.ofHours(Balance.OFFLINE_MINING_HOURS),
                     Duration.ofDays(1),
@@ -341,8 +350,8 @@ class SoloGameTest {
                 assertThat(game.chainSync().capped())
                         .isEqualTo(away.getSeconds() > Balance.offlineMiningSeconds());
 
-                if (atCap == 0L) {
-                    atCap = game.balance().minorUnits();
+                if (atCap == 0.0d) {
+                    atCap = ec(game.balance().wei());
                     assertThat(atCap).isPositive();
                     continue;
                 }
@@ -358,7 +367,7 @@ class SoloGameTest {
                 assertThat(game.chainSync().blocks())
                         .as("the chain fills in at its own block interval (%s)", away)
                         .isBetween((int) (expected * 0.7d), (int) (expected * 1.3d));
-                assertThat(game.balance().minorUnits())
+                assertThat(ec(game.balance().wei()))
                         .as("income must not track the absence (%s)", away)
                         .isCloseTo(atCap, withinPercentage(20.0d));
             }
@@ -378,13 +387,16 @@ class SoloGameTest {
             SoloGame later = bare(new SaveStore(file), new TestClock(T0.plus(Duration.ofDays(3))));
             var sync = later.chainSync();
 
+            // ⚠ A 4σ Poisson bound, not a flat "+8". How many blocks land inside a FIXED four-hour
+            // window is itself random — mean 17.1, σ = √17.1 ≈ 4.1 — so the old ceiling of 26 sat
+            // 2.1σ above the mean and failed about one run in fifty on ordinary variance, on a
+            // fixture whose seed is fresh every run. Caught in a routine build; the assertion was
+            // measuring the Poisson tail rather than the cap. What the test is actually about is
+            // that the window bounds the contest at all, which the uncontested count below carries.
+            double window = Balance.offlineMiningSeconds() / (double) Balance.CHAIN_TARGET_BLOCK_SECONDS;
             assertThat(sync.competedBlocks())
                     .as("only blocks inside the spin-down window are contested")
-                    .isLessThanOrEqualTo(
-                            (int) Math.ceil(
-                                    Balance.offlineMiningSeconds()
-                                            / (double) Balance.CHAIN_TARGET_BLOCK_SECONDS)
-                                    + 8);
+                    .isLessThanOrEqualTo((int) Math.ceil(window + 4 * Math.sqrt(window)));
             assertThat(sync.uncontestedBlocks()).isGreaterThan(200);
             // Every contributor row the fill produced is inside the window, by construction.
             assertThat(later.contributions(64))
@@ -412,10 +424,13 @@ class SoloGameTest {
                     bare(new SaveStore(file), new TestClock(T0.plus(Duration.ofDays(7))));
             MinerState after = later.state().knownNodes.getFirst().deployedMiners.getFirst();
 
-            long cap = MiningRules.bufferCap(after);
-            assertThat(after.bufferedMinorUnits).isEqualTo(cap);
+            BigInteger cap = MiningRules.bufferCap(after);
+            assertThat(after.bufferedWei).isEqualTo(cap);
             // A week away yields four hours, not a week: 10 cycles × 0.4 EC × 4 hr = 16 EC.
-            assertThat(cap).isEqualTo(10L * 40L * Balance.YIELD_BUFFER_HOURS);
+            // 10 host cycles × 0.4 EC/cycle-hour × the buffer window. Written from the rate rather
+            // than from a literal so a re-tune of either moves this with it.
+            assertThat(cap).isEqualTo(Balance.SELF_MINING_WEI_PER_CYCLE_HOUR
+                    .multiply(java.math.BigInteger.valueOf(10L * Balance.YIELD_BUFFER_HOURS)));
         }
 
         @Test
@@ -441,27 +456,27 @@ class SoloGameTest {
             SoloGame game = freshGame(dir);
             NodeState node = new NodeState();
             MinerState miner = new MinerState();
-            miner.bufferedMinorUnits = 2_500L;
+            miner.bufferedWei = Balance.ec("25");
             node.deployedMiners.add(miner);
             game.state().knownNodes.add(node);
 
-            assertThat(game.collect()).isEqualTo(2_500L);
-            assertThat(game.balance().minorUnits()).isEqualTo(2_500L);
-            assertThat(miner.bufferedMinorUnits).isZero();
+            assertThat(game.collect()).isEqualTo(Balance.ec("25"));
+            assertThat(game.balance().wei()).isEqualTo(Balance.ec("25"));
+            assertThat(miner.bufferedWei).isZero();
             assertThat(game.state().ledger).hasSize(1);
             // The balance and the log that explains it are written by one method, so they cannot
             // disagree — which is what makes the ledger usable as a readout.
-            assertThat(game.state().ledger.getFirst().balanceAfterMinorUnits).isEqualTo(2_500L);
+            assertThat(game.state().ledger.getFirst().balanceAfterWei).isEqualTo(Balance.ec("25"));
         }
 
         @Test
         @DisplayName("spending more than you have is refused, not overdrawn")
         void cannotOverdraw(@TempDir Path dir) {
             SoloGame game = freshGame(dir);
-            game.credit(1_000L, "TEST", "seed");
+            game.credit(Balance.ec("10"), "TEST", "seed");
 
-            assertThat(game.debit(2_000L, "TEST", "too much")).isFalse();
-            assertThat(game.balance().minorUnits()).isEqualTo(1_000L);
+            assertThat(game.debit(Balance.ec("20"), "TEST", "too much")).isFalse();
+            assertThat(game.balance().wei()).isEqualTo(Balance.ec("10"));
             assertThat(game.state().ledger).hasSize(1);
         }
     }
@@ -475,14 +490,14 @@ class SoloGameTest {
         void roundTrip(@TempDir Path dir) {
             Path file = dir.resolve("save.json");
             SoloGame game = SoloGame.open(new SaveStore(file), "ghost", new TestClock(T0));
-            game.credit(1_234L, "TEST", "seed");
+            game.credit(Balance.ec("12.34"), "TEST", "seed");
             game.allocateSelfMining(25);
             game.persist();
 
             SoloSave reloaded = new SaveStore(file).load();
             assertThat(reloaded).isNotNull();
             assertThat(reloaded.handle).isEqualTo("ghost");
-            assertThat(reloaded.ethecoinMinorUnits).isEqualTo(1_234L);
+            assertThat(reloaded.ethecoinWei).isEqualTo(Balance.ec("12.34"));
             assertThat(reloaded.rig.selfMiningCycles).isEqualTo(25L);
             assertThat(reloaded.ledger).hasSize(1);
         }
@@ -548,8 +563,9 @@ class SoloGameTest {
         void shortSessionsEarn() {
             // Naive hour-based integer maths would pay nothing for anything under an hour, so a
             // player doing five-minute sessions would earn nothing at all and never know why.
-            long tenMinutes = MiningRules.deployedYield(100, Duration.ofMinutes(10));
-            assertThat(tenMinutes).isEqualTo(666L);
+            BigInteger tenMinutes = MiningRules.deployedYield(100, Duration.ofMinutes(10));
+            // 100 cycles × 0.4 EC/cycle-hour × (1/6) hour = 6.666… EC, floored to the wei.
+            assertThat(tenMinutes).isEqualTo(Balance.ec("6.666666666666666666"));
         }
 
         @Test

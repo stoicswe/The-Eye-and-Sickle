@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.protocol.game;
 
+import java.math.BigInteger;
 import java.time.Instant;
 import java.util.List;
 
@@ -51,8 +52,16 @@ import java.util.List;
  * @param projected what the next few blocks would hold if mined now, nearest first
  * @param expectedNextBlockSeconds the chain's mean block interval — an average, not a deadline
  * @param secondsSinceLastBlock how long it has actually been
- * @param lowFeeRate the cheapest fee rate currently getting into a projected block
- * @param highFeeRate what the top of the pending set is paying
+ * @param lowFeeWei the cheapest fee still getting into a projected block, as an AMOUNT
+ * @param highFeeWei what the top of the pending set is paying, as an AMOUNT
+ *     <p>⚠ Amounts, not gas prices. These were fee-per-million-gas, which was a readable figure
+ *     while an ethecoin was 100 minor units and became <b>5319047619047619000</b> the moment the
+ *     scale moved to wei — a number that is not wrong so much as unusable, printed at a player who
+ *     is deciding between 0.02, 0.06 and 0.30 EC.
+ *     <p>The original reason for a gas price was that the clearing price and a transaction's rate
+ *     were shipped in different units, so "cheapest slot 8, top of the queue 1429" read as a 180x
+ *     spread when it was under 4x. Expressing BOTH as amounts fixes that comparison too, and does
+ *     it in the unit the fee tiers are quoted in — which is the decision this line informs.
  */
 public record ChainMempool(
         List<Queued> queued,
@@ -60,8 +69,8 @@ public record ChainMempool(
         List<ProjectedBlock> projected,
         double expectedNextBlockSeconds,
         long secondsSinceLastBlock,
-        double lowFeeRate,
-        double highFeeRate) {
+        java.math.BigInteger lowFeeWei,
+        java.math.BigInteger highFeeWei) {
 
     public ChainMempool {
         queued = queued == null ? List.of() : List.copyOf(queued);
@@ -100,7 +109,7 @@ public record ChainMempool(
      *     limit, and a fill bar over 100%.
      * @param gasUsed the gas they would consume
      * @param gasLimit the ceiling they are packed against
-     * @param feesMinorUnits <b>the whole block's</b> estimated fee total — what a miner would
+     * @param feesWei <b>the whole block's</b> estimated fee total — what a miner would
      *     collect for mining it.
      *     <p>⚠ Not this rig's fees, which is what it used to be and why the card read
      *     "fees 0.00 EC" on every projection a player had nothing waiting in — which is nearly all
@@ -126,7 +135,7 @@ public record ChainMempool(
             int yours,
             long gasUsed,
             long gasLimit,
-            long feesMinorUnits,
+            BigInteger feesWei,
             double lowFeeRate,
             Instant etaAt) {
 

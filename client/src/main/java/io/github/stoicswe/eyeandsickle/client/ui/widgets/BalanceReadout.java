@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.client.ui.widgets;
 
+import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.client.ui.Pulse;
 import io.github.stoicswe.eyeandsickle.client.ui.Ui;
 import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
@@ -49,8 +50,8 @@ public final class BalanceReadout extends HBox {
     private final Label value = Ui.value("—");
     private final Label delta = Ui.micro("");
 
-    private long shownMinorUnits;
-    private long targetMinorUnits;
+    private java.math.BigInteger shownWei = java.math.BigInteger.ZERO;
+    private java.math.BigInteger targetWei = java.math.BigInteger.ZERO;
     private boolean seeded;
 
     private AutoCloseable counter;
@@ -79,24 +80,24 @@ public final class BalanceReadout extends HBox {
      * would otherwise count up from zero and announce four thousand ethecoin of income that did not
      * happen — the flash is for movement, and arriving is not movement.
      */
-    public void setMinorUnits(long minorUnits) {
+    public void setWei(java.math.BigInteger wei) {
         if (!seeded) {
             seeded = true;
-            shownMinorUnits = minorUnits;
-            targetMinorUnits = minorUnits;
-            value.setText(money(minorUnits));
+            shownWei = wei;
+            targetWei = wei;
+            value.setText(Ethecoin.format(wei));
             return;
         }
-        if (minorUnits == targetMinorUnits) {
+        if (wei.equals(targetWei)) {
             return;
         }
-        long change = minorUnits - targetMinorUnits;
-        targetMinorUnits = minorUnits;
+        java.math.BigInteger change = wei.subtract(targetWei);
+        targetWei = wei;
         showDelta(change);
 
         if (Pulse.shared().reducedMotion()) {
-            shownMinorUnits = targetMinorUnits;
-            value.setText(money(shownMinorUnits));
+            shownWei = targetWei;
+            value.setText(Ethecoin.format(shownWei));
             return;
         }
         startCount();
@@ -112,21 +113,25 @@ public final class BalanceReadout extends HBox {
      */
     private void startCount() {
         stop(counter);
-        long startedFrom = shownMinorUnits;
+        java.math.BigInteger startedFrom = shownWei;
         int[] frame = {0};
         int frames = Math.max(1, (int) Math.round(COUNT_MS / UiTokens.FRAME_MS));
         counter = Pulse.shared().animate(UiTokens.FRAME_MS, () -> {
             frame[0]++;
             double progress = Math.min(1.0d, frame[0] / (double) frames);
-            long span = targetMinorUnits - startedFrom;
-            shownMinorUnits = startedFrom + Math.round(span * progress);
-            value.setText(money(shownMinorUnits));
+            // ⚠ The interpolation runs in BigDecimal. `span * progress` in double would round the
+            // amount to ~16 significant figures every frame, and at 18 decimals that is visible in
+            // the digits the readout now prints — the counter would tick through nonsense.
+            java.math.BigDecimal span = new java.math.BigDecimal(targetWei.subtract(startedFrom));
+            shownWei = startedFrom.add(span.multiply(java.math.BigDecimal.valueOf(progress))
+                    .setScale(0, java.math.RoundingMode.HALF_UP).toBigIntegerExact());
+            value.setText(Ethecoin.format(shownWei));
             if (progress >= 1.0d) {
                 // Pinned to the target rather than left on the rounded step. A readout a minor unit
                 // off the ledger is the exact disagreement docs/design/04 §3.1 teaches players to
                 // read as evidence of an intruder.
-                shownMinorUnits = targetMinorUnits;
-                value.setText(money(shownMinorUnits));
+                shownWei = targetWei;
+                value.setText(Ethecoin.format(shownWei));
                 stop(counter);
                 counter = null;
             }
@@ -134,13 +139,13 @@ public final class BalanceReadout extends HBox {
     }
 
     /** Shows the movement beside the balance, then steps it away. */
-    private void showDelta(long change) {
+    private void showDelta(java.math.BigInteger change) {
         stop(flash);
         delta.setVisible(true);
         delta.setOpacity(1);
-        delta.setText((change >= 0 ? "+" : "−") + money(Math.abs(change)));
+        delta.setText((change.signum() >= 0 ? "+" : "−") + Ethecoin.format(change.abs()));
         delta.getStyleClass().removeAll("es-balance-gain", "es-balance-loss");
-        delta.getStyleClass().add(change >= 0 ? "es-balance-gain" : "es-balance-loss");
+        delta.getStyleClass().add(change.signum() >= 0 ? "es-balance-gain" : "es-balance-loss");
 
         if (Pulse.shared().reducedMotion()) {
             // Held, not faded. See the class comment: which way the money went is information.
@@ -186,7 +191,4 @@ public final class BalanceReadout extends HBox {
         flash = null;
     }
 
-    private static String money(long minorUnits) {
-        return String.format(Locale.ROOT, "%.2f EC", minorUnits / 100.0d);
-    }
 }

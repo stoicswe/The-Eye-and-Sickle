@@ -93,6 +93,24 @@ What is left is a genuine axis — **pressure of place** against **pressure of p
 
 ⚠ **The class is drawn once per attempt and every layer plays it.** Frozen at commission, so a reload cannot reroll into the easier one. A mixed attempt would be two short games and would make a hard target's deeper layers a lottery between the puzzle the player is good at and the one they are not.
 
+### 5.1 Which one you draw is earned — recon weights the roll (2026-07-29)
+
+The draw was an even coin flip. It is now weighted by **how much of the target's port-scan report is filled in**, and the split reads out of the fiction rather than out of a constant:
+
+- **Offset Cipher is the default.** It is the puzzle that needs nothing from the far side — deriving an offset from ciphertext is exactly what you do when you have no other handle on a machine. Against a target nobody has scanned it is what you get, every time (`Balance.BREACH_PROTOCOL_SHARE` = 0).
+- **Breach Protocol is the puzzle of someone who knows the host.** Its grid *is* that machine's protocol surface, so it takes knowing the machine to be looking at one. A complete report draws it about **95%** of the time (`BREACH_PROTOCOL_SHARE_INFORMED`).
+- **Linear in between** (`Balance.breachProtocolShare`), one seventh per finding, so there is no threshold to discover — a player who scans one more thing sees the odds move, which is what makes the relationship learnable.
+
+**This is RECON's first mechanical consequence.** A report used to be intelligence the player read and acted on by hand; it now changes what the breach *is*. `07`'s tools finally feed `05`'s puzzle rather than sitting beside it.
+
+> ⚠ **It buys a DIFFERENT puzzle, never an easier one.** Tier, attention budget, strike limit, layer count and cycle cost are all identical either way, and `BreachPuzzleWeightingTest.Pricing` asserts it directly. The intended reading is that recon lets a player steer toward the puzzle they are better at — not lower the bar. **If the two ever stop being comparable in difficulty this silently becomes a discount**, and a proof-of-skill gate that can be bought down is not proof of skill (**I7**). That is the thing to re-check whenever either puzzle is re-tuned.
+
+> ⚠ **Not 1.0 at full knowledge, deliberately.** A machine that can still surprise a well-prepared operator once in twenty is the fiction working, and a guaranteed puzzle means the cipher stops being practised by anyone who scans — which would put us back where §5 started, with a player drilling half the skill the gate claims to certify. The class is announced before anything is spent, so the residual is a surprise the player can walk away from.
+
+> ⚠ **Staleness deliberately does not count against the report.** A finding learned a week ago still counts as known. The report already shows each finding's age, so a player can see what has gone cold; making an old finding silently stop counting would move the odds under them with nothing on screen changing.
+
+> ⚠ **The roll is taken unconditionally, even at a weight of zero.** Skipping it for an unscanned machine is the obvious optimisation and would break replay — every later draw in the breach would then depend on whether the player had scanned the target, so the same seed would generate different boards. §2's rule, applied to a new input.
+
 ---
 
 ## 6. The numbers, and what each is anchored to

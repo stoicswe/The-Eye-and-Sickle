@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.solo;
 
+import java.math.BigInteger;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeBudget;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeConsumer;
 import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
@@ -24,6 +25,8 @@ import io.github.stoicswe.eyeandsickle.solo.state.AllocationState;
 import io.github.stoicswe.eyeandsickle.solo.state.DefenseState;
 import io.github.stoicswe.eyeandsickle.solo.state.ItemState;
 import io.github.stoicswe.eyeandsickle.solo.state.NodeState;
+import io.github.stoicswe.eyeandsickle.solo.state.ScanReportState;
+import io.github.stoicswe.eyeandsickle.solo.state.PendingTxState;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachAction;
 import io.github.stoicswe.eyeandsickle.protocol.game.NetDocument;
@@ -181,8 +184,85 @@ public final class SoloGame {
                     "chain synced at height " + save.chain.height
                             + "; self-mining is pooled by default. `mine --solo` to go it alone.", now);
         }
+        // ⚠ BEFORE everything else that reads money. retuneNetworkHashrate does not touch amounts,
+        // but anything added below this line might, and a rule that ran against hundredths-scale
+        // values on a save that has not been rescaled yet would be reasoning about numbers 10^16 too
+        // small — silently, and with no way to tell afterwards which rows were which.
+        rescaleMoney(save, now);
         retuneNetworkHashrate(save, now);
         abandonBreachInProgress(save, now);
+    }
+
+    /**
+     * Rescales a save written when an ethecoin was 100 minor units into wei.
+     *
+     * <h2>⚠ Ethereum's 18 decimals do not fit a long, so the whole save had to move</h2>
+     *
+     * Money used to be a {@code long} count of hundredths. It is now a {@link BigInteger} count of
+     * {@code 1e-18} EC, because at 18 decimals a {@code long} tops out at <b>9.22 EC</b> — less than
+     * one firmware image. Every stored amount is therefore 10^16 times too small on an old save, and
+     * left alone a 500 EC balance would read as {@code 0.000000000000005 EC}.
+     *
+     * <h2>⚠ Runs exactly once, gated on a version field rather than on a guess</h2>
+     *
+     * {@link SoloSave#moneySchema} is absent on every pre-migration save and therefore loads as
+     * {@code 0}. There is deliberately no heuristic: "is this balance suspiciously small?" cannot be
+     * answered, because a player may legitimately hold 8 wei, and a migration that guesses is one
+     * that eventually multiplies somebody's balance twice.
+     *
+     * <p>⚠ It is logged. A balance that changes by sixteen orders of magnitude between two launches
+     * is exactly the kind of event a player is entitled to see a reason for — and if this ever runs
+     * when it should not, the log is the only place that would say so.
+     */
+    private static void rescaleMoney(SoloSave save, Instant now) {
+        if (save.moneySchema >= SoloSave.MONEY_SCHEMA) {
+            return;
+        }
+        BigInteger factor = Ethecoin.WEI_PER_ETHECOIN.divide(BigInteger.valueOf(100L));
+        save.ethecoinWei = save.ethecoinWei.multiply(factor);
+        for (LedgerEntryState entry : save.ledger) {
+            entry.deltaWei = entry.deltaWei.multiply(factor);
+            entry.balanceAfterWei = entry.balanceAfterWei.multiply(factor);
+            // ⚠ The MISSING sentinel is a marker, not an amount — scaling it would turn "no fee
+            // recorded" into a large negative fee and the explorer would render it as one.
+            if (entry.feeWei.signum() >= 0) {
+                entry.feeWei = entry.feeWei.multiply(factor);
+            }
+        }
+        if (save.chain != null) {
+            for (PendingTxState tx : save.chain.mempool) {
+                tx.valueWei = tx.valueWei.multiply(factor);
+                tx.feeWei = tx.feeWei.multiply(factor);
+            }
+            for (var row : save.chain.contributions) {
+                row.creditedWei = row.creditedWei.multiply(factor);
+            }
+        }
+        save.rig.miningWei = save.rig.miningWei.multiply(factor);
+        save.rig.miningPendingWei = save.rig.miningPendingWei.multiply(factor);
+        save.rig.miningResidueWei = save.rig.miningResidueWei.multiply(new java.math.BigDecimal(factor));
+        for (var miner : save.rig.foreignMiners) {
+            miner.bufferedWei = miner.bufferedWei.multiply(factor);
+        }
+        for (NodeState node : save.knownNodes) {
+            for (var miner : node.deployedMiners) {
+                miner.bufferedWei = miner.bufferedWei.multiply(factor);
+            }
+        }
+        if (save.topology != null) {
+            for (var host : save.topology.hosts) {
+                host.lootWei = host.lootWei.multiply(factor);
+            }
+        }
+        if (save.activeBreach != null) {
+            save.activeBreach.resolvedLootWei = save.activeBreach.resolvedLootWei.multiply(factor);
+        }
+
+        save.moneySchema = SoloSave.MONEY_SCHEMA;
+        EventLog.notice(save, "storage",
+                "Ethecoin now divides to 18 places, as ether does. Every amount on this save was "
+                        + "rewritten into the finer unit; the balance is unchanged at "
+                        + Ethecoin.format(save.ethecoinWei) + ".", now);
     }
 
     /**
@@ -311,7 +391,11 @@ public final class SoloGame {
         s.handle = handle == null || handle.isBlank() ? "operator" : handle.trim();
         s.createdAt = now;
         s.lastPlayedAt = now;
-        s.ethecoinMinorUnits = Balance.STARTING_ETHECOIN_MINOR_UNITS;
+        // ⚠ Stamped at creation, or `rescaleMoney` treats a brand-new character as a pre-migration
+        // save: harmless arithmetically (its amounts are zero) and wrong where it counts — the player
+        // would be told on their first launch that their money had just been rewritten.
+        s.moneySchema = SoloSave.MONEY_SCHEMA;
+        s.ethecoinWei = Balance.STARTING_ETHECOIN_WEI;
 
         // A parasite on the new rig, from the first second of the game.
         //
@@ -374,6 +458,11 @@ public final class SoloGame {
             EventLog.notice(save, "net",
                     "shell session on " + address + " ended: the foothold is gone.", now);
         }
+        // ⚠ On the LOAD path as well as after a breach, and both are needed. A save written before
+        // this was wired carries BREACHED resolutions and no footholds, so without settling here the
+        // bug would be permanent for anyone who had already taken a machine — they would have to
+        // breach it a second time, on a target the game would still be refusing `connect` to.
+        settleBreachOutcomes();
         long recovered = ComputeRules.settleRecovered(save.rig, now);
         // ⚠ Tasks settle HERE, not only in tick(). resume() sets lastTick = now, so the first tick
         // after loading sees zero elapsed time and returns early — a six-minute scan that ended
@@ -386,7 +475,7 @@ public final class SoloGame {
         // finished a week ago is, at this instant, a recovering allocation whose time has long since
         // passed. Without this the player would watch a week-old scan recover in front of them.
         recovered += ComputeRules.settleRecovered(save.rig, now);
-        long accrued = MiningRules.accrueDeployedMiners(save, now);
+        BigInteger accrued = MiningRules.accrueDeployedMiners(save, now);
 
         // ⚠ The chain ran while the client did not, and until 2026-07-29 it did not — height froze
         // at the last tick, so a character played on Monday and again on Friday found four days of
@@ -404,9 +493,9 @@ public final class SoloGame {
             if (recovered > 0) {
                 EventLog.info(save, "compute", recovered + " cycles finished recovering while away.", now);
             }
-            if (accrued > 0) {
+            if (accrued.signum() > 0) {
                 EventLog.info(save, "mining",
-                        "Deployed miners buffered " + money(accrued) + " while away. `collect` sweeps it.", now);
+                        "Deployed miners buffered " + Ethecoin.format(accrued) + " while away. `collect` sweeps it.", now);
             }
             logSync(walked, now);
         }
@@ -429,10 +518,10 @@ public final class SoloGame {
     private ChainRules.Sync catchUpChain(Instant now) {
         Rng rng = Rng.of(save);
         ChainRules.Sync walked = ChainRules.sync(save, save.lastPlayedAt, now, rng);
-        long credited = MiningRules.runSelfMining(save, walked.minedFor(), now, rng, walked.minted());
+        BigInteger credited = MiningRules.runSelfMining(save, walked.minedFor(), now, rng, walked.minted());
         rng.commit(save);
 
-        if (credited > 0) {
+        if (credited.signum() > 0) {
             LedgerEntryState row = LedgerRules.applyEntry(
                     save, credited, "SELF_MINING", offlineMiningLabel(walked), now);
             // ⚠ A SOLO win names the block that carried it; a pool payout does not — the pool paid
@@ -490,8 +579,8 @@ public final class SoloGame {
         for (ChainRules.Won block : walked.minted().yourBlocks()) {
             EventLog.notice(save, "mining",
                     "block " + block.height() + " is yours — found after logout, "
-                            + money(Balance.BLOCK_SUBSIDY_MINOR_UNITS) + " subsidy plus "
-                            + money(block.feesMinorUnits()) + " in fees.", now);
+                            + Ethecoin.format(Balance.BLOCK_SUBSIDY_WEI) + " subsidy plus "
+                            + Ethecoin.format(block.feesWei()) + " in fees.", now);
         }
         if (sync.capped()) {
             EventLog.info(save, "mining",
@@ -535,10 +624,10 @@ public final class SoloGame {
         // ⚠ Read the pending-payout count BEFORE running, and add whatever this tick found, because
         // settlement zeroes it. A label built from the field afterwards reads "0 shares" every time.
         int pendingBefore = save.rig.miningPendingPayouts;
-        long selfYield = MiningRules.runSelfMining(save, elapsed, now, miningRng, minted);
+        BigInteger selfYield = MiningRules.runSelfMining(save, elapsed, now, miningRng, minted);
         miningRng.commit(save);
 
-        if (selfYield > 0) {
+        if (selfYield.signum() > 0) {
             int settled = pendingBefore + (int) (save.rig.miningPayouts - payoutsBefore)
                     - save.rig.miningPendingPayouts;
             LedgerEntryState row = LedgerRules.applyEntry(
@@ -564,14 +653,14 @@ public final class SoloGame {
             // and `proof-of-work(7)` teaches that split. A single total would hide it.
             EventLog.notice(save, "mining",
                     "block " + save.chain.height + " is yours — "
-                            + money(Balance.BLOCK_SUBSIDY_MINOR_UNITS * won)
-                            + " subsidy plus " + money(minted.yoursFeesMinorUnits())
+                            + Ethecoin.format(Balance.BLOCK_SUBSIDY_WEI.multiply(BigInteger.valueOf(won)))
+                            + " subsidy plus " + Ethecoin.format(minted.yoursFeesWei())
                             + " in fees, whole and unshared.",
                     now);
         }
         changed |= save.chain != null && save.chain.height != heightBefore;
 
-        changed |= MiningRules.accrueDeployedMiners(save, now) > 0;
+        changed |= MiningRules.accrueDeployedMiners(save, now).signum() > 0;
 
         save.playedSeconds += elapsed.toSeconds();
         save.lastPlayedAt = now;
@@ -628,7 +717,7 @@ public final class SoloGame {
     }
 
     public Ethecoin balance() {
-        return Ethecoin.ofMinorUnits(save.ethecoinMinorUnits);
+        return Ethecoin.ofWei(save.ethecoinWei);
     }
 
     public List<ItemState> itemsIn(StorageTier tier) {
@@ -654,6 +743,16 @@ public final class SoloGame {
         if (cycles < 0) {
             return false;
         }
+        // ⚠ FROZEN while its firmware is being written. This is the other half of "the tool must be
+        // stopped to flash it" — stopping it at the door and then letting the player start it again
+        // two seconds later would make the requirement a formality rather than a cost. Raising the
+        // allocation is refused; setting it to zero is always allowed, because a rule that traps a
+        // player's cycles in a tool they cannot use is a bug wearing a rule's clothes.
+        if (cycles > save.rig.selfMiningCycles
+                && Catalogue.MINING_TOOL.equals(
+                        io.github.stoicswe.eyeandsickle.solo.rules.Repac.frozenTool(save))) {
+            return false;
+        }
         long delta = cycles - save.rig.selfMiningCycles;
         if (delta > 0 && ComputeRules.availableCycles(save.rig) < delta) {
             return false;
@@ -662,7 +761,7 @@ public final class SoloGame {
         EventLog.info(save, "mining",
                 cycles == 0
                         ? "Self-mining stopped; cycles released."
-                        : "Self-mining set to " + cycles + " cycles (" + money(cycles * 40L) + "/hr while open).",
+                        : "Self-mining set to " + cycles + " cycles (" + Ethecoin.format(cycles * 40L) + "/hr while open).",
                 clock.instant());
         return true;
     }
@@ -690,10 +789,10 @@ public final class SoloGame {
         EventLog.info(save, "mining",
                 mode == MiningMode.SOLO
                         ? "Mining solo against difficulty " + String.format(java.util.Locale.ROOT, "%.1f", after.difficulty())
-                                + ". No fee, no floor: " + money(after.payoutMinorUnits()) + " a block, "
+                                + ". No fee, no floor: " + Ethecoin.format(after.payoutWei()) + " a block, "
                                 + humanAway(java.time.Duration.ofSeconds((long) after.expectedPayoutSeconds()))
                                 + " between them on average."
-                        : "Mining pooled. " + money(after.payoutMinorUnits()) + " a share, about one every "
+                        : "Mining pooled. " + Ethecoin.format(after.payoutWei()) + " a share, about one every "
                                 + Math.round(Balance.POOL_SHARE_SECONDS) + "s, less a "
                                 + String.format(java.util.Locale.ROOT, "%.0f%%", Balance.POOL_FEE * 100) + " fee.",
                 now);
@@ -724,10 +823,10 @@ public final class SoloGame {
         MiningSnapshot after = mining();
         EventLog.info(save, "mining",
                 "joined " + pool.name() + " (" + pool.scheme() + ", " + pool.feeText() + ") — "
-                        + money(after.payoutMinorUnits()) + " every "
+                        + Ethecoin.format(after.payoutWei()) + " every "
                         + humanAway(java.time.Duration.ofSeconds(
                                 Math.max(1L, (long) after.expectedPayoutSeconds())))
-                        + ", " + money(after.expectedMinorUnitsPerHour()) + "/hr expected.",
+                        + ", " + Ethecoin.format(after.expectedWeiPerHour()) + "/hr expected.",
                 now);
         return true;
     }
@@ -739,7 +838,7 @@ public final class SoloGame {
      * committed figure itself would be the fourth copy of a balance rate, and the third one was
      * already wrong (see {@code RigStatus}).
      */
-    public long miningRateFor(long cycles) {
+    public BigInteger miningRateFor(long cycles) {
         return MiningRules.rateFor(save.rig, save.chain, cycles);
     }
 
@@ -836,14 +935,17 @@ public final class SoloGame {
                 ChainRules.blocksUntilRetarget(chain),
                 ChainRules.expectedSeconds(working, hashrate),
                 last == null ? -1L : java.time.Duration.between(last, clock.instant()).toSeconds(),
-                MiningRules.expectedMinorUnitsPerHour(save.rig, chain),
-                Math.round(MiningRules.payoutMinorUnits(save.rig, chain)),
+                MiningRules.expectedWeiPerHour(save.rig, chain),
+                // ⚠ Rounded in BigDecimal, never through Math.round — that takes a double, and a
+                // wei payout passes a double's exact-integer range within an ordinary block.
+                MiningRules.payoutWei(save.rig, chain)
+                        .setScale(0, java.math.RoundingMode.HALF_UP).toBigIntegerExact(),
                 save.rig.miningPayouts,
-                save.rig.miningMinorUnits,
+                save.rig.miningWei,
                 mode == MiningMode.SOLO ? 0 : MiningRules.poolOf(save.rig).feeBasisPoints(),
                 last,
                 mode == MiningMode.SOLO ? null : MiningRules.poolOf(save.rig),
-                save.rig.miningPendingMinorUnits,
+                save.rig.miningPendingWei,
                 settleIn(),
                 MiningRules.poolNoiseCycles(save.rig));
     }
@@ -851,7 +953,7 @@ public final class SoloGame {
     /** Seconds until the pool settles, or 0 when solo or there is nothing waiting. */
     private long settleIn() {
         if (MiningRules.modeOf(save.rig) == MiningMode.SOLO
-                || save.rig.miningPendingMinorUnits <= 0
+                || save.rig.miningPendingWei.signum() <= 0
                 || save.rig.miningSettledAt == null) {
             return 0L;
         }
@@ -962,7 +1064,32 @@ public final class SoloGame {
 
     /** Spends attention on one move. */
     public BreachResult breachAction(String actionId, String argument) {
-        return BreachRules.act(save, actionId, argument, clock.instant());
+        BreachResult result = BreachRules.act(save, actionId, argument, clock.instant());
+        // ⚠ The move that clears the last layer is the move that takes the machine, and until this
+        // line existed nothing joined those two facts up. See settleBreachOutcomes.
+        settleBreachOutcomes();
+        return result;
+    }
+
+    /**
+     * Turns cleared attempts into footholds and pays each host's one-time loot.
+     *
+     * <h2>⚠ This is the wiring that was missing, and its absence was invisible</h2>
+     *
+     * {@code NetRules.reconcileFootholds} was written, documented and covered by five tests, and
+     * <b>every caller was a test</b>. So a player could clear every layer of a breach, be told the
+     * attempt succeeded, and find the machine still reading {@code contact} on the map, still
+     * refusing {@code connect}, and still holding its loot. Nothing failed, nothing logged, and the
+     * unit's own suite stayed green — the defect lived entirely in the join between two correct
+     * pieces, which is the one place a unit test cannot look.
+     *
+     * <p>⚠ <b>Safe to call as often as is convenient.</b> It is idempotent by construction rather
+     * than by bookkeeping — {@code foothold} and {@code looted} are both one-way flags on the host,
+     * so there is no "settled" marker to get out of step. That is what makes calling it from both
+     * the load path and every breach move correct rather than merely tolerable.
+     */
+    public boolean settleBreachOutcomes() {
+        return NetRules.reconcileFootholds(save, clock.instant());
     }
 
     /** Walks away: no loot, no proof-of-skill credit, attention already spent stays spent. */
@@ -1131,6 +1258,27 @@ public final class SoloGame {
             out.add("zone is raidable even while you are not. Capacity runs the other way.");
             return List.copyOf(out);
         }
+        // ⚠ BEFORE the Applications branch below, which matches the whole tree. An upgrade inside a
+        // bundle would otherwise get the generic "a bundle is a directory" note — true, and not the
+        // answer to the question a player right-clicking a package is asking.
+        var upgrade = upgradeAt(address, p);
+        if (upgrade.isPresent()) {
+            out.addAll(describe(upgrade.get(), own, address));
+            return List.copyOf(out);
+        }
+        // ⚠ An upgrade this rig cannot identify says so, rather than falling through to the generic
+        // bundle note. Some app bundles advertise upgrades for tools the solo catalogue does not
+        // carry, and those packages are already duds — `install` refuses them as "not an installable
+        // upgrade" AFTER the player has paid for the transfer. Saying it here turns a silent dud into
+        // a legible one, and costs nothing but the line. The gap itself is content, not code.
+        if (p.endsWith(io.github.stoicswe.eyeandsickle.solo.rules.Repac.PAYLOAD_SUFFIX)
+                || p.endsWith(io.github.stoicswe.eyeandsickle.solo.rules.Repac.PACKAGE_SUFFIX)
+                || p.endsWith(io.github.stoicswe.eyeandsickle.solo.rules.Repac.FIRMWARE_SUFFIX)) {
+            out.add("A package for a tool this rig has no catalogue entry for. It can be taken, and");
+            out.add("it cannot be installed or sold -- there is nothing here that knows what it is.");
+            out.add("Not worth the transfer.");
+            return List.copyOf(out);
+        }
         if (p.startsWith(VirtualFs.APPLICATIONS)) {
             out.add("An application bundle is a DIRECTORY, not a file -- that is the thing worth");
             out.add("knowing about how a desktop packages a program. Contents/ holds the parts:");
@@ -1142,6 +1290,74 @@ public final class SoloGame {
             out.add("On " + address + ". You are reading somebody else's machine.");
         }
         return List.copyOf(out);
+    }
+
+    /**
+     * An upgrade, in words — the same text {@code stat} prints and Get Info shows.
+     *
+     * <p>⚠ One source, two surfaces. A {@code stat} that said less than a right-click would send
+     * players to the mouse to learn things, which is the opposite of what this client's terminal is
+     * for. The file manager additionally renders the same facts as a structured compare block from
+     * {@link #upgradeAt}; this is the text fallback and the terminal's whole answer.
+     */
+    private List<String> describe(
+            io.github.stoicswe.eyeandsickle.protocol.game.UpgradeOffer offer,
+            boolean own, String address) {
+        List<String> out = new java.util.ArrayList<>();
+        out.add(offer.displayName() + "  " + offer.version());
+        out.add("");
+        out.addAll(wrap(offer.summary()));
+        out.add("");
+        out.add(offer.verdict());
+        // ⚠ Firmware's conditions are stated on the same surface as everything else, and BEFORE the
+        // transfer. The whole reason this panel exists is that a package used to cost a download to
+        // identify; firmware that cost a download to discover you cannot flash would be the same
+        // defect wearing a new face.
+        if (offer.firmware()) {
+            out.add("");
+            out.add("FIRMWARE -- " + offer.flashRequirement());
+        }
+        out.add("");
+        out.add("Gate      " + offer.gate().name().toLowerCase(java.util.Locale.ROOT));
+        out.add("Size      " + offer.sizeBytes() / 1_000_000L + " MB"
+                + "   (" + Balance.transferTime(offer.sizeBytes()).toSeconds() + "s to pull)");
+        if (offer.equippedCycles() > 0) {
+            out.add("Equipped  " + offer.equippedCycles() + " cycles held while armed");
+        }
+        // ⚠ The resale line is printed even when it is zero, with the reason. A missing line reads as
+        // an oversight; "cannot be sold" plus why is the I2 rule teaching itself at the one moment
+        // the player has a reason to care about it.
+        out.add(offer.sellable()
+                ? "Resale    " + Ethecoin.format(offer.resaleWei()) + " for this build"
+                : "Resale    not sellable -- this tool is not gated on money, and selling one "
+                        + "would be selling a way past its gate");
+        if (!own) {
+            out.add("");
+            out.add("On " + address + ". Reading the package tells you what it is; taking it still");
+            out.add("costs the transfer. A newer build is worth more and replaces an older one --");
+            out.add("it is not a better tool.");
+        }
+        return out;
+    }
+
+    /** Breaks a catalogue summary onto terminal-width lines. */
+    private static List<String> wrap(String text) {
+        List<String> out = new java.util.ArrayList<>();
+        StringBuilder line = new StringBuilder();
+        for (String word : String.valueOf(text).split("\\s+")) {
+            if (!line.isEmpty() && line.length() + word.length() + 1 > 72) {
+                out.add(line.toString());
+                line = new StringBuilder();
+            }
+            if (!line.isEmpty()) {
+                line.append(' ');
+            }
+            line.append(word);
+        }
+        if (!line.isEmpty()) {
+            out.add(line.toString());
+        }
+        return out;
     }
 
     /**
@@ -1222,8 +1438,8 @@ public final class SoloGame {
      */
     public io.github.stoicswe.eyeandsickle.solo.rules.Repac.Result sell(String path) {
         var result = io.github.stoicswe.eyeandsickle.solo.rules.Repac.sell(save, path);
-        if (result.ok() && result.minorUnits() > 0) {
-            credit(result.minorUnits(), "RESALE", result.message());
+        if (result.ok() && result.wei().signum() > 0) {
+            credit(result.wei(), "RESALE", result.message());
         }
         return result;
     }
@@ -1255,6 +1471,131 @@ public final class SoloGame {
                     .orElse("");
         }
         return "";
+    }
+
+    /**
+     * Which build of a tool sits on a given machine.
+     *
+     * <h2>⚠ The vendor is not a machine, and that is why it is a separate branch</h2>
+     *
+     * {@code TransferRules.VENDOR} is a shopfront with no address on the map, so there is no host to
+     * read a tier off. It ships {@code Balance.MARKET_UPGRADE_VERSION_MAJOR} — the middle of the
+     * ladder, so a hard estate carries something the shop does not and a cheap desktop carries
+     * something worse, which is the whole reason to look at what a machine has before taking it.
+     *
+     * <p>A host that is not in the topology at all falls back to tier 1. That is the honest reading
+     * rather than a guess: nothing is known about it, so it gets the floor.
+     */
+    public io.github.stoicswe.eyeandsickle.protocol.game.UpgradeVersion upgradeVersionFor(
+            String itemType, String address) {
+        if (itemType == null || itemType.isBlank()) {
+            return io.github.stoicswe.eyeandsickle.protocol.game.UpgradeVersion.UNKNOWN;
+        }
+        if (TransferRules.VENDOR.equals(address)) {
+            return io.github.stoicswe.eyeandsickle.solo.rules.Versions.on(
+                    itemType, TransferRules.VENDOR, Balance.MARKET_UPGRADE_VERSION_MAJOR);
+        }
+        int tier = save.topology == null ? 1 : save.topology.hosts.stream()
+                .filter(host -> host.address.equals(address))
+                .mapToInt(host -> host.tier)
+                .findFirst()
+                .orElse(1);
+        return io.github.stoicswe.eyeandsickle.solo.rules.Versions.on(itemType, address, tier);
+    }
+
+    /**
+     * What the upgrade at {@code path} on {@code address} is, and how it compares to what you hold.
+     *
+     * <h2>⚠ Answers for a package you have NOT taken, which is the whole point</h2>
+     *
+     * This is a package's own metadata, which a real one carries so that a package manager can tell
+     * you what it is about to install before installing it. Nothing secret is disclosed — the payload
+     * still costs a download and the exposure that goes with it. What the player gets is the decision
+     * they could not previously make: whether this transfer is worth its seconds.
+     *
+     * <p>⚠ Works on {@code .pkg} and {@code .upg} alike. The first is a vendor's package on somebody
+     * else's machine and the second is one this rig has repacked, and a player comparing what they
+     * are holding against what is on a machine wants the same answer about both.
+     *
+     * @return empty when the path is not an upgrade at all, or names a tool with no catalogue entry
+     */
+    public java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.UpgradeOffer> upgradeAt(
+            String address, String path) {
+        String p = VirtualFs.normalise(path);
+        if (!p.endsWith(io.github.stoicswe.eyeandsickle.solo.rules.Repac.PAYLOAD_SUFFIX)
+                && !p.endsWith(io.github.stoicswe.eyeandsickle.solo.rules.Repac.PACKAGE_SUFFIX)
+                && !p.endsWith(io.github.stoicswe.eyeandsickle.solo.rules.Repac.FIRMWARE_SUFFIX)) {
+            return java.util.Optional.empty();
+        }
+        // ⚠ A file this rig is holding states its own item type and version; one still sitting on a
+        // machine has to be resolved from the bundle it is in. Deriving BOTH from the path would
+        // re-derive a held package's build from wherever it currently sits, which is how a package in
+        // Downloads would silently change version.
+        var stored = save.files.stream()
+                .filter(file -> file.path().equals(p))
+                .findFirst();
+        String itemType = stored.map(file -> file.itemType).filter(id -> !id.isBlank())
+                .orElseGet(() -> upgradeTypeFor(p));
+        if (itemType.isBlank()) {
+            return java.util.Optional.empty();
+        }
+        var offering = Catalogue.byId(itemType);
+        if (offering.isEmpty()) {
+            // Fails closed rather than inventing a name. A tool the catalogue has never heard of has
+            // no price, no gate and no summary, and rendering blanks for all three would look like a
+            // bug in the panel rather than a gap in the content.
+            return java.util.Optional.empty();
+        }
+        var version = stored
+                .map(file -> io.github.stoicswe.eyeandsickle.protocol.game.UpgradeVersion
+                        .parse(file.version))
+                .filter(io.github.stoicswe.eyeandsickle.protocol.game.UpgradeVersion::known)
+                .orElseGet(() -> upgradeVersionFor(itemType, address));
+        var standing = io.github.stoicswe.eyeandsickle.solo.rules.Versions
+                .standing(save, itemType, version);
+        boolean sellable = io.github.stoicswe.eyeandsickle.solo.rules.Repac.sellable(itemType);
+        return java.util.Optional.of(new io.github.stoicswe.eyeandsickle.protocol.game.UpgradeOffer(
+                itemType,
+                offering.get().name(),
+                offering.get().description(),
+                version,
+                io.github.stoicswe.eyeandsickle.solo.rules.Versions.owned(save, itemType),
+                io.github.stoicswe.eyeandsickle.protocol.game.UpgradeOffer.Standing
+                        .valueOf(standing.name()),
+                offering.get().gate(),
+                VirtualFs.upgradeBytes(itemType),
+                sellable
+                        ? io.github.stoicswe.eyeandsickle.solo.rules.Repac.resaleValue(itemType, version)
+                        : BigInteger.ZERO,
+                sellable,
+                offering.get().equippedCycles(),
+                offering.get().kind(),
+                offering.get().requiresSchematic(),
+                // ⚠ Software reports the schematic as HELD rather than as missing. It needs none, and
+                // `false` here would make `readyToFlash` refuse every ordinary upgrade in the game.
+                !offering.get().firmware()
+                        || (save.schematics != null
+                                && save.schematics.contains(offering.get().requiresSchematic())),
+                io.github.stoicswe.eyeandsickle.solo.rules.Repac.blockedBy(save, offering.get())));
+    }
+
+    /**
+     * Deletes a file this rig stores.
+     *
+     * <p>⚠ <b>Own rig only.</b> Deleting on a machine you have broken into is a different act with
+     * different consequences — it is tampering with somebody's evidence, and
+     * {@code solo/rules/AccessLog} already holds the line that a remote actor blanks a line rather
+     * than removing it, because a deleted row turns a legible crime into a missing file. Offering
+     * remote delete here would quietly grant the thing that rule exists to refuse.
+     */
+    public io.github.stoicswe.eyeandsickle.solo.rules.Repac.Result delete(String address, String path) {
+        if (!SessionRules.isOwnRig(save, address) && address != null && !address.isBlank()) {
+            return io.github.stoicswe.eyeandsickle.solo.rules.Repac.Result.refusedPublic(
+                    io.github.stoicswe.eyeandsickle.solo.rules.Repac.Refusal.NOT_INSTALLABLE,
+                    "You can delete files on your own rig. On " + address + " you are a guest who "
+                            + "got in through a window -- taking a copy is what you are here for.");
+        }
+        return io.github.stoicswe.eyeandsickle.solo.rules.Repac.delete(save, path, clock.instant());
     }
 
     /** Every transfer in flight, for the progress readout. */
@@ -1456,6 +1797,92 @@ public final class SoloGame {
         return save.handle;
     }
 
+    /**
+     * Files a completed audit into the rig's scan history.
+     *
+     * <h2>⚠ The duration is MEASURED, not the quoted one</h2>
+     *
+     * A scan is slowed by an infested rig ({@code ComputeRules.slowedSeconds}) and may finish while
+     * the client is closed, so the figure a player was quoted when they pressed the button is not
+     * necessarily the figure it took. Recording the quote would make the one column that could
+     * expose a slowed rig agree with the button instead — and a scan taking longer than it should is
+     * itself a symptom.
+     *
+     * <p>⚠ A CLEAN result is recorded like any other. Zero found is a real answer: it is the row
+     * that gives a later finding its date, and a history of only the hits would say a rig had always
+     * been compromised.
+     */
+    private void recordScan(TaskState task, int found) {
+        ScanReportState row = new ScanReportState();
+        row.tier = task.label.replace("scan --", "").trim();
+        row.startedAt = task.startedAt;
+        row.finishedAt = task.endsAt;
+        row.seconds = task.startedAt == null
+                ? 0L
+                : Math.max(0L, Duration.between(task.startedAt, task.endsAt).toSeconds());
+        row.cycles = task.cycles;
+        row.summary = ScanRules.finding(task);
+        row.found = found;
+        save.scanReports.add(row);
+        // ⚠ Trimmed from the front: the hundred kept are the hundred most RECENT.
+        while (save.scanReports.size() > ScanReportState.LIMIT) {
+            save.scanReports.removeFirst();
+        }
+    }
+
+    /** Every completed audit, newest first — what the AUDIT window's history lists. */
+    public List<io.github.stoicswe.eyeandsickle.protocol.game.ScanReport> scanReports() {
+        List<io.github.stoicswe.eyeandsickle.protocol.game.ScanReport> out = new java.util.ArrayList<>();
+        for (ScanReportState row : save.scanReports) {
+            out.add(new io.github.stoicswe.eyeandsickle.protocol.game.ScanReport(
+                    row.tier, row.startedAt, row.finishedAt, row.seconds, row.cycles,
+                    row.summary, row.found));
+        }
+        java.util.Collections.reverse(out);
+        return List.copyOf(out);
+    }
+
+    /**
+     * Every file an audit walks on this rig, in the order it walks them.
+     *
+     * <h2>⚠ Derived here rather than in the view, and STABLE</h2>
+     *
+     * The SCANNER panel prints the files a running scan has reached, and it repaints once a second.
+     * If the order moved between repaints the lines already on screen would rewrite themselves,
+     * which reads as the scan going backwards rather than forwards. A depth-first walk of a
+     * generated tree is deterministic ({@code VirtualFs} seeds on the address and stores nothing),
+     * so the same rig yields the same list every time it is asked.
+     *
+     * <p>⚠ It is a walk of the rig's <b>own</b> filesystem, which is what an audit inspects — not a
+     * remote host's. A scan generates no heat precisely because it never leaves this machine
+     * (Invariant <b>I9</b>), and a listing that reached outward would contradict that on screen.
+     *
+     * <p>Bounded, for the same reason {@code find} is: an unbounded walk of a generated tree is a
+     * promise about a shape this class does not own, and the panel only needs enough lines to look
+     * like work.
+     */
+    public List<String> auditPaths() {
+        List<String> out = new java.util.ArrayList<>();
+        walkOwnRig("/", out, new java.util.HashSet<>(), 600);
+        return List.copyOf(out);
+    }
+
+    private void walkOwnRig(String path, List<String> out, java.util.Set<String> seen, int budget) {
+        if (out.size() >= budget || !seen.add(path)) {
+            return;
+        }
+        for (FsEntry entry : list("", path)) {
+            if (out.size() >= budget) {
+                return;
+            }
+            if (entry.directory()) {
+                walkOwnRig(entry.path(), out, seen, budget);
+            } else {
+                out.add(entry.path());
+            }
+        }
+    }
+
     /** Every task currently running, oldest first. */
     public List<TaskState> tasks() {
         return List.copyOf(save.tasks);
@@ -1483,6 +1910,16 @@ public final class SoloGame {
             // network stayed empty, the log claimed a scan had finished, and nothing anywhere said
             // otherwise. A task list with more than one kind of task in it needs a switch, and the
             // moment it grew a second kind it stopped having one.
+            if (io.github.stoicswe.eyeandsickle.solo.rules.Repac.FLASH_KIND.equals(task.kind)) {
+                var flashed = io.github.stoicswe.eyeandsickle.solo.rules.Repac
+                        .completeFlash(save, task, task.endsAt);
+                EventLog.notice(save, "storage", flashed
+                        .map(item -> "firmware flashed: " + item.displayName
+                                + ". The mining tool is available again.")
+                        .orElse("a firmware flash ended with no image to write -- nothing changed."),
+                        task.endsAt);
+                continue;
+            }
             if (TransferRules.KIND.equals(task.kind)) {
                 // Arriving is the whole of it. What the file BECOMES — an item, a schematic, a
                 // recovered fragment — is the receiving rule's business and is deliberately not
@@ -1505,6 +1942,11 @@ public final class SoloGame {
                         TransferRules.itemTypeOf(task).isBlank()
                                 ? upgradeTypeFor(TransferRules.pathOf(task))
                                 : TransferRules.itemTypeOf(task),
+                        upgradeVersionFor(
+                                TransferRules.itemTypeOf(task).isBlank()
+                                        ? upgradeTypeFor(TransferRules.pathOf(task))
+                                        : TransferRules.itemTypeOf(task),
+                                TransferRules.addressOf(task)),
                         task.endsAt);
                 // What releases it, carried from the task. Empty for anything not bought.
                 arrived.lockedByEntryId = TransferRules.entryIdOf(task);
@@ -1595,6 +2037,7 @@ public final class SoloGame {
                 int named = revealFound(task);
                 EventLog.notice(save, "scan",
                         task.label + " finished. " + ScanRules.finding(task), task.endsAt);
+                recordScan(task, named);
                 if (named > 0) {
                     EventLog.warning(save, "scan",
                             named + (named == 1 ? " process is" : " processes are")
@@ -1665,10 +2108,10 @@ public final class SoloGame {
     }
 
     /** Sweeps every deployed miner's buffer into the balance. */
-    public long collect() {
-        long collected = MiningRules.collectAll(save, clock.instant());
-        if (collected > 0) {
-            EventLog.info(save, "mining", "Collected " + money(collected) + " from deployed miners.",
+    public BigInteger collect() {
+        BigInteger collected = MiningRules.collectAll(save, clock.instant());
+        if (collected.signum() > 0) {
+            EventLog.info(save, "mining", "Collected " + Ethecoin.format(collected) + " from deployed miners.",
                     clock.instant());
         }
         return collected;
@@ -1695,8 +2138,8 @@ public final class SoloGame {
     }
 
     /** Spends ethecoin at the standard fee. Returns false when the player cannot afford it. */
-    public boolean debit(long minorUnits, String type, String description) {
-        return debit(minorUnits, type, description, FeeTier.STANDARD, "");
+    public boolean debit(BigInteger wei, String type, String description) {
+        return debit(wei, type, description, FeeTier.STANDARD, "");
     }
 
     /**
@@ -1735,8 +2178,8 @@ public final class SoloGame {
      * @param tier how much of a hurry it is in
      * @param counterparty the other end, as an address; empty derives one from the type
      */
-    public boolean debit(long minorUnits, String type, String description, FeeTier tier, String counterparty) {
-        return spend(minorUnits, type, description, tier, counterparty).isPresent();
+    public boolean debit(BigInteger wei, String type, String description, FeeTier tier, String counterparty) {
+        return spend(wei, type, description, tier, counterparty).isPresent();
     }
 
     /**
@@ -1759,19 +2202,19 @@ public final class SoloGame {
      * @return the broadcast entry, or empty when the player cannot afford {@code amount + fee}
      */
     public Optional<LedgerEntryState> spend(
-            long minorUnits, String type, String description, FeeTier tier, String counterparty) {
-        long fee = Balance.feeFor(tier);
-        if (!LedgerRules.canDebit(save, minorUnits + fee)) {
+            BigInteger wei, String type, String description, FeeTier tier, String counterparty) {
+        BigInteger fee = Balance.feeFor(tier);
+        if (!LedgerRules.canDebit(save, wei.add(fee))) {
             return Optional.empty();
         }
         Instant now = clock.instant();
-        LedgerEntryState entry = LedgerRules.applyEntry(save, -minorUnits, type, description, now);
+        LedgerEntryState entry = LedgerRules.applyEntry(save, wei.negate(), type, description, now);
         if (save.chain != null) {
             MempoolRules.submit(save, entry, tier, counterparty, true, now);
-            if (fee > 0) {
+            if (fee.signum() > 0) {
                 // Its own row, named. A fee folded into the amount would be a charge the ledger could
                 // not explain, and ledger(1) exists to explain every movement.
-                LedgerRules.apply(save, -fee, "TX_FEE",
+                LedgerRules.apply(save, fee.negate(), "TX_FEE",
                         "Transaction fee (" + tier.label().toLowerCase(java.util.Locale.ROOT) + ")", now);
             }
         }
@@ -1779,7 +2222,7 @@ public final class SoloGame {
     }
 
     /** What a spend at this tier would cost in fees, for a dry run. */
-    public long feeFor(FeeTier tier) {
+    public BigInteger feeFor(FeeTier tier) {
         return Balance.feeFor(tier);
     }
 
@@ -1807,13 +2250,10 @@ public final class SoloGame {
         return ChainExplorer.blockWithBody(save, height);
     }
 
-    public void credit(long minorUnits, String type, String description) {
-        LedgerRules.apply(save, minorUnits, type, description, clock.instant());
+    public void credit(BigInteger wei, String type, String description) {
+        LedgerRules.apply(save, wei, type, description, clock.instant());
     }
 
-    private static String money(long minorUnits) {
-        return String.format(java.util.Locale.ROOT, "%d.%02d EC", minorUnits / 100, Math.abs(minorUnits % 100));
-    }
 
     private static String humanAway(java.time.Duration away) {
         long days = away.toDays();

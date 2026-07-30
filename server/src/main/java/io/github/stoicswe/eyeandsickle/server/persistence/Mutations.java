@@ -25,12 +25,12 @@ import org.springframework.dao.OptimisticLockingFailureException;
  * int affected = jdbcClient
  *         .sql("""
  *              UPDATE players
- *                 SET ethecoin_balance_ec_minor = :balance,
+ *                 SET ethecoin_balance_wei = :balance,
  *                     row_version = row_version + 1
  *               WHERE player_id = :playerId
  *                 AND row_version = :expectedVersion
  *              """)
- *         .param("balance", EconomyColumns.ethecoinValue("ethecoin_balance_ec_minor", newBalance))
+ *         .param("balance", EconomyColumns.ethecoinValue("ethecoin_balance_wei", newBalance))
  *         .param("playerId", playerId)
  *         .param("expectedVersion", expectedVersion)
  *         .update();

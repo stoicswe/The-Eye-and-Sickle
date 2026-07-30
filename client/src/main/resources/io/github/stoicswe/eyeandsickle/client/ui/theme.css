@@ -2301,6 +2301,94 @@
 .es-files .es-files-empty   { -fx-text-fill: -es-dim-2; }
 .es-files .es-files-refusal { -fx-text-fill: -es-alarm; -fx-font-size: 11px; }
 
+/* The upgrade compare block in Get info: this machine's build against the one you hold.
+   ⚠ TWO-CLASS SELECTORS on every text fill. theme.css carries a late `.label { -fx-text-fill: -es-text; }`
+   and a one-class rule cannot beat it at equal specificity — the later rule wins, so a bare
+   `.es-upgrade-version` would silently paint in body grey while every other property in the block
+   applied normally. Measured on the wallpaper once already; see CLAUDE.md trap (6).
+   ⚠ NO -fx-background-radius here. §9 of the design language bans it outside `.es-rounded`, and a
+   version readout is a figure a player compares — soft corners on a measurement read as a smaller
+   measurement. */
+.es-upgrade-compare {
+    -fx-padding: 8 10 8 10;
+    -fx-border-color: -es-rule;
+    -fx-border-width: 1;
+}
+.es-upgrade-cell {
+    -fx-padding: 0 18 0 0;
+}
+.es-files .es-upgrade-version       { -fx-text-fill: -es-text-hi; -fx-font-size: 16px; }
+/* The build you hold when theirs is newer — dimmed, never coloured alone (§4.4). The verdict
+   sentence beneath carries the same fact in words, so nothing is encoded in the contrast. */
+.es-files .es-upgrade-version-quiet { -fx-text-fill: -es-dim-2; -fx-font-size: 16px; }
+
+/* The package panel scrolls its content rather than growing to fit it. ⚠ An UNSTYLED ScrollPane
+   paints Modena's WHITE viewport over a dark theme — the same trap Settings hit. Both the pane and
+   its `.viewport` need the transparent fill; styling only the outer one leaves a white rectangle. */
+.es-package-scroll,
+.es-package-scroll > .viewport {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+.es-package-body { -fx-background-color: transparent; }
+
+/* The AUDIT window's running panel: a bar and a line per file the scan has reached.
+   ⚠ NO radius. §9's ban is unamended for anything a value is read off, and a soft-ended fill reads
+   as a shorter fill. ⚠ Two-class selectors on every text fill — theme.css's late `.label` rule beats
+   a one-class one at equal specificity. ⚠ The ScrollPane and its `.viewport` both need the
+   transparent fill or Modena paints a white rectangle over the dark theme. */
+.es-audit-track { -fx-background-color: -es-dim-3; -fx-border-color: -es-rule; -fx-border-width: 1; }
+/* ⚠ -es-amber, not -es-accent: there is no such token, and JavaFX does not FAIL on an
+   unknown looked-up value — it warns to stdout and drops the declaration, so the bar
+   rendered with no fill at all and looked like a scan making no progress. Caught by
+   rendering; a compile says nothing about a stylesheet. */
+.es-audit-fill  { -fx-background-color: -es-amber; }
+.es-audit-scroll,
+.es-audit-scroll > .viewport {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+.es-audit-lines { -fx-padding: 4 0 4 0; }
+.es-panel .es-audit-line  { -fx-text-fill: -es-dim-2; -fx-font-size: 11px; }
+/* ⚠ Never colour alone (§4.4): a clean row still reads "nothing found" in words, and a hit names
+   what it named. The fill only makes the hits findable when scrolling a hundred rows. */
+.es-panel .es-audit-clean { -fx-text-fill: -es-dim-2; }
+.es-panel .es-audit-hit   { -fx-text-fill: -es-warn; }
+
+/* The firmware flashing overlay. It covers the installer while the device writes itself.
+   ⚠ The mark is DRAWN (a Polygon plus two Regions), not a glyph: U+26A0 is in neither bundled face
+   and GlyphCoverageTest has already rejected it once. -fx-fill, not -fx-background-color, because a
+   Shape takes the first and ignores the second.
+   ⚠ NO radius anywhere in this block. §9's ban is unamended for anything a value is read off, and
+   the bar is exactly that — a soft-ended fill reads as a shorter fill. */
+.es-flash-overlay {
+    /* -es-panel, not a translucent wash: §9 bans blur/shadow and a half-transparent overlay over
+       live text is unreadable at any opacity. It is opaque and bordered, so it reads as a takeover. */
+    -fx-background-color: -es-panel;
+    -fx-padding: 28;
+    -fx-border-color: -es-warn;
+    -fx-border-width: 2;
+}
+.es-flash-mark      { -fx-fill: -es-warn; }
+/* The bar and dot are the PANEL colour over the triangle — the mark's counter-shape,
+   drawn rather than punched, so the facts underneath never show through it. */
+.es-flash-mark-bar  { -fx-background-color: -es-panel; }
+.es-package .es-flash-title   { -fx-text-fill: -es-warn;    -fx-font-size: 20px; }
+.es-package .es-flash-what    { -fx-text-fill: -es-text-hi; -fx-font-size: 15px; }
+.es-package .es-flash-caption { -fx-text-fill: -es-text;    -fx-font-size: 13px; }
+.es-package .es-flash-note    { -fx-text-fill: -es-dim-2;   -fx-font-size: 11px; }
+.es-flash-track { -fx-background-color: -es-dim-3; -fx-border-color: -es-rule; -fx-border-width: 1; }
+.es-flash-fill  { -fx-background-color: -es-warn; }
+
+/* Firmware's two conditions. ⚠ Three-class-equivalent (`.es-files` ancestor + the class) for the
+   same reason as the version cells: the late `.label` rule beats a bare one-class selector.
+   ⚠ Not colour alone (§4.4) — the line starts with the word FIRMWARE and states the condition in
+   full, so a reader who cannot separate the two fills loses nothing. */
+.es-files .es-upgrade-flashable { -fx-text-fill: -es-text-hi; }
+.es-files .es-upgrade-blocked   { -fx-text-fill: -es-warn; }
+
 /* The connect-to-machine popup. Same argument as the node shell's builder: it hides nothing, its
    whole content is the list it is about, and it dismisses on any click outside. */
 .es-files-dialog {

@@ -192,6 +192,11 @@ public final class NodeCommands {
                             new CommandArgument("into",
                                     "Where to put it. Default is ~/Downloads.", false, false))),
 
+            new NodeCommand("rm", "Take",
+                    "Delete a file from your own rig. Not undoable, and it does not ask.",
+                    List.of(),
+                    List.of(new CommandArgument("file", "Which file.", true, true))),
+
             new NodeCommand("help", "Session",
                     "List these commands.", List.of(), List.of()),
             new NodeCommand("exit", "Session",
@@ -259,6 +264,7 @@ public final class NodeCommands {
             case "uname" -> uname(stage);
             case "df" -> df(session, address, stage);
             case "get" -> get(session, address, cwd, stage);
+            case "rm" -> rm(session, address, cwd, stage);
             case "help" -> help();
             case "exit" -> new Result(List.of("logout"), true);
             default -> Result.of(stage.verb() + ": not implemented");
@@ -429,6 +435,52 @@ public final class NodeCommands {
             out.addAll(note);
         }
         return Result.of(out);
+    }
+
+    /**
+     * Deletes a file from the rig.
+     *
+     * <h2>⚠ It does not ask, and that is correct here</h2>
+     *
+     * A real {@code rm} does not ask; the whole reason {@code rm -i} exists is that the default does
+     * not. The file manager confirms because a click is cheap and easy to make by accident, and a
+     * typed {@code rm mining-firmware.frm} is not. Making the terminal ask would also break the
+     * habit the shell is teaching — this client's manual pages are about real commands, and one that
+     * behaves differently from the real one teaches something false.
+     *
+     * <p>The refusal for somebody else's machine comes from the rules, not from here, so the terminal
+     * and the file manager give the same answer for the same reason.
+     */
+    private static Result rm(
+            GameSession session, String address, String cwd, CommandLine.Stage stage) {
+        String named = stage.argument(0).orElse("");
+        if (named.isBlank()) {
+            // Real `rm`'s own wording. ⚠ This is also what `rm -rf /` reaches: the shell does not
+            // know `-rf`, so the flag swallows the operand and nothing is named — which is a safe
+            // outcome arrived at by accident, so it is spelled out here rather than left to chance.
+            return Result.of("rm: missing operand");
+        }
+        Optional<FsEntry> entry = entry(session, address, cwd, named);
+        if (entry.isEmpty()) {
+            // ⚠ The ROOT resolves to no entry at all — `entry` finds a path by listing its PARENT,
+            // and `/` has none. Without this, `rm /` reports "No such file or directory" about the
+            // one directory that certainly exists, which reads as the filesystem being broken rather
+            // than as the command being refused.
+            String target = VirtualFs.resolve(cwd, named);
+            if (!session.list(address, target).isEmpty() || "/".equals(target)) {
+                return Result.of("rm: cannot remove '" + target + "': Is a directory");
+            }
+            return Result.of("rm: cannot remove '" + named + "': No such file or directory");
+        }
+        if (entry.get().directory()) {
+            // ⚠ Real `rm`'s own wording, and the reason `rm -rf /` is safe here: it resolves to the
+            // root, the root is a directory, and this refuses by name. There is no recursive delete
+            // in this shell and there should not be — a filesystem generated from game state has no
+            // tree to walk, and the one thing that would make such a command meaningful is the one
+            // thing it must never do.
+            return Result.of("rm: cannot remove '" + entry.get().path() + "': Is a directory");
+        }
+        return Result.of(session.delete(address, entry.get().path()).message());
     }
 
     private static Result uname(CommandLine.Stage stage) {

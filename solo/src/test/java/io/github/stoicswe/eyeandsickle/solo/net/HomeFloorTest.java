@@ -86,8 +86,8 @@ class HomeFloorTest {
                     assertThat(host.honeypot).isFalse();
                     // Worth breaching, not merely breachable. Three of these is 9 EC against the
                     // 15 EC Passive Sniffer — the intended first purchase.
-                    assertThat(host.lootMinorUnits)
-                            .isGreaterThanOrEqualTo(Balance.NET_LOOT_FLOOR_MINOR_UNITS);
+                    assertThat(host.lootWei)
+                            .isGreaterThanOrEqualTo(Balance.NET_LOOT_FLOOR_WEI);
                 }
             }
         }

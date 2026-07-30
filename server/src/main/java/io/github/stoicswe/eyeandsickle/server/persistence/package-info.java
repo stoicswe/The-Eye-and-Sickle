@@ -70,11 +70,11 @@
  * is never purchasable with ethecoin — is what stops the economy becoming a compounding flywheel, and
  * the protocol module keeps {@code Ethecoin} and {@code Cycles} unconvertible for exactly that
  * reason. As columns they are both {@code bigint} and the type system stops helping, so the column
- * NAME carries the unit: {@code *_ec_minor} for ethecoin, {@code *_cycles} for compute. Asking for one
+ * NAME carries the unit: {@code *_wei} for ethecoin, {@code *_cycles} for compute. Asking for one
  * out of the other's column is refused by name.
  *
  * {@snippet lang = java:
- * Ethecoin balance = EconomyColumns.ethecoin(row, "ethecoin_balance_ec_minor");   // fine
+ * Ethecoin balance = EconomyColumns.ethecoin(row, "ethecoin_balance_wei");   // fine
  * Cycles ceiling = EconomyColumns.cycles(row, "total_cycles");                    // fine
  * Ethecoin oops = EconomyColumns.ethecoin(row, "total_cycles");                   // refused, loudly
  *}

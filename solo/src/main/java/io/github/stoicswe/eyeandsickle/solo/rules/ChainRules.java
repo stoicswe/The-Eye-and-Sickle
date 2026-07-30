@@ -124,10 +124,10 @@ public final class ChainRules {
      *
      * @param height the block
      * @param at when it was found — the walked cursor instant, not the tick's
-     * @param feesMinorUnits what its transactions paid, collected by whoever mined it
+     * @param feesWei what its transactions paid, collected by whoever mined it
      * @param offline whether it landed during the post-logout spin-down window ({@code 04} §1.2)
      */
-    public record Won(long height, Instant at, long feesMinorUnits, boolean offline) {}
+    public record Won(long height, Instant at, java.math.BigInteger feesWei, boolean offline) {}
 
     /**
      * What a stretch of chain produced, and how much of it was the player's.
@@ -138,7 +138,7 @@ public final class ChainRules {
      *     contributed hashrate to them either way, which is what the contributor record is about.
      *     Only PPLNS is <em>paid</em> out of them — PPS buys a fixed price per share instead, so it
      *     reads this list to record the contribution and takes no money from it. See
-     *     {@code MiningRules.rewardBaseMinorUnits}.
+     *     {@code MiningRules.rewardBaseWei}.
      */
     public record Minted(int blocks, List<Won> yourBlocks, List<Won> poolBlocks) {
 
@@ -155,19 +155,19 @@ public final class ChainRules {
         }
 
         /** The fees carried by the blocks in {@link #yourBlocks} — paid on top of the subsidy. */
-        public long yoursFeesMinorUnits() {
+        public java.math.BigInteger yoursFeesWei() {
             return fees(yourBlocks);
         }
 
         /** The same for {@link #poolBlocks}. Divided among the pool under PPLNS, ignored under PPS. */
-        public long yourPoolFeesMinorUnits() {
+        public java.math.BigInteger yourPoolFeesWei() {
             return fees(poolBlocks);
         }
 
-        private static long fees(List<Won> blocks) {
-            long total = 0L;
+        private static java.math.BigInteger fees(List<Won> blocks) {
+            java.math.BigInteger total = java.math.BigInteger.ZERO;
             for (Won block : blocks) {
-                total += block.feesMinorUnits();
+                total = total.add(block.feesWei());
             }
             return total;
         }
@@ -304,18 +304,18 @@ public final class ChainRules {
             if (competing) {
                 competed++;
             }
-            String winner = drawWinner(save, rng, solo && competing);
+            String winner = drawWinner(save, rng, solo && competing, offline);
             if (solo && "you".equals(winner)) {
                 // ⚠ Read against the height this block is ABOUT to take — recordBlock has not run
                 // yet, so chain.height is still the parent. The fee total is a function of height,
                 // so reading it a line later would pay the previous block's fees.
-                yours.add(new Won(height, at, MempoolRules.blockFeesMinorUnits(save, height), offline));
+                yours.add(new Won(height, at, MempoolRules.blockFeesWei(save, height), offline));
                 chain.blocksWon.add(height);
                 while (chain.blocksWon.size() > ChainState.WON_INDEX) {
                     chain.blocksWon.removeFirst();
                 }
             } else if (!solo && competing && winner.equals(poolId)) {
-                poolBlocks.add(new Won(height, at, MempoolRules.blockFeesMinorUnits(save, height), offline));
+                poolBlocks.add(new Won(height, at, MempoolRules.blockFeesWei(save, height), offline));
             }
 
             double before = chain.difficulty;
@@ -368,12 +368,24 @@ public final class ChainRules {
      * stops a stored seed being a replay ({@code Rng}). That is also why a rig that has spun down
      * still draws: the blocks it is absent from consume the stream identically to the ones it
      * contested, so an absence does not shift what a later block would have rolled.
+     *
+     * <p>⚠ A block filled in during a synchronisation weights the player's own share by
+     * {@link Balance#OFFLINE_SOLO_WIN_WEIGHT} — see that constant for why. It scales the
+     * <b>threshold</b> and never the number of draws, so the stream is byte-identical to what it
+     * would have been; the freed probability lands in the unpooled remainder below, because a block
+     * this rig did not win was still won by somebody. Pools are untouched: a pool competes whether or
+     * not one member's client is open, and each keeps its exact {@code networkShare} either way.
+     *
+     * @param offline whether this block is being filled in for an absence rather than mined live
      */
-    private static String drawWinner(SoloSave save, Rng rng, boolean competing) {
+    private static String drawWinner(SoloSave save, Rng rng, boolean competing, boolean offline) {
         double roll = rng.nextDouble();
         double you = competing
                 ? Math.min(1.0d, hashrate(save.rig.selfMiningCycles) / save.chain.networkHashrate)
                 : 0.0d;
+        if (offline) {
+            you *= Balance.OFFLINE_SOLO_WIN_WEIGHT;
+        }
         if (roll < you) {
             return "you";
         }
@@ -476,7 +488,7 @@ public final class ChainRules {
                 // ⚠ Zero here and filled in by the caller. What a block PAYS is MiningRules'
                 // question — this class runs the chain and decides who won, and a payout figure
                 // computed in two places is two places for it to be computed differently.
-                0L,
+                java.math.BigInteger.ZERO,
                 walked.retargets(),
                 difficultyBefore,
                 chain.difficulty,
@@ -493,7 +505,7 @@ public final class ChainRules {
      * the absence to run the share clock over, which is not the same as the absence — a pay-per-share
      * pool accrues across the spin-down window and not one second past it.
      *
-     * @param report what to show the player, with {@code creditedMinorUnits} still unset
+     * @param report what to show the player, with {@code creditedWei} still unset
      * @param minted the blocks that are going to pay, for {@code MiningRules.runSelfMining}
      * @param minedFor how long the rig was actually hashing — the capped window, never the absence
      */

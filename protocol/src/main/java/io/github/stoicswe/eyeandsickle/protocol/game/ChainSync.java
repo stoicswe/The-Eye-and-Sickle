@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.protocol.game;
 
+import java.math.BigInteger;
 import java.time.Instant;
 
 /**
@@ -36,7 +37,7 @@ import java.time.Instant;
  * @param competedBlocks how many of them landed while the rig was still running
  * @param blocksWon solo blocks this rig won inside that window
  * @param poolBlocks blocks the rig's pool won inside it, that the rig was paid a cut of
- * @param creditedMinorUnits everything the fill actually paid — subsidy and fees together
+ * @param creditedWei everything the fill actually paid — subsidy and fees together
  * @param retargets difficulty adjustments that closed during the absence
  * @param difficultyBefore difficulty at {@link #from}
  * @param difficultyAfter difficulty at {@link #to}
@@ -56,7 +57,7 @@ public record ChainSync(
         int competedBlocks,
         int blocksWon,
         int poolBlocks,
-        long creditedMinorUnits,
+        BigInteger creditedWei,
         int retargets,
         double difficultyBefore,
         double difficultyAfter,
@@ -65,7 +66,7 @@ public record ChainSync(
 
     /** A sync that found nothing to do — a fresh character, or a reload seconds after a save. */
     public static ChainSync none(Instant at) {
-        return new ChainSync(at, at, 0L, 0L, 0L, 0L, 0, 0, 0, 0, 0L, 0, 0.0d, 0.0d, 0, false);
+        return new ChainSync(at, at, 0L, 0L, 0L, 0L, 0, 0, 0, 0, BigInteger.ZERO, 0, 0.0d, 0.0d, 0, false);
     }
 
     /**
@@ -77,10 +78,10 @@ public record ChainSync(
      * differently, so the chain leaves this field at zero and the caller fills it from the one credit
      * it actually wrote to the ledger.
      */
-    public ChainSync withCredit(long creditedMinorUnits) {
+    public ChainSync withCredit(BigInteger creditedWei) {
         return new ChainSync(
                 from, to, awaySeconds, minedSeconds, fromHeight, toHeight, blocks, competedBlocks,
-                blocksWon, poolBlocks, creditedMinorUnits, retargets, difficultyBefore,
+                blocksWon, poolBlocks, creditedWei, retargets, difficultyBefore,
                 difficultyAfter, transactionsConfirmed, truncated);
     }
 
