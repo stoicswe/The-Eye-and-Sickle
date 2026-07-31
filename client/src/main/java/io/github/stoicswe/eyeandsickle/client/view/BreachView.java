@@ -153,7 +153,8 @@ public final class BreachView {
         // I9, and the reason the crack is the tutorial: a breach against a miner squatting on your
         // own rig cannot raise heat, on any outcome, including a failure. Stated in the live window
         // rather than only on the target row, because it is what makes losing safe to do repeatedly.
-        Label crackNote = Ui.small("Your own rig. No heat, whatever happens — win or lose.");
+        Label crackNote = Ui.small(
+                Views.t("ui.breach.your-own-rig-no", "Your own rig. No heat, whatever happens — win or lose."));
 
         // ---------------------------------------------------------------- widgets
         BreachViewport viewport = new BreachViewport();

@@ -316,12 +316,12 @@ public final class FileManagerView {
         // (~/.local/share/recently-used), so it is a directory you navigate into — which means the
         // shell reaches it too, and which means an intruder standing in it can read what the owner
         // has been doing. That last part is a feature of the fiction rather than a leak in it.
-        sidebar.getChildren().add(Ui.label("Recents"));
+        sidebar.getChildren().add(Ui.label(Views.t("ui.file-manager.recents", "Recents")));
         Place recentsPlace = new Place("", home + "/" + io.github.stoicswe.eyeandsickle.solo.fs.Recents.DIR);
         place(sidebar, "Recents", recentsPlace, here, go);
 
         // ── Favorites ────────────────────────────────────────────────────────────────────────
-        sidebar.getChildren().add(Ui.label("Favorites"));
+        sidebar.getChildren().add(Ui.label(Views.t("ui.file-manager.favorites", "Favorites")));
         // ⚠ Applications is /Applications, not ~/Applications — macOS keeps programs at the root
         // and so does uOS. Everything else in Favorites is a place in the player's home.
         place(sidebar, "Applications", new Place("", VirtualFs.APPLICATIONS), here, go);
@@ -330,7 +330,7 @@ public final class FileManagerView {
         }
 
         // ── Locations ────────────────────────────────────────────────────────────────────────
-        sidebar.getChildren().add(Ui.label("Locations"));
+        sidebar.getChildren().add(Ui.label(Views.t("ui.file-manager.locations", "Locations")));
         // The handle, then the machine — Finder's own order, and the same who-then-where the
         // command strip's prompt uses.
         place(sidebar, user, new Place("", home), here, go);
@@ -348,7 +348,7 @@ public final class FileManagerView {
         // This replaced a separate "Shared" section. Two lists, one of machines you could connect
         // to and one of machines you had, made the player track a distinction the eject button
         // already expresses in place.
-        sidebar.getChildren().add(Ui.label("Network"));
+        sidebar.getChildren().add(Ui.label(Views.t("ui.file-manager.network", "Network")));
         List<String> mounted =
                 session.sessions().stream().map(RemoteSession::address).toList();
         List<Sighting> breached = session.net().sightings().stream()
@@ -356,7 +356,9 @@ public final class FileManagerView {
                 .filter(sighting -> !sighting.vantage())
                 .toList();
         if (breached.isEmpty()) {
-            Label none = Ui.small("Nothing breached yet. A foothold is what puts a machine here.");
+            Label none = Ui.small(Views.t(
+                    "ui.file-manager.nothing-breached-yet-a",
+                    "Nothing breached yet. A foothold is what puts a machine here."));
             none.setWrapText(true);
             sidebar.getChildren().add(none);
         }
@@ -545,10 +547,10 @@ public final class FileManagerView {
         head.setAlignment(Pos.CENTER_LEFT);
         head.getChildren()
                 .addAll(
-                        column(Ui.label("Name"), 300),
-                        column(Ui.label("Size"), 90),
-                        column(Ui.label("Type"), 110),
-                        column(Ui.label("Modified"), 170));
+                        column(Ui.label(Views.t("ui.file-manager.name", "Name")), 300),
+                        column(Ui.label(Views.t("ui.file-manager.size", "Size")), 90),
+                        column(Ui.label(Views.t("ui.file-manager.type", "Type")), 110),
+                        column(Ui.label(Views.t("ui.file-manager.modified", "Modified")), 170));
         return head;
     }
 
@@ -761,7 +763,7 @@ public final class FileManagerView {
         panel.getStyleClass().addAll("es-files", "es-body-pad", "es-files-dialog");
         panel.setMinWidth(460);
 
-        Label heading = new Label("DELETE " + Ui.upper(entry.name()));
+        Label heading = new Label(Views.t("ui.file-manager.delete", "DELETE " + Ui.upper(entry.name())));
         heading.getStyleClass().add("es-panel-title");
 
         Label what = new Label(entry.path() + "\n" + human(entry.sizeBytes()));
@@ -773,15 +775,18 @@ public final class FileManagerView {
         session.upgradeAt(here.address(), entry.path())
                 .filter(offer -> offer.sellable() && offer.resaleWei().signum() > 0)
                 .ifPresent(offer -> {
-                    Label worth = new Label("This would sell for "
-                            + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.ofWei(offer.resaleWei())
-                            + " on the secondary market.");
+                    Label worth = new Label(Views.t(
+                            "ui.file-manager.this-would-sell-for",
+                            "This would sell for "
+                                    + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.ofWei(offer.resaleWei())
+                                    + " on the secondary market."));
                     worth.setWrapText(true);
                     worth.getStyleClass().add("es-files-refusal");
                     body.getChildren().add(worth);
                 });
 
-        Label note = new Label("This cannot be undone. Nothing on this rig keeps a copy.");
+        Label note = new Label(Views.t(
+                "ui.file-manager.this-cannot-be-undone", "This cannot be undone. Nothing on this rig keeps a copy."));
         note.setWrapText(true);
         note.getStyleClass().add("es-text-secondary");
         body.getChildren().add(note);
@@ -895,7 +900,7 @@ public final class FileManagerView {
         // ⚠ Firmware's conditions, on the same surface and before the transfer. §4.4 — never colour
         // alone: the word FIRMWARE leads the line, so the state is legible with the accent ignored.
         if (offer.firmware()) {
-            Label firmware = new Label("FIRMWARE — " + offer.flashRequirement());
+            Label firmware = new Label(Views.t("ui.file-manager.firmware", "FIRMWARE — " + offer.flashRequirement()));
             firmware.getStyleClass().add(offer.readyToFlash() ? "es-upgrade-flashable" : "es-upgrade-blocked");
             firmware.setWrapText(true);
             block.getChildren().add(firmware);
@@ -904,8 +909,10 @@ public final class FileManagerView {
         // ⚠ Capability is stated explicitly, and it is the most important line here. A version ladder
         // with no such line reads as a power ladder — which is exactly what it is not, and what
         // Invariant I2 requires it never becomes.
-        Label same = new Label("Capability is identical at every build. A newer one is worth more "
-                + "and replaces an older one; it is not a better tool.");
+        Label same = new Label(Views.t(
+                "ui.file-manager.capability-is-identical-at",
+                "Capability is identical at every build. A newer one is worth more "
+                        + "and replaces an older one; it is not a better tool."));
         same.getStyleClass().add("es-text-secondary");
         same.setWrapText(true);
         block.getChildren().add(same);

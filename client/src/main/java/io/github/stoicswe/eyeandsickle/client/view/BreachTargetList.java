@@ -121,13 +121,15 @@ public final class BreachTargetList extends VBox {
 
         getStyleClass().add("es-breach-picker");
 
-        Label heading = Ui.label("Breach targets");
+        Label heading = Ui.label(Views.t("ui.breach-target-list.breach-targets", "Breach targets"));
         heading.getStyleClass().add("es-kv-key");
 
-        Label intro = Ui.small("A breach reserves its compute for the whole attempt and releases it into thermal "
-                + "recovery when the attempt ends, however it ends. There is no clock: every "
-                + "layer grants an attention budget, every action spends from it, and running "
-                + "out is the failure. Aborting is a sanctioned outcome, not a loss of nerve.");
+        Label intro = Ui.small(Views.t(
+                "ui.breach-target-list.a-breach-reserves-its",
+                "A breach reserves its compute for the whole attempt and releases it into thermal "
+                        + "recovery when the attempt ends, however it ends. There is no clock: every "
+                        + "layer grants an attention budget, every action spends from it, and running "
+                        + "out is the failure. Aborting is a sanctioned outcome, not a loss of nerve."));
         intro.setWrapText(true);
 
         getChildren().addAll(Ui.row(UiTokens.SPACE_5, heading, count), intro, controls(), rows);
@@ -136,7 +138,7 @@ public final class BreachTargetList extends VBox {
 
     /** The ordering chips and the one filter, as a strip above the rows. */
     private HBox controls() {
-        HBox strip = Ui.row(UiTokens.SPACE_3, Ui.label("Order"));
+        HBox strip = Ui.row(UiTokens.SPACE_3, Ui.label(Views.t("ui.breach-target-list.order", "Order")));
         for (Order value : Order.values()) {
             BreachView.Chip chip = new BreachView.Chip(value.control(order), "es-breach-chip-quiet");
             chip.setAccessibleText("Order the targets by " + value.label().toLowerCase(Locale.ROOT) + ".");

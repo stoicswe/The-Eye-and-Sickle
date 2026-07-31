@@ -753,8 +753,8 @@ public final class SetupWizardView {
         grid.setAlignment(Pos.CENTER);
         grid.setMaxWidth(Region.USE_PREF_SIZE);
 
-        Label first = Ui.label("HANDLE");
-        Label second = Ui.label("RIG NAME");
+        Label first = Ui.label(Views.t("ui.setup-wizard.handle", "HANDLE"));
+        Label second = Ui.label(Views.t("ui.setup-wizard.rig-name", "RIG NAME"));
         javafx.scene.layout.GridPane.setHalignment(first, javafx.geometry.HPos.RIGHT);
         javafx.scene.layout.GridPane.setHalignment(second, javafx.geometry.HPos.RIGHT);
         grid.addRow(0, first, handle);

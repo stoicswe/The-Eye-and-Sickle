@@ -91,8 +91,10 @@ public final class TerminalView {
         HBox line = new HBox(UiTokens.SPACE_2, prompt, input);
         line.setAlignment(Pos.CENTER_LEFT);
 
-        Label hint = Ui.small("Right-click for a command menu that fills in the options. "
-                + "Up recalls, Tab completes, Ctrl-R searches. Pipe with `|` — `ps | grep miner`.");
+        Label hint = Ui.small(Views.t(
+                "ui.terminal.right-click-for-a",
+                "Right-click for a command menu that fills in the options. "
+                        + "Up recalls, Tab completes, Ctrl-R searches. Pipe with `|` — `ps | grep miner`."));
 
         root.getChildren().addAll(strip, scroll, line, hint);
 

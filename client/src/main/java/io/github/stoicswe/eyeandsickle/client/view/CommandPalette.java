@@ -88,7 +88,7 @@ public final class CommandPalette {
         output.setWrapText(true);
         output.getStyleClass().add("es-mono");
 
-        Label hint = new Label("↑↓ choose · Enter run · Esc close");
+        Label hint = new Label(Views.t("ui.command-palette.choose-enter-run-esc", "↑↓ choose · Enter run · Esc close"));
         hint.getStyleClass().add("es-text-secondary");
 
         VBox root = new VBox(8, search, results, output, hint);

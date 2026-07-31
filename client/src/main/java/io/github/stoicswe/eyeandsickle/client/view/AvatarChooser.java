@@ -149,12 +149,19 @@ public final class AvatarChooser {
         });
         cancel.onInvoke(popup::hide);
 
-        Label hint = Ui.small("Drag the picture to move it. The square is exactly what gets saved.");
+        Label hint = Ui.small(Views.t(
+                "ui.avatar-chooser.drag-the-picture-to",
+                "Drag the picture to move it. The square is exactly what gets saved."));
         hint.setWrapText(true);
         hint.setMaxWidth(VIEWPORT);
 
         VBox panel = new VBox(
-                UiTokens.SPACE_3, Ui.label("Crop"), viewport, zoom, hint, Ui.row(UiTokens.SPACE_3, save, cancel));
+                UiTokens.SPACE_3,
+                Ui.label(Views.t("ui.avatar-chooser.crop", "Crop")),
+                viewport,
+                zoom,
+                hint,
+                Ui.row(UiTokens.SPACE_3, save, cancel));
         panel.getStyleClass().addAll("es-files", "es-body-pad", "es-files-dialog");
         panel.setAlignment(Pos.CENTER_LEFT);
 

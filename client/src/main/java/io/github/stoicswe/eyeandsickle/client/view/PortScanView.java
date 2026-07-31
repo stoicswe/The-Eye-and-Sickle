@@ -52,15 +52,17 @@ public final class PortScanView {
         root.getStyleClass().addAll("es-portscan", "es-body-pad");
         root.setMinWidth(700);
 
-        Label title = new Label("PORT SCAN");
+        Label title = new Label(Views.t("ui.port-scan.port-scan", "PORT SCAN"));
         title.getStyleClass().add("es-panel-title");
         Label target = new Label(address);
         target.getStyleClass().addAll("es-portscan-target", "es-mono");
 
-        Label lead = new Label("Choose the deepest thing you want to know. Everything above it comes "
-                + "back with it — a scan that reached that far already passed through the rest. "
-                + "Going deeper costs cycles, takes longer, and makes it more likely the machine "
-                + "notices you looking.");
+        Label lead = new Label(Views.t(
+                "ui.port-scan.choose-the-deepest-thing",
+                "Choose the deepest thing you want to know. Everything above it comes "
+                        + "back with it — a scan that reached that far already passed through the rest. "
+                        + "Going deeper costs cycles, takes longer, and makes it more likely the machine "
+                        + "notices you looking."));
         lead.setWrapText(true);
         lead.getStyleClass().add("es-portscan-lead");
 
@@ -170,7 +172,7 @@ public final class PortScanView {
             return;
         }
         if (report.blocked()) {
-            Label blocked = new Label("REFUSED — " + report.note());
+            Label blocked = new Label(Views.t("ui.port-scan.refused", "REFUSED — " + report.note()));
             blocked.setWrapText(true);
             blocked.getStyleClass().addAll("es-mono", "es-portscan-risk-high");
             into.getChildren().add(blocked);

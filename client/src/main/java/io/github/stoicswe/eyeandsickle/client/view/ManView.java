@@ -134,10 +134,12 @@ public final class ManView {
         SplitPane split = new SplitPane(left, right);
         split.setDividerPositions(0.38);
 
-        Label heading = new Label("MANUAL — man · apropos");
+        Label heading = new Label(Views.t("ui.man.manual-man-apropos", "MANUAL — man · apropos"));
         heading.getStyleClass().add("es-panel-title");
-        Label note = new Label("Every page here is shaped like a real manual page, in the real section order. "
-                + "Read a few hundred of these and a real one will hold no surprises.");
+        Label note = new Label(Views.t(
+                "ui.man.every-page-here-is",
+                "Every page here is shaped like a real manual page, in the real section order. "
+                        + "Read a few hundred of these and a real one will hold no surprises."));
         note.setWrapText(true);
         note.getStyleClass().add("es-text-secondary");
 
@@ -155,7 +157,8 @@ public final class ManView {
         if (!terms.problems().isEmpty()) {
             // Loud rather than silent. A broken cross-reference is a dead end at exactly the moment
             // somebody was curious enough to follow it.
-            Label problems = new Label("Manual problems: " + String.join("; ", terms.problems()));
+            Label problems = new Label(
+                    Views.t("ui.man.manual-problems", "Manual problems: " + String.join("; ", terms.problems())));
             problems.setWrapText(true);
             problems.getStyleClass().add("es-state-refused");
             root.setBottom(problems);

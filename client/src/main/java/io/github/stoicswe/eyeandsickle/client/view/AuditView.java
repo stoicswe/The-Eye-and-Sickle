@@ -122,7 +122,8 @@ public final class AuditView {
     private static Region scanner(GameSession session) {
         VBox box = new VBox(UiTokens.SPACE_3);
 
-        Label heading = new Label("SCAN — search your own rig for adversarial processes");
+        Label heading = new Label(
+                Views.t("ui.audit.scan-search-your-own", "SCAN — search your own rig for adversarial processes"));
         heading.getStyleClass().add("es-panel-title");
         heading.setWrapText(true);
 
@@ -179,7 +180,7 @@ public final class AuditView {
     private static Region running(GameSession session) {
         VBox box = new VBox(UiTokens.SPACE_2);
 
-        Label heading = new Label("RUNNING");
+        Label heading = new Label(Views.t("ui.audit.running", "RUNNING"));
         heading.getStyleClass().add("es-panel-title");
 
         Label caption = new Label();
@@ -300,9 +301,11 @@ public final class AuditView {
     private static Region status(GameSession session, Shell shell) {
         VBox box = new VBox(UiTokens.SPACE_3);
 
-        Label hint = Views.wrapped("Three views of your own rig. They should agree. When they do not, something is "
-                + "hiding — a connection with no owning process, or storage that grew while "
-                + "nothing was running. That discrepancy is the game.");
+        Label hint = Views.wrapped(Views.t(
+                "ui.audit.three-views-of-your",
+                "Three views of your own rig. They should agree. When they do not, something is "
+                        + "hiding — a connection with no owning process, or storage that grew while "
+                        + "nothing was running. That discrepancy is the game."));
 
         VBox output = new VBox(2);
         ScrollPane scroll = new ScrollPane(output);
@@ -340,14 +343,16 @@ public final class AuditView {
      */
     private static Region history(GameSession session) {
         VBox box = new VBox(2);
-        Label heading = new Label("SCAN HISTORY");
+        Label heading = new Label(Views.t("ui.audit.scan-history", "SCAN HISTORY"));
         heading.getStyleClass().addAll("es-mono", "es-panel-title");
         box.getChildren().add(heading);
 
         List<ScanReport> reports = session.scanReports();
         if (reports.isEmpty()) {
-            Label empty = new Label("No audits yet. A scan's result is recorded here when it "
-                    + "finishes, including a clean one — a clean row is what dates a later finding.");
+            Label empty = new Label(Views.t(
+                    "ui.audit.no-audits-yet-a",
+                    "No audits yet. A scan's result is recorded here when it "
+                            + "finishes, including a clean one — a clean row is what dates a later finding."));
             empty.setWrapText(true);
             empty.getStyleClass().add("es-text-secondary");
             box.getChildren().add(empty);

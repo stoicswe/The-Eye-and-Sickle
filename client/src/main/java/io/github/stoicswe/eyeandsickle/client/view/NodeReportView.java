@@ -43,7 +43,7 @@ public final class NodeReportView {
         root.getStyleClass().addAll("es-report", "es-body-pad");
         root.setMinWidth(620);
 
-        Label title = new Label("NODE REPORT");
+        Label title = new Label(Views.t("ui.node-report.node-report", "NODE REPORT"));
         title.getStyleClass().add("es-panel-title");
         Label target = new Label(address);
         target.getStyleClass().addAll("es-report-target", "es-mono");

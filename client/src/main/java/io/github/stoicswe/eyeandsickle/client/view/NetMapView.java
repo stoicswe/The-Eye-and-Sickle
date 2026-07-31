@@ -317,7 +317,7 @@ public final class NetMapView {
         // invisible until you press it is a control a cautious player does not press.
         Map<String, BreachView.Chip> sweepChips = new LinkedHashMap<>();
         Map<String, Tooltip> sweepTips = new LinkedHashMap<>();
-        HBox sweepGroup = Ui.row(UiTokens.SPACE_2, Ui.label("Sweep"));
+        HBox sweepGroup = Ui.row(UiTokens.SPACE_2, Ui.label(Views.t("ui.net-map.sweep", "Sweep")));
         for (String[] rung : new String[][] {{"", "BASE 2C"}, {"--wide", "WIDE 5C"}, {"--deep", "DEEP 9C"}}) {
             BreachView.Chip chip = action(rung[1]);
             // One Tooltip per chip, created once and re-texted on every repaint. Installing a fresh

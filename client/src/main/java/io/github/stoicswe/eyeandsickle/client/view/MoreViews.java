@@ -43,9 +43,11 @@ public final class MoreViews {
     public static Region market(GameSession session) {
         VBox root = panel("MARKET — a package manager");
 
-        Label invariant = wrapped("Ethecoin buys breadth, never a ceiling. Consumables, replacements and horizontal "
-                + "options are for sale. Capacity is not: you cannot buy compute, you cannot "
-                + "buy vault space, and you cannot buy your way past a proof-of-skill gate.");
+        Label invariant = wrapped(Views.t(
+                "ui.more-views.ethecoin-buys-breadth-never",
+                "Ethecoin buys breadth, never a ceiling. Consumables, replacements and horizontal "
+                        + "options are for sale. Capacity is not: you cannot buy compute, you cannot "
+                        + "buy vault space, and you cannot buy your way past a proof-of-skill gate."));
 
         VBox gates = new VBox(10);
         for (UnlockGate gate : UnlockGate.values()) {
@@ -60,7 +62,7 @@ public final class MoreViews {
         VBox bands = new VBox(3);
         bands.getChildren()
                 .addAll(
-                        new Label("PRICE BANDS"),
+                        new Label(Views.t("ui.more-views.price-bands", "PRICE BANDS")),
                         mono("consumables            5 – 15 EC"),
                         mono("mid-tier tools        40 – 60 EC"),
                         mono("top purchasable          ~200 EC"),
@@ -111,11 +113,11 @@ public final class MoreViews {
                 invariant,
                 balance,
                 new Separator(),
-                new Label("OFFERINGS"),
+                new Label(Views.t("ui.more-views.offerings", "OFFERINGS")),
                 listing,
                 result,
                 new Separator(),
-                new Label("THE FIVE GATES"),
+                new Label(Views.t("ui.more-views.the-five-gates", "THE FIVE GATES")),
                 gates,
                 new Separator(),
                 bands));
@@ -169,9 +171,11 @@ public final class MoreViews {
     public static Region recon(GameSession session) {
         VBox root = panel("RECON — less");
         root.getChildren()
-                .add(wrapped("This window is now the collected reports — see ReconView. What a port scan costs, "
-                        + "what each depth buys and what the whole thing is a model of is in "
-                        + "`man port-scan`."));
+                .add(wrapped(Views.t(
+                        "ui.more-views.this-window-is-now",
+                        "This window is now the collected reports — see ReconView. What a port scan costs, "
+                                + "what each depth buys and what the whole thing is a model of is in "
+                                + "`man port-scan`.")));
         return scrollable(root);
     }
 
@@ -224,11 +228,13 @@ public final class MoreViews {
         VBox root = panel("BOTNET — jobs / systemctl");
         root.getChildren()
                 .addAll(
-                        wrapped("A frame is a blueprint. An instance is a running bot built from one. "
-                                + "Instances cost ethecoin and hold compute while they run; frames are "
-                                + "gated and are never lost."),
+                        wrapped(Views.t(
+                                "ui.more-views.a-frame-is-a",
+                                "A frame is a blueprint. An instance is a running bot built from one. "
+                                        + "Instances cost ethecoin and hold compute while they run; frames are "
+                                        + "gated and are never lost.")),
                         new Separator(),
-                        new Label("THE RULES THAT ARE DECIDED"),
+                        new Label(Views.t("ui.more-views.the-rules-that-are", "THE RULES THAT ARE DECIDED")),
                         bullet("Bots assist, they never substitute. A bot never solves the puzzle for "
                                 + "you — if one could, the game would be watching itself play."),
                         bullet("Losing a bot destroys the instance and anything socketed into it. It "
@@ -251,16 +257,20 @@ public final class MoreViews {
         VBox root = panel("COMMS — mail / who");
         root.getChildren()
                 .addAll(
-                        wrapped("Other operators, recovered messages, and the evidence trail that "
-                                + "decides who is informing on whom. This is deliberately separate "
-                                + "from `identity`: that window is who you are, this one is who else "
-                                + "is out there."),
+                        wrapped(Views.t(
+                                "ui.more-views.other-operators-recovered-messages",
+                                "Other operators, recovered messages, and the evidence trail that "
+                                        + "decides who is informing on whom. This is deliberately separate "
+                                        + "from `identity`: that window is who you are, this one is who else "
+                                        + "is out there.")),
                         new Separator(),
-                        new Label("WHAT THIS WINDOW WILL NOT BE"),
-                        wrapped("Not a chat window. The vision document is explicit that story arrives "
-                                + "as recovered logs and records, and that there are no companion "
-                                + "characters — a general chat surface is the easiest place in the "
-                                + "whole client for that to leak."),
+                        new Label(Views.t("ui.more-views.what-this-window-will", "WHAT THIS WINDOW WILL NOT BE")),
+                        wrapped(Views.t(
+                                "ui.more-views.not-a-chat-window",
+                                "Not a chat window. The vision document is explicit that story arrives "
+                                        + "as recovered logs and records, and that there are no companion "
+                                        + "characters — a general chat surface is the easiest place in the "
+                                        + "whole client for that to leak.")),
                         openQuestion("The informant system, the evidence threshold and the mass-vote "
                                 + "override are [PROPOSAL] (docs/design/12), and all three are "
                                 + "multiplayer mechanics with no meaning in a solo game. This window "
@@ -340,7 +350,7 @@ public final class MoreViews {
     private static Region openQuestion(String text) {
         VBox box = new VBox(4);
         box.getStyleClass().add("es-panel");
-        Label heading = new Label("STILL OPEN");
+        Label heading = new Label(Views.t("ui.more-views.still-open", "STILL OPEN"));
         heading.getStyleClass().addAll("es-panel-title", "es-state-unreachable");
         Label body = wrapped(text);
         body.getStyleClass().add("es-text-secondary");

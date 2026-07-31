@@ -60,11 +60,13 @@ public final class LogView {
         VBox root = new VBox(8);
         root.setPadding(new Insets(12));
 
-        Label heading = new Label("LOG — journalctl -f");
+        Label heading = new Label(Views.t("ui.log.log-journalctl-f", "LOG — journalctl -f"));
         heading.getStyleClass().add("es-panel-title");
 
-        Label explain = new Label("What the rig has been doing, newest last. This is where offline income, recovered "
-                + "cycles and anything that changed while you were not watching show up.");
+        Label explain = new Label(Views.t(
+                "ui.log.what-the-rig-has",
+                "What the rig has been doing, newest last. This is where offline income, recovered "
+                        + "cycles and anything that changed while you were not watching show up."));
         explain.setWrapText(true);
         explain.getStyleClass().add("es-text-secondary");
 
@@ -86,13 +88,13 @@ public final class LogView {
         });
 
         io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch follow =
-                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Follow");
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch(Views.t("ui.log.follow", "Follow"));
         follow.setSelected(true);
         follow.setAccessibleText("Scroll to the newest entry as it arrives, like tail -f");
         follow.setTooltip(new javafx.scene.control.Tooltip(
                 "Keeps the newest line in view as entries arrive — what `tail -f` and `journalctl -f` do."));
 
-        HBox controls = new HBox(10, new Label("Severity"), filter, follow);
+        HBox controls = new HBox(10, new Label(Views.t("ui.log.severity", "Severity")), filter, follow);
         controls.setAlignment(Pos.CENTER_LEFT);
 
         ListView<GameSession.LogLine> list = new ListView<>();
@@ -130,7 +132,9 @@ public final class LogView {
         });
         VBox.setVgrow(list, Priority.ALWAYS);
 
-        Label empty = new Label("Nothing yet. Allocate some cycles, arm a defence, or run a scan.");
+        Label empty = new Label(Views.t(
+                "ui.log.nothing-yet-allocate-some",
+                "Nothing yet. Allocate some cycles, arm a defence, or run a scan."));
         empty.setWrapText(true);
         empty.getStyleClass().add("es-text-secondary");
         list.setPlaceholder(empty);
@@ -158,8 +162,10 @@ public final class LogView {
         pulse.setCycleCount(Animation.INDEFINITE);
         pulse.play();
 
-        Label footer = new Label("`log` prints this in the terminal; `log -p 4` filters to warnings and worse. "
-                + "The numbering is RFC 5424's, where 0 is most severe and 7 is least.");
+        Label footer = new Label(Views.t(
+                "ui.log.log-prints-this-in",
+                "`log` prints this in the terminal; `log -p 4` filters to warnings and worse. "
+                        + "The numbering is RFC 5424's, where 0 is most severe and 7 is least."));
         footer.setWrapText(true);
         footer.getStyleClass().add("es-text-secondary");
 

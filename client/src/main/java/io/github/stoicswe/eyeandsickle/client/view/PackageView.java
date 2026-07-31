@@ -118,8 +118,10 @@ public final class PackageView {
         } else {
             // Said out loud, because a panel with facts and no buttons otherwise reads as one whose
             // buttons failed to appear.
-            Label note = new Label("Read-only. Nothing on this panel installs, sells or changes "
-                    + "anything — close it and choose Install when you have decided.");
+            Label note = new Label(Views.t(
+                    "ui.package.read-only-nothing-on",
+                    "Read-only. Nothing on this panel installs, sells or changes "
+                            + "anything — close it and choose Install when you have decided."));
             note.setWrapText(true);
             note.getStyleClass().add("es-package-note");
             return frame(body, note);
@@ -194,8 +196,10 @@ public final class PackageView {
         box.getChildren().add(verdict);
 
         if (pkg.fromMarket()) {
-            Label note = new Label("Vendor packages are signed by the network and always match. A "
-                    + "package from another player is not — check this panel before installing one.");
+            Label note = new Label(Views.t(
+                    "ui.package.vendor-packages-are-signed",
+                    "Vendor packages are signed by the network and always match. A "
+                            + "package from another player is not — check this panel before installing one."));
             note.setWrapText(true);
             note.getStyleClass().add("es-package-note");
             box.getChildren().add(note);
@@ -207,25 +211,30 @@ public final class PackageView {
     private static Region status(PackageManifest pkg) {
         VBox box = new VBox(UiTokens.SPACE_1);
         if (pkg.locked()) {
-            Label held = new Label("LOCKED — " + pkg.pendingNote());
+            Label held = new Label(Views.t("ui.package.locked", "LOCKED — " + pkg.pendingNote()));
             held.setWrapText(true);
             held.getStyleClass().addAll("es-mono", "es-package-locked");
             box.getChildren().add(held);
             // ⚠ The rename is named. It is the lock, and a player who has not been told that will
             // read the `.pkg` as a failed download rather than as an unpaid invoice.
-            Label why = new Label("It is still a vendor package — a `.pkg`. Confirmation is what "
-                    + "turns it into a `.upg` this rig can install.");
+            Label why = new Label(Views.t(
+                    "ui.package.it-is-still-a",
+                    "It is still a vendor package — a `.pkg`. Confirmation is what "
+                            + "turns it into a `.upg` this rig can install."));
             why.setWrapText(true);
             why.getStyleClass().add("es-package-note");
             box.getChildren().add(why);
         } else if (pkg.owned()) {
-            Label owned = new Label(
-                    "ALREADY INSTALLED — a second copy adds nothing. This one is " + "worth more sold than installed.");
+            Label owned = new Label(Views.t(
+                    "ui.package.already-installed-a-second",
+                    "ALREADY INSTALLED — a second copy adds nothing. This one is "
+                            + "worth more sold than installed."));
             owned.setWrapText(true);
             owned.getStyleClass().addAll("es-mono", "es-package-locked");
             box.getChildren().add(owned);
         } else {
-            Label ready = new Label("READY — nothing is holding this package.");
+            Label ready = new Label(
+                    Views.t("ui.package.ready-nothing-is-holding", "READY — nothing is holding this package."));
             ready.getStyleClass().addAll("es-mono", "es-package-match");
             box.getChildren().add(ready);
         }
@@ -342,7 +351,7 @@ public final class PackageView {
 
         box.getChildren().add(warningMark());
 
-        Label title = new Label("FLASHING FIRMWARE");
+        Label title = new Label(Views.t("ui.package.flashing-firmware", "FLASHING FIRMWARE"));
         title.getStyleClass().add("es-flash-title");
 
         // ⚠ WHAT is being flashed, named on the overlay. It covers the panel completely — opaque, so
@@ -368,8 +377,10 @@ public final class PackageView {
         StackPane.setAlignment(fill, Pos.CENTER_LEFT);
         bar.setMaxWidth(360);
 
-        Label note = new Label("The mining tool is frozen until this finishes. Closing this window "
-                + "does not stop it — firmware is written by the device, not by this panel.");
+        Label note = new Label(Views.t(
+                "ui.package.the-mining-tool-is",
+                "The mining tool is frozen until this finishes. Closing this window "
+                        + "does not stop it — firmware is written by the device, not by this panel."));
         note.setWrapText(true);
         note.setMaxWidth(420);
         note.getStyleClass().add("es-flash-note");

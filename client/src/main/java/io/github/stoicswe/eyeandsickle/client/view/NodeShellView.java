@@ -91,7 +91,9 @@ public final class NodeShellView {
         HBox line = new HBox(UiTokens.SPACE_2, prompt, input);
         line.setAlignment(Pos.CENTER_LEFT);
 
-        Label hint = Ui.small("Right-click for a command menu that fills in the options. Up recalls.");
+        Label hint = Ui.small(Views.t(
+                "ui.node-shell.right-click-for-a",
+                "Right-click for a command menu that fills in the options. Up recalls."));
 
         root.getChildren().addAll(strip, scroll, line, hint);
 
@@ -369,7 +371,7 @@ public final class NodeShellView {
                         title,
                         synopsis,
                         optionRows,
-                        Ui.label("Command"),
+                        Ui.label(Views.t("ui.node-shell.command", "Command")),
                         preview,
                         Ui.row(UiTokens.SPACE_3, insert, cancel));
         popup.getContent().add(panel);

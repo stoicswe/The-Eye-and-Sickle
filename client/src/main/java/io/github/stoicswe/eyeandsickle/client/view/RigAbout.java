@@ -63,7 +63,7 @@ final class RigAbout {
             portrait.getChildren().add(mascot);
         }
 
-        Label name = Ui.label("Mr. Monitor");
+        Label name = Ui.label(Views.t("ui.rig-about.mr-monitor", "Mr. Monitor"));
         Label caption = Ui.micro("The uOS mascot. Drawn by hand, by a friend of the house.");
         caption.setWrapText(true);
         portrait.getChildren().addAll(name, caption);

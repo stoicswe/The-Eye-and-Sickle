@@ -63,7 +63,7 @@ public final class DefenseGameView {
         root.getStyleClass().addAll("es-defensegame", "es-body-pad");
         root.setMinWidth(560);
 
-        Label title = new Label("DEFENCE");
+        Label title = new Label(Views.t("ui.defense-game.defence", "DEFENCE"));
         title.getStyleClass().add("es-panel-title");
 
         Label what = new Label(subject);

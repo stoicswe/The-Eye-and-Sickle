@@ -89,7 +89,7 @@ public final class ChainSyncPanel {
             return new Built(root, () -> {});
         }
 
-        Label title = new Label("SYNCHRONIZING");
+        Label title = new Label(Views.t("ui.chain-sync-panel.synchronizing", "SYNCHRONIZING"));
         title.getStyleClass().addAll("es-sync-title", "es-mono");
 
         Label heights = new Label();

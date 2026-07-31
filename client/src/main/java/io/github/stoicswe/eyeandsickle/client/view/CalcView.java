@@ -96,7 +96,7 @@ public final class CalcView {
         Map<Radix, BreachView.Chip> radixKeys = new EnumMap<>(Radix.class);
         HBox radixRow = new HBox(UiTokens.SPACE_2);
         radixRow.setAlignment(Pos.CENTER_LEFT);
-        radixRow.getChildren().add(Ui.label("Base"));
+        radixRow.getChildren().add(Ui.label(Views.t("ui.calc.base", "Base")));
         for (Radix in : Radix.values()) {
             BreachView.Chip chip = key(in.label());
             chip.setAccessibleText("Show and enter numbers in base " + in.base() + ".");
@@ -112,7 +112,7 @@ public final class CalcView {
         Map<WordSize, BreachView.Chip> wordKeys = new EnumMap<>(WordSize.class);
         HBox wordRow = new HBox(UiTokens.SPACE_2);
         wordRow.setAlignment(Pos.CENTER_LEFT);
-        wordRow.getChildren().add(Ui.label("Width"));
+        wordRow.getChildren().add(Ui.label(Views.t("ui.calc.width", "Width")));
         for (WordSize size : WordSize.values()) {
             BreachView.Chip chip = key(size.label());
             chip.setAccessibleText("Work in " + size.bits() + " bits, also called a " + size.traditionalName() + ".");
@@ -184,9 +184,11 @@ public final class CalcView {
         HBox facts = new HBox(UiTokens.SPACE_5, setBits, zeros, bigEndian, littleEndian, chars);
         facts.setAlignment(Pos.CENTER_LEFT);
 
-        Label note = Ui.small("Type digits, a-f, the operator symbols, Enter for =, Backspace and Escape. "
-                + "Keys apply left to right with no precedence, like every desk calculator: "
-                + "2 + 3 * 4 is 20. Click any bit to flip it.");
+        Label note = Ui.small(Views.t(
+                "ui.calc.type-digits-a-f",
+                "Type digits, a-f, the operator symbols, Enter for =, Backspace and Escape. "
+                        + "Keys apply left to right with no precedence, like every desk calculator: "
+                        + "2 + 3 * 4 is 20. Click any bit to flip it."));
         note.setWrapText(true);
 
         // ---------------------------------------------------------------- assembly
@@ -297,7 +299,7 @@ public final class CalcView {
         // they differ by exactly one, which is the whole of two's complement in a single comparison.
         HBox unary = new HBox(UiTokens.SPACE_2);
         unary.setAlignment(Pos.CENTER_LEFT);
-        Label unaryName = Ui.label("Single");
+        Label unaryName = Ui.label(Views.t("ui.calc.single", "Single"));
         unaryName.setMinWidth(56);
         unary.getChildren().add(unaryName);
         unary.getChildren()

@@ -968,8 +968,33 @@ procedure.
   saved desk layouts). A translation therefore cannot point at a window that no longer exists.
 - ⚠ **`unixAnalogue` is NOT translated** — it is real command names, same rule as flags.
 - ⚠ **Never cache `Text.current()`** — same rule as `profile.appearance()`, same reason.
-- **Still English literals:** the Settings category names and most in-panel captions. `Text.ui(key,
-  english)` is the mechanism and is wired; converting those call sites is mechanical and not done.
+- **Every player-facing caption in `view/` is keyed (2026-07-31).** 170 sites: the 11 Settings
+  categories, every switch, section heading and explanatory caption, plus panel headers and empty
+  states across the other views. `Views.t(key, english)` is the call; other packages use
+  `Text.current().ui(...)`.
+- ⚠ **English stays at the CALL SITE and is the fallback — there is no `ui_en.properties`.** Moving
+  these into a bundle and leaving a bare key was rejected: half of them explain *why* a setting is off
+  by default, and that reasoning belongs where somebody changing the setting will read it. It would
+  also make every one a two-file edit, which is how English and the thing it describes drift apart.
+- ⚠ **A key per BRANCH of a ternary, never one around it.** The avatar and handle captions each say
+  opposite things depending on state ("a picture can be set once a character is loaded" vs how to set
+  one); one key around the conditional means a translation of either replaces both.
+- ⚠ **An orphaned `ui` key FAILS THE BUILD — `UiKeyTest`.** English and its key sit in two files that
+  nothing links, so renaming a caption's key leaves the German line matching nothing: green build,
+  passing tests, and that one caption English forever. The test names the orphan. Verified by planting
+  one.
+- ⚠ **`ui_zz.properties` in `src/test/resources` is a TEST-ONLY pseudo-language**, absent from
+  `Language` so no player can select it. Without it every i18n check asserts over an empty set —
+  "translations work" would be a claim about machinery nobody had run. It translates exactly two keys
+  and one window title, so the fallback path is exercised by the same fixture.
+- ⚠ **Keys are derived from the English** (`ui.<view>.<slug>`), so a key names what it says and a
+  reviewer can tell which string a translation is for. `UiKeyTest.keysAreUnique` holds that one key
+  never carries two different sentences.
+- ⚠ **`pages` map keys in Settings are the sidebar LABEL, the search needle and the selection
+  identity** — all three follow the translation correctly, and nothing external looks a page up by
+  name (checked). Selection is session-local, so nothing persisted breaks.
+- **Deliberately left English:** `unixAnalogue` (real command names), `BezelStyle.note()` (enum-owned
+  prose — keying it means keying the enum), and shell command output.
 
 ⚠ **An EMPTY strip cell is not a narrow cell — it is 29px and a divider (2026-07-31).** A cell is
 `-fx-padding: 7 14 7 14` plus a 1px rule, so the top strip's refusal cell — empty almost always — spent

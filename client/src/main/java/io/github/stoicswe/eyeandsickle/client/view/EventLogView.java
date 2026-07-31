@@ -53,9 +53,11 @@ public final class EventLogView {
         VBox root = new VBox(UiTokens.SPACE_3);
         EventRecorder recorder = session.events().recorder();
 
-        Label explain = new Label("Every event the broker carried, oldest first. CloudEvents v1.0.2 — "
-                + "an event is identified by its source and id together, so two rows sharing both are "
-                + "one event delivered twice.");
+        Label explain = new Label(Views.t(
+                "ui.event-log.every-event-the-broker",
+                "Every event the broker carried, oldest first. CloudEvents v1.0.2 — "
+                        + "an event is identified by its source and id together, so two rows sharing both are "
+                        + "one event delivered twice."));
         explain.setWrapText(true);
         explain.getStyleClass().add("es-text-secondary");
 
@@ -64,7 +66,7 @@ public final class EventLogView {
         HBox.setHgrow(search, Priority.ALWAYS);
 
         io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch follow =
-                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Follow");
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch(Views.t("ui.event-log.follow", "Follow"));
         follow.setSelected(true);
         follow.setAccessibleText("Scroll to the newest event as it arrives");
 
@@ -77,7 +79,8 @@ public final class EventLogView {
 
         ListView<CloudEvent> list = new ListView<>();
         list.getStyleClass().add("es-terminal");
-        list.setPlaceholder(new Label("No events yet. Anything you do in the game appears here."));
+        list.setPlaceholder(new Label(Views.t(
+                "ui.event-log.no-events-yet-anything", "No events yet. Anything you do in the game appears here.")));
         list.setCellFactory(view -> new ListCell<>() {
             @Override
             protected void updateItem(CloudEvent event, boolean empty) {

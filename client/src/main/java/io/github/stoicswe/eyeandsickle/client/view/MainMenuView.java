@@ -115,9 +115,9 @@ public final class MainMenuView {
         //
         // GDM puts the clock and the machine up here. So does this: the game's name, and the
         // profile the client is running out of, which is the closest thing it has to a hostname.
-        Label title = new Label("THE EYE AND SICKLE");
+        Label title = new Label(Views.t("ui.main-menu.the-eye-and-sickle", "THE EYE AND SICKLE"));
         title.getStyleClass().add("es-splash-title");
-        Label subtitle = new Label("An operator's console");
+        Label subtitle = new Label(Views.t("ui.main-menu.an-operator-s-console", "An operator's console"));
         subtitle.getStyleClass().add("es-splash-subtitle");
 
         VBox header = new VBox(4, title, subtitle);
@@ -461,8 +461,10 @@ public final class MainMenuView {
         HBox row = new HBox(10, handle, create);
         row.setAlignment(Pos.CENTER);
 
-        Label note = new Label(
-                "A new operator on this machine. Set-up asks five short questions; " + "nothing here needs a network.");
+        Label note = new Label(Views.t(
+                "ui.main-menu.a-new-operator-on",
+                "A new operator on this machine. Set-up asks five short questions; "
+                        + "nothing here needs a network."));
         note.getStyleClass().add("es-small");
         box.getChildren().addAll(row, note);
         return box;
@@ -487,11 +489,13 @@ public final class MainMenuView {
         address.setPrefColumnCount(28);
 
         Button connect = menuButton("Connect", () -> actions.connectOnline(address.getText()));
-        Label note = new Label("Online play runs against a home server — someone's self-hosted machine, which owns "
-                + "the game state. Losses there are real, and a solo character cannot be "
-                + "carried across.\n\nNot available yet: the client has the session shape and "
-                + "no transport behind it (CL-8). Connecting will tell you exactly that "
-                + "rather than hanging.");
+        Label note = new Label(Views.t(
+                "ui.main-menu.online-play-runs-against",
+                "Online play runs against a home server — someone's self-hosted machine, which owns "
+                        + "the game state. Losses there are real, and a solo character cannot be "
+                        + "carried across.\n\nNot available yet: the client has the session shape and "
+                        + "no transport behind it (CL-8). Connecting will tell you exactly that "
+                        + "rather than hanging."));
         note.setWrapText(true);
         note.setMaxWidth(420);
         note.getStyleClass().add("es-small");
@@ -599,7 +603,7 @@ public final class MainMenuView {
                 profile.save();
             }
         });
-        Label label = new Label("Theme");
+        Label label = new Label(Views.t("ui.main-menu.theme", "Theme"));
         return new HBox(10, label, picker);
     }
 

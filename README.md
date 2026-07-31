@@ -97,13 +97,36 @@ Say you are adding German (`de`). Everything is keyed off the IETF tag.
 cp commands_en.properties commands_de.properties
 ```
 
-Translate the values; leave every key alone. Two bundles have no `_en` file at all — `windows_*` and
-`ui_*` — because their English lives in code (`WindowSpec` carries its own title and description, and
-a test asserts that table against `docs/client/05`). For those, create `windows_de.properties` from
-scratch; any key you do not write keeps the English from the code.
+Translate the values; leave every key alone. There are three bundles:
+
+| Bundle | Holds | English lives in |
+|---|---|---|
+| `commands_*` | Option and argument descriptions, command-menu headings | the bundle — `commands_en.properties` |
+| `windows_*` | Tool window titles and descriptions | `WindowSpec`, in code |
+| `ui_*` | Every other caption: settings categories, panel headers, buttons, empty states | the call site, in code |
+
+The last two have **no `_en` file at all**, on purpose. `WindowSpec` carries its own title and
+description and a test asserts that table against `docs/client/05`; the `ui` strings sit beside the
+control they describe, and half of them explain *why* a setting is off by default — reasoning that
+belongs where somebody changing the setting will read it. Copying either into a properties file would
+create a second English that nothing keeps in step, and the copy is the one that would rot.
+
+So for those two, create `windows_de.properties` and `ui_de.properties` from scratch. Find the keys
+by grepping the source:
+
+```bash
+grep -rho 't("[a-z][^"]*"' client/src/main/java | sort -u
+```
+
+Any key you do not write keeps the English from the code.
 
 **Files are read as UTF-8**, explicitly. Write `Größe`, not `Größe` — Java's own
 `Properties.load(InputStream)` is ISO-8859-1 by definition, which is why the loader does not use it.
+
+⚠ **A `ui` key that no call site asks for fails the build.** English and its key live in two files
+that nothing links, so renaming a caption's key would leave your translated line matching nothing —
+silently, forever, with the player just seeing English. `UiKeyTest` turns that into a build failure
+that names the orphaned key.
 
 **2. Manual pages** — `client/src/main/resources/io/github/stoicswe/eyeandsickle/client/terms/`
 
@@ -147,7 +170,7 @@ is the one problem a translator most needs to see.
 ### Checking your work
 
 ```bash
-mvn -pl client test -Dtest='LanguageTest,LanguageFallbackTest,CommandSpecTest'
+mvn -pl client test -Dtest='LanguageTest,LanguageFallbackTest,CommandSpecTest,UiKeyTest'
 ```
 
 `CommandSpecTest` is the one that will catch a structural mistake: it holds that every flag a command

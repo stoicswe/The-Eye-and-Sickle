@@ -101,7 +101,7 @@ public final class RigMonitorView {
 
         Label claimed = new Label("0");
         claimed.getStyleClass().add("es-display");
-        Label claimedUnit = Ui.label("/ 100 cycles claimed");
+        Label claimedUnit = Ui.label(Views.t("ui.rig-monitor.100-cycles-claimed", "/ 100 cycles claimed"));
         claimedUnit.getStyleClass().add("es-display-unit");
         if (terms != null && profile != null) {
             GlossBar.attach(claimedUnit, "compute", terms, profile);
@@ -159,10 +159,11 @@ public final class RigMonitorView {
         VBox overview = new VBox(UiTokens.SPACE_6, greeble, grid, activity, working, notes);
         VBox.setVgrow(grid, Priority.SOMETIMES);
 
-        Label tableNote =
-                Ui.small("Everything running on this rig. Nothing here is labelled hostile — right-click a row "
+        Label tableNote = Ui.small(Views.t(
+                "ui.rig-monitor.everything-running-on-this",
+                "Everything running on this rig. Nothing here is labelled hostile — right-click a row "
                         + "to kill it, sort a column to compare. A process that is not yours has to "
-                        + "look like one that is, and looking like one is not the same as being one.");
+                        + "look like one that is, and looking like one is not the same as being one."));
         tableNote.setWrapText(true);
 
         // The history strip sits between the tabs and the table: a table answers "what is running

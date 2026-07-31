@@ -78,9 +78,11 @@ public final class Views {
      */
     public static Region audit(GameSession session, Shell shell) {
         VBox root = panel("AUDIT — ps · netstat · df");
-        Label hint = wrapped("Three views of your own rig. They should agree. When they do not, something is "
-                + "hiding — a connection with no owning process, or storage that grew while "
-                + "nothing was running. That discrepancy is the game.");
+        Label hint = wrapped(t(
+                "ui.views.three-views-of-your",
+                "Three views of your own rig. They should agree. When they do not, something is "
+                        + "hiding — a connection with no owning process, or storage that grew while "
+                        + "nothing was running. That discrepancy is the game."));
         VBox output = new VBox(2);
         ScrollPane scroll = new ScrollPane(output);
         scroll.setFitToWidth(true);
@@ -120,7 +122,8 @@ public final class Views {
      * least helpful control there is.
      */
     private static Region scanControls(GameSession session) {
-        Label heading = new Label("SCAN — search your own rig for what routine listings miss");
+        Label heading = new Label(
+                t("ui.views.scan-search-your-own", "SCAN — search your own rig for what routine listings miss"));
         heading.getStyleClass().add("es-panel-title");
         heading.setWrapText(true);
 
@@ -190,7 +193,7 @@ public final class Views {
         solo.setToggleGroup(modes);
 
         VBox poolList = new VBox(6);
-        Label poolHeading = new Label("POOL");
+        Label poolHeading = new Label(t("ui.views.pool", "POOL"));
         poolHeading.getStyleClass().add("es-panel-title");
 
         Slider allocation = new Slider(0, 100, 0);
@@ -388,23 +391,25 @@ public final class Views {
 
         root.getChildren()
                 .addAll(
-                        wrapped("Self-mining is the floor: safe, silent, generates no heat, and cannot be "
-                                + "seized — but it only earns while the client is open. Deployed miners are "
-                                + "the only offline income, and their buffer caps."),
+                        wrapped(t(
+                                "ui.views.self-mining-is-the",
+                                "Self-mining is the floor: safe, silent, generates no heat, and cannot be "
+                                        + "seized — but it only earns while the client is open. Deployed miners are "
+                                        + "the only offline income, and their buffer caps.")),
                         new Separator(),
-                        new Label("CHAIN"),
+                        new Label(t("ui.views.chain", "CHAIN")),
                         chain,
                         rigLine,
                         new Separator(),
-                        new Label("BALANCE"),
+                        new Label(t("ui.views.balance", "BALANCE")),
                         current,
-                        new Label("SELF-MINING ALLOCATION"),
+                        new Label(t("ui.views.self-mining-allocation", "SELF-MINING ALLOCATION")),
                         allocation,
                         projection,
                         odds,
                         preview,
                         new Separator(),
-                        new Label("PAYOUT"),
+                        new Label(t("ui.views.payout", "PAYOUT")),
                         new HBox(8, pooled, solo),
                         modeNote,
                         poolHeading,
@@ -450,7 +455,7 @@ public final class Views {
             // the build on it. A host fallback would be a different shape and a different advance
             // width per platform. The word carries it, and docs/client/07 §5.2 wants it to anyway —
             // a mark alone is a private code.
-            Label caution = wrapped("Note — " + pool.caution());
+            Label caution = wrapped(t("ui.views.note", "Note — " + pool.caution()));
             caution.getStyleClass().add("es-text-secondary");
             box.getChildren().add(caution);
         }
@@ -609,9 +614,11 @@ public final class Views {
                 .addAll(
                         atRisk,
                         new Separator(),
-                        wrapped("Moving something changes what can happen to it. That risk change is the "
-                                + "decision — each mount says what it means, and `mv <item> <tier>` does the "
-                                + "same thing from the terminal."),
+                        wrapped(t(
+                                "ui.views.moving-something-changes-what",
+                                "Moving something changes what can happen to it. That risk change is the "
+                                        + "decision — each mount says what it means, and `mv <item> <tier>` does the "
+                                        + "same thing from the terminal.")),
                         modes,
                         scroll,
                         moves,
@@ -968,7 +975,7 @@ public final class Views {
         mempoolLine.getStyleClass().addAll("es-mono", "es-text-secondary");
         mempoolLine.setWrapText(true);
 
-        Label queueHeading = new Label("YOUR PENDING");
+        Label queueHeading = new Label(t("ui.views.your-pending", "YOUR PENDING"));
         VBox queue = new VBox(UiTokens.SPACE_1);
 
         HBox blocks = new HBox(UiTokens.SPACE_3);
@@ -990,7 +997,7 @@ public final class Views {
         detail.setManaged(false);
 
         TableView<ChainTransaction> table = new TableView<>();
-        table.setPlaceholder(new Label("No transactions yet. Mine something."));
+        table.setPlaceholder(new Label(t("ui.views.no-transactions-yet-mine", "No transactions yet. Mine something.")));
 
         TableColumn<ChainTransaction, String> hash = new TableColumn<>("Tx hash");
         hash.setCellValueFactory(c -> text(c.getValue().shortHash()));
@@ -1170,36 +1177,40 @@ public final class Views {
                 .getChildren()
                 .addAll(
                         sync.node(),
-                        new Label("CHAIN"),
+                        new Label(t("ui.views.chain-2", "CHAIN")),
                         chainLine,
-                        new Label("MEMPOOL — NEXT BLOCKS"),
+                        new Label(t("ui.views.mempool-next-blocks", "MEMPOOL — NEXT BLOCKS")),
                         mempoolLine,
                         upcoming,
                         queueHeading,
                         queue,
-                        new Label("RECENT BLOCKS"),
+                        new Label(t("ui.views.recent-blocks", "RECENT BLOCKS")),
                         blockStrip,
                         detail);
 
         ledgerPane
                 .getChildren()
                 .addAll(
-                        wrapped("Entries are added and never edited. Each row carries the balance after it, "
-                                + "so the log reconciles without replaying it. A dash in the block column "
-                                + "means the transaction never touched the chain."),
+                        wrapped(t(
+                                "ui.views.entries-are-added-and",
+                                "Entries are added and never edited. Each row carries the balance after it, "
+                                        + "so the log reconciles without replaying it. A dash in the block column "
+                                        + "means the transaction never touched the chain.")),
                         table);
 
         contributorPane
                 .getChildren()
                 .addAll(
-                        wrapped("Every block your rig put hashrate into — the ones you mined outright, and "
-                                + "the ones your pool found while you were contributing. SHARE is what "
-                                + "fraction of the whole chain you were at the time, which is exactly the "
-                                + "chance each of those blocks had of being yours. COINBASE is newly minted; "
-                                + "FEES were paid by the senders in the block. YOUR CUT is what reached you: "
-                                + "the whole reward when solo, a share of it under PPLNS, and nothing under "
-                                + "pay-per-share — which buys your shares instead and is not dividing the "
-                                + "block up at all."),
+                        wrapped(t(
+                                "ui.views.every-block-your-rig",
+                                "Every block your rig put hashrate into — the ones you mined outright, and "
+                                        + "the ones your pool found while you were contributing. SHARE is what "
+                                        + "fraction of the whole chain you were at the time, which is exactly the "
+                                        + "chance each of those blocks had of being yours. COINBASE is newly minted; "
+                                        + "FEES were paid by the senders in the block. YOUR CUT is what reached you: "
+                                        + "the whole reward when solo, a share of it under PPLNS, and nothing under "
+                                        + "pay-per-share — which buys your shares instead and is not dividing the "
+                                        + "block up at all.")),
                         contributions);
 
         Runnable refreshClock = () -> {
@@ -1242,7 +1253,7 @@ public final class Views {
 
         root.getChildren()
                 .addAll(
-                        new Label("YOUR ADDRESS"),
+                        new Label(t("ui.views.your-address", "YOUR ADDRESS")),
                         address,
                         balance,
                         new Separator(),
@@ -1284,8 +1295,9 @@ public final class Views {
      */
     private static TableView<BlockContribution> contributionTable() {
         TableView<BlockContribution> table = new TableView<>();
-        table.setPlaceholder(
-                new Label("No blocks yet. Commit cycles to mining and this fills as the chain finds them."));
+        table.setPlaceholder(new Label(t(
+                "ui.views.no-blocks-yet-commit",
+                "No blocks yet. Commit cycles to mining and this fills as the chain finds them.")));
 
         TableColumn<BlockContribution, String> height = new TableColumn<>("Block");
         height.setCellValueFactory(
@@ -1477,7 +1489,7 @@ public final class Views {
                         : io.github.stoicswe.eyeandsickle.client.ui.UiScale.DEFAULT_PERCENT);
 
         io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch fullScreen =
-                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Full screen");
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch(t("ui.views.full-screen", "Full screen"));
         fullScreen.setSelected(profile.settings().fullScreen);
 
         Label note = new Label();
@@ -1601,25 +1613,31 @@ public final class Views {
 
         section.getChildren()
                 .addAll(
-                        new Label("WINDOW"),
+                        new Label(t("ui.views.window", "WINDOW")),
                         size,
-                        wrapped("The deck draws its own window chrome, so your desktop gives it no resize "
-                                + "handle — this is where the size lives. Dragging the top strip still moves "
-                                + "it, double-clicking the strip still maximises it, and neither is affected "
-                                + "by what is set here."),
-                        new Label("UI SCALE"),
+                        wrapped(t(
+                                "ui.views.the-deck-draws-its",
+                                "The deck draws its own window chrome, so your desktop gives it no resize "
+                                        + "handle — this is where the size lives. Dragging the top strip still moves "
+                                        + "it, double-clicking the strip still maximises it, and neither is affected "
+                                        + "by what is set here.")),
+                        new Label(t("ui.views.ui-scale", "UI SCALE")),
                         scale,
                         note,
-                        wrapped("Scales the whole interface, not the font: every hairline, cell meter and "
-                                + "character grid keeps its exact proportions, because the deck is drawn "
-                                + "through one transform rather than restyled. Larger scale means less "
-                                + "room, so sizes that would take the layout under its supported minimum "
-                                + "stop being offered."),
+                        wrapped(t(
+                                "ui.views.scales-the-whole-interface",
+                                "Scales the whole interface, not the font: every hairline, cell meter and "
+                                        + "character grid keeps its exact proportions, because the deck is drawn "
+                                        + "through one transform rather than restyled. Larger scale means less "
+                                        + "room, so sizes that would take the layout under its supported minimum "
+                                        + "stop being offered.")),
                         fullScreen,
-                        wrapped("Off by default. Escape still opens the pause menu in full screen — the "
-                                + "usual \"press Escape to leave full screen\" behaviour is turned off here, "
-                                + "because it would swallow the key the game already uses. Turn this off "
-                                + "again to get the window back."),
+                        wrapped(t(
+                                "ui.views.off-by-default-escape",
+                                "Off by default. Escape still opens the pause menu in full screen — the "
+                                        + "usual \"press Escape to leave full screen\" behaviour is turned off here, "
+                                        + "because it would swallow the key the game already uses. Turn this off "
+                                        + "again to get the window back.")),
                         new Separator());
         return section;
     }
@@ -2130,9 +2148,11 @@ public final class Views {
     /** Arming defences, and the compute budget that forces a choice between them. */
     public static Region defense(GameSession session) {
         VBox root = panel("DEFENSE");
-        Label note = wrapped("Every armed defence holds compute for as long as it stays armed. A fully paranoid "
-                + "loadout costs more than a starting rig has — that is the decision, not a "
-                + "shortfall. Defending your own rig never generates heat.");
+        Label note = wrapped(t(
+                "ui.views.every-armed-defence-holds",
+                "Every armed defence holds compute for as long as it stays armed. A fully paranoid "
+                        + "loadout costs more than a starting rig has — that is the decision, not a "
+                        + "shortfall. Defending your own rig never generates heat."));
 
         VBox buttons = new VBox(6);
         Label result = new Label();
@@ -2160,9 +2180,11 @@ public final class Views {
             buttons.getChildren().add(b);
         }
 
-        Label legalNote = wrapped("Note on the Auto-Counter Daemon: in this fiction it fires back. In the real world "
-                + "that is a crime in most jurisdictions, and being attacked first does not "
-                + "change that. See hack-back(7).");
+        Label legalNote = wrapped(t(
+                "ui.views.note-on-the-auto",
+                "Note on the Auto-Counter Daemon: in this fiction it fires back. In the real world "
+                        + "that is a crime in most jurisdictions, and being attacked first does not "
+                        + "change that. See hack-back(7)."));
         legalNote.getStyleClass().add("es-state-unreachable");
 
         root.getChildren().addAll(note, new Separator(), buttons, result, new Separator(), legalNote);
@@ -2187,10 +2209,12 @@ public final class Views {
             Label explanation = wrapped(session.mode().explanation());
             body.getChildren().add(explanation);
             if (session.mode() == io.github.stoicswe.eyeandsickle.client.session.SessionMode.SOLO) {
-                Label solo = wrapped("This character is local to this machine. It has no DID and no cryptographic "
-                        + "identity, and it cannot be carried into a federated server — going "
-                        + "online means creating a character there. That boundary is what keeps "
-                        + "a file you can edit from ever becoming someone else's problem.");
+                Label solo = wrapped(t(
+                        "ui.views.this-character-is-local",
+                        "This character is local to this machine. It has no DID and no cryptographic "
+                                + "identity, and it cannot be carried into a federated server — going "
+                                + "online means creating a character there. That boundary is what keeps "
+                                + "a file you can edit from ever becoming someone else's problem."));
                 solo.getStyleClass().add("es-text-secondary");
                 body.getChildren().add(solo);
             }
@@ -2420,7 +2444,8 @@ public final class Views {
         // for the same reason §9.1 and §9.3 are: it is the player's machine. Off by default, so the
         // shipped game still looks like the game.
         io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch nativeBorder =
-                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Use the system window border");
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch(
+                        t("settings.windows.nativeBorder", "Use the system window border"));
         nativeBorder.setSelected(profile.settings().nativeWindowBorder);
         nativeBorder.selectedProperty().addListener((o, was, now) -> {
             profile.settings().nativeWindowBorder = now;
@@ -2457,7 +2482,8 @@ public final class Views {
         });
 
         io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch rounded =
-                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Rounded window corners");
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch(
+                        t("settings.windows.rounded", "Rounded window corners"));
         rounded.setSelected(profile.appearance().roundedWindows);
         rounded.selectedProperty().addListener((o, was, now) -> {
             profile.appearance().roundedWindows = now;
@@ -2473,7 +2499,8 @@ public final class Views {
         // purpose. This is for players for whom that is not enough — a low-contrast strip change is
         // exactly the cue that vanishes on a dim screen. Off by default; see ui/chrome/FocusRing.
         io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch focusRing =
-                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Outline the focused window");
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch(
+                        t("settings.desk.focusRing", "Outline the focused window"));
         focusRing.setSelected(profile.appearance().focusRing);
 
         HBox swatches = new HBox(UiTokens.SPACE_2);
@@ -2529,7 +2556,8 @@ public final class Views {
 
         // §11 question 1, shipped as a choice rather than settled by fiat. See DeskManager.
         io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch freeDrag =
-                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Drag windows freely");
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch(
+                        t("settings.desk.freeDrag", "Drag windows freely"));
         freeDrag.setSelected(profile.settings().freeDragWindows);
         freeDrag.selectedProperty().addListener((o, was, now) -> {
             profile.settings().freeDragWindows = now;
@@ -2539,7 +2567,7 @@ public final class Views {
 
         io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch bandwidthCap =
                 new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch(
-                        "Bandwidth limits open windows  [PROPOSAL]");
+                        t("settings.desk.bandwidthCap", "Bandwidth limits open windows  [PROPOSAL]"));
         bandwidthCap.setSelected(profile.settings().bandwidthCapsWindows);
         bandwidthCap.selectedProperty().addListener((o, was, now) -> {
             profile.settings().bandwidthCapsWindows = now;
@@ -2612,7 +2640,8 @@ public final class Views {
         });
 
         io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch scanlines =
-                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("CRT scanlines");
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch(
+                        t("settings.screen.scanlines", "CRT scanlines"));
         scanlines.setSelected(profile.appearance().crtScanlines);
         scanlines.selectedProperty().addListener((o, was, now) -> {
             profile.appearance().crtScanlines = now;
@@ -2621,7 +2650,8 @@ public final class Views {
         });
 
         io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch aberration =
-                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Chromatic aberration");
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch(
+                        t("settings.screen.aberration", "Chromatic aberration"));
         aberration.setSelected(profile.appearance().crtAberration);
         aberration.selectedProperty().addListener((o, was, now) -> {
             profile.appearance().crtAberration = now;
@@ -2646,7 +2676,8 @@ public final class Views {
         });
 
         io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch glitch =
-                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Signal glitch");
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch(
+                        t("settings.screen.glitch", "Signal glitch"));
         glitch.setSelected(profile.appearance().crtGlitch);
         glitch.selectedProperty().addListener((o, was, now) -> {
             profile.appearance().crtGlitch = now;
@@ -2681,7 +2712,8 @@ public final class Views {
         });
 
         io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch notify =
-                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Show slide-in notices");
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch(
+                        t("settings.notices.show", "Show slide-in notices"));
         notify.setSelected(profile.settings().notificationsEnabled);
         notify.selectedProperty().addListener((o, was, now) -> {
             profile.settings().notificationsEnabled = now;
@@ -2738,7 +2770,8 @@ public final class Views {
         }
 
         io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch reducedMotion =
-                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Reduce motion");
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch(
+                        t("settings.accessibility.reduceMotion", "Reduce motion"));
         reducedMotion.setSelected(themes.reducedMotion());
         reducedMotion.selectedProperty().addListener((o, was, now) -> {
             themes.setReducedMotionOverride(now);
@@ -2798,237 +2831,296 @@ public final class Views {
         });
 
         pages.put(
-                "Operator",
+                t("settings.cat.operator", "Operator"),
                 settingsPage(
                         avatarBox,
                         Ui.row(8, pickPicture, clearPicture),
+                        // \u26a0 A key per BRANCH, not one around the ternary. Wrapping the conditional
+                        // would give both messages the same key, so a translation of either would
+                        // replace both \u2014 and these two say opposite things, one that a picture can be
+                        // set and one that it cannot yet.
                         wrapped(
                                 session == null
-                                        ? "A picture can be set once a character is loaded."
-                                        : "Opens your system's own file dialog, then lets you crop and zoom. The "
-                                                + "picture is stored with the character, not as a link to the file "
-                                                + "you picked \u2014 so it travels with the save, and the game never "
-                                                + "reads that location again. With none set you get a silhouette "
-                                                + "generated from your handle, breaking up under static."),
+                                        ? t(
+                                                "settings.operator.picture.noCharacter",
+                                                "A picture can be set once a character is loaded.")
+                                        : t(
+                                                "settings.operator.picture",
+                                                "Opens your system's own file dialog, then lets you crop and zoom. The "
+                                                        + "picture is stored with the character, not as a link to the file "
+                                                        + "you picked \u2014 so it travels with the save, and the game never "
+                                                        + "reads that location again. With none set you get a silhouette "
+                                                        + "generated from your handle, breaking up under static.")),
                         new Separator(),
                         new HBox(8, handle, applyHandle),
+                        // ⚠ A key per branch — see the picture caption above for why.
                         wrapped(
                                 onRename != null
-                                        ? "Your handle, shown on the strip with its bytes underneath. Solo "
-                                                + "only: online, a handle is not yours to choose — identity "
-                                                + "comes from an AT Proto DID and the server owns it."
-                                        : "Sets the handle for the next character you start. Renaming a "
-                                                + "character you are already playing is done from inside "
-                                                + "the game."),
+                                        ? t(
+                                                "settings.operator.handle.rename",
+                                                "Your handle, shown on the strip with its bytes underneath. Solo "
+                                                        + "only: online, a handle is not yours to choose — identity "
+                                                        + "comes from an AT Proto DID and the server owns it.")
+                                        : t(
+                                                "settings.operator.handle",
+                                                "Sets the handle for the next character you start. Renaming a "
+                                                        + "character you are already playing is done from inside "
+                                                        + "the game.")),
                         handleResult,
                         new Separator(),
                         new HBox(8, hostname, applyHostname),
-                        wrapped("What the rig calls itself. The prompt reads "
-                                + "`handle@hostname.local:~$` — who you are, then where you are, "
-                                + "which is the order every terminal and every SSH session uses. "
-                                + "`.local` is mDNS: the name a machine answers to on the network "
-                                + "it is plugged into with nobody having configured DNS, and your "
-                                + "own machine has one. Letters, digits and hyphens only, 63 "
-                                + "characters at most — DNS's rules, not this game's."),
+                        wrapped(t(
+                                "settings.operator.hostname",
+                                "What the rig calls itself. The prompt reads "
+                                        + "`handle@hostname.local:~$` — who you are, then where you are, "
+                                        + "which is the order every terminal and every SSH session uses. "
+                                        + "`.local` is mDNS: the name a machine answers to on the network "
+                                        + "it is plugged into with nobody having configured DNS, and your "
+                                        + "own machine has one. Letters, digits and hyphens only, 63 "
+                                        + "characters at most — DNS's rules, not this game's.")),
                         hostnameResult));
 
         pages.put(
-                "Appearance",
+                t("settings.cat.appearance", "Appearance"),
                 settingsPage(
                         scopeNote(session),
                         theme,
-                        wrapped("Every theme is the same deck with a different palette — one stylesheet "
-                                + "owns the layout, the hairlines and the motion, so no skin can hide or "
-                                + "soften a number. \"Deck — high visibility\" raises body text to WCAG "
-                                + "AAA and makes every hairline visible; it is an accessibility floor "
-                                + "rather than a style, and nothing else about the client changes.")));
+                        wrapped(t(
+                                "settings.appearance.themes",
+                                "Every theme is the same deck with a different palette — one stylesheet "
+                                        + "owns the layout, the hairlines and the motion, so no skin can hide or "
+                                        + "soften a number. \"Deck — high visibility\" raises body text to WCAG "
+                                        + "AAA and makes every hairline visible; it is an accessibility floor "
+                                        + "rather than a style, and nothing else about the client changes."))));
 
         pages.put(
-                "Windows",
+                t("settings.cat.windows", "Windows"),
                 settingsPage(
                         scopeNote(session),
                         nativeBorder,
-                        wrapped("Gives the game window your system's own title bar and buttons "
-                                + "instead of the ones it draws itself. Takes effect the next time "
-                                + "you start the game — a window's frame is fixed before it first "
-                                + "appears and cannot be swapped while it is open. With it on, the "
-                                + "game stops drawing its own window buttons and the top strip stops "
-                                + "acting as a drag handle, because your title bar already does both."),
+                        wrapped(t(
+                                "settings.windows.nativeBorder.note",
+                                "Gives the game window your system's own title bar and buttons "
+                                        + "instead of the ones it draws itself. Takes effect the next time "
+                                        + "you start the game — a window's frame is fixed before it first "
+                                        + "appears and cannot be swapped while it is open. With it on, the "
+                                        + "game stops drawing its own window buttons and the top strip stops "
+                                        + "acting as a drag handle, because your title bar already does both.")),
                         new Separator(),
                         rounded,
-                        wrapped("Off by default, and deliberately: this deck is drawn in hard edges "
-                                + "and hairlines, and softening them is the first step toward looking "
-                                + "like an ordinary dark-mode developer tool. It rounds windows only "
-                                + "— never a meter cell or the cycle grid, because a cell with a soft "
-                                + "corner reads as a smaller cell and those are meant to be counted."),
-                        wrapped("Applies to everything at once — the game window and every window "
-                                + "on the desk — and takes effect immediately. On Linux without a "
-                                + "compositing window manager the corners may come out black rather "
-                                + "than transparent; that is the one place this depends on your "
-                                + "desktop rather than on the game."),
+                        wrapped(t(
+                                "settings.windows.rounded.note",
+                                "Off by default, and deliberately: this deck is drawn in hard edges "
+                                        + "and hairlines, and softening them is the first step toward looking "
+                                        + "like an ordinary dark-mode developer tool. It rounds windows only "
+                                        + "— never a meter cell or the cycle grid, because a cell with a soft "
+                                        + "corner reads as a smaller cell and those are meant to be counted.")),
+                        wrapped(t(
+                                "settings.windows.rounded.scope",
+                                "Applies to everything at once — the game window and every window "
+                                        + "on the desk — and takes effect immediately. On Linux without a "
+                                        + "compositing window manager the corners may come out black rather "
+                                        + "than transparent; that is the one place this depends on your "
+                                        + "desktop rather than on the game.")),
                         new Separator(),
-                        Ui.label("Window buttons, inside the game"),
+                        Ui.label(t("settings.windows.buttonOrder", "Window buttons, inside the game")),
                         controlOrder,
-                        wrapped("Which order the buttons on a tool window sit in. It does not move them to "
-                                + "the other side — that follows your system and stays there — and it does "
-                                + "not touch the game's own window, which sits next to your real ones and "
-                                + "should behave like them. Takes effect immediately, on windows that are "
-                                + "already open."),
+                        wrapped(t(
+                                "settings.windows.buttonOrder.note",
+                                "Which order the buttons on a tool window sit in. It does not move them to "
+                                        + "the other side — that follows your system and stays there — and it does "
+                                        + "not touch the game's own window, which sits next to your real ones and "
+                                        + "should behave like them. Takes effect immediately, on windows that are "
+                                        + "already open.")),
                         new Separator(),
                         window));
 
         pages.put(
-                "Desk",
+                t("settings.cat.desk", "Desk"),
                 settingsPage(
                         focusRing,
-                        wrapped("The deck already marks the focused window by lightening its strip and "
-                                + "accenting its title. This adds an outline as well, for when that is not "
-                                + "enough to find at a glance. Off by default; takes effect immediately, on "
-                                + "windows that are already open."),
+                        wrapped(t(
+                                "settings.desk.focusRing.note",
+                                "The deck already marks the focused window by lightening its strip and "
+                                        + "accenting its title. This adds an outline as well, for when that is not "
+                                        + "enough to find at a glance. Off by default; takes effect immediately, on "
+                                        + "windows that are already open.")),
                         swatches,
                         swatchNote,
                         new Separator(),
                         freeDrag,
-                        wrapped("Off: windows snap to a grid, and tile when dragged against an edge of "
-                                + "the desk — a side fills that half, a corner that quarter. On: they go "
-                                + "exactly where you put them."),
+                        wrapped(t(
+                                "settings.desk.freeDrag.note",
+                                "Off: windows snap to a grid, and tile when dragged against an edge of "
+                                        + "the desk — a side fills that half, a corner that quarter. On: they go "
+                                        + "exactly where you put them.")),
                         new Separator(),
                         bandwidthCap,
-                        wrapped("Off by default, and this one is not calibrated. The idea is that screen "
-                                + "space is attention: Bandwidth caps how many engagements run at once, so "
-                                + "it should cap how many tools you can have open. A starting rig has 1 "
-                                + "Bandwidth, so the budget below adds six always-free windows — the "
-                                + "monitor, terminal, log, manual, settings and switcher — to it. That "
-                                + "arithmetic is invented, which is why this is opt-in.")));
+                        wrapped(t(
+                                "settings.desk.bandwidthCap.note",
+                                "Off by default, and this one is not calibrated. The idea is that screen "
+                                        + "space is attention: Bandwidth caps how many engagements run at once, so "
+                                        + "it should cap how many tools you can have open. A starting rig has 1 "
+                                        + "Bandwidth, so the budget below adds six always-free windows — the "
+                                        + "monitor, terminal, log, manual, settings and switcher — to it. That "
+                                        + "arithmetic is invented, which is why this is opt-in."))));
 
         pages.put(
-                "Screen",
+                t("settings.cat.screen", "Screen"),
                 settingsPage(
                         scopeNote(session),
-                        Ui.label("Casing"),
+                        Ui.label(t("settings.screen.casing", "Casing")),
                         bezel,
                         bezelNote,
-                        wrapped("The machine around the screen. Off by default. It is drawn "
-                                + "OUTSIDE the viewport \u2014 the resolution you pick under Windows "
-                                + "is the screen's, and the casing is added beyond it, so the "
-                                + "window grows rather than the deck shrinking. It never covers "
-                                + "anything you have to read, and nothing about it moves, so it "
-                                + "costs no frames and is unaffected by Reduce motion. Pairs with "
-                                + "the Cyberdeck palette, but every theme draws it."),
+                        wrapped(t(
+                                "settings.screen.casing.note",
+                                "The machine around the screen. Off by default. It is drawn "
+                                        + "OUTSIDE the viewport \u2014 the resolution you pick under Windows "
+                                        + "is the screen's, and the casing is added beyond it, so the "
+                                        + "window grows rather than the deck shrinking. It never covers "
+                                        + "anything you have to read, and nothing about it moves, so it "
+                                        + "costs no frames and is unaffected by Reduce motion. Pairs with "
+                                        + "the Cyberdeck palette, but every theme draws it.")),
                         new Separator(),
-                        Ui.label("Wallpaper"),
+                        Ui.label(t("settings.screen.wallpaper", "Wallpaper")),
                         wallpaper,
-                        wrapped("Machine texture behind every window — the same alphabet as the greeble "
-                                + "strips, drawn far dimmer and never in amber. \"Still\" keeps the "
-                                + "texture and stops the movement. Turning on Reduce motion under "
-                                + "Accessibility stops it too, without changing this setting."),
+                        wrapped(t(
+                                "settings.screen.wallpaper.note",
+                                "Machine texture behind every window — the same alphabet as the greeble "
+                                        + "strips, drawn far dimmer and never in amber. \"Still\" keeps the "
+                                        + "texture and stops the movement. Turning on Reduce motion under "
+                                        + "Accessibility stops it too, without changing this setting.")),
                         new Separator(),
-                        Ui.label("Artefacts"),
+                        Ui.label(t("settings.screen.artefacts", "Artefacts")),
                         scanlines,
                         aberration,
                         glitch,
                         new HBox(8, curvature, curvatureValue),
-                        wrapped("Screen artefacts, all three off by default. Scanlines lay a dark band "
-                                + "across every other row of pixels and drift slowly, with a refresh bar "
-                                + "rolling down the screen — that is what makes them read as a tube "
-                                + "rather than as a texture. They cost real contrast on body text, which "
-                                + "is a trade to make deliberately rather than one the client makes for "
-                                + "you. Aberration separates the wallpaper into red and cyan a pixel "
-                                + "either side; it is not applied to the whole screen, which would cost "
-                                + "more per frame than the effect is worth. Signal glitch tears short "
-                                + "fragments off the edges of windows and the elements inside them, so a "
-                                + "busy desk breaks up more than an empty one. Reduce motion stops every "
-                                + "moving part and leaves the still ones drawn."),
-                        wrapped("Edge curvature raises the red/cyan separation towards the rim and the "
-                                + "corners, the way curved glass does — zero in the middle, worst at the "
-                                + "corners. It does NOT bend the interface: warping the picture would "
-                                + "need a shader we do not have, and faking it would put every click "
-                                + "somewhere other than where you see the control. Text stays straight.")));
+                        wrapped(t(
+                                "settings.screen.artefacts.note",
+                                "Screen artefacts, all three off by default. Scanlines lay a dark band "
+                                        + "across every other row of pixels and drift slowly, with a refresh bar "
+                                        + "rolling down the screen — that is what makes them read as a tube "
+                                        + "rather than as a texture. They cost real contrast on body text, which "
+                                        + "is a trade to make deliberately rather than one the client makes for "
+                                        + "you. Aberration separates the wallpaper into red and cyan a pixel "
+                                        + "either side; it is not applied to the whole screen, which would cost "
+                                        + "more per frame than the effect is worth. Signal glitch tears short "
+                                        + "fragments off the edges of windows and the elements inside them, so a "
+                                        + "busy desk breaks up more than an empty one. Reduce motion stops every "
+                                        + "moving part and leaves the still ones drawn.")),
+                        wrapped(t(
+                                "settings.screen.curvature.note",
+                                "Edge curvature raises the red/cyan separation towards the rim and the "
+                                        + "corners, the way curved glass does — zero in the middle, worst at the "
+                                        + "corners. It does NOT bend the interface: warping the picture would "
+                                        + "need a shader we do not have, and faking it would put every click "
+                                        + "somewhere other than where you see the control. Text stays straight."))));
 
         pages.put(
-                "Notices",
+                t("settings.cat.notices", "Notices"),
                 settingsPage(
                         notify,
-                        wrapped("A notice repeats something the rig already logged — nothing here is "
-                                + "the only place a message exists, and the log window keeps all of "
-                                + "it. Ignoring every notice costs you nothing."),
+                        wrapped(t(
+                                "settings.notices.note",
+                                "A notice repeats something the rig already logged — nothing here is "
+                                        + "the only place a message exists, and the log window keeps all of "
+                                        + "it. Ignoring every notice costs you nothing.")),
                         new Separator(),
-                        Ui.label("Severity floor"),
+                        Ui.label(t("settings.notices.severity", "Severity floor")),
                         severity,
-                        wrapped("These are RFC 5424 levels, and the numbering runs backwards on "
-                                + "purpose: 0 is Emergency and 7 is Debug, so a LOWER number is a "
-                                + "stricter filter. It is the same number `log -p` takes — set 4 "
-                                + "here, type `log -p 4`, and you will see the same set. That habit "
-                                + "works on any Linux machine you ever touch."),
+                        wrapped(t(
+                                "settings.notices.severity.note",
+                                "These are RFC 5424 levels, and the numbering runs backwards on "
+                                        + "purpose: 0 is Emergency and 7 is Debug, so a LOWER number is a "
+                                        + "stricter filter. It is the same number `log -p` takes — set 4 "
+                                        + "here, type `log -p 4`, and you will see the same set. That habit "
+                                        + "works on any Linux machine you ever touch.")),
                         new Separator(),
-                        Ui.label("Subsystems"),
+                        Ui.label(t("settings.notices.subsystems", "Subsystems")),
                         facilities,
-                        wrapped("Unchecked subsystems stay silent. These are the rig's own facility "
-                                + "names, so anything you mute here is still findable with "
-                                + "`log | grep <name>`.")));
+                        wrapped(t(
+                                "settings.notices.subsystems.note",
+                                "Unchecked subsystems stay silent. These are the rig's own facility "
+                                        + "names, so anything you mute here is still findable with "
+                                        + "`log | grep <name>`."))));
 
         pages.put(
-                "Teaching",
+                t("settings.cat.teaching", "Teaching"),
                 settingsPage(
                         teaching,
-                        wrapped("`explain` shows a plain-language line with each term; `terms` shows the "
-                                + "term only; `off` shows neither. The manual stays available at any "
-                                + "level — try `man compute`.")));
+                        wrapped(t(
+                                "settings.teaching.note",
+                                "`explain` shows a plain-language line with each term; `terms` shows the "
+                                        + "term only; `off` shows neither. The manual stays available at any "
+                                        + "level — try `man compute`."))));
 
         // ⚠ Pointer and Motion live together under Accessibility, which is where macOS puts them
         // and where a player looking for either will look. Both are also genuine accessibility
         // controls rather than decoration: the system pointer default is a floor (docs/client/07),
         // and Reduce motion follows the OS preference unless overridden.
         pages.put(
-                "Accessibility",
+                t("settings.cat.accessibility", "Accessibility"),
                 settingsPage(
-                        Ui.label("Pointer"),
+                        Ui.label(t("settings.accessibility.pointer", "Pointer")),
                         cursor,
                         scopeNote(session),
-                        wrapped("The pointer is the last piece of your operating system left on "
-                                + "screen, so the deck can draw its own — in whatever colour the "
-                                + "current theme means by \"live\". \"System pointer\" leaves yours "
-                                + "alone, and that is the default on purpose: your OS has already "
-                                + "tuned it for your display and your eyesight. The text I-beam is "
-                                + "never replaced under any skin, because its shape tells you which "
-                                + "two characters the caret will land between."),
+                        wrapped(t(
+                                "settings.accessibility.pointer.note",
+                                "The pointer is the last piece of your operating system left on "
+                                        + "screen, so the deck can draw its own — in whatever colour the "
+                                        + "current theme means by \"live\". \"System pointer\" leaves yours "
+                                        + "alone, and that is the default on purpose: your OS has already "
+                                        + "tuned it for your display and your eyesight. The text I-beam is "
+                                        + "never replaced under any skin, because its shape tells you which "
+                                        + "two characters the caret will land between.")),
                         new Separator(),
-                        Ui.label("Motion"),
+                        Ui.label(t("settings.accessibility.motion", "Motion")),
                         reducedMotion,
-                        wrapped("Follows your system setting unless you change it here. Suppresses the "
-                                + "panel wipe, the caret blink, the greeble and the sweep bar; readouts "
-                                + "keep updating, because that is information, not animation.")));
+                        wrapped(t(
+                                "settings.accessibility.motion.note",
+                                "Follows your system setting unless you change it here. Suppresses the "
+                                        + "panel wipe, the caret blink, the greeble and the sweep bar; readouts "
+                                        + "keep updating, because that is information, not animation."))));
 
         pages.put(
-                "Language",
+                t("settings.cat.language", "Language"),
                 settingsPage(
-                        Ui.label("Interface language"),
+                        Ui.label(t("settings.language.label", "Interface language")),
                         language,
-                        wrapped("Every language is listed in its own name, so you can find yours "
-                                + "whichever one the game is currently in."),
+                        wrapped(t(
+                                "settings.language.endonyms",
+                                "Every language is listed in its own name, so you can find yours "
+                                        + "whichever one the game is currently in.")),
                         new Separator(),
-                        wrapped("Windows you open from now on are in the new language; ones already "
-                                + "on screen keep the text they were built with until you close and "
-                                + "reopen them."),
+                        wrapped(t(
+                                "settings.language.scope",
+                                "Windows you open from now on are in the new language; ones already "
+                                        + "on screen keep the text they were built with until you close and "
+                                        + "reopen them.")),
                         new Separator(),
-                        wrapped("Command names and their options are never translated \u2014 `grep -v` "
-                                + "is `grep -v` everywhere, because that is what it is called on a "
-                                + "real machine and carrying that knowledge out of the game is the "
-                                + "point. What each one MEANS is translated, and so is the manual. A "
-                                + "page nobody has translated yet is shown in English rather than "
-                                + "left out.")));
+                        wrapped(t(
+                                "settings.language.structure",
+                                "Command names and their options are never translated \u2014 `grep -v` "
+                                        + "is `grep -v` everywhere, because that is what it is called on a "
+                                        + "real machine and carrying that knowledge out of the game is the "
+                                        + "point. What each one MEANS is translated, and so is the manual. A "
+                                        + "page nobody has translated yet is shown in English rather than "
+                                        + "left out."))));
 
-        pages.put("About", settingsPage(about(profile, session)));
+        pages.put(t("settings.cat.about", "About"), settingsPage(about(profile, session)));
 
         // Beneath About, and out of the fiction entirely — see Credits' class comment for why the
         // real people are not a section of the spec sheet.
         pages.put(
-                "Credits",
+                t("settings.cat.credits", "Credits"),
                 settingsPage(
                         Credits.page(),
                         new Separator(),
-                        wrapped("Handles are printed rather than linked: opening a browser would throw you "
-                                + "out of the game, and this client has never opened one.")));
+                        wrapped(t(
+                                "settings.credits.note",
+                                "Handles are printed rather than linked: opening a browser would throw you "
+                                        + "out of the game, and this client has never opened one."))));
 
         root.getChildren().add(settingsBody(pages));
         // ⚠ FILLING, not plain scrollable, and this was a real bug rather than a refinement. A
@@ -3138,7 +3230,8 @@ public final class Views {
         VBox box = new VBox(4);
         if (session == null) {
             box.getChildren().add(secondary("No character loaded."));
-            box.getChildren().add(wrapped("Profile directory: " + profile.directory()));
+            box.getChildren()
+                    .add(wrapped(t("ui.views.profile-directory", "Profile directory: " + profile.directory())));
             return box;
         }
         var capacity = session.capacity();
@@ -3147,7 +3240,7 @@ public final class Views {
 
         box.getChildren()
                 .addAll(
-                        Ui.label("uOS"),
+                        Ui.label(t("ui.views.uos", "uOS")),
                         spec("System", "uOS 15.0-RELEASE"),
                         spec("Kernel", "FreeBSD-derived, GENERIC"),
                         spec(
@@ -3157,14 +3250,14 @@ public final class Views {
                         spec("Operator", session.handle()),
                         spec("Mode", session.mode().label()),
                         new Separator(),
-                        Ui.label("Hardware"),
+                        Ui.label(t("ui.views.hardware", "Hardware")),
                         // Cycles, never gigahertz. See the class comment.
                         spec("Compute", total + " cycles"),
                         spec("Memory buffer", capacity.memoryBuffer() + " units"),
                         spec("Bandwidth", capacity.bandwidth() + " concurrent"),
                         spec("Thermal budget", capacity.thermalBudget() + " units"),
                         new Separator(),
-                        Ui.label("Storage"),
+                        Ui.label(t("ui.views.storage", "Storage")),
                         spec("Vault", tier(session, io.github.stoicswe.eyeandsickle.protocol.game.StorageTier.VAULT)),
                         spec(
                                 "Standard",
@@ -3177,7 +3270,7 @@ public final class Views {
                                         session,
                                         io.github.stoicswe.eyeandsickle.protocol.game.StorageTier.HIGH_HACKABLE_ZONE)),
                         new Separator(),
-                        Ui.label("This character"),
+                        Ui.label(t("ui.views.this-character", "This character")),
                         spec("Uptime", Ui.clock(uptime)),
                         // The local Ethecoin.format() formatter, which is now the same string Ethecoin's own toString
                         // produces. This used to carry a warning that the record's generated toString leaked
@@ -3185,11 +3278,13 @@ public final class Views {
                         // type now renders itself. See Ethecoin#toString for what it cost to find out.
                         spec("Balance", Ethecoin.format(session.balance().wei())),
                         new Separator(),
-                        wrapped("Profile directory: " + profile.directory()),
-                        wrapped("Everything this client writes lives in that one directory — settings, "
-                                + "window positions and the save. It is the only place on your machine the "
-                                + "game touches, which is what lets the terminal look like a shell without "
-                                + "being one."));
+                        wrapped(t("ui.views.profile-directory-2", "Profile directory: " + profile.directory())),
+                        wrapped(t(
+                                "ui.views.everything-this-client-writes",
+                                "Everything this client writes lives in that one directory — settings, "
+                                        + "window positions and the save. It is the only place on your machine the "
+                                        + "game touches, which is what lets the terminal look like a shell without "
+                                        + "being one.")));
         return box;
     }
 
@@ -3266,7 +3361,7 @@ public final class Views {
         detail.setFitToHeight(true);
 
         TextField search = new TextField();
-        search.setPromptText("Search");
+        search.setPromptText(t("settings.search", "Search"));
         search.getStyleClass().add("es-settings-search");
 
         String[] selected = {pages.keySet().iterator().next()};
@@ -3363,6 +3458,29 @@ public final class Views {
         heading.getStyleClass().add("es-panel-title");
         root.getChildren().add(heading);
         return root;
+    }
+
+    /**
+     * A translatable interface string: the key, and the English the code already carries.
+     *
+     * <h2>⚠ English stays HERE, in the source, and is the fallback</h2>
+     *
+     * The alternative — moving these sentences into {@code ui_en.properties} and leaving a bare key
+     * at the call site — was rejected. Half of them explain <em>why</em> a setting is off by default,
+     * and that reasoning belongs where somebody changing the setting will read it; a file of
+     * disembodied prose keyed {@code settings.desk.freeDrag} is documentation nobody maintains. It
+     * would also make every one of these a two-file edit, which is how English and the thing it
+     * describes drift apart.
+     *
+     * <p>So {@code ui} is an <b>overlay</b> bundle ({@code Messages.overlay}): there is no
+     * {@code ui_en.properties}, a translation supplies only what it has translated, and anything it
+     * has not reached keeps the English written right here.
+     *
+     * <p>⚠ Resolved at <b>call time</b>, never cached — {@code Text.current()} changes when the
+     * player changes the setting, and these are built afresh every time the panel is opened.
+     */
+    static String t(String key, String english) {
+        return io.github.stoicswe.eyeandsickle.client.i18n.Text.current().ui(key, english);
     }
 
     static Label wrapped(String text) {
