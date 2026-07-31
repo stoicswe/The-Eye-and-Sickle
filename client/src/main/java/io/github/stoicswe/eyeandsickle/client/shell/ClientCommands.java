@@ -96,14 +96,21 @@ public final class ClientCommands {
                         List<String> out = new ArrayList<>();
                         out.add(pad("ID", 16) + pad("TITLE", 18) + "STANDS IN FOR");
                         for (WindowSpec spec : WindowSpec.values()) {
-                            out.add(pad(spec.id(), 16) + pad(spec.title(), 18) + spec.unixAnalogue());
+                            out.add(pad(spec.id(), 16)
+                                    + pad(
+                                            io.github.stoicswe.eyeandsickle.client.i18n.Text.current()
+                                                    .title(spec),
+                                            18)
+                                    + spec.unixAnalogue());
                         }
                         return Command.Output.ok(out);
                     }
                     return WindowSpec.byId(id)
                             .map(spec -> {
                                 windows.open(spec);
-                                return Command.Output.ok(spec.title() + " raised");
+                                return Command.Output.ok(
+                                        io.github.stoicswe.eyeandsickle.client.i18n.Text.current()
+                                                        .title(spec) + " raised");
                             })
                             .orElseGet(() -> Command.Output.usage("no window called '" + id + "'"));
                 }));

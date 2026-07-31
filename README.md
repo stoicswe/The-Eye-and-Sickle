@@ -54,3 +54,103 @@ mvn -Pquality spotless:apply        # format with palantir-java-format
 Container-backed tests are deliberately kept out of the default build so a plain `mvn verify` works on a fresh clone with no toolchain beyond a JDK.
 
 Self-contained client packaging (jlink/jpackage) is **not wired up yet** — see the comment at the bottom of [`client/pom.xml`](client/pom.xml) for why `jlink` cannot work with the current dependency graph and what the two real options are.
+
+## Adding a translation
+
+The client ships English and is built to take more. A translation is **data, not code** — new files
+in `client/src/main/resources/`, plus one line in an enum so the language appears in the picker.
+
+Players choose their language in **Settings → Language**. It is machine-wide rather than per
+character, for the same reason text size and Reduce motion are: a palette is a costume, but a
+language is whether you can read the game.
+
+### What is translated, and what is never translated
+
+This is the one rule that matters, and getting it backwards would damage the thing the game exists
+for.
+
+| Translated | Never translated |
+|---|---|
+| What a command's option **means** | The command's name — `grep`, `sweep`, `mine` |
+| What an argument **is for** | Flag names — `--thorough`, `-i`, `--fee` |
+| Manual page prose | Choice values — `--fee=priority` |
+| Window titles and descriptions | Window ids (they key saved desk layouts) |
+| Settings labels and captions | The name of a language, in the picker |
+
+`grep -v` is `grep -v` in every locale. The parser has no other name for it, real Unix does not
+localise flags either, and pillar **C6** sells skill that transfers to a real terminal — a player who
+learns `grep -v` here can use it tonight on any machine they touch. Localising a flag would take that
+away from precisely the players a translation exists to serve.
+
+Language names in the picker are the one string deliberately **identical in every locale**: it reads
+`English · Deutsch · 日本語`, never `English · German · Japanese`. Someone who has landed in a
+language they cannot read has to find their own on that list, and their own is the only entry they
+are certain to recognise.
+
+### The three places text lives
+
+Say you are adding German (`de`). Everything is keyed off the IETF tag.
+
+**1. Message bundles** — `client/src/main/resources/io/github/stoicswe/eyeandsickle/client/i18n/`
+
+```bash
+cp commands_en.properties commands_de.properties
+```
+
+Translate the values; leave every key alone. Two bundles have no `_en` file at all — `windows_*` and
+`ui_*` — because their English lives in code (`WindowSpec` carries its own title and description, and
+a test asserts that table against `docs/client/05`). For those, create `windows_de.properties` from
+scratch; any key you do not write keeps the English from the code.
+
+**Files are read as UTF-8**, explicitly. Write `Größe`, not `Größe` — Java's own
+`Properties.load(InputStream)` is ISO-8859-1 by definition, which is why the loader does not use it.
+
+**2. Manual pages** — `client/src/main/resources/io/github/stoicswe/eyeandsickle/client/terms/`
+
+```bash
+mkdir -p terms/de
+```
+
+Copy pages across from `terms/en/` as you translate them. **Do not copy `index.txt`** — the index is
+always read from `en`, because it is the list of pages the manual *has*, which is structure rather
+than text. A translated index would let a partial translation silently shrink the manual: render
+twelve of twenty-three pages and the other eleven would not go missing in one language, they would
+cease to exist, and a shorter manual looks exactly like a shorter manual.
+
+**3. The registry** — `client/src/main/java/.../i18n/Language.java`
+
+```java
+ENGLISH("en", "English"),
+GERMAN("de", "Deutsch");
+```
+
+This is an explicit list rather than a directory scan on purpose. Scanning works from
+`target/classes` and quietly stops working from inside a jar — and the client ships as a jar three
+different ways. It would also offer a language the moment one file existed for it, putting a
+half-empty language in front of every player.
+
+### Partial translations are the normal case
+
+You do not have to finish before you ship. Fallback is **per key** and **per manual page**, never per
+file:
+
+- A key your bundle does not define keeps its English.
+- A key left **blank** is treated as "not done yet" and also keeps its English — so delete a line
+  rather than emptying it if you mean to fall back deliberately.
+- A manual page you have not written yet is shown in English rather than left out.
+- Every page that fell back is listed in `TermDatabase.problems()`, so an unfinished translation is
+  visible to whoever is finishing it and not only to the player.
+
+A page that *exists* but is malformed reports as malformed rather than silently falling back — that
+is the one problem a translator most needs to see.
+
+### Checking your work
+
+```bash
+mvn -pl client test -Dtest='LanguageTest,LanguageFallbackTest,CommandSpecTest'
+```
+
+`CommandSpecTest` is the one that will catch a structural mistake: it holds that every flag a command
+declares is one its parser really reads, that every message key resolves, and that the bundle carries
+no key nothing asks for — a dead key being a translator's wasted afternoon on an option that no
+longer exists.

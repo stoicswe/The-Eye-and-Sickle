@@ -109,7 +109,20 @@ public class EyeAndSickleClient extends Application {
         themes = new ThemeManager(profile);
         registry = new WindowRegistry(profile);
         slots = new CharacterSlots(profile);
-        terms = TermDatabase.load();
+
+        // ⚠ Resolved BEFORE anything reads text, and used for both the interface and the manual —
+        // one language, decided once. The manual in particular is loaded here and never reloaded, so
+        // deciding after this line would leave `man` permanently English however the picker was set.
+        //
+        // ⚠ A BLANK setting means "never chosen", which is not the same as "chose English": the
+        // first is free to follow the host's language, the second must be obeyed on a German
+        // machine. An unknown tag — a language some later build removed — falls to English rather
+        // than throwing, because this is a file the player can edit.
+        io.github.stoicswe.eyeandsickle.client.i18n.Language language =
+                io.github.stoicswe.eyeandsickle.client.i18n.Language.ofTag(profile.settings().language)
+                        .orElseGet(io.github.stoicswe.eyeandsickle.client.i18n.Language::hostDefault);
+        io.github.stoicswe.eyeandsickle.client.i18n.Text.use(language);
+        terms = TermDatabase.load(language.tag());
 
         themes.followSystemPreferences();
 

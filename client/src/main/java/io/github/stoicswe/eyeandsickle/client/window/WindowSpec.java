@@ -447,6 +447,31 @@ public enum WindowSpec {
     }
 
     /**
+     * The message key for {@link #title()} — {@code window.rig-monitor.title}.
+     *
+     * <h2>⚠ Derived from the id, which is why it cannot drift</h2>
+     *
+     * The id is already the stable identifier: it keys saved desk layouts, so it is the one field
+     * here that must never change. Deriving the key from it means a translation can never point at a
+     * window that no longer exists, and a new window arrives with its keys already correct.
+     *
+     * <h2>⚠ English is NOT in the bundle</h2>
+     *
+     * {@link #title} above is the English, and {@code WindowSpecTest} asserts this table against
+     * {@code docs/client/05} §2.1. A {@code windows_en.properties} would be a second English that
+     * nothing keeps in step. Callers resolve through {@code Messages.overlay} with the enum's own
+     * string as the fallback, so a locale that has not translated a window shows the English one.
+     */
+    public String titleKey() {
+        return "window." + id + ".title";
+    }
+
+    /** The message key for {@link #description()}. See {@link #titleKey()}. */
+    public String descriptionKey() {
+        return "window." + id + ".description";
+    }
+
+    /**
      * The real tool this window is standing in for.
      *
      * <p>Shown in the window's own help and in the switcher, because it is one of the cheapest pieces

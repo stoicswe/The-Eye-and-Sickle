@@ -2373,6 +2373,35 @@ public final class Views {
             }
         });
 
+        // ── Language ──────────────────────────────────────────────────────────────────────────
+        // ⚠ The list reads "English · Deutsch · 日本語" — every language named in ITSELF, never
+        // translated. A player who has landed in a language they cannot read has to find their own
+        // on this list, and their own is the only entry they are certain to recognise. It is the one
+        // control in the client that looks identical in every locale, and that is the point.
+        ChoiceBox<io.github.stoicswe.eyeandsickle.client.i18n.Language> language = new ChoiceBox<>();
+        language.getItems().addAll(io.github.stoicswe.eyeandsickle.client.i18n.Language.shipped());
+        language.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(io.github.stoicswe.eyeandsickle.client.i18n.Language value) {
+                return value == null ? "" : value.endonym();
+            }
+
+            @Override
+            public io.github.stoicswe.eyeandsickle.client.i18n.Language fromString(String text) {
+                return null;
+            }
+        });
+        language.setValue(
+                io.github.stoicswe.eyeandsickle.client.i18n.Text.current().language());
+        language.valueProperty().addListener((o, was, now) -> {
+            if (now == null) {
+                return;
+            }
+            profile.settings().language = now.tag();
+            profile.save();
+            io.github.stoicswe.eyeandsickle.client.i18n.Text.use(now);
+        });
+
         ChoiceBox<String> teaching = new ChoiceBox<>();
         teaching.getItems().addAll("explain", "terms", "off");
         teaching.setValue(profile.settings().teachingLevel);
@@ -2969,6 +2998,25 @@ public final class Views {
                         wrapped("Follows your system setting unless you change it here. Suppresses the "
                                 + "panel wipe, the caret blink, the greeble and the sweep bar; readouts "
                                 + "keep updating, because that is information, not animation.")));
+
+        pages.put(
+                "Language",
+                settingsPage(
+                        Ui.label("Interface language"),
+                        language,
+                        wrapped("Every language is listed in its own name, so you can find yours "
+                                + "whichever one the game is currently in."),
+                        new Separator(),
+                        wrapped("Windows you open from now on are in the new language; ones already "
+                                + "on screen keep the text they were built with until you close and "
+                                + "reopen them."),
+                        new Separator(),
+                        wrapped("Command names and their options are never translated \u2014 `grep -v` "
+                                + "is `grep -v` everywhere, because that is what it is called on a "
+                                + "real machine and carrying that knowledge out of the game is the "
+                                + "point. What each one MEANS is translated, and so is the manual. A "
+                                + "page nobody has translated yet is shown in English rather than "
+                                + "left out.")));
 
         pages.put("About", settingsPage(about(profile, session)));
 

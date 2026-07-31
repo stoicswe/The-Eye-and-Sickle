@@ -88,15 +88,51 @@ public final class WrapStrip extends Region {
         return node.prefWidth(-1);
     }
 
+    /**
+     * Whether a child takes part in the layout at all.
+     *
+     * <h2>⚠ An empty cell is not a narrow cell — it is not a cell</h2>
+     *
+     * A cell carries {@code -fx-padding: 7 14 7 14} and a 1px divider, so a cell whose label has no
+     * text is still <b>29 pixels wide and still draws a rule</b>. The strip's refusal cell is empty
+     * almost always, and those 29 pixels were charged against the width budget on every layout pass.
+     *
+     * <p>Measured: at a 1200px deck the strip needed 1113 and had 1104 — it wrapped by <b>nine
+     * pixels</b>, doubling the height of the chrome and dropping the clock onto a row of its own. The
+     * dead cell was three times the overflow. So this asks {@code isManaged()}, JavaFX's own word for
+     * "in the layout", and a caller collapses a cell by unmanaging it.
+     *
+     * <p>⚠ Deliberately <b>not</b> {@code isVisible()}. {@link #layoutChildren} sets the spacer
+     * invisible when it wraps; keying off visibility would change the next pass's measurement, which
+     * would change whether it wraps, which would flip the visibility back — a strip that oscillates
+     * between one row and two forever.
+     */
+    private boolean counts(Node node) {
+        return node.isManaged();
+    }
+
     private double rowHeight() {
         double tallest = 0;
         for (Node node : flow) {
-            tallest = Math.max(tallest, node.prefHeight(-1));
+            if (counts(node)) {
+                tallest = Math.max(tallest, node.prefHeight(-1));
+            }
         }
         if (pinned != null) {
             tallest = Math.max(tallest, pinned.prefHeight(-1));
         }
         return tallest;
+    }
+
+    /** The width every participating flow child wants, which is what decides whether it wraps. */
+    private double flowWidth() {
+        double total = 0;
+        for (Node node : flow) {
+            if (counts(node)) {
+                total += widthOf(node);
+            }
+        }
+        return total;
     }
 
     @Override
@@ -116,16 +152,15 @@ public final class WrapStrip extends Region {
 
     /** How many rows the flow children need at this usable width. Always at least one. */
     private int rowsNeeded(double usable) {
-        double total = 0;
-        for (Node node : flow) {
-            total += widthOf(node);
-        }
-        if (usable <= 0 || total <= usable) {
+        if (usable <= 0 || flowWidth() <= usable) {
             return 1;
         }
         int rows = 1;
         double used = 0;
         for (Node node : flow) {
+            if (!counts(node)) {
+                continue;
+            }
             double w = widthOf(node);
             // ⚠ `used > 0` guards the pathological case: a single child wider than the whole strip
             // would otherwise start a new row, find it still does not fit, and loop forever.
@@ -158,10 +193,7 @@ public final class WrapStrip extends Region {
         // layoutChildren() would be computing against different budgets, and a disagreement there
         // clips the last row instead of merely wasting space. Consistency wins.
         double usable = full - pinnedWidth;
-        double total = 0;
-        for (Node node : flow) {
-            total += widthOf(node);
-        }
+        double total = flowWidth();
 
         if (total <= usable) {
             // The HBox case, reproduced exactly: one row, and the spacer eats the difference so the
@@ -169,6 +201,9 @@ public final class WrapStrip extends Region {
             double x = flowLeft;
             double slack = usable - total;
             for (Node node : flow) {
+                if (!counts(node)) {
+                    continue;
+                }
                 if (node == spacer) {
                     double w = widthOf(node) + slack;
                     node.setVisible(true);
@@ -189,6 +224,9 @@ public final class WrapStrip extends Region {
         double x = flowLeft;
         double y = top;
         for (Node node : flow) {
+            if (!counts(node)) {
+                continue;
+            }
             if (node == spacer) {
                 node.setVisible(false);
                 node.resizeRelocate(x, y, 0, 0);

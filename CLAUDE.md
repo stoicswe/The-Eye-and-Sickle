@@ -942,6 +942,53 @@ offers each command's **real** options instead of three universal flags.
 - No command uses `section() == 8` today, so `LocalCatalogue`'s old "Rig maintenance" group was always
   empty. Sections are now purely the man page number; the menu drawer is `category()`.
 
+**Settings → Language, and `i18n/Text` (2026-07-31).** `i18n/Language` is the shipped-language registry,
+`i18n/Text` is the one place the client asks for a string. README's "Adding a translation" is the
+procedure.
+
+- ⚠ **Language is MACHINE-WIDE, not per character** — the same line `uiScalePercent` and
+  `reducedMotionOverride` sit on. A palette is a costume; a language is whether the player can read the
+  game, so per-character would hand somebody who needs Deutsch an English client on every new character.
+- ⚠ **A BLANK setting means "never chosen" and is NOT "chose English".** The first may follow the host's
+  language; the second must be obeyed on a German machine. Stored as the **tag**, not the enum, because
+  the file outlives the build — an unknown tag falls to English rather than throwing.
+- ⚠ **The language is resolved ONCE in `start()`, before `TermDatabase.load()`.** The manual is loaded
+  there and never reloaded, so deciding later leaves `man` permanently English however the picker is set.
+- ⚠ **`Language` is an explicit enum, never a directory scan.** A scan works from `target/classes` and
+  stops working inside a jar (the trap `TermDatabase` already documents), and it would offer a language
+  the moment one file existed — a half-empty language in front of every player.
+- ⚠ **The picker shows ENDONYMS and is the one control identical in every locale** — `English · Deutsch
+  · 日本語`, never `German`. A player who has landed in a language they cannot read must find their own,
+  and their own is the only entry they are certain to recognise.
+- ⚠ **`Messages.overlay` vs `Messages.load` is about which side owns English.** `commands` uses `load` —
+  the bundle is the only place those sentences exist. `windows`/`ui` use `overlay` — `WindowSpec` carries
+  its own English and `WindowSpecTest` asserts it against `docs/client/05`, so a `windows_en.properties`
+  would be a second English that nothing keeps in step and the copy is the one that would rot.
+- ⚠ **`WindowSpec.titleKey()` derives from the id**, which is already the stable identifier (it keys
+  saved desk layouts). A translation therefore cannot point at a window that no longer exists.
+- ⚠ **`unixAnalogue` is NOT translated** — it is real command names, same rule as flags.
+- ⚠ **Never cache `Text.current()`** — same rule as `profile.appearance()`, same reason.
+- **Still English literals:** the Settings category names and most in-panel captions. `Text.ui(key,
+  english)` is the mechanism and is wired; converting those call sites is mechanical and not done.
+
+⚠ **An EMPTY strip cell is not a narrow cell — it is 29px and a divider (2026-07-31).** A cell is
+`-fx-padding: 7 14 7 14` plus a 1px rule, so the top strip's refusal cell — empty almost always — spent
+29px of the width budget on every layout pass. Measured on the real deck at 1200px: the strip wanted
+**1113** and had **1104**, so it wrapped by **nine pixels**, doubling the height of the chrome and
+pushing every window down. The dead cell was three times the overflow.
+
+- ⚠ **`WrapStrip` now skips `!isManaged()` children**, and `DeckShell` binds the refusal cell's
+  `managed` to whether the label has text. `setVisible` alone leaves the gap and the divider behind.
+- ⚠ **Keyed on `isManaged`, deliberately NOT `isVisible`.** `layoutChildren` sets the spacer invisible
+  when it wraps; keying off visibility would change the next pass's measurement, which would change
+  whether it wraps, which would flip the visibility back — a strip oscillating between one row and two
+  forever.
+- ⚠ **Wrapping still happens when it genuinely must** (verified by render at 800px — two full rows).
+  That is the 200%-UI-scale case `WrapStrip` exists for; this only stops it firing over a dead cell.
+- `WrapStripTest` needs no toolkit — `Region` does its own layout maths, so it exercises the real
+  `layoutChildren` rather than a reimplementation that would have agreed with the bug. Verified against
+  the unfixed code first: all three checks fired.
+
 **The client has an event bus, and it is CloudEvents v1.0.2 (2026-07-29)** — `client/.../events/`,
 over Spring's `SimpleApplicationEventMulticaster`. The LOG window gained an **EVENTS** tab beside
 **OVERVIEW**, which is its previous content unchanged.

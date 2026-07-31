@@ -85,6 +85,35 @@ public final class Messages {
         return load(bundle, FALLBACK);
     }
 
+    /**
+     * A translation laid over English that lives in <b>code</b> rather than in a bundle.
+     *
+     * <h2>Why this exists</h2>
+     *
+     * {@code WindowSpec} carries its own English title and description, and a test asserts that table
+     * against {@code docs/client/05}. Copying those strings into {@code windows_en.properties} would
+     * make two English sources for one sentence, and the copy is the one that would rot — nothing
+     * would notice the day somebody edited the enum and not the file.
+     *
+     * <p>So English stays where it is and a translation is an <b>overlay</b>: callers ask with
+     * {@link #get(String, String)}, passing the code's own string as the fallback. No English bundle
+     * is expected, and its absence is not a problem to report.
+     *
+     * <p>⚠ The distinction from {@link #load} is which side owns English. Use {@code load} when the
+     * bundle is the only place the sentence exists (the command schema); use this when the code
+     * already holds it.
+     */
+    public static Messages overlay(String bundle, String language) {
+        String wanted = language == null || language.isBlank()
+                ? FALLBACK
+                : language.trim().toLowerCase(Locale.ROOT);
+        Messages messages = new Messages(wanted);
+        if (!wanted.equals(FALLBACK)) {
+            messages.read(bundle, wanted, false);
+        }
+        return messages;
+    }
+
     private void read(String bundle, String language, boolean required) {
         String path = ROOT + bundle + "_" + language + ".properties";
         try (InputStream in = Messages.class.getResourceAsStream(path)) {

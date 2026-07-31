@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.client.ui;
 
+import io.github.stoicswe.eyeandsickle.client.i18n.Text;
 import io.github.stoicswe.eyeandsickle.client.profile.ClientProfile;
 import io.github.stoicswe.eyeandsickle.client.profile.Hostname;
 import io.github.stoicswe.eyeandsickle.client.session.GameSession;
@@ -336,7 +337,7 @@ public final class DeckShell {
         }
         desk.open(new DeskManager.Spec(
                         spec.id(),
-                        spec.title(),
+                        Text.current().title(spec),
                         designator(spec),
                         content(spec, factory),
                         spec.defaultWidth() * 0.72,
@@ -433,7 +434,16 @@ public final class DeckShell {
         topStrip.add(cell(noise));
         topStrip.add(cell(load));
         topStrip.add(cell(thermal));
-        topStrip.add(cell(refusal));
+        // ⚠ Collapsed while there is nothing to refuse. A cell is 28px of padding plus a 1px divider,
+        // so an empty one is not a narrow cell — it is 29 pixels and a rule drawn for no reason, spent
+        // out of the strip's width budget on every layout pass. Measured: at a 1200px deck the strip
+        // wanted 1113px and had 1104, so it wrapped onto a second row — doubling the height of the
+        // chrome, over an overflow three times smaller than this dead cell. Unmanaging is what takes a
+        // node out of the layout; setVisible alone would leave the gap and the divider behind.
+        Region refusalCell = cell(refusal);
+        refusalCell.managedProperty().bind(refusal.textProperty().isNotEmpty());
+        refusalCell.visibleProperty().bind(refusalCell.managedProperty());
+        topStrip.add(refusalCell);
         topStrip.setSpacer(spacer);
         topStrip.add(spacer);
         topStrip.add(HazardBand.top(96));
@@ -784,8 +794,8 @@ public final class DeckShell {
      * shortcut to information, not a hiding place for it.
      */
     private static Tooltip railTooltip(WindowSpec spec, boolean minimized) {
-        Tooltip tip = new Tooltip(Ui.upper(spec.title())
-                + "\n" + spec.description()
+        Tooltip tip = new Tooltip(Ui.upper(Text.current().title(spec))
+                + "\n" + Text.current().description(spec)
                 + "\n\nStands in for: " + spec.unixAnalogue()
                 + "\nOpens with: " + spec.combination().getDisplayText()
                 + (minimized ? "\nMinimised — click to restore." : ""));
@@ -1159,7 +1169,7 @@ public final class DeckShell {
             }
             desk.open(new DeskManager.Spec(
                             spec.id(),
-                            spec.title(),
+                            Text.current().title(spec),
                             designator(spec),
                             content(spec, factory),
                             spec.defaultWidth() * 0.72,
@@ -1211,7 +1221,7 @@ public final class DeckShell {
             WindowSpec target = spec;
             desk.open(new DeskManager.Spec(
                             spec.id(),
-                            spec.title(),
+                            Text.current().title(spec),
                             designator(spec),
                             content(target, factory),
                             spec.defaultWidth() * 0.72,

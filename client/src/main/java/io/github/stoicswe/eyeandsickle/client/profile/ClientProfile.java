@@ -410,6 +410,27 @@ public final class ClientProfile {
         public int uiScalePercent = 100;
 
         /**
+         * Which language the interface is in — an IETF tag, {@code en} by default.
+         *
+         * <h2>⚠ Machine-wide, not per character, and for the same reason as {@link #uiScalePercent}</h2>
+         *
+         * Appearance is per character ({@code Settings.characterAppearance}) because a palette is a
+         * costume. A language is not: it is whether the player can read the game. Per-character would
+         * hand somebody who needs Deutsch an English client on every new character they start, which
+         * is the accessibility floor {@code docs/client/07} draws for text size and motion, and this
+         * sits on the same side of that line.
+         *
+         * <p>⚠ Stored as the <b>tag</b> rather than the enum, because this file outlives the build
+         * that wrote it. A tag naming a language we later removed reads back as unknown and falls to
+         * English — {@code Language.ofTag} returns empty rather than throwing for exactly that.
+         *
+         * <p>⚠ Blank means "never chosen", which is <em>not</em> the same as "chose English". The
+         * first is free to follow the host's language; the second must be obeyed even on a German
+         * machine. {@code Language.hostDefault()} resolves the first case, once.
+         */
+        public String language = "";
+
+        /**
          * Whether the deck takes the whole screen.
          *
          * <p><b>Off by default, and deliberately.</b> Full screen on macOS moves the window to its
