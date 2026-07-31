@@ -66,7 +66,10 @@ public enum BezelStyle {
      * <p>Reads as a targeting overlay rather than a casing. Open runs are the point: a frame that
      * closes on all four sides puts the interface inside a picture, which is what §9 objected to.
      */
-    BRACKETS("brackets", "Corner brackets", 14,
+    BRACKETS(
+            "brackets",
+            "Corner brackets",
+            14,
             "Brackets at the corners and ticks along the edges. Open in the middle."),
 
     /**
@@ -104,7 +107,10 @@ public enum BezelStyle {
      * and chevrons — deliberately none of the protected emblems the obvious reference is known for.
      * The look comes from the construction, which is free to borrow; the insignia are not.
      */
-    GOTHIC("gothic", "Gothic plate", 46,
+    GOTHIC(
+            "gothic",
+            "Gothic plate",
+            46,
             "Heavy riveted plate, buttressed corners and hazard chevrons. The loudest option."),
 
     /**
@@ -116,8 +122,7 @@ public enum BezelStyle {
      * dark. A panel whose lamps all went out under reduced motion would read as powered off, which
      * is a worse answer than a still one.
      */
-    TERMINAL("terminal", "Terminal panel", 40,
-            "A front panel with blinking status lamps, switches and a grille."),
+    TERMINAL("terminal", "Terminal panel", 40, "A front panel with blinking status lamps, switches and a grille."),
 
     /**
      * Beveled chrome in the 3.1 idiom: raised outer frame, title bar, drawn control boxes.
@@ -130,8 +135,7 @@ public enum BezelStyle {
      * <p>The bevel is legal on its own terms: §2.1 says depth comes from <b>brightness, never from
      * shadow</b>, and a bevel is exactly a light edge against a dark one. No blur, no drop shadow.
      */
-    CHROME_31("chrome31", "Chrome 3.1", 30,
-            "Raised bevel, title bar and drawn control boxes. A retro window manager."),
+    CHROME_31("chrome31", "Chrome 3.1", 30, "Raised bevel, title bar and drawn control boxes. A retro window manager."),
 
     /**
      * The old Unix frame: thick double bevel, segmented border with corner grips, square buttons.
@@ -140,8 +144,7 @@ public enum BezelStyle {
      * the corner segments reading as resize grips, and a title bar carrying a menu box on the left
      * and two square buttons on the right. Squarer, heavier and greyer than {@link #CHROME_31}.
      */
-    MOTIF("motif", "Motif", 34,
-            "Thick double bevel with corner grips and square buttons. The old Unix frame."),
+    MOTIF("motif", "Motif", 34, "Thick double bevel with corner grips and square buttons. The old Unix frame."),
 
     /**
      * A ruled measure along all four edges.

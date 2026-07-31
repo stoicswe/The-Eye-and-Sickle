@@ -6,12 +6,12 @@ import io.github.stoicswe.eyeandsickle.client.session.GameSession;
 import io.github.stoicswe.eyeandsickle.client.shell.Shell;
 import io.github.stoicswe.eyeandsickle.client.ui.chrome.DeskManager;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.DiskLamp;
-import io.github.stoicswe.eyeandsickle.client.ui.widgets.NoiseMeter;
-import io.github.stoicswe.eyeandsickle.client.ui.widgets.Sparkline;
-import io.github.stoicswe.eyeandsickle.client.ui.widgets.ThermoMeter;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.Greeble;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.HazardBand;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.KeyValue;
+import io.github.stoicswe.eyeandsickle.client.ui.widgets.NoiseMeter;
+import io.github.stoicswe.eyeandsickle.client.ui.widgets.Sparkline;
+import io.github.stoicswe.eyeandsickle.client.ui.widgets.ThermoMeter;
 import io.github.stoicswe.eyeandsickle.client.view.RigStatus;
 import io.github.stoicswe.eyeandsickle.client.window.WindowSpec;
 import java.time.Duration;
@@ -113,6 +113,7 @@ public final class DeckShell {
      */
     private final io.github.stoicswe.eyeandsickle.client.ui.widgets.WrapStrip topStrip =
             new io.github.stoicswe.eyeandsickle.client.ui.widgets.WrapStrip();
+
     private final VBox rail = new VBox(UiTokens.SPACE_6);
     private final VBox launcher = new VBox(3);
     private final Greeble commandGreeble = new Greeble(28);
@@ -185,6 +186,7 @@ public final class DeckShell {
 
     /** What the balance is growing by, so the rate is readable without opening the mining window. */
     private final Label income = Ui.micro("+0.00 EC/HR");
+
     private final Label refusal = new Label("");
 
     private final TextField commandInput = new TextField();
@@ -198,6 +200,7 @@ public final class DeckShell {
      * the old name until the client was restarted, which reads as the change not having worked.
      */
     private final Label prompt = new Label("");
+
     private final Instant startedAt = Instant.now();
     private AutoCloseable sessionSubscription;
     private Stage stage;
@@ -275,8 +278,8 @@ public final class DeckShell {
         // desk so a notice is not covered by a window tiled into that corner.
         notices = new Notifications(profile);
         javafx.scene.layout.StackPane.setAlignment(notices, Pos.TOP_RIGHT);
-        notices.setPadding(new javafx.geometry.Insets(
-                UiTokens.STRIP_HEIGHT + UiTokens.SPACE_6, UiTokens.SPACE_6, 0, 0));
+        notices.setPadding(
+                new javafx.geometry.Insets(UiTokens.STRIP_HEIGHT + UiTokens.SPACE_6, UiTokens.SPACE_6, 0, 0));
         notices.watch(session);
 
         // The wallpaper goes inside the desk rather than behind the whole deck, because every other
@@ -604,8 +607,7 @@ public final class DeckShell {
         String faceKey = session.avatar() + "|" + handle;
         if (!faceKey.equals(operatorFaceKey)) {
             operatorFaceKey = faceKey;
-            operatorFace.setImage(
-                    io.github.stoicswe.eyeandsickle.client.ui.Avatar.image(session.avatar(), handle));
+            operatorFace.setImage(io.github.stoicswe.eyeandsickle.client.ui.Avatar.image(session.avatar(), handle));
         }
         if (!operatorHex.getStyleClass().contains("es-operator-hex")) {
             operatorHex.getStyleClass().add("es-operator-hex");
@@ -659,11 +661,7 @@ public final class DeckShell {
 
         Duration elapsed = Duration.between(startedAt, Instant.now());
         clock.set(String.format(
-                Locale.ROOT,
-                "%02d:%02d:%02d",
-                elapsed.toHours(),
-                elapsed.toMinutesPart(),
-                elapsed.toSecondsPart()));
+                Locale.ROOT, "%02d:%02d:%02d", elapsed.toHours(), elapsed.toMinutesPart(), elapsed.toSecondsPart()));
 
         // Local wall-clock time from the ENGINE's clock — see GameSession#now. Local zone, because
         // it is a clock on the operator's own desk rather than a timestamp for anyone else to read.
@@ -677,11 +675,11 @@ public final class DeckShell {
         // clock a player checks against a server log has to be the same one the log is written in.
         // Naming it "UTC" alone would be true and would not say why anyone should care.
         long up = session.uptimeSeconds();
-        clockTip.setText(
-                "SESSION  " + clock.value() + "   this sitting\n"
+        clockTip.setText("SESSION  " + clock.value() + "   this sitting\n"
                 + "LOCAL    " + localClock.value() + "   your timezone\n"
                 + "UPTIME   " + (up <= 0 ? "—" : uptime(up)) + "   this character, all sessions\n"
-                + "SERVER   " + java.time.LocalTime.ofInstant(at, java.time.ZoneOffset.UTC)
+                + "SERVER   "
+                + java.time.LocalTime.ofInstant(at, java.time.ZoneOffset.UTC)
                         .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss", Locale.ROOT))
                 + "   UTC, which is what every timestamp on the wire uses");
     }
@@ -691,8 +689,7 @@ public final class DeckShell {
         long days = seconds / 86_400;
         long hours = (seconds % 86_400) / 3_600;
         long minutes = (seconds % 3_600) / 60;
-        return (days > 0 ? days + "d " : "")
-                + String.format(Locale.ROOT, "%02dh %02dm", hours, minutes);
+        return (days > 0 ? days + "d " : "") + String.format(Locale.ROOT, "%02dh %02dm", hours, minutes);
     }
 
     // ── Rail ─────────────────────────────────────────────────────────────────────────────────
@@ -729,9 +726,12 @@ public final class DeckShell {
 
         Label mode = Ui.label(desk.placement() == DeskManager.Placement.SNAP ? "SNP" : "FRE");
         mode.getStyleClass().add("es-rail-label");
-        Tooltip.install(mode, new Tooltip(desk.placement() == DeskManager.Placement.SNAP
-                ? "Windows snap to a grid, and tile when dragged to an edge. Settings → Layout."
-                : "Windows drag freely. Settings → Layout."));
+        Tooltip.install(
+                mode,
+                new Tooltip(
+                        desk.placement() == DeskManager.Placement.SNAP
+                                ? "Windows snap to a grid, and tile when dragged to an edge. Settings → Layout."
+                                : "Windows drag freely. Settings → Layout."));
         rail.getChildren().add(mode);
     }
 
@@ -750,7 +750,8 @@ public final class DeckShell {
         chip.setAlignment(Pos.CENTER);
 
         boolean open = desk.find(spec.id()).filter(w -> !w.isMinimized()).isPresent();
-        boolean minimized = desk.find(spec.id()).filter(DeskManager.DeskWindow::isMinimized).isPresent();
+        boolean minimized =
+                desk.find(spec.id()).filter(DeskManager.DeskWindow::isMinimized).isPresent();
         if (open) {
             chip.getStyleClass().add("es-chip-open");
         } else if (minimized) {
@@ -783,12 +784,11 @@ public final class DeckShell {
      * shortcut to information, not a hiding place for it.
      */
     private static Tooltip railTooltip(WindowSpec spec, boolean minimized) {
-        Tooltip tip = new Tooltip(
-                Ui.upper(spec.title())
-                        + "\n" + spec.description()
-                        + "\n\nStands in for: " + spec.unixAnalogue()
-                        + "\nOpens with: " + spec.combination().getDisplayText()
-                        + (minimized ? "\nMinimised — click to restore." : ""));
+        Tooltip tip = new Tooltip(Ui.upper(spec.title())
+                + "\n" + spec.description()
+                + "\n\nStands in for: " + spec.unixAnalogue()
+                + "\nOpens with: " + spec.combination().getDisplayText()
+                + (minimized ? "\nMinimised — click to restore." : ""));
         tip.setWrapText(true);
         tip.setMaxWidth(320);
         // JavaFX defaults to a one-second delay, which on a launcher rail is long enough that a
@@ -814,8 +814,8 @@ public final class DeckShell {
         box.setAlignment(Pos.CENTER);
         for (int i = 0; i < count * 4 + 1; i++) {
             boolean major = i % 4 == 0;
-            box.getChildren().add(Ui.block(
-                    major ? 20 : 12, UiTokens.HAIR, major ? "es-rail-tick-long" : "es-rail-tick"));
+            box.getChildren()
+                    .add(Ui.block(major ? 20 : 12, UiTokens.HAIR, major ? "es-rail-tick-long" : "es-rail-tick"));
         }
         return box;
     }
@@ -854,12 +854,13 @@ public final class DeckShell {
 
         HBox keys = new HBox(UiTokens.SPACE_6);
         keys.setAlignment(Pos.CENTER_LEFT);
-        keys.getChildren().addAll(
-                keyHint(SHORTCUT + "K", "palette", actions::openPalette),
-                keyHint(SHORTCUT + "0", "rig", () -> show(WindowSpec.RIG_MONITOR)),
-                keyHint(SHORTCUT + "1", "term", () -> show(WindowSpec.TERMINAL)),
-                keyHint(SHORTCUT + "/", "man", () -> show(WindowSpec.MAN)),
-                keyHint("ESC", "pause", this::togglePause));
+        keys.getChildren()
+                .addAll(
+                        keyHint(SHORTCUT + "K", "palette", actions::openPalette),
+                        keyHint(SHORTCUT + "0", "rig", () -> show(WindowSpec.RIG_MONITOR)),
+                        keyHint(SHORTCUT + "1", "term", () -> show(WindowSpec.TERMINAL)),
+                        keyHint(SHORTCUT + "/", "man", () -> show(WindowSpec.MAN)),
+                        keyHint("ESC", "pause", this::togglePause));
 
         // ⚠ The lamp sits BEFORE the prompt, where a machine's drive LED sits: left of everything,
         // outside the text. Putting it after the prompt would read as part of the shell's own
@@ -955,8 +956,8 @@ public final class DeckShell {
     public void applyPrompt() {
         String hostname = profile.settings().rigHostname;
         prompt.setText(Hostname.prompt(session.handle(), hostname));
-        prompt.setAccessibleText("Signed in as " + session.handle()
-                + " on " + Hostname.qualified(hostname) + ". Type a command here.");
+        prompt.setAccessibleText(
+                "Signed in as " + session.handle() + " on " + Hostname.qualified(hostname) + ". Type a command here.");
     }
 
     /**
@@ -995,8 +996,7 @@ public final class DeckShell {
         // have clipped the deck while the scale holder painted the corners back in.
         desk.setRoundedCorners(rounded);
         // The focused-window outline, same shape: static flag plus a walk of the live frames.
-        desk.setFocusRing(
-                profile.appearance().focusRing, profile.appearance().focusRingColor);
+        desk.setFocusRing(profile.appearance().focusRing, profile.appearance().focusRingColor);
     }
 
     /** Applies the desk-window control order (order only; never the side). */
@@ -1009,9 +1009,7 @@ public final class DeckShell {
 
     /** Applies the free-drag / snap-to-grid choice from Settings (§11 question 1). */
     public void applyPlacementSetting() {
-        desk.setPlacement(profile.settings().freeDragWindows
-                ? DeskManager.Placement.FREE
-                : DeskManager.Placement.SNAP);
+        desk.setPlacement(profile.settings().freeDragWindows ? DeskManager.Placement.FREE : DeskManager.Placement.SNAP);
     }
 
     /**
@@ -1106,10 +1104,8 @@ public final class DeckShell {
         // either paints the casing over the top strip or leaves a blank band around the deck.
         BezelStyle casing = BezelStyle.byId(profile.appearance().bezel).orElse(BezelStyle.OFF);
         bezel.setStyle(casing);
-        javafx.scene.layout.StackPane.setMargin(
-                deckRoot, new javafx.geometry.Insets(casing.margin()));
-        javafx.scene.layout.StackPane.setMargin(
-                notices, new javafx.geometry.Insets(casing.margin()));
+        javafx.scene.layout.StackPane.setMargin(deckRoot, new javafx.geometry.Insets(casing.margin()));
+        javafx.scene.layout.StackPane.setMargin(notices, new javafx.geometry.Insets(casing.margin()));
 
         substrate.setMode(WallpaperMode.byId(profile.appearance().wallpaper).orElse(WallpaperMode.DRIFT));
         substrate.setAberration(profile.appearance().crtAberration);
@@ -1230,15 +1226,16 @@ public final class DeckShell {
         javafx.application.Platform.runLater(() -> {
             for (int i = 0; i < opened.size(); i++) {
                 ClientProfile.DeskWindowState state = states.get(i);
-                opened.get(i).restoreState(
-                        clampToDesk(state),
-                        state.minimized,
-                        state.expanded,
-                        state.restoreWidth > 0
-                                ? new DeskManager.Geometry(
-                                        state.restoreX, state.restoreY,
-                                        state.restoreWidth, state.restoreHeight)
-                                : null);
+                opened.get(i)
+                        .restoreState(
+                                clampToDesk(state),
+                                state.minimized,
+                                state.expanded,
+                                state.restoreWidth > 0
+                                        ? new DeskManager.Geometry(
+                                                state.restoreX, state.restoreY,
+                                                state.restoreWidth, state.restoreHeight)
+                                        : null);
             }
             for (int i = 0; i < opened.size(); i++) {
                 Motion.reveal(opened.get(i).frame(), i * UiTokens.REVEAL_STAGGER_MS);

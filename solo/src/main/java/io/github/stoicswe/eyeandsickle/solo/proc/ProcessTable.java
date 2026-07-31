@@ -102,15 +102,13 @@ public final class ProcessTable {
      * parasite claiming to be a bracketed kernel thread would have to show zero I/O to fit in, and it
      * cannot, because it is talking to whoever planted it.
      */
-    private static RigProcess daemon(
-            SystemProcesses.Daemon daemon, SoloSave save, long interval, long upIntervals) {
+    private static RigProcess daemon(SystemProcesses.Daemon daemon, SoloSave save, long interval, long upIntervals) {
 
         long seed = Vitals.mix(save.characterId.hashCode(), daemon.name().hashCode());
         // A resting share in roughly [0.05, 1.4]% — daemons mostly sleep. The kernel's own threads
         // sit higher, which is what a real table looks like and why sorting by %CPU does not simply
         // list every daemon in name order.
-        double resting = (daemon.kernel() ? 0.35d : 0.12d)
-                + Math.floorMod(seed, 90L) / 100.0d;
+        double resting = (daemon.kernel() ? 0.35d : 0.12d) + Math.floorMod(seed, 90L) / 100.0d;
         double cpu = Vitals.gauge(seed, interval, resting, 0.55d);
 
         long ioIntervals = daemon.kernel() ? 0 : upIntervals;
@@ -129,8 +127,11 @@ public final class ProcessTable {
                 Vitals.cpuTime(seed, upIntervals, resting),
                 Vitals.steps(seed, interval, daemon.threads(), daemon.kernel() ? 2 : 1, 12),
                 (int) Vitals.gauge(seed >> 3, interval, daemon.kernel() ? 90 : 14, 0.9d),
-                (long) Vitals.gauge(seed >> 6, interval,
-                        daemon.kernel() ? 6L * MB : (10L + Math.floorMod(seed >> 9, 180L)) * MB, 0.06d),
+                (long) Vitals.gauge(
+                        seed >> 6,
+                        interval,
+                        daemon.kernel() ? 6L * MB : (10L + Math.floorMod(seed >> 9, 180L)) * MB,
+                        0.06d),
                 Vitals.steps(seed >> 12, interval, daemon.kernel() ? 8 : 60, 40, 24),
                 Vitals.counter(seed >> 15, ioIntervals, daemon.kernel() ? 0 : 90L * KB),
                 Vitals.counter(seed >> 18, ioIntervals, daemon.kernel() ? 0 : 34L * KB),
@@ -155,8 +156,7 @@ public final class ProcessTable {
      * results it had managed, and the cycles still take their full recovery. Its resting CPU share is
      * derived from the cycles it actually holds, so this row and the compute grid agree.
      */
-    private static RigProcess task(
-            TaskState task, SoloSave save, Instant now, long interval, long capacity) {
+    private static RigProcess task(TaskState task, SoloSave save, Instant now, long interval, long capacity) {
 
         long seed = Vitals.mix(save.characterId.hashCode(), task.taskId.hashCode());
         double resting = Math.max(0.8d, 100.0d * task.cycles / capacity);
@@ -200,8 +200,7 @@ public final class ProcessTable {
      * parasite's</b> allocation, because that one is emitted below in costume; emitting it here as
      * well would put the same theft on the table twice, once honestly labelled.
      */
-    private static List<RigProcess> allocations(
-            SoloSave save, Instant now, long interval, long capacity) {
+    private static List<RigProcess> allocations(SoloSave save, Instant now, long interval, long capacity) {
 
         List<RigProcess> out = new ArrayList<>();
         List<String> hidden = parasiteAllocationIds(save);
@@ -227,7 +226,10 @@ public final class ProcessTable {
                     Vitals.counter(seed >> 18, ran, 340L * KB),
                     // I4: self-mining reaches nothing. No traffic, ever — and a "minerd" with packets
                     // on it is therefore not the player's.
-                    0L, 0L, 0L, 0L,
+                    0L,
+                    0L,
+                    0L,
+                    0L,
                     save.rig.selfMiningCycles,
                     true,
                     false,
@@ -243,9 +245,7 @@ public final class ProcessTable {
             long ran = allocation.startedAt == null ? 0L : Math.max(0L, intervalsSince(allocation.startedAt, now));
             // Cooling, not working: a recovering row keeps a low resting figure that still moves,
             // because the cycles are genuinely doing something — coming back.
-            double resting = recovering
-                    ? 0.3d
-                    : Math.max(0.5d, 100.0d * allocation.cycles / capacity);
+            double resting = recovering ? 0.3d : Math.max(0.5d, 100.0d * allocation.cycles / capacity);
             double cpu = Vitals.gauge(seed, interval, resting, recovering ? 0.8d : 0.22d);
 
             out.add(new RigProcess(
@@ -264,7 +264,10 @@ public final class ProcessTable {
                     Vitals.steps(seed >> 12, interval, 32, 30, 24),
                     Vitals.counter(seed >> 15, ran, 40L * KB),
                     Vitals.counter(seed >> 18, ran, 12L * KB),
-                    0L, 0L, 0L, 0L,
+                    0L,
+                    0L,
+                    0L,
+                    0L,
                     allocation.cycles,
                     // A recovering allocation is not doing anything to stop. Offering `kill` on
                     // cycles already on their way back would be a control with no verb.
@@ -284,8 +287,7 @@ public final class ProcessTable {
      * It is killable like any of the player's own rows, because the reward for finding it is being
      * able to act without paying for a scan first.
      */
-    private static RigProcess parasite(
-            MinerState miner, SoloSave save, Instant now, long interval, long capacity) {
+    private static RigProcess parasite(MinerState miner, SoloSave save, Instant now, long interval, long capacity) {
 
         Disguise disguise = Disguise.of(miner.disguise);
         long seed = Vitals.mix(save.characterId.hashCode(), miner.minerId.hashCode());
@@ -311,8 +313,8 @@ public final class ProcessTable {
                 ? Duration.ofMillis(Vitals.counter(seed >> 2, ran, 6L))
                 : Vitals.cpuTime(seed >> 2, ran, resting);
 
-        long memory = (long) Vitals.gauge(seed >> 9, interval,
-                (greedy ? 780L : 24L + miner.hostCycles * 4L) * MB, 0.05d);
+        long memory =
+                (long) Vitals.gauge(seed >> 9, interval, (greedy ? 780L : 24L + miner.hostCycles * 4L) * MB, 0.05d);
 
         return new RigProcess(
                 "miner:" + miner.minerId,

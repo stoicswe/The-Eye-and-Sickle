@@ -75,8 +75,7 @@ class ControlOrderTest {
         @Test
         @DisplayName("the default is `system`, so an untouched profile matches the player's desktop")
         void defaultIsSystem() {
-            assertThat(new io.github.stoicswe.eyeandsickle.client.profile.VisualSettings()
-                            .subwindowControlOrder)
+            assertThat(new io.github.stoicswe.eyeandsickle.client.profile.VisualSettings().subwindowControlOrder)
                     .isEqualTo(ControlOrder.SYSTEM.id());
         }
     }

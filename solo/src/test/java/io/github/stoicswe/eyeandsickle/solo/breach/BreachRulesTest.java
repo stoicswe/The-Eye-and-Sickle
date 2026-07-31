@@ -76,7 +76,9 @@ class BreachRulesTest {
             BreachResult result = BreachRules.begin(save, nodeTarget(save), T0);
             assertThat(result.applied()).isFalse();
             // The wording mirrors LocalGameSession.scan's, so the two refusals read alike.
-            assertThat(result.message()).contains("not enough available compute").contains("needed");
+            assertThat(result.message())
+                    .contains("not enough available compute")
+                    .contains("needed");
         }
 
         @Test
@@ -219,7 +221,8 @@ class BreachRulesTest {
             // An unwinnable board is not difficulty; it is the game deciding, which design/05 §1
             // constraint 4 forbids outright.
             assertThat(save.activeBreach.layers)
-                    .allSatisfy(layer -> assertThat(layer.budget).isGreaterThanOrEqualTo(Balance.BREACH_ATTENTION_FLOOR));
+                    .allSatisfy(
+                            layer -> assertThat(layer.budget).isGreaterThanOrEqualTo(Balance.BREACH_ATTENTION_FLOOR));
         }
     }
 
@@ -294,8 +297,7 @@ class BreachRulesTest {
             // design/02 §2.4 requires the class to have been SOLVED. Crediting a bypass would let
             // the proof-of-skill item unlock the next proof-of-skill item. A tier-3 attempt is two
             // layers of one class, so bypassing one and solving the other credits it exactly once.
-            assertThat(save.resolutions.getFirst().classesCleared)
-                    .containsExactly(save.activeBreach.puzzleClass);
+            assertThat(save.resolutions.getFirst().classesCleared).containsExactly(save.activeBreach.puzzleClass);
         }
     }
 
@@ -502,7 +504,8 @@ class BreachRulesTest {
             BreachTestKit.loseAll(save);
             // Either the budget ran out or the strikes did. Both end the attempt, and which one gets
             // there first is a tuning question rather than a rule.
-            assertThat(layer.spent >= layer.budget || layer.strikes >= layer.strikeLimit).isTrue();
+            assertThat(layer.spent >= layer.budget || layer.strikes >= layer.strikeLimit)
+                    .isTrue();
             assertThat(save.activeBreach.outcome).isEqualTo("FAILED");
         }
     }
@@ -541,7 +544,8 @@ class BreachRulesTest {
             BreachRules.abort(save, T0);
 
             assertThat(BreachRules.actions(save)).isEmpty();
-            assertThat(BreachRules.act(save, MatrixRules.PICK, "0:0", T0).applied()).isFalse();
+            assertThat(BreachRules.act(save, MatrixRules.PICK, "0:0", T0).applied())
+                    .isFalse();
         }
     }
 }

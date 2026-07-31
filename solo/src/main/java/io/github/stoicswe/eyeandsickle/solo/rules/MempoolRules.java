@@ -1,13 +1,13 @@
 package io.github.stoicswe.eyeandsickle.solo.rules;
 
-import java.math.BigInteger;
 import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.protocol.game.FeeTier;
 import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.state.LedgerEntryState;
 import io.github.stoicswe.eyeandsickle.solo.state.PendingTxState;
-import io.github.stoicswe.eyeandsickle.solo.state.StoredFileState;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
+import io.github.stoicswe.eyeandsickle.solo.state.StoredFileState;
+import java.math.BigInteger;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -88,9 +88,7 @@ public final class MempoolRules {
      * the mempool panel prints it.
      */
     public static BigInteger clearingFee(SoloSave save) {
-        return save.chain == null
-                ? Balance.FEE_ECONOMY_WEI
-                : clearingFeeAt(save, save.chain.height);
+        return save.chain == null ? Balance.FEE_ECONOMY_WEI : clearingFeeAt(save, save.chain.height);
     }
 
     /**
@@ -129,12 +127,7 @@ public final class MempoolRules {
      * {@code docs/design/04-mining.md} §3.1 teaches a player to treat as evidence.
      */
     public static PendingTxState submit(
-            SoloSave save,
-            LedgerEntryState entry,
-            FeeTier tier,
-            String counterparty,
-            boolean outgoing,
-            Instant now) {
+            SoloSave save, LedgerEntryState entry, FeeTier tier, String counterparty, boolean outgoing, Instant now) {
         PendingTxState tx = new PendingTxState();
         tx.entryId = entry.entryId;
         tx.txHash = ChainExplorer.txHash(save, entry);
@@ -236,25 +229,30 @@ public final class MempoolRules {
         if (tx == null) {
             // Overwhelmingly the ordinary case rather than an error: it confirmed while the player
             // was deciding. Said as what happened, not as a failure.
-            return Boost.refused(BoostRefusal.NOT_PENDING,
-                    "that transaction is no longer waiting — it has already been mined.");
+            return Boost.refused(
+                    BoostRefusal.NOT_PENDING, "that transaction is no longer waiting — it has already been mined.");
         }
         BigInteger wanted = Balance.feeFor(tier);
         if (wanted.compareTo(tx.feeWei) <= 0) {
-            return Boost.refused(BoostRefusal.NOT_HIGHER,
-                    "a replacement has to offer more than the transaction it replaces. This one is "
-                            + "already paying " + tier(tx) + ".");
+            return Boost.refused(
+                    BoostRefusal.NOT_HIGHER,
+                    "a replacement has to offer more than the transaction it replaces. This one is " + "already paying "
+                            + tier(tx) + ".");
         }
         BigInteger difference = wanted.subtract(tx.feeWei);
         if (!LedgerRules.canDebit(save, difference)) {
-            return Boost.refused(BoostRefusal.CANNOT_AFFORD,
-                    "not enough ethecoin to raise the fee — the difference is "
-                            + Ethecoin.format(difference) + ".");
+            return Boost.refused(
+                    BoostRefusal.CANNOT_AFFORD,
+                    "not enough ethecoin to raise the fee — the difference is " + Ethecoin.format(difference) + ".");
         }
 
-        LedgerRules.apply(save, difference.negate(), "TX_FEE",
-                "Fee boost to " + tier.label().toLowerCase(java.util.Locale.ROOT)
-                        + " (" + Ethecoin.format(difference) + " on top)", now);
+        LedgerRules.apply(
+                save,
+                difference.negate(),
+                "TX_FEE",
+                "Fee boost to " + tier.label().toLowerCase(java.util.Locale.ROOT) + " (" + Ethecoin.format(difference)
+                        + " on top)",
+                now);
         String was = tier(tx);
         tx.feeTier = tier.name();
         tx.feeWei = wanted;
@@ -264,13 +262,19 @@ public final class MempoolRules {
                 break;
             }
         }
-        EventLog.info(save, "chain",
+        EventLog.info(
+                save,
+                "chain",
                 "fee boosted " + was + " -> " + tier.label().toLowerCase(java.util.Locale.ROOT)
                         + " on " + shortHash(tx.txHash) + "; miners sort by fee rate, so it moves up "
-                        + "the queue.", now);
-        return new Boost(true, null, difference,
-                "boosted to " + tier.label().toLowerCase(java.util.Locale.ROOT) + " for "
-                        + Ethecoin.format(difference) + " more. " + tier.promise() + ".");
+                        + "the queue.",
+                now);
+        return new Boost(
+                true,
+                null,
+                difference,
+                "boosted to " + tier.label().toLowerCase(java.util.Locale.ROOT) + " for " + Ethecoin.format(difference)
+                        + " more. " + tier.promise() + ".");
     }
 
     /** The tier a waiting transaction is currently paying, in words. */
@@ -290,9 +294,9 @@ public final class MempoolRules {
                 .min(java.util.Comparator.comparing(Balance::feeFor));
     }
 
-
     private static String shortHash(String hash) {
-        return hash == null || hash.length() < 14 ? String.valueOf(hash)
+        return hash == null || hash.length() < 14
+                ? String.valueOf(hash)
                 : hash.substring(0, 8) + "…" + hash.substring(hash.length() - 4);
     }
 
@@ -310,7 +314,8 @@ public final class MempoolRules {
         List<PendingTxState> queue = new ArrayList<>(save.chain.mempool);
         // Highest fee first, oldest first as the tiebreak — which is what a miner sorting on fee rate
         // does, and it stops two equal-fee transactions swapping places between renders.
-        queue.sort(Comparator.comparing((PendingTxState tx) -> tx.feeWei).reversed()
+        queue.sort(Comparator.comparing((PendingTxState tx) -> tx.feeWei)
+                .reversed()
                 .thenComparing(tx -> tx.createdAt));
 
         List<PendingTxState> confirmed = new ArrayList<>();
@@ -331,7 +336,9 @@ public final class MempoolRules {
             stamp(save, tx, height, now);
         }
         if (!confirmed.isEmpty()) {
-            EventLog.info(save, "chain",
+            EventLog.info(
+                    save,
+                    "chain",
                     confirmed.size() == 1
                             ? "transaction confirmed in block " + height + "."
                             : confirmed.size() + " transactions confirmed in block " + height + ".",
@@ -413,9 +420,13 @@ public final class MempoolRules {
             // manager and in the shell, in a vocabulary the game already teaches. You do not own it
             // until you have paid, and on a chain "paid" means "in a block".
             String was = file.name;
-            Repac.repack(save, file, now).ifPresent(packaged -> EventLog.notice(save, "storage",
-                    "payment confirmed in block " + height + " — repac: " + was + " -> "
-                            + packaged.name + " (installable; double-click it, or sell it)", now));
+            Repac.repack(save, file, now)
+                    .ifPresent(packaged -> EventLog.notice(
+                            save,
+                            "storage",
+                            "payment confirmed in block " + height + " — repac: " + was + " -> " + packaged.name
+                                    + " (installable; double-click it, or sell it)",
+                            now));
         }
     }
 
@@ -454,17 +465,19 @@ public final class MempoolRules {
         if (save.chain == null) {
             return BigInteger.ZERO;
         }
-        long mixed = mix(save.chain.blockSeed
-                ^ (height * 0x9E3779B97F4A7C15L)
-                ^ ((index + 1L) * 0xD1B5_4A32_D192_ED03L));
+        long mixed =
+                mix(save.chain.blockSeed ^ (height * 0x9E3779B97F4A7C15L) ^ ((index + 1L) * 0xD1B5_4A32_D192_ED03L));
         // ⚠ The draw is taken in units of 0.01 EC, not of wei. A uniform draw across 2.8e17 wei
         // would put eighteen digits of noise on every NPC fee, so a block's fee total would never be
         // a round-looking number and the mempool would read as machine output rather than a market.
         // The economy is priced in hundredths; the representation being finer than the prices is the
         // point of a fine representation, not a licence to use all of it.
         BigInteger step = Ethecoin.ofDecimal("0.01").wei();
-        long span = Balance.FEE_PRIORITY_WEI.subtract(Balance.FEE_ECONOMY_WEI)
-                .divide(step).longValueExact() + 1L;
+        long span = Balance.FEE_PRIORITY_WEI
+                        .subtract(Balance.FEE_ECONOMY_WEI)
+                        .divide(step)
+                        .longValueExact()
+                + 1L;
         return Balance.FEE_ECONOMY_WEI.add(step.multiply(BigInteger.valueOf(Math.floorMod(mixed, span))));
     }
 
@@ -537,9 +550,7 @@ public final class MempoolRules {
         if (save.chain == null) {
             return MIN_PROJECTIONS;
         }
-        long mixed = mix(save.chain.blockSeed
-                ^ (save.chain.height * 0x9E3779B97F4A7C15L)
-                ^ 0x7F4A_7C15_1234_5678L);
+        long mixed = mix(save.chain.blockSeed ^ (save.chain.height * 0x9E3779B97F4A7C15L) ^ 0x7F4A_7C15_1234_5678L);
         int span = MAX_PROJECTIONS - MIN_PROJECTIONS + 1;
         return MIN_PROJECTIONS + (int) Math.floorMod(mixed, (long) span);
     }

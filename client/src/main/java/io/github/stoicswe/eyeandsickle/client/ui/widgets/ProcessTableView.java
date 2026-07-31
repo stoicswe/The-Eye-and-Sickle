@@ -1,7 +1,6 @@
 package io.github.stoicswe.eyeandsickle.client.ui.widgets;
 
 import io.github.stoicswe.eyeandsickle.client.ui.Pulse;
-import io.github.stoicswe.eyeandsickle.client.ui.Ui;
 import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
 import io.github.stoicswe.eyeandsickle.client.ui.cursors.Cursors;
 import io.github.stoicswe.eyeandsickle.protocol.game.RigProcess;
@@ -15,7 +14,6 @@ import javafx.scene.control.Label;
 import javafx.scene.control.MenuItem;
 import javafx.scene.input.KeyCode;
 import javafx.scene.input.MouseButton;
-import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 
 /**
@@ -230,7 +228,8 @@ public final class ProcessTableView extends VBox {
         if (columns.isEmpty()) {
             return processes;
         }
-        Comparator<RigProcess> comparator = columns.get(Math.min(sortColumn, columns.size() - 1)).order();
+        Comparator<RigProcess> comparator =
+                columns.get(Math.min(sortColumn, columns.size() - 1)).order();
         if (descending) {
             comparator = comparator.reversed();
         }
@@ -392,7 +391,7 @@ public final class ProcessTableView extends VBox {
      *
      * <p>⚠ A system process is offered <b>restart and nothing else</b>, and it is not a disabled
      * "kill" beside it. A greyed-out control still asks to be understood and invites a player to hunt
-     for a way to enable it; an absent one says the verb does not apply. The rules refuse a kill on
+     * for a way to enable it; an absent one says the verb does not apply. The rules refuse a kill on
      * these too, so this is the second of two guards rather than the only one.
      */
     private ContextMenu menuFor(RigProcess process) {
@@ -425,11 +424,17 @@ public final class ProcessTableView extends VBox {
      */
     static String describe(RigProcess process) {
         StringBuilder out = new StringBuilder(process.name())
-                .append(", pid ").append(process.pid())
-                .append(", running as ").append(process.user())
-                .append(", ").append(String.format(java.util.Locale.ROOT, "%.1f", process.cpuPercent()))
-                .append("% CPU, ").append(process.cpuTimeText()).append(" of processor time, ")
-                .append(process.memoryText()).append(" of memory");
+                .append(", pid ")
+                .append(process.pid())
+                .append(", running as ")
+                .append(process.user())
+                .append(", ")
+                .append(String.format(java.util.Locale.ROOT, "%.1f", process.cpuPercent()))
+                .append("% CPU, ")
+                .append(process.cpuTimeText())
+                .append(" of processor time, ")
+                .append(process.memoryText())
+                .append(" of memory");
         if (process.cycles() > 0) {
             out.append(", ").append(process.cycles()).append(" cycles");
         }

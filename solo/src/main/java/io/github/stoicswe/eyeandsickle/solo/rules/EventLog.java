@@ -71,9 +71,7 @@ public final class EventLog {
     public static void error(SoloSave save, String facility, String message, Instant now) {
         if (!save.log.isEmpty()) {
             RigEvent last = save.log.getLast();
-            if (last.severity == RigEvent.ERROR
-                    && last.facility.equals(facility)
-                    && last.message.equals(message)) {
+            if (last.severity == RigEvent.ERROR && last.facility.equals(facility) && last.message.equals(message)) {
                 return;
             }
         }

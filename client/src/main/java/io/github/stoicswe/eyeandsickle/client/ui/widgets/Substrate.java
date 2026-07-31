@@ -1,8 +1,8 @@
 package io.github.stoicswe.eyeandsickle.client.ui.widgets;
 
 import io.github.stoicswe.eyeandsickle.client.ui.Pulse;
-import io.github.stoicswe.eyeandsickle.client.ui.WallpaperMode;
 import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
+import io.github.stoicswe.eyeandsickle.client.ui.WallpaperMode;
 import java.util.List;
 import java.util.Random;
 import javafx.scene.control.Label;

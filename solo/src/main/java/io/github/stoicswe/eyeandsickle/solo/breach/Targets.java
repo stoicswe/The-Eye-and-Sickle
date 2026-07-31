@@ -7,8 +7,8 @@ import io.github.stoicswe.eyeandsickle.protocol.game.TargetState;
 import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.rules.ComputeRules;
 import io.github.stoicswe.eyeandsickle.solo.state.AllocationState;
-import io.github.stoicswe.eyeandsickle.solo.state.ItemState;
 import io.github.stoicswe.eyeandsickle.solo.state.HostState;
+import io.github.stoicswe.eyeandsickle.solo.state.ItemState;
 import io.github.stoicswe.eyeandsickle.solo.state.MinerState;
 import io.github.stoicswe.eyeandsickle.solo.state.NodeState;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
@@ -91,9 +91,7 @@ public final class Targets {
         List<BreachTarget> out = new ArrayList<>();
         long cost = attemptCycles(save);
         long free = ComputeRules.availableCycles(save.rig);
-        String refusal = free >= cost
-                ? ""
-                : "not enough available compute - " + cost + " needed, " + free + " free";
+        String refusal = free >= cost ? "" : "not enough available compute - " + cost + " needed, " + free + " free";
 
         for (MinerState miner : save.rig.foreignMiners) {
             // ⚠ A parasite nobody has audited is not a target, because it is not KNOWN.
@@ -134,8 +132,7 @@ public final class Targets {
             HostState host = host(save, node.address);
             boolean held = host != null && host.foothold;
             String nodeRefusal = held
-                    ? "already breached — you hold a foothold here; `connect " + node.address
-                            + "` to sweep from it"
+                    ? "already breached — you hold a foothold here; `connect " + node.address + "` to sweep from it"
                     : refusal;
             out.add(new BreachTarget(
                     "node:" + node.address,
@@ -186,7 +183,9 @@ public final class Targets {
     }
 
     public static Optional<BreachTarget> byId(SoloSave save, String targetId) {
-        return available(save).stream().filter(t -> t.targetId().equals(targetId)).findFirst();
+        return available(save).stream()
+                .filter(t -> t.targetId().equals(targetId))
+                .findFirst();
     }
 
     /**
@@ -274,8 +273,8 @@ public final class Targets {
         miner.deployedAt = now;
         miner.lastAccruedAt = now;
 
-        AllocationState allocation = ComputeRules.reserve(
-                save.rig, ComputeConsumer.DEPLOYED_MINER, miner.label, miner.hostCycles);
+        AllocationState allocation =
+                ComputeRules.reserve(save.rig, ComputeConsumer.DEPLOYED_MINER, miner.label, miner.hostCycles);
         if (allocation != null) {
             allocation.startedAt = now;
             miner.allocationId = allocation.allocationId;

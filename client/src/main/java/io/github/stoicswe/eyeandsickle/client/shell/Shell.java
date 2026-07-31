@@ -135,7 +135,8 @@ public final class Shell {
                 // A bug in a command must not take the terminal down with it. The player gets an
                 // honest message rather than a frozen window.
                 output = new Command.Output(
-                        List.of(stage.verb() + ": internal error — " + e.getClass().getSimpleName()),
+                        List.of(stage.verb() + ": internal error — "
+                                + e.getClass().getSimpleName()),
                         ExitStatus.REFUSED);
             }
             stream = output.lines();

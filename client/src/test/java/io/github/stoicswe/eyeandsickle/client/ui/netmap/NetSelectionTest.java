@@ -30,7 +30,8 @@ class NetSelectionTest {
     void geometryIsUntouched() {
         NetMap map = NetFixtures.twoHops();
         List<String> plain = NetCanvas.paint(map, UiTokens.NET_MAX_ROWS, 0).lines();
-        List<String> picked = NetCanvas.paint(map, UiTokens.NET_MAX_ROWS, 0, "10.0.0.17").lines();
+        List<String> picked =
+                NetCanvas.paint(map, UiTokens.NET_MAX_ROWS, 0, "10.0.0.17").lines();
 
         assertThat(picked).hasSameSizeAs(plain);
         for (int line = 0; line < plain.size(); line++) {
@@ -94,9 +95,7 @@ class NetSelectionTest {
     void stubsAreNotSelectable() {
         // A stub carries a peer server's NAME and no address the player has been sold, so it has
         // nothing CONNECT or a breach could take. It is drawn unframed for the same reason.
-        assertThat(NetCanvas.paint(NetFixtures.twoHops(), UiTokens.NET_MAX_ROWS, 0, "10.0.0.12")
-                        .pieces()
-                        .stream()
+        assertThat(NetCanvas.paint(NetFixtures.twoHops(), UiTokens.NET_MAX_ROWS, 0, "10.0.0.12").pieces().stream()
                         .filter(NetCanvas.Piece::stub)
                         .filter(NetCanvas.Piece::selected))
                 .isEmpty();
@@ -106,8 +105,7 @@ class NetSelectionTest {
     @DisplayName("exactly one piece reports itself selected, and it is the one asked for")
     void oneSelectedPiece() {
         List<NetCanvas.Piece> selected =
-                NetCanvas.paint(NetFixtures.twoHops(), UiTokens.NET_MAX_ROWS, 0, "10.0.0.9").pieces()
-                        .stream()
+                NetCanvas.paint(NetFixtures.twoHops(), UiTokens.NET_MAX_ROWS, 0, "10.0.0.9").pieces().stream()
                         .filter(NetCanvas.Piece::selected)
                         .toList();
         assertThat(selected).hasSize(1);

@@ -29,9 +29,17 @@ class AbandonNoiseTest {
 
         Rig(Path dir) {
             game = SoloGame.open(new SaveStore(dir.resolve("s.json")), "op", new java.time.Clock() {
-                public java.time.ZoneId getZone() { return java.time.ZoneOffset.UTC; }
-                public java.time.Clock withZone(java.time.ZoneId z) { return this; }
-                public Instant instant() { return now; }
+                public java.time.ZoneId getZone() {
+                    return java.time.ZoneOffset.UTC;
+                }
+
+                public java.time.Clock withZone(java.time.ZoneId z) {
+                    return this;
+                }
+
+                public Instant instant() {
+                    return now;
+                }
             });
             game.sweep(SweepTier.BASE);
             for (int i = 0; i < 30 && !game.state().tasks.isEmpty(); i++) {
@@ -59,10 +67,10 @@ class AbandonNoiseTest {
         assertThat(after).isGreaterThan(during);
         assertThat(after).isGreaterThanOrEqualTo(Balance.BREACH_ABANDON_SPIKE_CYCLES);
 
-        long seconds = Duration.between(rig.now, rig.game.state().noiseSpikeUntil).toSeconds();
+        long seconds =
+                Duration.between(rig.now, rig.game.state().noiseSpikeUntil).toSeconds();
         assertThat(seconds)
-                .isBetween(Balance.BREACH_ABANDON_SPIKE_MIN_SECONDS,
-                        Balance.BREACH_ABANDON_SPIKE_MAX_SECONDS);
+                .isBetween(Balance.BREACH_ABANDON_SPIKE_MIN_SECONDS, Balance.BREACH_ABANDON_SPIKE_MAX_SECONDS);
 
         // ⚠ It expires on the SESSION clock, not a countdown. A remaining-seconds field would pause
         // with the game and leave a spike waiting to be served the next time the client opened.

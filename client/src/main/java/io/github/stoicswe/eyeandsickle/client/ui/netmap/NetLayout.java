@@ -198,14 +198,10 @@ public final class NetLayout {
      * hanging them off the bottom keeps them next to the lateral strip that will join them.
      */
     private static Comparator<Sighting> order(
-            int layer,
-            Map<String, Set<String>> neighbours,
-            Map<String, Integer> rowOf,
-            Map<String, Integer> layerOf) {
+            int layer, Map<String, Set<String>> neighbours, Map<String, Integer> rowOf, Map<String, Integer> layerOf) {
         Map<String, Double> desired = new HashMap<>();
-        return Comparator.<Sighting, Double>comparing(
-                        sighting -> desired.computeIfAbsent(
-                                sighting.address(), address -> barycentre(address, layer, neighbours, rowOf, layerOf)))
+        return Comparator.<Sighting, Double>comparing(sighting -> desired.computeIfAbsent(
+                        sighting.address(), address -> barycentre(address, layer, neighbours, rowOf, layerOf)))
                 .thenComparing(sighting -> sighting.address(), NetLayout::compareAddresses);
     }
 
@@ -280,12 +276,8 @@ public final class NetLayout {
                 // instead of as an exception thrown from inside a repaint on the FX thread.
                 continue;
             }
-            neighbours
-                    .computeIfAbsent(link.fromAddress(), k -> new HashSet<>())
-                    .add(link.toAddress());
-            neighbours
-                    .computeIfAbsent(link.toAddress(), k -> new HashSet<>())
-                    .add(link.fromAddress());
+            neighbours.computeIfAbsent(link.fromAddress(), k -> new HashSet<>()).add(link.toAddress());
+            neighbours.computeIfAbsent(link.toAddress(), k -> new HashSet<>()).add(link.fromAddress());
         }
         return neighbours;
     }
@@ -316,9 +308,8 @@ public final class NetLayout {
             // direction; a lateral one is oriented by address, because which of two same-layer
             // machines is "upper" is a row fact the renderer owns and this class has not finished
             // computing when the edge list is built.
-            boolean firstIsLow = from.equals(to)
-                    ? compareAddresses(link.fromAddress(), link.toAddress()) <= 0
-                    : from < to;
+            boolean firstIsLow =
+                    from.equals(to) ? compareAddresses(link.fromAddress(), link.toAddress()) <= 0 : from < to;
             Pair pair = firstIsLow
                     ? new Pair(link.fromAddress(), link.toAddress())
                     : new Pair(link.toAddress(), link.fromAddress());
@@ -346,8 +337,7 @@ public final class NetLayout {
      * looking at", which the brief requires the graph to answer <em>always</em> — and a layer really
      * can span two servers, one bridge out, so they are listed comma-separated, busiest first.
      */
-    private static List<String> headers(
-            NetMap map, Map<Integer, List<Sighting>> byLayer, int[] omitted, int layers) {
+    private static List<String> headers(NetMap map, Map<Integer, List<Sighting>> byLayer, int[] omitted, int layers) {
         Map<String, String> names = new HashMap<>();
         for (ServerRef server : map.knownServers()) {
             names.put(server.serverId(), server.name().isEmpty() ? server.serverId() : server.name());

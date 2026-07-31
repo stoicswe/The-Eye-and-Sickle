@@ -104,8 +104,8 @@ public final class ReprisalRules {
 
         String from = host == null ? "somewhere" : host.address;
         if (roll < quiet) {
-            EventLog.notice(save, "net",
-                    from + " noticed the scan and logged where it came from. Nothing was taken.", now);
+            EventLog.notice(
+                    save, "net", from + " noticed the scan and logged where it came from. Nothing was taken.", now);
             return Reprisal.noted("noticed, and let it go — this time.");
         }
         if (roll < thieving) {
@@ -135,9 +135,12 @@ public final class ReprisalRules {
             }
         }
         if (took == null) {
-            EventLog.notice(save, "net",
+            EventLog.notice(
+                    save,
+                    "net",
                     from + " answered the scan and went through your downloads. There was nothing "
-                            + "in there to take.", now);
+                            + "in there to take.",
+                    now);
             return Reprisal.noted("came looking, and found the download folder empty.");
         }
         save.files.remove(took);
@@ -145,11 +148,13 @@ public final class ReprisalRules {
         // fact rather than being a file that silently is not there any more. AccessLog is the
         // counter-forensics surface and this is exactly the kind of event it exists for.
         AccessLog.record(save, from, "took", took.path(), now);
-        EventLog.warning(save, "net",
+        EventLog.warning(
+                save,
+                "net",
                 from + " answered the scan and took " + took.name + " out of your downloads. "
-                        + "Anything left in that folder is reachable; the vault is not.", now);
-        return new Reprisal(Response.STOLE, took.name,
-                "took " + took.name + " out of your download folder.");
+                        + "Anything left in that folder is reachable; the vault is not.",
+                now);
+        return new Reprisal(Response.STOLE, took.name, "took " + took.name + " out of your download folder.");
     }
 
     /**
@@ -162,9 +167,12 @@ public final class ReprisalRules {
         // One at a time. A rig carrying three of these is not a harder problem, it is the same
         // problem three times, and it turns a bad roll into an evening of identical breaches.
         if (!save.rig.foreignMiners.isEmpty()) {
-            EventLog.warning(save, "net",
+            EventLog.warning(
+                    save,
+                    "net",
                     from + " answered the scan and probed your rig. It found the parasite already "
-                            + "there and left it alone.", now);
+                            + "there and left it alone.",
+                    now);
             return Reprisal.noted("probed the rig, and found somebody else had already been.");
         }
         // ⚠ Built the way the tutorial parasite is built, allocation and disguise included. A miner
@@ -192,11 +200,16 @@ public final class ReprisalRules {
         io.github.stoicswe.eyeandsickle.solo.proc.Disguise.dress(save, miner, rng);
         save.rig.foreignMiners.add(miner);
         AccessLog.record(save, from, "planted a miner", "/proc/" + miner.label, now);
-        EventLog.warning(save, "net",
+        EventLog.warning(
+                save,
+                "net",
                 from + " answered the scan by planting a miner on your rig — "
                         + PLANTED_MINER_CYCLES + " of your cycles are now working for somebody else. "
-                        + "`crack` it off, or the audit window will show you where it is.", now);
-        return new Reprisal(Response.PLANTED, from,
+                        + "`crack` it off, or the audit window will show you where it is.",
+                now);
+        return new Reprisal(
+                Response.PLANTED,
+                from,
                 "planted a miner on your rig. It is drawing " + PLANTED_MINER_CYCLES + " cycles.");
     }
 

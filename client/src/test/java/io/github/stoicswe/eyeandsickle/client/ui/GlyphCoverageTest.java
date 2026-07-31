@@ -54,8 +54,7 @@ import org.junit.jupiter.api.Test;
  */
 class GlyphCoverageTest {
 
-    private static final Path FONTS =
-            Path.of("src/main/resources/io/github/stoicswe/eyeandsickle/client/fonts");
+    private static final Path FONTS = Path.of("src/main/resources/io/github/stoicswe/eyeandsickle/client/fonts");
 
     private static final String PLEX = "IBMPlexMono-Regular.ttf";
     private static final String MARTIAN = "MartianMono-Medium.ttf";
@@ -151,8 +150,7 @@ class GlyphCoverageTest {
     // ── source scanning ──────────────────────────────────────────────────────────────────────
 
     /** String and char literals only. Comments are stripped — they discuss the banned glyphs. */
-    private static final Pattern LITERAL =
-            Pattern.compile("\"(?:[^\"\\\\\\n]|\\\\.)*\"|'(?:[^'\\\\\\n]|\\\\.)'");
+    private static final Pattern LITERAL = Pattern.compile("\"(?:[^\"\\\\\\n]|\\\\.)*\"|'(?:[^'\\\\\\n]|\\\\.)'");
 
     /**
      * Every non-ASCII character the client or the solo engine can put on screen.
@@ -167,7 +165,8 @@ class GlyphCoverageTest {
                 continue;
             }
             try (Stream<Path> files = Files.walk(root)) {
-                for (Path file : files.filter(f -> f.toString().endsWith(".java")).toList()) {
+                for (Path file :
+                        files.filter(f -> f.toString().endsWith(".java")).toList()) {
                     String source = Files.readString(file, StandardCharsets.UTF_8)
                             .replaceAll("(?s)/\\*.*?\\*/", "")
                             .replaceAll("(?m)//.*$", "");
@@ -202,9 +201,7 @@ class GlyphCoverageTest {
                 if (!plex.contains(entry.getKey())) {
                     uncovered.add(String.format(
                             "U+%04X '%c' in %s",
-                            entry.getKey(),
-                            (char) (int) entry.getKey(),
-                            String.join(", ", entry.getValue())));
+                            entry.getKey(), (char) (int) entry.getKey(), String.join(", ", entry.getValue())));
                 }
             }
             assertThat(uncovered)
@@ -223,8 +220,12 @@ class GlyphCoverageTest {
             for (int severity = 0; severity <= 7; severity++) {
                 String glyph = io.github.stoicswe.eyeandsickle.solo.state.RigEvent.glyph(severity);
                 for (char c : glyph.toCharArray()) {
-                    assertThat(plex).as("severity %d glyph '%c' in Plex", severity, c).contains((int) c);
-                    assertThat(martian).as("severity %d glyph '%c' in Martian", severity, c).contains((int) c);
+                    assertThat(plex)
+                            .as("severity %d glyph '%c' in Plex", severity, c)
+                            .contains((int) c);
+                    assertThat(martian)
+                            .as("severity %d glyph '%c' in Martian", severity, c)
+                            .contains((int) c);
                 }
             }
         }
@@ -255,10 +256,9 @@ class GlyphCoverageTest {
             // The rule this enforces: Martian is for uppercase Latin labels only. Every one of these
             // classes draws box-drawing or block characters, and styling any of them with Martian
             // silently sends those characters to a host-OS fallback.
-            String css = Files.readString(Path.of(
-                    "src/main/resources/io/github/stoicswe/eyeandsickle/client/ui/theme.css"));
-            for (String textureClass :
-                    List.of(".es-greeble", ".es-boot-logo", ".es-cage", ".es-substrate-field")) {
+            String css =
+                    Files.readString(Path.of("src/main/resources/io/github/stoicswe/eyeandsickle/client/ui/theme.css"));
+            for (String textureClass : List.of(".es-greeble", ".es-boot-logo", ".es-cage", ".es-substrate-field")) {
                 String rule = ruleFor(css, textureClass);
                 assertThat(rule)
                         .as("%s must be pinned to IBM Plex, not the label face", textureClass)
@@ -288,12 +288,17 @@ class GlyphCoverageTest {
         @DisplayName("every bundled TTF is a real font with a parseable cmap")
         void allFontsParse() throws IOException {
             for (String file : List.of(
-                    "MartianMono-Medium.ttf", "MartianMono-Bold.ttf",
-                    "IBMPlexMono-Light.ttf", "IBMPlexMono-Regular.ttf", "IBMPlexMono-Medium.ttf")) {
+                    "MartianMono-Medium.ttf",
+                    "MartianMono-Bold.ttf",
+                    "IBMPlexMono-Light.ttf",
+                    "IBMPlexMono-Regular.ttf",
+                    "IBMPlexMono-Medium.ttf")) {
                 assertThat(coverage(file)).as("%s maps codepoints", file).isNotEmpty();
-                try (InputStream in = getClass().getResourceAsStream(
-                        "/io/github/stoicswe/eyeandsickle/client/fonts/" + file)) {
-                    assertThat(in).as("%s is on the classpath, not just on disk", file).isNotNull();
+                try (InputStream in =
+                        getClass().getResourceAsStream("/io/github/stoicswe/eyeandsickle/client/fonts/" + file)) {
+                    assertThat(in)
+                            .as("%s is on the classpath, not just on disk", file)
+                            .isNotNull();
                 }
             }
         }

@@ -79,7 +79,8 @@ class SaveBackfillTest {
 
         // Same seed, same world — which is what makes this a repair of a save rather than a new
         // character wearing the old one's balance.
-        assertThat(a.state().topology.hosts.size()).isEqualTo(b.state().topology.hosts.size());
+        assertThat(a.state().topology.hosts.size())
+                .isEqualTo(b.state().topology.hosts.size());
         assertThat(a.state().topology.playerAddress).isEqualTo(b.state().topology.playerAddress);
     }
 
@@ -103,8 +104,7 @@ class SaveBackfillTest {
         // ⚠ Pooled, not solo. A character who predates the choice must not be opted into the
         // lottery by a migration — I4 makes self-mining the floor, and a floor that sometimes pays
         // nothing is not one.
-        assertThat(game.mining().mode())
-                .isEqualTo(io.github.stoicswe.eyeandsickle.protocol.game.MiningMode.POOLED);
+        assertThat(game.mining().mode()).isEqualTo(io.github.stoicswe.eyeandsickle.protocol.game.MiningMode.POOLED);
     }
 
     @Test
@@ -134,7 +134,8 @@ class SaveBackfillTest {
         SoloSave save = SoloGame.newCharacter("operator", T0);
         // The audit that makes the tutorial parasite a target; see SoloGameTest for the pipeline.
         save.rig.foreignMiners.getFirst().discovered = true;
-        var target = io.github.stoicswe.eyeandsickle.solo.breach.Targets.available(save).getFirst();
+        var target = io.github.stoicswe.eyeandsickle.solo.breach.Targets.available(save)
+                .getFirst();
         io.github.stoicswe.eyeandsickle.solo.breach.BreachRules.begin(save, target, T0);
         assertThat(save.activeBreach).isNotNull();
         assertThat(save.activeBreach.outcome).isEmpty();
@@ -166,14 +167,16 @@ class SaveBackfillTest {
         SaveStore store = new SaveStore(dir.resolve("save.json"));
         SoloSave save = SoloGame.newCharacter("operator", T0);
         save.rig.foreignMiners.getFirst().discovered = true;
-        var target = io.github.stoicswe.eyeandsickle.solo.breach.Targets.available(save).getFirst();
+        var target = io.github.stoicswe.eyeandsickle.solo.breach.Targets.available(save)
+                .getFirst();
         io.github.stoicswe.eyeandsickle.solo.breach.BreachRules.begin(save, target, T0);
         io.github.stoicswe.eyeandsickle.solo.breach.BreachRules.abort(save, T0);
         store.save(save);
 
         // The outcome slate is where a loss becomes comprehensible (docs/design/05 §1 constraint 4).
         // A player who quit rather than read it should still get to.
-        assertThat(SoloGame.open(store, "operator", new TestClock(T0)).breachSnapshot()).isPresent();
+        assertThat(SoloGame.open(store, "operator", new TestClock(T0)).breachSnapshot())
+                .isPresent();
     }
 
     @Test
@@ -185,8 +188,8 @@ class SaveBackfillTest {
         var target = game.breachTargets().getFirst();
         assertThat(game.beginBreach(target.targetId()).applied()).isTrue();
 
-        long heldDuringBreach = io.github.stoicswe.eyeandsickle.solo.rules.ComputeRules
-                .availableCycles(game.state().rig);
+        long heldDuringBreach =
+                io.github.stoicswe.eyeandsickle.solo.rules.ComputeRules.availableCycles(game.state().rig);
 
         // What closing the breach window does. Same method the load-time path uses, because closing
         // the console and closing the client are the same gesture as far as the attempt is concerned.
@@ -196,11 +199,9 @@ class SaveBackfillTest {
         assertThat(game.state().resolutions.getLast().outcome).isEqualTo("ABORTED");
         // The cycles are released onto the thermal curve rather than held forever by a console
         // nobody is sitting at — which is the whole reason this happens on close at all.
-        assertThat(io.github.stoicswe.eyeandsickle.solo.rules.ComputeRules
-                        .recoveringCycles(game.state().rig))
+        assertThat(io.github.stoicswe.eyeandsickle.solo.rules.ComputeRules.recoveringCycles(game.state().rig))
                 .isPositive();
-        assertThat(io.github.stoicswe.eyeandsickle.solo.rules.ComputeRules
-                        .availableCycles(game.state().rig))
+        assertThat(io.github.stoicswe.eyeandsickle.solo.rules.ComputeRules.availableCycles(game.state().rig))
                 .isEqualTo(heldDuringBreach);
     }
 

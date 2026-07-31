@@ -103,12 +103,16 @@ public record CommandLine(List<Stage> stages, String raw) {
         REFUSED_SYNTAX.put(">>", "Redirection is not available — this is a game surface, not a shell. See shell(7).");
         REFUSED_SYNTAX.put(">", "Redirection is not available — this is a game surface, not a shell. See shell(7).");
         REFUSED_SYNTAX.put("<", "Redirection is not available — this is a game surface, not a shell. See shell(7).");
-        REFUSED_SYNTAX.put("&&", "Command chaining is not available here. Run the commands one at a time. See shell(7).");
-        REFUSED_SYNTAX.put("||", "Command chaining is not available here. Run the commands one at a time. See shell(7).");
-        REFUSED_SYNTAX.put(";", "Command chaining is not available here. Run the commands one at a time. See shell(7).");
+        REFUSED_SYNTAX.put(
+                "&&", "Command chaining is not available here. Run the commands one at a time. See shell(7).");
+        REFUSED_SYNTAX.put(
+                "||", "Command chaining is not available here. Run the commands one at a time. See shell(7).");
+        REFUSED_SYNTAX.put(
+                ";", "Command chaining is not available here. Run the commands one at a time. See shell(7).");
         REFUSED_SYNTAX.put("$(", "Command substitution is not available here. See shell(7).");
         REFUSED_SYNTAX.put("`", "Command substitution is not available here. See shell(7).");
-        REFUSED_SYNTAX.put("&", "Background execution is not available here — bots are the game's version. See jobs(1).");
+        REFUSED_SYNTAX.put(
+                "&", "Background execution is not available here — bots are the game's version. See jobs(1).");
     }
 
     /**

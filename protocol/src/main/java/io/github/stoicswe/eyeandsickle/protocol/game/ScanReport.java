@@ -26,13 +26,7 @@ import java.time.Instant;
  *     a clean scan is the row that gives a later finding its date
  */
 public record ScanReport(
-        String tier,
-        Instant startedAt,
-        Instant finishedAt,
-        long seconds,
-        long cycles,
-        String summary,
-        int found) {
+        String tier, Instant startedAt, Instant finishedAt, long seconds, long cycles, String summary, int found) {
 
     /** Whether this scan named anything. */
     public boolean clean() {

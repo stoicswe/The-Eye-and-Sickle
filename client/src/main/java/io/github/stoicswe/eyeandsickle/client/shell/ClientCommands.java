@@ -38,12 +38,11 @@ public final class ClientCommands {
             Runnable backToMenu,
             Runnable onDeskChanged) {
 
-        registry.add(new Simple(
-                "help",
-                List.of("?"),
-                "List what you can run right now.",
-                false,
-                inv -> {
+        registry.add(Commands.read("help")
+                .category(CommandCategory.SHELL)
+                .aliases("?")
+                .synopsis("List what you can run right now.")
+                .runs(inv -> {
                     List<String> out = new ArrayList<>();
                     out.add("Commands. Every one takes -h, --explain, -n/--dry-run, -v and --.");
                     out.add("");
@@ -58,12 +57,10 @@ public final class ClientCommands {
 
         // Supplied rather than reached for: the Shell owns its history, and a command that could
         // reach back into its own executor would be the first crack in the closed-AST boundary.
-        registry.add(new Simple(
-                "history",
-                List.of(),
-                "What you have already typed. Up/Down walk it, Ctrl-R searches it.",
-                false,
-                inv -> {
+        registry.add(Commands.read("history")
+                .category(CommandCategory.SHELL)
+                .synopsis("What you have already typed. Up/Down walk it, Ctrl-R searches it.")
+                .runs(inv -> {
                     List<String> lines = history.get();
                     if (lines.isEmpty()) {
                         return Command.Output.ok("(nothing yet)");
@@ -80,22 +77,20 @@ public final class ClientCommands {
                 }));
 
         // ---- window commands. `top` raising the rig monitor is the teaching hook (§3.3).
-        registry.add(new Simple(
-                "top",
-                List.of(),
-                "Raise the rig monitor. It is a top(1), and that is not a coincidence.",
-                true,
-                inv -> {
+        registry.add(Commands.act("top")
+                .category(CommandCategory.RIG)
+                .synopsis("Raise the rig monitor. It is a top(1), and that is not a coincidence.")
+                .runs(inv -> {
                     windows.open(WindowSpec.RIG_MONITOR);
                     return Command.Output.ok("rig monitor raised");
                 }));
 
-        registry.add(new Simple(
-                "window",
-                List.of("win"),
-                "Open a tool window by id. `window audit`, or `window` to list them.",
-                true,
-                inv -> {
+        registry.add(Commands.act("window")
+                .category(CommandCategory.DESK)
+                .arg("name", "cmd.window.arg.name")
+                .aliases("win")
+                .synopsis("Open a tool window by id. `window audit`, or `window` to list them.")
+                .runs(inv -> {
                     String id = inv.stage().argument(0).orElse("");
                     if (id.isBlank()) {
                         List<String> out = new ArrayList<>();
@@ -113,12 +108,12 @@ public final class ClientCommands {
                             .orElseGet(() -> Command.Output.usage("no window called '" + id + "'"));
                 }));
 
-        registry.add(new Simple(
-                "theme",
-                List.of(),
-                "Switch theme. `theme --list`, or `theme uos-amber`.",
-                true,
-                inv -> {
+        registry.add(Commands.act("theme")
+                .category(CommandCategory.DESK)
+                .flag("list", "cmd.theme.list")
+                .optionalArg("name", "cmd.theme.arg.name")
+                .synopsis("Switch theme. `theme --list`, or `theme uos-amber`.")
+                .runs(inv -> {
                     if (inv.stage().hasFlag("list") || inv.stage().arguments().isEmpty()) {
                         List<String> out = new ArrayList<>();
                         out.add("Both families draw the same uOS. Only the skin changes.");
@@ -135,17 +130,20 @@ public final class ClientCommands {
                                 profile.save();
                                 return Command.Output.ok("theme is now " + id.label());
                             })
-                            .orElseGet(() -> Command.Output.usage(
-                                    "no theme called '" + wanted + "' — try `theme --list`"));
+                            .orElseGet(() ->
+                                    Command.Output.usage("no theme called '" + wanted + "' — try `theme --list`"));
                 }));
 
-        registry.add(new Simple(
-                "teach",
-                List.of(),
-                "Set the teaching level: explain, terms, or off. --reset clears what you have seen.",
-                true,
-                inv -> {
-                    String level = inv.stage().flag("level").orElse(inv.stage().argument(0).orElse(""));
+        registry.add(Commands.act("teach")
+                .category(CommandCategory.DESK)
+                .choice("level", "cmd.teach.level", "explain", "terms", "off")
+                .flag("reset", "cmd.teach.reset")
+                .optionalArg("level", "cmd.teach.arg.level")
+                .synopsis("Set the teaching level: explain, terms, or off. --reset clears what you have seen.")
+                .runs(inv -> {
+                    String level = inv.stage()
+                            .flag("level")
+                            .orElse(inv.stage().argument(0).orElse(""));
                     if (inv.stage().hasFlag("reset")) {
                         return Command.Output.ok("every term is unseen again");
                     }
@@ -168,12 +166,10 @@ public final class ClientCommands {
                     return Command.Output.ok("teaching level is now " + level);
                 }));
 
-        registry.add(new Simple(
-                "menu",
-                List.of(),
-                "Leave this character and go back to the main menu. Saves first.",
-                true,
-                inv -> {
+        registry.add(Commands.act("menu")
+                .category(CommandCategory.DESK)
+                .synopsis("Leave this character and go back to the main menu. Saves first.")
+                .runs(inv -> {
                     // The session is persisted and closed by the handler before the menu appears —
                     // "back to menu" must not leave a game ticking behind a screen that looks idle.
                     backToMenu.run();
@@ -183,31 +179,30 @@ public final class ClientCommands {
         // Was `dock`, which chose between the multi-window desk and the docked layout. Both were
         // replaced by the deck on 2026-07-26 (ui-design-language.md §0), so the command now controls
         // the thing that design language left genuinely open — §11 question 1.
-        registry.add(new Simple(
-                "desk",
-                List.of("dock"),
-                "Switch window placement between snap-to-grid and free-drag.",
-                true,
-                inv -> {
+        registry.add(Commands.act("desk")
+                .category(CommandCategory.DESK)
+                .aliases("dock")
+                .synopsis("Switch window placement between snap-to-grid and free-drag.")
+                .runs(inv -> {
                     boolean free = !profile.settings().freeDragWindows;
                     profile.settings().freeDragWindows = free;
                     profile.save();
                     onDeskChanged.run();
-                    return Command.Output.ok(free
-                            ? "free-drag on — windows go exactly where you put them"
-                            : "snap-to-grid on — windows align to the grid, and tile when dragged "
-                                    + "against an edge of the desk");
+                    return Command.Output.ok(
+                            free
+                                    ? "free-drag on — windows go exactly where you put them"
+                                    : "snap-to-grid on — windows align to the grid, and tile when dragged "
+                                            + "against an edge of the desk");
                 }));
 
         // A real command, doing the real thing it does: `hostname` with no argument prints the name,
         // and with one sets it. That is `hostname(1)` on every Unix, and it is the cheapest kind of
         // teaching in this client — a habit that transfers with no explanation attached.
-        registry.add(new Simple(
-                "hostname",
-                List.of(),
-                "Print the rig's network name, or set it.",
-                true,
-                inv -> {
+        registry.add(Commands.act("hostname")
+                .category(CommandCategory.DESK)
+                .optionalArg("name", "cmd.hostname.arg.name")
+                .synopsis("Print the rig's network name, or set it.")
+                .runs(inv -> {
                     Optional<String> arg = inv.stage().argument(0);
                     if (arg.isEmpty()) {
                         // ⚠ The bare name, not the qualified one. Real `hostname` prints the short
@@ -224,24 +219,21 @@ public final class ClientCommands {
                     profile.settings().rigHostname = Hostname.sanitise(arg.get());
                     profile.save();
                     onDeskChanged.run();
-                    return Command.Output.ok(
-                            "hostname set — the prompt now reads "
-                                    + Hostname.prompt(
-                                            inv.session().handle(), profile.settings().rigHostname));
+                    return Command.Output.ok("hostname set — the prompt now reads "
+                            + Hostname.prompt(inv.session().handle(), profile.settings().rigHostname));
                 }));
 
         // Pillar C1: everything Settings can do, the terminal can do. Both go through the same
         // profile and the same apply call, so they cannot disagree about what is on.
-        registry.add(new Simple(
-                "wallpaper",
-                List.of(),
-                "Set the desk wallpaper: off, still or drift.",
-                true,
-                inv -> {
+        registry.add(Commands.act("wallpaper")
+                .category(CommandCategory.DESK)
+                .arg("mode", "cmd.wallpaper.arg.mode")
+                .synopsis("Set the desk wallpaper: off, still or drift.")
+                .runs(inv -> {
                     Optional<String> arg = inv.stage().argument(0);
                     if (arg.isEmpty()) {
-                        return Command.Output.ok("wallpaper is " + profile.appearance().wallpaper
-                                + " — `wallpaper off|still|drift`");
+                        return Command.Output.ok(
+                                "wallpaper is " + profile.appearance().wallpaper + " — `wallpaper off|still|drift`");
                     }
                     String want = arg.get().toLowerCase(java.util.Locale.ROOT);
                     var mode = io.github.stoicswe.eyeandsickle.client.ui.WallpaperMode.byId(want);
@@ -253,15 +245,16 @@ public final class ClientCommands {
                     profile.appearance().wallpaper = mode.get().id();
                     profile.save();
                     onDeskChanged.run();
-                    return Command.Output.ok("wallpaper " + mode.get().id() + " — " + mode.get().note());
+                    return Command.Output.ok(
+                            "wallpaper " + mode.get().id() + " — " + mode.get().note());
                 }));
 
-        registry.add(new Simple(
-                "crt",
-                List.of(),
-                "Screen artefacts: scanlines, aberration, glitch, curvature.",
-                true,
-                inv -> {
+        registry.add(Commands.act("crt")
+                .category(CommandCategory.DESK)
+                .arg("setting", "cmd.crt.arg.setting")
+                .arg("value", "cmd.crt.arg.value")
+                .synopsis("Screen artefacts: scanlines, aberration, glitch, curvature.")
+                .runs(inv -> {
                     Optional<String> arg = inv.stage().argument(0);
                     io.github.stoicswe.eyeandsickle.client.profile.VisualSettings s = profile.appearance();
                     if (arg.isEmpty()) {
@@ -286,8 +279,8 @@ public final class ClientCommands {
                         s.crtCurvature = Math.max(0, Math.min(100, wanted));
                         profile.save();
                         onDeskChanged.run();
-                        return Command.Output.ok("curvature " + s.crtCurvature
-                                + "% — rim aberration only; the picture is not warped");
+                        return Command.Output.ok(
+                                "curvature " + s.crtCurvature + "% — rim aberration only; the picture is not warped");
                     }
                     boolean now;
                     switch (which) {
@@ -311,23 +304,5 @@ public final class ClientCommands {
 
     private static String pad(String s, int width) {
         return s.length() >= width ? s + " " : s + " ".repeat(width - s.length());
-    }
-
-    private interface Body {
-        Command.Output apply(Command.Invocation invocation);
-    }
-
-    private record Simple(String name, List<String> aliases, String synopsis, boolean sideEffect, Body body)
-            implements Command {
-
-        @Override
-        public boolean hasSideEffect() {
-            return sideEffect;
-        }
-
-        @Override
-        public Output run(Invocation invocation) {
-            return body.apply(invocation);
-        }
     }
 }

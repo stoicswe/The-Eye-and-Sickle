@@ -24,15 +24,13 @@ class AvatarTest {
         void deterministic() {
             // A picture that reshuffled on each start would be a picture nobody could recognise,
             // which is the one job it has.
-            assertThat(Avatar.placeholder("halflight"))
-                    .containsExactly(Avatar.placeholder("halflight"));
+            assertThat(Avatar.placeholder("halflight")).containsExactly(Avatar.placeholder("halflight"));
         }
 
         @Test
         @DisplayName("two operators get different faces")
         void differsByHandle() {
-            assertThat(Avatar.placeholder("halflight"))
-                    .isNotEqualTo(Avatar.placeholder("nyx"));
+            assertThat(Avatar.placeholder("halflight")).isNotEqualTo(Avatar.placeholder("nyx"));
         }
 
         @Test
@@ -59,7 +57,9 @@ class AvatarTest {
             // flat ground the test above would still pass, because noise is opaque too.
             int[] pixels = Avatar.placeholder("op");
             long distinct = java.util.Arrays.stream(pixels).distinct().count();
-            assertThat(distinct).as("ground, figure and highlight are all present").isGreaterThan(2);
+            assertThat(distinct)
+                    .as("ground, figure and highlight are all present")
+                    .isGreaterThan(2);
         }
     }
 
@@ -95,8 +95,7 @@ class AvatarTest {
         void refusesBadInput() {
             org.junit.jupiter.api.Assertions.assertThrows(
                     IllegalArgumentException.class, () -> Png.encode(new int[3], 2, 2));
-            org.junit.jupiter.api.Assertions.assertThrows(
-                    IllegalArgumentException.class, () -> Png.encode(null, 1, 1));
+            org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class, () -> Png.encode(null, 1, 1));
         }
 
         @Test
@@ -111,7 +110,9 @@ class AvatarTest {
     }
 
     private static int readInt(byte[] bytes, int at) {
-        return ((bytes[at] & 0xFF) << 24) | ((bytes[at + 1] & 0xFF) << 16)
-                | ((bytes[at + 2] & 0xFF) << 8) | (bytes[at + 3] & 0xFF);
+        return ((bytes[at] & 0xFF) << 24)
+                | ((bytes[at + 1] & 0xFF) << 16)
+                | ((bytes[at + 2] & 0xFF) << 8)
+                | (bytes[at + 3] & 0xFF);
     }
 }

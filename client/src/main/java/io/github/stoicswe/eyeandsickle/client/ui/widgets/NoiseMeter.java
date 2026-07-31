@@ -56,6 +56,7 @@ public final class NoiseMeter extends HBox {
 
     /** Tall enough that the columns have somewhere to travel — a 7-row meter barely moved. */
     private static final int ROWS = 12;
+
     private static final double CELL_W = 2;
     private static final double CELL_H = 2;
 
@@ -163,8 +164,7 @@ public final class NoiseMeter extends HBox {
      */
     private void retune() {
         double wobble = (random.nextDouble() - 0.5) * (6 + noise * 40);
-        frequency.setText(String.format(
-                java.util.Locale.ROOT, "%.0f MHZ", BASE_MHZ + noise * MHZ_SPAN + wobble));
+        frequency.setText(String.format(java.util.Locale.ROOT, "%.0f MHZ", BASE_MHZ + noise * MHZ_SPAN + wobble));
     }
 
     private void repaint() {

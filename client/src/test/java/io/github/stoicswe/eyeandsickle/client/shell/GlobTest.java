@@ -33,7 +33,9 @@ class GlobTest {
         // while `grep -E '^ab*$'` over the same four lines returns "a ab abb".
         String[] candidates = {"a", "ab", "abb", "ac"};
 
-        var globMatches = java.util.Arrays.stream(candidates).filter(c -> Glob.matches("ab*", c)).toList();
+        var globMatches = java.util.Arrays.stream(candidates)
+                .filter(c -> Glob.matches("ab*", c))
+                .toList();
         assertThat(globMatches).containsExactly("ab", "abb");
 
         var regexMatches = java.util.Arrays.stream(candidates)

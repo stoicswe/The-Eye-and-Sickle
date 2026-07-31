@@ -124,8 +124,7 @@ public final class Avatar {
         byte[] bytes = decode(base64);
         if (bytes != null) {
             try {
-                javafx.scene.image.Image image =
-                        new javafx.scene.image.Image(new java.io.ByteArrayInputStream(bytes));
+                javafx.scene.image.Image image = new javafx.scene.image.Image(new java.io.ByteArrayInputStream(bytes));
                 if (!image.isError()) {
                     return image;
                 }
@@ -133,8 +132,7 @@ public final class Avatar {
                 // Fall through to the placeholder.
             }
         }
-        return new javafx.scene.image.Image(
-                new java.io.ByteArrayInputStream(placeholderPng(handle)));
+        return new javafx.scene.image.Image(new java.io.ByteArrayInputStream(placeholderPng(handle)));
     }
 
     private static byte[] decode(String base64) {

@@ -1,6 +1,8 @@
 package io.github.stoicswe.eyeandsickle.client.view;
 
 import io.github.stoicswe.eyeandsickle.client.session.GameSession;
+import io.github.stoicswe.eyeandsickle.client.ui.Ui;
+import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
 import java.time.LocalTime;
 import java.time.ZoneId;
 import javafx.animation.Animation;
@@ -15,10 +17,7 @@ import javafx.scene.control.ListView;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
-import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
-import io.github.stoicswe.eyeandsickle.client.ui.Ui;
-import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
 import javafx.util.Duration;
 
 /**
@@ -64,9 +63,8 @@ public final class LogView {
         Label heading = new Label("LOG — journalctl -f");
         heading.getStyleClass().add("es-panel-title");
 
-        Label explain = new Label(
-                "What the rig has been doing, newest last. This is where offline income, recovered "
-                        + "cycles and anything that changed while you were not watching show up.");
+        Label explain = new Label("What the rig has been doing, newest last. This is where offline income, recovered "
+                + "cycles and anything that changed while you were not watching show up.");
         explain.setWrapText(true);
         explain.getStyleClass().add("es-text-secondary");
 
@@ -87,7 +85,8 @@ public final class LogView {
             }
         });
 
-        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch follow = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Follow");
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch follow =
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Follow");
         follow.setSelected(true);
         follow.setAccessibleText("Scroll to the newest entry as it arrives, like tail -f");
         follow.setTooltip(new javafx.scene.control.Tooltip(
@@ -110,8 +109,13 @@ public final class LogView {
                 LocalTime t = line.at().atZone(ZoneId.systemDefault()).toLocalTime();
                 setText(String.format(
                         "%02d:%02d:%02d  %s %-8s %-9s %s",
-                        t.getHour(), t.getMinute(), t.getSecond(),
-                        line.glyph(), line.keyword(), line.facility(), line.message()));
+                        t.getHour(),
+                        t.getMinute(),
+                        t.getSecond(),
+                        line.glyph(),
+                        line.keyword(),
+                        line.facility(),
+                        line.message()));
 
                 // Colour reinforces the glyph and keyword; it never replaces them.
                 if (line.severity() <= 3) {
@@ -177,8 +181,7 @@ public final class LogView {
         java.util.List<BreachView.Chip> chips = new java.util.ArrayList<>();
         Runnable[] applyTab = new Runnable[1];
         for (LogTab which : LogTab.values()) {
-            BreachView.Chip chip = new BreachView.Chip(
-                    which.control(LogTab.OVERVIEW), "es-breach-chip-quiet");
+            BreachView.Chip chip = new BreachView.Chip(which.control(LogTab.OVERVIEW), "es-breach-chip-quiet");
             chip.setAccessibleText(which.description());
             chip.onInvoke(() -> {
                 tab[0] = which;

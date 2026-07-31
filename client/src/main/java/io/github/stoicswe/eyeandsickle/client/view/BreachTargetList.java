@@ -1,12 +1,12 @@
 package io.github.stoicswe.eyeandsickle.client.view;
 
-import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.client.session.GameSession;
 import io.github.stoicswe.eyeandsickle.client.ui.Ui;
 import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.KeyValue;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.Note;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachTarget;
+import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.protocol.game.TargetState;
 import java.util.ArrayList;
 import java.util.List;
@@ -124,11 +124,10 @@ public final class BreachTargetList extends VBox {
         Label heading = Ui.label("Breach targets");
         heading.getStyleClass().add("es-kv-key");
 
-        Label intro = Ui.small(
-                "A breach reserves its compute for the whole attempt and releases it into thermal "
-                        + "recovery when the attempt ends, however it ends. There is no clock: every "
-                        + "layer grants an attention budget, every action spends from it, and running "
-                        + "out is the failure. Aborting is a sanctioned outcome, not a loss of nerve.");
+        Label intro = Ui.small("A breach reserves its compute for the whole attempt and releases it into thermal "
+                + "recovery when the attempt ends, however it ends. There is no clock: every "
+                + "layer grants an attention budget, every action spends from it, and running "
+                + "out is the failure. Aborting is a sanctioned outcome, not a loss of nerve.");
         intro.setWrapText(true);
 
         getChildren().addAll(Ui.row(UiTokens.SPACE_5, heading, count), intro, controls(), rows);
@@ -188,7 +187,9 @@ public final class BreachTargetList extends VBox {
         List<BreachTarget> targets = ordered(session.breachTargets());
         // The selection joins the comparison key: it is a visible change the data does not carry, so
         // leaving it out would mean clicking a row repainted nothing until the next tick.
-        if (targets.equals(current) && selected.equals(paintedFor) && !rows.getChildren().isEmpty()) {
+        if (targets.equals(current)
+                && selected.equals(paintedFor)
+                && !rows.getChildren().isEmpty()) {
             return;
         }
         current = List.copyOf(targets);
@@ -204,12 +205,14 @@ public final class BreachTargetList extends VBox {
             // (docs/design/04-mining.md §3.2) and the tutorial parasite is T1, so the cheap scan
             // genuinely cannot find the one target a new character has. Telling them otherwise sends
             // them to spend five cycles on a guaranteed miss and conclude the mechanic is broken.
-            rows.getChildren().add(Note.empty(readyOnly
-                    ? "Nothing you can attempt right now. Clear READY ONLY to see what is out of "
-                            + "reach and why."
-                    : "Nothing to breach yet. A foreign miner on your own rig is the safest first "
-                            + "target — no heat on any outcome — and an audit is how you find one: "
-                            + "run `scan --full`. A sweep on the network map finds the rest."));
+            rows.getChildren()
+                    .add(Note.empty(
+                            readyOnly
+                                    ? "Nothing you can attempt right now. Clear READY ONLY to see what is out of "
+                                            + "reach and why."
+                                    : "Nothing to breach yet. A foreign miner on your own rig is the safest first "
+                                            + "target — no heat on any outcome — and an audit is how you find one: "
+                                            + "run `scan --full`. A sweep on the network map finds the rest."));
             return;
         }
         for (BreachTarget target : targets) {
@@ -229,16 +232,19 @@ public final class BreachTargetList extends VBox {
         if (readyOnly) {
             out.removeIf(t -> !t.available());
         }
-        java.util.Comparator<BreachTarget> comparator = java.util.Comparator
-                .comparing((BreachTarget t) -> !t.available())
-                .thenComparing(switch (order) {
-                    case TIER -> java.util.Comparator
-                            .comparingInt((BreachTarget t) -> t.difficultyTier().tier());
-                    case ADDRESS -> java.util.Comparator
-                            .comparing(BreachTarget::address, NetText::compareAddresses);
-                    case THREAT -> java.util.Comparator
-                            .comparingInt(BreachTargetList::threat).reversed();
-                })
+        java.util.Comparator<BreachTarget> comparator = java.util.Comparator.comparing(
+                        (BreachTarget t) -> !t.available())
+                .thenComparing(
+                        switch (order) {
+                            case TIER ->
+                                java.util.Comparator.comparingInt(
+                                        (BreachTarget t) -> t.difficultyTier().tier());
+                            case ADDRESS ->
+                                java.util.Comparator.comparing(BreachTarget::address, NetText::compareAddresses);
+                            case THREAT ->
+                                java.util.Comparator.comparingInt(BreachTargetList::threat)
+                                        .reversed();
+                        })
                 // A stable tiebreak, so two equal rows never swap places between repaints and the
                 // row under the pointer stays the row that gets clicked.
                 .thenComparing(BreachTarget::targetId);
@@ -279,17 +285,17 @@ public final class BreachTargetList extends VBox {
 
         FlowPane facts = new FlowPane(UiTokens.SPACE_5, UiTokens.SPACE_2);
         facts.setAlignment(Pos.BASELINE_LEFT);
-        facts.getChildren().addAll(
-                KeyValue.of("Tier", "T" + target.difficultyTier().tier()),
-                KeyValue.of("State", target.liveOrDormant().name()),
-                KeyValue.of("Compute", target.computeCost() + " CYCLES"),
-                KeyValue.of("Defences", defences(target)));
+        facts.getChildren()
+                .addAll(
+                        KeyValue.of("Tier", "T" + target.difficultyTier().tier()),
+                        KeyValue.of("State", target.liveOrDormant().name()),
+                        KeyValue.of("Compute", target.computeCost() + " CYCLES"),
+                        KeyValue.of("Defences", defences(target)));
         if (target.minerCrack() && target.estimatedBufferWei().signum() > 0) {
             // An estimate, and labelled as one: the buffer is a figure recon inferred, and a crack
             // that sweeps it is a transfer of what is actually there (03 §5 rule 3 — nothing here
             // creates currency).
-            facts.getChildren().add(
-                    KeyValue.of("Buffer", "APPROX " + Ethecoin.format(target.estimatedBufferWei())));
+            facts.getChildren().add(KeyValue.of("Buffer", "APPROX " + Ethecoin.format(target.estimatedBufferWei())));
         }
 
         box.getChildren().addAll(title, facts, teaching(target));
@@ -297,9 +303,8 @@ public final class BreachTargetList extends VBox {
         if (!target.available()) {
             // Not a disabled control. C4: the client did not decide this, so it reports the reason
             // the rules gave and offers nothing to press. A target already breached says so here.
-            Label refusal = Ui.small(target.refusal().isBlank()
-                    ? "Unavailable, and the rules did not say why."
-                    : target.refusal());
+            Label refusal = Ui.small(
+                    target.refusal().isBlank() ? "Unavailable, and the rules did not say why." : target.refusal());
             refusal.setWrapText(true);
             box.getChildren().add(refusal);
             return box;
@@ -357,9 +362,7 @@ public final class BreachTargetList extends VBox {
 
     private static String defences(BreachTarget target) {
         List<String> marks = new ArrayList<>();
-        marks.add(target.firewallTier() > 0
-                ? "FIREWALL T" + target.firewallTier()
-                : "FIREWALL NOT ESTABLISHED");
+        marks.add(target.firewallTier() > 0 ? "FIREWALL T" + target.firewallTier() : "FIREWALL NOT ESTABLISHED");
         if (target.tarpit()) {
             marks.add("TARPIT");
         }
@@ -371,5 +374,4 @@ public final class BreachTargetList extends VBox {
         }
         return String.join(" · ", marks);
     }
-
 }

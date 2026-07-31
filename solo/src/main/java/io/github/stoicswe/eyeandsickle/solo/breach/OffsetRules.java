@@ -110,8 +110,7 @@ public final class OffsetRules {
             return Move.refunded("an offset is a signed decimal, like -9 or 14");
         }
         if (value < -OffsetBoard.MAX_OFFSET || value > OffsetBoard.MAX_OFFSET) {
-            return Move.refunded("an offset is between -" + OffsetBoard.MAX_OFFSET
-                    + " and +" + OffsetBoard.MAX_OFFSET);
+            return Move.refunded("an offset is between -" + OffsetBoard.MAX_OFFSET + " and +" + OffsetBoard.MAX_OFFSET);
         }
         layer.cipherEntered.set(index, value);
         layer.cipherWrong.clear();
@@ -152,8 +151,8 @@ public final class OffsetRules {
             // a strike for it would punish the keystroke rather than the arithmetic.
             return Move.refunded(blank + (blank == 1 ? " cell is" : " cells are") + " still empty");
         }
-        return Move.strike(wrong.size() + (wrong.size() == 1 ? " offset is wrong: " : " offsets are wrong: ")
-                + positions(wrong));
+        return Move.strike(
+                wrong.size() + (wrong.size() == 1 ? " offset is wrong: " : " offsets are wrong: ") + positions(wrong));
     }
 
     /**

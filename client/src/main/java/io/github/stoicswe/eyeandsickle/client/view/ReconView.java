@@ -85,23 +85,22 @@ public final class ReconView {
                 return;
             }
             paint(rows, ticking, count, session, search.getText(), filter, open, repaint[0], editing);
-            filterChip.setText(filter.isEmpty()
-                    ? "FILTER"
-                    : Ui.upper("Filter: " + String.join(", ", filter)));
+            filterChip.setText(filter.isEmpty() ? "FILTER" : Ui.upper("Filter: " + String.join(", ", filter)));
         };
         repaint[0].run();
         search.textProperty().addListener((observable, was, now) -> repaint[0].run());
 
-        filterChip.setAccessibleText("Filter the list by tag. Choosing more than one narrows it: a "
-                + "report has to carry all of them.");
+        filterChip.setAccessibleText(
+                "Filter the list by tag. Choosing more than one narrows it: a " + "report has to carry all of them.");
         filterChip.onInvoke(() -> showFilter(session, filterChip, filter, repaint[0]));
 
-        root.getChildren().addAll(
-                Views.secondary("Every machine a port scan has come back from. Rows marked [i] in "
-                        + "the network list have a file here. Double-click a name to rename it; "
-                        + "`man port-scan` has what a scan costs and what it is a model of."),
-                bar,
-                rows);
+        root.getChildren()
+                .addAll(
+                        Views.secondary("Every machine a port scan has come back from. Rows marked [i] in "
+                                + "the network list have a file here. Double-click a name to rename it; "
+                                + "`man port-scan` has what a scan costs and what it is a model of."),
+                        bar,
+                        rows);
 
         AutoCloseable onSession = session.onChange(s -> repaint[0].run());
         // ⚠ Ages ONLY. See the class comment: rebuilding rows here would destroy any open editor.
@@ -154,7 +153,8 @@ public final class ReconView {
         // ⚠ Anchored to the WINDOW, not to the chip — the chip's own label changes when the filter
         // does, and a popup owned by a node that is re-laid-out underneath it is the crash
         // NodeMenuTest exists for. Screen coordinates put it in the same place either way.
-        javafx.stage.Window window = anchor.getScene() == null ? null : anchor.getScene().getWindow();
+        javafx.stage.Window window =
+                anchor.getScene() == null ? null : anchor.getScene().getWindow();
         if (window == null) {
             return;
         }
@@ -185,20 +185,23 @@ public final class ReconView {
         // ⚠ Both figures when anything is narrowing. "3 reports" over a filtered list would let a
         // player conclude they had only ever scanned three machines.
         boolean narrowed = (query != null && !query.isBlank()) || !filter.isEmpty();
-        count.setText(narrowed
-                ? shown.size() + " of " + all.size()
-                : all.size() + (all.size() == 1 ? " report" : " reports"));
+        count.setText(
+                narrowed
+                        ? shown.size() + " of " + all.size()
+                        : all.size() + (all.size() == 1 ? " report" : " reports"));
 
         if (all.isEmpty()) {
-            into.getChildren().add(Views.secondary(
-                    "Nothing collected yet. Port-scan a machine from the map or the network list and "
-                            + "its report appears here."));
+            into.getChildren()
+                    .add(Views.secondary(
+                            "Nothing collected yet. Port-scan a machine from the map or the network list and "
+                                    + "its report appears here."));
             return;
         }
         if (shown.isEmpty()) {
-            into.getChildren().add(Views.secondary(
-                    "Nothing matches. The search looks at the address, the name you gave it and your "
-                            + "tags; the filter needs a report to carry every tag you picked."));
+            into.getChildren()
+                    .add(Views.secondary(
+                            "Nothing matches. The search looks at the address, the name you gave it and your "
+                                    + "tags; the filter needs a report to carry every tag you picked."));
             return;
         }
         for (NodeReport report : shown) {
@@ -226,9 +229,9 @@ public final class ReconView {
 
         HBox addressLine = Ui.row(UiTokens.SPACE_2);
         addressLine.setAlignment(Pos.CENTER_LEFT);
-        addressLine.getChildren().addAll(
-                Ui.micro(report.address()),
-                addTag(session, report, addressLine, repaint, editing));
+        addressLine
+                .getChildren()
+                .addAll(Ui.micro(report.address()), addTag(session, report, addressLine, repaint, editing));
 
         Label figures = Ui.micro("");
         Runnable retime = () -> figures.setText(report.known() + "/" + NodeReport.total() + " known"
@@ -275,11 +278,7 @@ public final class ReconView {
      * called something else in every other window.
      */
     private static Region nameField(
-            GameSession session,
-            NodeReport report,
-            HBox line,
-            Runnable repaint,
-            boolean[] editing) {
+            GameSession session, NodeReport report, HBox line, Runnable repaint, boolean[] editing) {
         Label name = new Label(report.displayName());
         name.getStyleClass().addAll("es-mono", "es-recon-name");
         Cursors.shared().clickable(name);
@@ -358,11 +357,7 @@ public final class ReconView {
      * lowercase and de-duplicate as a backstop, but a backstop is not a design.
      */
     private static Region addTag(
-            GameSession session,
-            NodeReport report,
-            HBox line,
-            Runnable repaint,
-            boolean[] editing) {
+            GameSession session, NodeReport report, HBox line, Runnable repaint, boolean[] editing) {
         Label plus = new Label("+");
         plus.getStyleClass().addAll("es-mono", "es-recon-add");
         plus.setAccessibleText("Add a tag to " + report.address() + ".");
@@ -420,7 +415,8 @@ public final class ReconView {
                 item.setOnAction(event2 -> add.accept(tag));
                 offer.getItems().add(item);
             }
-            javafx.stage.Window window = line.getScene() == null ? null : line.getScene().getWindow();
+            javafx.stage.Window window =
+                    line.getScene() == null ? null : line.getScene().getWindow();
             var where = field.localToScreen(0, 0);
             if (window != null && where != null) {
                 offer.setAutoHide(true);
@@ -435,8 +431,7 @@ public final class ReconView {
     }
 
     /** One tag, with the {@code x} that removes it. */
-    private static Region tagPill(
-            GameSession session, NodeReport report, String tag, Runnable repaint) {
+    private static Region tagPill(GameSession session, NodeReport report, String tag, Runnable repaint) {
         Label text = new Label("#" + tag);
         text.getStyleClass().add("es-recon-tagtext");
         // ⚠ ASCII x, not a multiplication sign. GlyphCoverageTest fails the build on anything outside

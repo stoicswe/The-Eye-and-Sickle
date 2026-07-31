@@ -1,20 +1,20 @@
 package io.github.stoicswe.eyeandsickle.client.view;
 
 import io.github.stoicswe.eyeandsickle.client.session.GameSession;
-import io.github.stoicswe.eyeandsickle.client.ui.Ui;
 import io.github.stoicswe.eyeandsickle.client.ui.Pulse;
+import io.github.stoicswe.eyeandsickle.client.ui.Ui;
 import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
 import io.github.stoicswe.eyeandsickle.protocol.game.PackageManifest;
 import java.util.Locale;
 import javafx.geometry.Pos;
 import javafx.scene.control.Label;
+import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
-import javafx.scene.layout.StackPane;
-import javafx.scene.shape.Polygon;
-import javafx.scene.control.ScrollPane;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.scene.shape.Polygon;
 
 /**
  * The package installer — what is in this thing, who made it, and is it what it says it is.
@@ -80,30 +80,41 @@ public final class PackageView {
         file.getStyleClass().addAll("es-package-name", "es-mono");
 
         VBox facts = new VBox(UiTokens.SPACE_1);
-        facts.getChildren().addAll(
-                field("installs", pkg.displayName()),
-                field("publisher", pkg.publisher()),
-                field("origin", pkg.fromMarket() ? "vendor market" : pkg.origin()),
-                field("gate", pkg.gate().name().toLowerCase(Locale.ROOT).replace('_', '-')),
-                field("size", String.format(Locale.ROOT, "%.1f MB", pkg.sizeBytes() / 1_000_000.0d)),
-                field("reserves", pkg.equippedCycles() == 0
-                        ? "nothing while equipped"
-                        : pkg.equippedCycles() + (pkg.equippedCycles() == 1 ? " cycle" : " cycles")
-                                + " while equipped"));
+        facts.getChildren()
+                .addAll(
+                        field("installs", pkg.displayName()),
+                        field("publisher", pkg.publisher()),
+                        field("origin", pkg.fromMarket() ? "vendor market" : pkg.origin()),
+                        field("gate", pkg.gate().name().toLowerCase(Locale.ROOT).replace('_', '-')),
+                        field("size", String.format(Locale.ROOT, "%.1f MB", pkg.sizeBytes() / 1_000_000.0d)),
+                        field(
+                                "reserves",
+                                pkg.equippedCycles() == 0
+                                        ? "nothing while equipped"
+                                        : pkg.equippedCycles() + (pkg.equippedCycles() == 1 ? " cycle" : " cycles")
+                                                + " while equipped"));
 
         Label contents = new Label(pkg.summary());
         contents.setWrapText(true);
         contents.getStyleClass().add("es-package-summary");
 
-        body.getChildren().addAll(title, file, facts, heading("CONTENTS"), contents,
-                heading("INTEGRITY"), integrity(pkg), heading("STATUS"), status(pkg));
+        body.getChildren()
+                .addAll(
+                        title,
+                        file,
+                        facts,
+                        heading("CONTENTS"),
+                        contents,
+                        heading("INTEGRITY"),
+                        integrity(pkg),
+                        heading("STATUS"),
+                        status(pkg));
 
         if (mode == Mode.INSTALL) {
             // ⚠ Firmware takes over the panel while it writes. A StackPane rather than a swap so the
             // panel underneath is never torn down — the flash ends and the facts are simply there
             // again. The overlay is OPAQUE, so it names what it is writing itself.
-            return flashable(session, pkg,
-                    frame(body, actions(session, pkg, onAction, report)));
+            return flashable(session, pkg, frame(body, actions(session, pkg, onAction, report)));
         } else {
             // Said out loud, because a panel with facts and no buttons otherwise reads as one whose
             // buttons failed to appear.
@@ -171,17 +182,15 @@ public final class PackageView {
      */
     private static Region integrity(PackageManifest pkg) {
         VBox box = new VBox(UiTokens.SPACE_1);
-        box.getChildren().addAll(
-                digest("declared", pkg.expectedSha()),
-                digest("payload", pkg.actualSha()));
+        box.getChildren().addAll(digest("declared", pkg.expectedSha()), digest("payload", pkg.actualSha()));
 
-        Label verdict = new Label(pkg.shaMatches()
-                ? "MATCH — the payload is what the manifest says it is."
-                : "MISMATCH — the payload is NOT what this manifest declares. Something replaced it "
-                        + "after it was signed. Installing it would run whatever it actually is.");
+        Label verdict = new Label(
+                pkg.shaMatches()
+                        ? "MATCH — the payload is what the manifest says it is."
+                        : "MISMATCH — the payload is NOT what this manifest declares. Something replaced it "
+                                + "after it was signed. Installing it would run whatever it actually is.");
         verdict.setWrapText(true);
-        verdict.getStyleClass().addAll("es-mono",
-                pkg.shaMatches() ? "es-package-match" : "es-package-mismatch");
+        verdict.getStyleClass().addAll("es-mono", pkg.shaMatches() ? "es-package-match" : "es-package-mismatch");
         box.getChildren().add(verdict);
 
         if (pkg.fromMarket()) {
@@ -210,8 +219,8 @@ public final class PackageView {
             why.getStyleClass().add("es-package-note");
             box.getChildren().add(why);
         } else if (pkg.owned()) {
-            Label owned = new Label("ALREADY INSTALLED — a second copy adds nothing. This one is "
-                    + "worth more sold than installed.");
+            Label owned = new Label(
+                    "ALREADY INSTALLED — a second copy adds nothing. This one is " + "worth more sold than installed.");
             owned.setWrapText(true);
             owned.getStyleClass().addAll("es-mono", "es-package-locked");
             box.getChildren().add(owned);
@@ -308,8 +317,10 @@ public final class PackageView {
             }
             double done = Math.clamp(flash.get().progress(), 0.0d, 1.0d);
             progress.set(done);
-            long left = Math.max(0,
-                    java.time.Duration.between(flash.get().asOf(), flash.get().endsAt()).toSeconds());
+            long left = Math.max(
+                    0,
+                    java.time.Duration.between(flash.get().asOf(), flash.get().endsAt())
+                            .toSeconds());
             caption.setText(Math.round(done * 100) + "%  ·  " + left + "s remaining");
         }
     }
@@ -401,16 +412,16 @@ public final class PackageView {
     }
 
     private static Region actions(
-            GameSession session,
-            PackageManifest pkg,
-            Runnable onAction,
-            java.util.function.Consumer<String> report) {
+            GameSession session, PackageManifest pkg, Runnable onAction, java.util.function.Consumer<String> report) {
         BreachView.Chip install = new BreachView.Chip("Install", "es-breach-chip-loud");
         install.setDisable(!pkg.installable());
-        install.setAccessibleText(pkg.installable()
-                ? "Install " + pkg.displayName() + ". The package is consumed."
-                : "Install is unavailable: " + (pkg.locked() ? "the payment has not been mined yet."
-                        : "this tool is already installed."));
+        install.setAccessibleText(
+                pkg.installable()
+                        ? "Install " + pkg.displayName() + ". The package is consumed."
+                        : "Install is unavailable: "
+                                + (pkg.locked()
+                                        ? "the payment has not been mined yet."
+                                        : "this tool is already installed."));
         install.onInvoke(() -> {
             report.accept(session.install(pkg.path()).message());
             onAction.run();
@@ -422,8 +433,8 @@ public final class PackageView {
         // package whose payment has not been mined turns goods that are not paid for into spendable
         // ethecoin.
         sell.setDisable(pkg.locked());
-        sell.setAccessibleText("Sell " + pkg.displayName() + " on the secondary market. Only "
-                + "ethecoin-gated tools can be sold.");
+        sell.setAccessibleText(
+                "Sell " + pkg.displayName() + " on the secondary market. Only " + "ethecoin-gated tools can be sold.");
         sell.onInvoke(() -> {
             report.accept(session.sell(pkg.path()).message());
             onAction.run();

@@ -52,12 +52,13 @@ public final class Apps {
      * or hide something it enforces.
      */
     public static boolean isFirmwareApp(App app) {
-        return app != null && io.github.stoicswe.eyeandsickle.solo.Catalogue.offerings().stream()
-                .filter(offering -> app.itemPrefixes().stream()
-                        .anyMatch(prefix -> offering.id().startsWith(prefix)))
-                .findFirst()
-                .map(io.github.stoicswe.eyeandsickle.solo.Catalogue.Offering::firmware)
-                .orElse(false);
+        return app != null
+                && io.github.stoicswe.eyeandsickle.solo.Catalogue.offerings().stream()
+                        .filter(offering -> app.itemPrefixes().stream()
+                                .anyMatch(prefix -> offering.id().startsWith(prefix)))
+                        .findFirst()
+                        .map(io.github.stoicswe.eyeandsickle.solo.Catalogue.Offering::firmware)
+                        .orElse(false);
     }
 
     /**
@@ -106,35 +107,43 @@ public final class Apps {
     private static final List<App> CATALOGUE = List.of(
             new App("audit", "Audit", "Processes, connections and storage on this rig.", List.of()),
             new App("botnet", "Botnet", "Bot frames and their loadouts.", List.of("bot-")),
-            new App("breach", "Breach", "The exploit console.",
+            new App(
+                    "breach",
+                    "Breach",
+                    "The exploit console.",
                     List.of("port-sweep", "exploit-", "fuzzer", "zero-day", "logic-", "cipher-")),
             new App("calc", "Calculator", "Hex, decimal, octal and binary at once.", List.of()),
             new App("comms", "Comms", "Messages and contacts.", List.of()),
-            new App("defense", "Defense", "What is armed, and what it costs to keep armed.",
+            new App(
+                    "defense",
+                    "Defense",
+                    "What is armed, and what it costs to keep armed.",
                     List.of("detection-array", "canary", "firewall", "honeypot", "auto-counter", "tarpit")),
             new App("files", "Files", "This filesystem, and every machine mounted onto it.", List.of()),
-            new App("identity", "Identity", "Who the Eye thinks you are.",
-                    List.of("relay-hop", "burner")),
+            new App("identity", "Identity", "Who the Eye thinks you are.", List.of("relay-hop", "burner")),
             new App("ledger", "Ledger", "Every ethecoin movement and what caused it.", List.of()),
             new App("log", "Log", "What this rig has been doing.", List.of()),
             new App("man", "Manual", "The offline manual and the term index.", List.of()),
-            new App("market", "Market", "What is for sale and which gate stands in front of it.",
-                    List.of()),
+            new App("market", "Market", "What is for sale and which gate stands in front of it.", List.of()),
             // ⚠ "firmware-" is here so the Firmware Implant image is reachable by BREACHING as well
             // as by buying. docs/design/01-core-resources.md §6 makes raiding a first-class
             // acquisition route, and the firmware design leans on it: an image you can only buy makes
             // the raid route dead content and the two-part requirement pointless.
-            new App("mining", "Mining", "Self-mining allocation and deployed-miner collection.",
+            new App(
+                    "mining",
+                    "Mining",
+                    "Self-mining allocation and deployed-miner collection.",
                     List.of("miner", "pool-", "firmware-")),
-            new App("netmap", "Network", "The network as a graph, and the sweeps that find it.",
-                    List.of("net-sweep")),
-            new App("recon", "Recon", "What is known about a target and what more would cost.",
+            new App("netmap", "Network", "The network as a graph, and the sweeps that find it.", List.of("net-sweep")),
+            new App(
+                    "recon",
+                    "Recon",
+                    "What is known about a target and what more would cost.",
                     List.of("topology-mapper", "passive-sniffer", "traffic-", "deep-scan", "recon-")),
             new App("rig-monitor", "Rig Monitor", "Where every cycle is.", List.of()),
             new App("settings", "Settings", "Theme, teaching level, desk behaviour.", List.of()),
             new App("terminal", "Terminal", "A shell over this machine.", List.of()),
-            new App("vaultstore", "VaultStore", "Items across the three tiers.",
-                    List.of("cold-storage", "vault-")));
+            new App("vaultstore", "VaultStore", "Items across the three tiers.", List.of("cold-storage", "vault-")));
 
     public static List<App> catalogue() {
         return CATALOGUE;
@@ -171,15 +180,15 @@ public final class Apps {
     }
 
     /** Every app that has at least one of {@code items} installed, keyed by bundle name. */
-    public static Map<String, List<VirtualFs.Installed>> upgradesByBundle(
-            List<VirtualFs.Installed> items) {
+    public static Map<String, List<VirtualFs.Installed>> upgradesByBundle(List<VirtualFs.Installed> items) {
         Map<String, List<VirtualFs.Installed>> out = new LinkedHashMap<>();
         if (items == null) {
             return out;
         }
         for (VirtualFs.Installed item : items) {
-            forItem(item.itemType()).ifPresent(app ->
-                    out.computeIfAbsent(app.bundle(), key -> new java.util.ArrayList<>()).add(item));
+            forItem(item.itemType())
+                    .ifPresent(app -> out.computeIfAbsent(app.bundle(), key -> new java.util.ArrayList<>())
+                            .add(item));
         }
         return out;
     }

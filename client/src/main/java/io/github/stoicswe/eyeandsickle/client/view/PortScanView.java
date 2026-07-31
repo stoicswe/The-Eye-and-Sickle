@@ -78,8 +78,7 @@ public final class PortScanView {
         };
         repaint[0].run();
 
-        root.getChildren().addAll(title, target, lead, ladder,
-                heading("WHAT THE LAST SCAN FOUND"), findings);
+        root.getChildren().addAll(title, target, lead, ladder, heading("WHAT THE LAST SCAN FOUND"), findings);
 
         // ⚠ Two refreshes, and the second is not optional. A scan is a task with a deadline, so
         // nothing about the save changes while it runs — session.onChange does not fire again until
@@ -92,7 +91,8 @@ public final class PortScanView {
     }
 
     private static Region header() {
-        HBox row = Ui.row(UiTokens.SPACE_3,
+        HBox row = Ui.row(
+                UiTokens.SPACE_3,
                 cell(Ui.micro("WHAT YOU LEARN"), 300),
                 cell(Ui.micro("CYCLES"), 70),
                 cell(Ui.micro("TIME"), 70),
@@ -134,7 +134,8 @@ public final class PortScanView {
             repaint.run();
         });
 
-        HBox row = Ui.row(UiTokens.SPACE_3,
+        HBox row = Ui.row(
+                UiTokens.SPACE_3,
                 cell(new VBox(what, detail), 300),
                 cell(new Label(String.valueOf(quote.cycles())), 70),
                 cell(new Label(quote.seconds() + "s"), 70),
@@ -165,8 +166,7 @@ public final class PortScanView {
     private static void paintFindings(VBox into, PortScanReport report) {
         into.getChildren().clear();
         if (report == null) {
-            into.getChildren().add(Ui.micro(
-                    "Nothing yet. A scan's findings appear here when it finishes."));
+            into.getChildren().add(Ui.micro("Nothing yet. A scan's findings appear here when it finishes."));
             return;
         }
         if (report.blocked()) {
@@ -178,25 +178,30 @@ public final class PortScanView {
         }
 
         List<String> lines = new ArrayList<>();
-        lines.add(line("firewall", report.knows(PortScanTarget.FIREWALL)
-                ? "tier " + report.firewallTier() : null));
+        lines.add(line("firewall", report.knows(PortScanTarget.FIREWALL) ? "tier " + report.firewallTier() : null));
         lines.add(line("os", report.knows(PortScanTarget.OS_VERSION) ? report.osName() : null));
-        lines.add(line("capability", report.knows(PortScanTarget.CYCLE_CAPABILITY)
-                ? report.cyclesTotal() + " cycles" : null));
-        lines.add(line("load", report.knows(PortScanTarget.CYCLE_LOAD)
-                ? report.cyclesUsed() + " used · " + report.cyclesFree() + " free   (a snapshot)"
-                : null));
-        lines.add(line("downloads", report.knows(PortScanTarget.DOWNLOADS)
-                ? String.format(Locale.ROOT, "%.1f MB", report.downloadsBytes() / 1_000_000.0d)
-                : null));
-        lines.add(line("hot vault", report.knows(PortScanTarget.VAULT_HIGH)
-                ? report.vaultHighCount() + " items" : null));
+        lines.add(line(
+                "capability", report.knows(PortScanTarget.CYCLE_CAPABILITY) ? report.cyclesTotal() + " cycles" : null));
+        lines.add(line(
+                "load",
+                report.knows(PortScanTarget.CYCLE_LOAD)
+                        ? report.cyclesUsed() + " used · " + report.cyclesFree() + " free   (a snapshot)"
+                        : null));
+        lines.add(line(
+                "downloads",
+                report.knows(PortScanTarget.DOWNLOADS)
+                        ? String.format(Locale.ROOT, "%.1f MB", report.downloadsBytes() / 1_000_000.0d)
+                        : null));
+        lines.add(
+                line("hot vault", report.knows(PortScanTarget.VAULT_HIGH) ? report.vaultHighCount() + " items" : null));
         // ⚠ A RANGE, never a count. The middle tier is not readable from outside at any depth —
         // that is what docs/design/01 §6 buys with the tier — so the panel reports the band the scan
         // could narrow it to. Repeat deep scans tighten it and never close it.
-        lines.add(line("mid vault", report.knows(PortScanTarget.VAULT_MEDIUM)
-                ? report.vaultMediumLow() + "–" + report.vaultMediumHigh() + " items  (estimate)"
-                : null));
+        lines.add(line(
+                "mid vault",
+                report.knows(PortScanTarget.VAULT_MEDIUM)
+                        ? report.vaultMediumLow() + "–" + report.vaultMediumHigh() + " items  (estimate)"
+                        : null));
 
         for (String line : lines) {
             Label label = new Label(line);
@@ -207,19 +212,15 @@ public final class PortScanView {
         // font — different shape and different advance width per platform, which breaks the
         // character-cell alignment every readout in this client is laid out on. GlyphCoverageTest
         // fails the build on it, which is how this line got written twice. The word does the work.
-        Label note = new Label(report.detected()
-                ? "NOTICED — " + report.note()
-                : report.note());
+        Label note = new Label(report.detected() ? "NOTICED — " + report.note() : report.note());
         note.setWrapText(true);
-        note.getStyleClass().addAll("es-mono",
-                report.detected() ? "es-portscan-risk-high" : "es-portscan-risk-low");
+        note.getStyleClass().addAll("es-mono", report.detected() ? "es-portscan-risk-high" : "es-portscan-risk-low");
         into.getChildren().add(note);
     }
 
     /** One finding, or the honest absence of one. */
     private static String line(String name, String value) {
-        return (name + "              ").substring(0, 14)
-                + (value == null ? "— not scanned for" : value);
+        return (name + "              ").substring(0, 14) + (value == null ? "— not scanned for" : value);
     }
 
     private static Region cell(javafx.scene.Node content, double width) {

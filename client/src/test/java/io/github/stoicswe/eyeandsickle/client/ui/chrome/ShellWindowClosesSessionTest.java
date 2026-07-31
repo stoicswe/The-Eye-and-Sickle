@@ -68,8 +68,7 @@ class ShellWindowClosesSessionTest {
             javafx.application.Platform.startup(up::countDown);
         } catch (IllegalStateException alreadyRunning) {
             up.countDown();
-        } catch (UnsupportedOperationException | NoClassDefFoundError
-                | ExceptionInInitializerError headless) {
+        } catch (UnsupportedOperationException | NoClassDefFoundError | ExceptionInInitializerError headless) {
             org.junit.jupiter.api.Assumptions.abort(
                     "no display — the JavaFX toolkit cannot start here: " + headless.getMessage());
         }
@@ -97,12 +96,13 @@ class ShellWindowClosesSessionTest {
             throw new AssertionError("the FX thread threw", failure.get());
         }
     }
+
     private static final String ADDRESS = "10.0.0.5";
 
     /** A rig holding a foothold on one machine, so a shell may legally open on it. */
     private static LocalGameSession sessionOn(Path dir) {
-        SoloGame game = SoloGame.open(
-                new SaveStore(dir.resolve("s.json")), "operator", Clock.fixed(T0, ZoneOffset.UTC));
+        SoloGame game =
+                SoloGame.open(new SaveStore(dir.resolve("s.json")), "operator", Clock.fixed(T0, ZoneOffset.UTC));
         HostState host = game.state().topology.hosts.stream()
                 .filter(h -> !"SELF".equals(h.kind))
                 .findFirst()
@@ -120,27 +120,33 @@ class ShellWindowClosesSessionTest {
     @Test
     @DisplayName("closing the window releases the shell's cycles, exactly as typing exit does")
     void closingTheWindowEndsTheSession(@TempDir Path dir) throws Exception {
-      onFxThread(() -> {
-        LocalGameSession session = sessionOn(dir);
-        long idle = heldCycles(session);
+        onFxThread(() -> {
+            LocalGameSession session = sessionOn(dir);
+            long idle = heldCycles(session);
 
-        assertThat(session.openSession(ADDRESS).succeeded()).isTrue();
-        assertThat(heldCycles(session))
-                .as("an open shell holds its cycles")
-                .isEqualTo(idle + Balance.SESSION_CYCLES);
+            assertThat(session.openSession(ADDRESS).succeeded()).isTrue();
+            assertThat(heldCycles(session))
+                    .as("an open shell holds its cycles")
+                    .isEqualTo(idle + Balance.SESSION_CYCLES);
 
-        // The desk closing the window is the whole subject: no `exit`, no call to the rules.
-        DeskManager desk = new DeskManager();
-        desk.open(new DeskManager.Spec(
-                "shell:" + ADDRESS, "Shell", ADDRESS, new javafx.scene.layout.Pane(), 760, 520, true,
-                () -> session.closeSession(ADDRESS)));
-        desk.close("shell:" + ADDRESS);
+            // The desk closing the window is the whole subject: no `exit`, no call to the rules.
+            DeskManager desk = new DeskManager();
+            desk.open(new DeskManager.Spec(
+                    "shell:" + ADDRESS,
+                    "Shell",
+                    ADDRESS,
+                    new javafx.scene.layout.Pane(),
+                    760,
+                    520,
+                    true,
+                    () -> session.closeSession(ADDRESS)));
+            desk.close("shell:" + ADDRESS);
 
-        assertThat(heldCycles(session))
-                .as("closing the window must hand the cycles back")
-                .isEqualTo(idle);
-        assertThat(session.sessions()).isEmpty();
-      });
+            assertThat(heldCycles(session))
+                    .as("closing the window must hand the cycles back")
+                    .isEqualTo(idle);
+            assertThat(session.sessions()).isEmpty();
+        });
     }
 
     /**
@@ -154,21 +160,20 @@ class ShellWindowClosesSessionTest {
     @Test
     @DisplayName("a callback that closes the same window again does not recurse")
     void reentrantCloseTerminates() throws Exception {
-      onFxThread(() -> {
-        DeskManager desk = new DeskManager();
-        AtomicInteger runs = new AtomicInteger();
-        desk.open(new DeskManager.Spec(
-                "shell:loop", "Shell", "loop", new javafx.scene.layout.Pane(), 760, 520, true,
-                () -> {
-                    runs.incrementAndGet();
-                    desk.close("shell:loop");
-                }));
+        onFxThread(() -> {
+            DeskManager desk = new DeskManager();
+            AtomicInteger runs = new AtomicInteger();
+            desk.open(new DeskManager.Spec(
+                    "shell:loop", "Shell", "loop", new javafx.scene.layout.Pane(), 760, 520, true, () -> {
+                        runs.incrementAndGet();
+                        desk.close("shell:loop");
+                    }));
 
-        desk.close("shell:loop");
+            desk.close("shell:loop");
 
-        assertThat(runs).hasValue(1);
-        assertThat(desk.find("shell:loop")).isEmpty();
-      });
+            assertThat(runs).hasValue(1);
+            assertThat(desk.find("shell:loop")).isEmpty();
+        });
     }
 
     /**
@@ -181,12 +186,11 @@ class ShellWindowClosesSessionTest {
     @Test
     @DisplayName("a window with no callback closes without incident")
     void ordinaryWindowsHaveNothingToRelease() throws Exception {
-      onFxThread(() -> {
-        DeskManager desk = new DeskManager();
-        desk.open(new DeskManager.Spec(
-                "ledger", "Ledger", "", new javafx.scene.layout.Pane(), 400, 300, true));
-        desk.close("ledger");
-        assertThat(desk.find("ledger")).isEmpty();
-      });
+        onFxThread(() -> {
+            DeskManager desk = new DeskManager();
+            desk.open(new DeskManager.Spec("ledger", "Ledger", "", new javafx.scene.layout.Pane(), 400, 300, true));
+            desk.close("ledger");
+            assertThat(desk.find("ledger")).isEmpty();
+        });
     }
 }

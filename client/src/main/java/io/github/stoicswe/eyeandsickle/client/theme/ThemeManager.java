@@ -160,8 +160,7 @@ public final class ThemeManager {
      * than from the cursor code so there is one place that knows a theme changed.
      */
     public void refreshCursors() {
-        var skin = io.github.stoicswe.eyeandsickle.client.ui.cursors.CursorSkin
-                .byId(profile.appearance().cursorSkin)
+        var skin = io.github.stoicswe.eyeandsickle.client.ui.cursors.CursorSkin.byId(profile.appearance().cursorSkin)
                 .orElse(io.github.stoicswe.eyeandsickle.client.ui.cursors.CursorSkin.SYSTEM);
         List<String> sheets = scenes.isEmpty()
                 ? List.of(resource(ThemeId.BASE_STYLESHEET))

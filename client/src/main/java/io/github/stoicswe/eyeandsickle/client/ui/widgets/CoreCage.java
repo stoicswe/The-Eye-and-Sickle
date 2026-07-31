@@ -51,7 +51,21 @@ import javafx.scene.layout.StackPane;
 public final class CoreCage extends StackPane {
 
     private static final int COLS = 36;
-    private static final int ROWS = 14;
+    /**
+     * ⚠ Sized to the cage, with no blank rows above it (2026-07-30).
+     *
+     * <p>It was 14, and the projection put the top plate at {@code ROWS/2 - halfHeight*0.5} = row 2
+     * — so the widget reserved two empty rows above the drawing and one below. In the rig monitor's
+     * split that read as the instrument starting lower than the cell field beside it, even though
+     * the two nodes were laid out at exactly the same y (measured: delta 0.0). The gap was inside
+     * the art, not in the layout, and no alignment change could have fixed it.
+     *
+     * <p>⚠ Trimming is only safe because the blank rows are CONSTANT. {@code yaw} enters the
+     * projection through {@code x} and {@code z} alone — the plates are horizontal and viewed at a
+     * fixed elevation — so the topmost and bottommost drawn rows do not move as the cage turns. A
+     * render whose extent varied with rotation would bob against the grid instead.
+     */
+    private static final int ROWS = 10;
 
     /** 48 steps to a revolution at this period is a ~14s turn. Slow on purpose — see the class doc. */
     private static final double FRAME_MS = 300;
@@ -106,9 +120,8 @@ public final class CoreCage extends StackPane {
      * @param personalHeat 0–100. Drives the decay, and eventually what appears inside the cage
      */
     public void show(long selfMiningCycles, long totalCycles, int personalHeat) {
-        this.earningBanks = totalCycles <= 0
-                ? 0
-                : (int) Math.round(BANKS * Math.min(1.0, selfMiningCycles / (double) totalCycles));
+        this.earningBanks =
+                totalCycles <= 0 ? 0 : (int) Math.round(BANKS * Math.min(1.0, selfMiningCycles / (double) totalCycles));
         this.heat = Math.max(0, Math.min(1, personalHeat / 100.0d));
         render();
     }
@@ -188,9 +201,14 @@ public final class CoreCage extends StackPane {
      */
     private double[] project(double x, double y, double z) {
         double cx = COLS / 2.0;
-        double cy = ROWS / 2.0;
-        return new double[] {cx + x, cy - y * 0.5, z};
+        // ⚠ Derived from the cage's own half-height rather than from ROWS, so the top plate lands on
+        // row 0. Deriving it from ROWS/2 is what left the blank band above the drawing, and it would
+        // silently come back the moment ROWS changed again.
+        return new double[] {cx + x, CENTRE_ROW - y * 0.5, z};
     }
+
+    /** The row the cage's waist projects to. Puts the top plate on row 0 — see {@link #ROWS}. */
+    private static final double CENTRE_ROW = 4.5;
 
     /** A depth-shaded line between two projected points. */
     private void line(double[] a, double[] b, boolean amber) {
@@ -265,7 +283,9 @@ public final class CoreCage extends StackPane {
      */
     private void iris() {
         int cx = COLS / 2;
-        int cy = ROWS / 2;
+        // The cage's waist, the same one the projection uses — the iris sits inside the cage, so a
+        // separately-derived centre would drift away from it the moment either constant moved.
+        int cy = (int) Math.round(CENTRE_ROW);
         double open = (heat - 0.8) / 0.2;
         int r = (int) Math.round(1 + open * 2);
         for (int y = -r; y <= r; y++) {
@@ -274,8 +294,7 @@ public final class CoreCage extends StackPane {
                 if (d <= r) {
                     // Nearer than any cage geometry: it is inside the cage and in front of the far
                     // half, and it must not be occluded by the structure it is sitting in.
-                    put(cy + y, cx + x, d < r * 0.45 ? '█' : d < r * 0.75 ? '▓' : '▒',
-                            false, Double.MAX_VALUE);
+                    put(cy + y, cx + x, d < r * 0.45 ? '█' : d < r * 0.75 ? '▓' : '▒', false, Double.MAX_VALUE);
                 }
             }
         }

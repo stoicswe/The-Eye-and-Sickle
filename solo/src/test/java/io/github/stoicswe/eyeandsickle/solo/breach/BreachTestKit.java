@@ -66,7 +66,10 @@ final class BreachTestKit {
         for (var miner : save.rig.foreignMiners) {
             miner.discovered = true;
         }
-        return Targets.available(save).stream().filter(BreachTarget::minerCrack).findFirst().orElseThrow();
+        return Targets.available(save).stream()
+                .filter(BreachTarget::minerCrack)
+                .findFirst()
+                .orElseThrow();
     }
 
     /** The one offensive target on this rig — a known node, never a parasite. */
@@ -226,8 +229,15 @@ final class BreachTestKit {
             used[i] = layer.matrixUsed.get(i);
         }
         List<int[]> path = new ArrayList<>();
-        return walk(layer, goal, new ArrayList<>(layer.matrixBuffer), used,
-                        layer.matrixRowTurn, layer.matrixCursorRow, layer.matrixCursorColumn, path)
+        return walk(
+                        layer,
+                        goal,
+                        new ArrayList<>(layer.matrixBuffer),
+                        used,
+                        layer.matrixRowTurn,
+                        layer.matrixCursorRow,
+                        layer.matrixCursorColumn,
+                        path)
                 ? path
                 : List.of();
     }

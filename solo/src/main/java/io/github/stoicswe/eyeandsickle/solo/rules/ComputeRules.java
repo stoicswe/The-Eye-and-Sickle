@@ -195,8 +195,8 @@ public final class ComputeRules {
             return null;
         }
         double load = loadFactor(rig);
-        Duration recovery = ThermalRules.recoveryTime(
-                cycles, rig.totalCycles, load, rig.thermalBudget, stolenShare(rig));
+        Duration recovery =
+                ThermalRules.recoveryTime(cycles, rig.totalCycles, load, rig.thermalBudget, stolenShare(rig));
 
         AllocationState a = new AllocationState();
         a.consumer = consumer.name();

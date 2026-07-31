@@ -1,8 +1,8 @@
 package io.github.stoicswe.eyeandsickle.solo.state;
 
-import java.math.BigInteger;
 import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.Pools;
+import java.math.BigInteger;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;

@@ -79,7 +79,8 @@ public final class CommandPalette {
                 setText(entry.display());
                 // The whole entry goes to the accessible name: a screen reader user gets the verb
                 // AND what it does, which is the same thing a sighted user gets from the row.
-                setAccessibleText(entry.command().name() + ". " + entry.command().synopsis());
+                setAccessibleText(
+                        entry.command().name() + ". " + entry.command().synopsis());
             }
         });
 
@@ -124,12 +125,15 @@ public final class CommandPalette {
             String typed = search.getText() == null ? "" : search.getText().trim();
             // If the player typed something that is not just a search term, honour it verbatim —
             // the palette must never silently run a different command from the one on screen.
-            String line = typed.startsWith(chosen.command().name()) ? typed : chosen.command().name();
+            String line = typed.startsWith(chosen.command().name())
+                    ? typed
+                    : chosen.command().name();
 
             Shell.Result result = shell.run(line);
-            output.setText(result.lines().isEmpty()
-                    ? "$? = " + result.status() + " (" + ExitStatus.name(result.status()) + ")"
-                    : String.join("\n", result.lines()));
+            output.setText(
+                    result.lines().isEmpty()
+                            ? "$? = " + result.status() + " (" + ExitStatus.name(result.status()) + ")"
+                            : String.join("\n", result.lines()));
             output.getStyleClass().removeAll("es-state-refused", "es-state-unreachable");
             if (result.status() == ExitStatus.UNAVAILABLE || result.status() == ExitStatus.TEMPFAIL) {
                 output.getStyleClass().add("es-state-unreachable");
@@ -190,7 +194,9 @@ public final class CommandPalette {
         // different skin.
         if (owner instanceof Stage ownerStage && ownerStage.getScene() != null) {
             scene.getStylesheets().addAll(ownerStage.getScene().getStylesheets());
-            scene.getRoot().getStyleClass().addAll(ownerStage.getScene().getRoot().getStyleClass());
+            scene.getRoot()
+                    .getStyleClass()
+                    .addAll(ownerStage.getScene().getRoot().getStyleClass());
         }
         stage.setScene(scene);
         stage.show();

@@ -98,11 +98,12 @@ class RemoteGameSessionTest {
             for (WindowSpec spec : WindowSpec.values()) {
                 String name = spec.combination().getName();
                 String last = name.substring(name.lastIndexOf('+') + 1).trim();
-                String glyph = switch (last) {
-                    case "Comma" -> ",";
-                    case "Slash" -> "/";
-                    default -> last.length() > 1 ? last.substring(0, 1) : last;
-                };
+                String glyph =
+                        switch (last) {
+                            case "Comma" -> ",";
+                            case "Slash" -> "/";
+                            default -> last.length() > 1 ? last.substring(0, 1) : last;
+                        };
                 assertThat(glyph).as("%s has a rail glyph", spec.id()).isNotBlank();
                 assertThat(glyphs.add(glyph))
                         .as("%s duplicates the rail glyph %s", spec.id(), glyph)
@@ -118,8 +119,7 @@ class RemoteGameSessionTest {
             // is the default because it reinforces the character-cell language and is what makes
             // edge-tiling reachable at all. Pinned here because a default that flips during a
             // refactor is invisible in review and obvious to every player.
-            assertThat(new io.github.stoicswe.eyeandsickle.client.profile.ClientProfile.Settings()
-                            .freeDragWindows)
+            assertThat(new io.github.stoicswe.eyeandsickle.client.profile.ClientProfile.Settings().freeDragWindows)
                     .isFalse();
         }
 
@@ -129,8 +129,7 @@ class RemoteGameSessionTest {
             // §8 wants the desk to be a mechanic. UI-2 records why it ships off: a starting rig has
             // bandwidth 1, and the arithmetic turning that into a window budget is invented. A cap
             // that turns out to be wrong must not be discovered by a player who cannot open a map.
-            assertThat(new io.github.stoicswe.eyeandsickle.client.profile.ClientProfile.Settings()
-                            .bandwidthCapsWindows)
+            assertThat(new io.github.stoicswe.eyeandsickle.client.profile.ClientProfile.Settings().bandwidthCapsWindows)
                     .isFalse();
         }
 
@@ -141,8 +140,7 @@ class RemoteGameSessionTest {
             // Bandwidth has no claim on them. A cap that could close the manual would make the
             // game unlearnable at exactly the moment the player needed to learn it.
             var starting = new GameSession.RigCapacity(1, 1, 1);
-            assertThat(starting.proposedWindowCap())
-                    .isGreaterThan(GameSession.RigCapacity.FREE_WINDOWS);
+            assertThat(starting.proposedWindowCap()).isGreaterThan(GameSession.RigCapacity.FREE_WINDOWS);
             assertThat(new GameSession.RigCapacity(0, 1, 1).proposedWindowCap())
                     .as("a zero-bandwidth rig still gets one engagement window")
                     .isEqualTo(GameSession.RigCapacity.FREE_WINDOWS + 1);

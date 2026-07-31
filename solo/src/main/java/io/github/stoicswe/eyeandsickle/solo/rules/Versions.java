@@ -1,10 +1,10 @@
 package io.github.stoicswe.eyeandsickle.solo.rules;
 
-import java.math.BigInteger;
 import io.github.stoicswe.eyeandsickle.protocol.game.UpgradeVersion;
 import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.state.ItemState;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
+import java.math.BigInteger;
 
 /**
  * Which build of a tool a given machine is carrying, and what that is worth.
@@ -126,8 +126,8 @@ public final class Versions {
 
     /** Where {@code candidate} stands against what the player holds of the same tool. */
     public static Standing standing(SoloSave save, String itemType, UpgradeVersion candidate) {
-        boolean has = save != null && save.items.stream()
-                .anyMatch(item -> itemType != null && itemType.equals(item.itemType));
+        boolean has = save != null
+                && save.items.stream().anyMatch(item -> itemType != null && itemType.equals(item.itemType));
         if (!has) {
             return Standing.NEW;
         }

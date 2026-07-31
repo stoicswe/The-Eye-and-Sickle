@@ -66,8 +66,8 @@ public final class IntrusionRules {
         miner.deployedAt = now;
         miner.lastAccruedAt = now;
 
-        AllocationState allocation = ComputeRules.reserve(
-                save.rig, ComputeConsumer.DEPLOYED_MINER, miner.label, miner.hostCycles);
+        AllocationState allocation =
+                ComputeRules.reserve(save.rig, ComputeConsumer.DEPLOYED_MINER, miner.label, miner.hostCycles);
         if (allocation != null) {
             allocation.startedAt = now;
             miner.allocationId = allocation.allocationId;
@@ -83,7 +83,9 @@ public final class IntrusionRules {
 
         int heat = Balance.netCounterHackHeat(depth);
         save.personalHeat = Math.min(Balance.PERSONAL_HEAT_MAX, save.personalHeat + heat);
-        EventLog.warning(save, "rig",
+        EventLog.warning(
+                save,
+                "rig",
                 "something answered in the other direction: an unregistered process is running on "
                         + "your rig" + (heat > 0 ? ", and personal heat rose by " + heat : "")
                         + ". `scan` names it, the process table shows it, and cracking it costs no heat.",

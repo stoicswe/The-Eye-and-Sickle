@@ -30,9 +30,33 @@ public enum WindowSpec {
      * The compute readout. Never closable, because {@code docs/design/01-core-resources.md} §1.4
      * makes it mandatory and always visible — client pillar C2. It collapses to a strip instead.
      */
-    RIG_MONITOR("rig-monitor", "Rig monitor", "top", "Where every cycle is, one cell per cycle. Also what the rig is working on, with time remaining.", 420, 560, 320, 420, KeyCode.DIGIT0, false, false, true),
+    RIG_MONITOR(
+            "rig-monitor",
+            "Rig monitor",
+            "top",
+            "Where every cycle is, one cell per cycle. Also what the rig is working on, with time remaining.",
+            420,
+            560,
+            320,
+            420,
+            KeyCode.DIGIT0,
+            false,
+            false,
+            true),
 
-    TERMINAL("terminal", "Terminal", "a shell session", "A real shell over the game: pipelines, globs, exit statuses. Everything the windows do, and some things they do not.", 880, 620, 560, 360, KeyCode.DIGIT1, false, true, false),
+    TERMINAL(
+            "terminal",
+            "Terminal",
+            "a shell session",
+            "A real shell over the game: pipelines, globs, exit statuses. Everything the windows do, and some things they do not.",
+            880,
+            620,
+            560,
+            360,
+            KeyCode.DIGIT1,
+            false,
+            true,
+            false),
     /**
      * The network, as a graph you read and a list you sort. <b>The only network tool.</b>
      *
@@ -55,10 +79,58 @@ public enum WindowSpec {
      * <p>⚠ It inherits {@code Shortcut+2} deliberately. The habit that caused the confusion now
      * lands on the tool that works, and the digit row stays contiguous.
      */
-    NETMAP("netmap", "Network", "nmap / a topology view", "The network as a graph: your vantage, what a sweep has found, and the bridges out. Reach is a hard ceiling; a better sweep only finds quieter machines.", 1100, 780, 720, 480, KeyCode.DIGIT2, false, true, false),
-    RECON("recon", "Recon", "less", "What you have learned about a target, and what it would cost to learn more.", 760, 640, 480, 400, KeyCode.DIGIT3, false, true, false),
-    AUDIT("audit", "Audit", "ps / netstat / df", "Processes, connections and storage on your own rig. When these three disagree, something is hiding.", 900, 600, 640, 400, KeyCode.DIGIT4, false, true, false),
-    MINING("mining", "Mining", "a miner dashboard", "Self-mining allocation and deployed-miner collection. The income floor, and the only offline income.", 820, 600, 560, 400, KeyCode.DIGIT5, false, true, false),
+    NETMAP(
+            "netmap",
+            "Network",
+            "nmap / a topology view",
+            "The network as a graph: your vantage, what a sweep has found, and the bridges out. Reach is a hard ceiling; a better sweep only finds quieter machines.",
+            1100,
+            780,
+            720,
+            480,
+            KeyCode.DIGIT2,
+            false,
+            true,
+            false),
+    RECON(
+            "recon",
+            "Recon",
+            "less",
+            "What you have learned about a target, and what it would cost to learn more.",
+            760,
+            640,
+            480,
+            400,
+            KeyCode.DIGIT3,
+            false,
+            true,
+            false),
+    AUDIT(
+            "audit",
+            "Audit",
+            "ps / netstat / df",
+            "Processes, connections and storage on your own rig. When these three disagree, something is hiding.",
+            900,
+            600,
+            640,
+            400,
+            KeyCode.DIGIT4,
+            false,
+            true,
+            false),
+    MINING(
+            "mining",
+            "Mining",
+            "a miner dashboard",
+            "Self-mining allocation and deployed-miner collection. The income floor, and the only offline income.",
+            820,
+            600,
+            560,
+            400,
+            KeyCode.DIGIT5,
+            false,
+            true,
+            false),
     /**
      * Items across the three tiers.
      *
@@ -71,18 +143,126 @@ public enum WindowSpec {
      * moved into {@code ~/.VaultStore}, because nobody mounted them and a {@code /mnt/vault} in the
      * sidebar of a machine an intruder is standing on is a signpost to the one place meant to be safe.
      */
-    STORAGE("storage", "VaultStore", "ls ~/.VaultStore", "Your items across the three tiers. Moving one changes how exposed it is.", 840, 620, 560, 420, KeyCode.DIGIT6, false, true, false),
-    LEDGER("ledger", "Ledger", "a transaction log", "Every ethecoin movement and what caused it. The audit trail for your own balance.", 880, 560, 600, 360, KeyCode.DIGIT7, false, true, false),
-    BOTNET("botnet", "Botnet", "jobs / systemctl", "Bot frames, their loadouts and what they are doing. Bots assist; they never solve it for you.", 780, 560, 520, 400, KeyCode.DIGIT8, false, true, false),
-    DEFENSE("defense", "Defense", "a firewall / IDS console", "What is armed and what it costs to keep armed. Defending your own rig never generates heat.", 780, 560, 520, 380, KeyCode.DIGIT9, false, true, false),
+    STORAGE(
+            "storage",
+            "VaultStore",
+            "ls ~/.VaultStore",
+            "Your items across the three tiers. Moving one changes how exposed it is.",
+            840,
+            620,
+            560,
+            420,
+            KeyCode.DIGIT6,
+            false,
+            true,
+            false),
+    LEDGER(
+            "ledger",
+            "Ledger",
+            "a transaction log",
+            "Every ethecoin movement and what caused it. The audit trail for your own balance.",
+            880,
+            560,
+            600,
+            360,
+            KeyCode.DIGIT7,
+            false,
+            true,
+            false),
+    BOTNET(
+            "botnet",
+            "Botnet",
+            "jobs / systemctl",
+            "Bot frames, their loadouts and what they are doing. Bots assist; they never solve it for you.",
+            780,
+            560,
+            520,
+            400,
+            KeyCode.DIGIT8,
+            false,
+            true,
+            false),
+    DEFENSE(
+            "defense",
+            "Defense",
+            "a firewall / IDS console",
+            "What is armed and what it costs to keep armed. Defending your own rig never generates heat.",
+            780,
+            560,
+            520,
+            380,
+            KeyCode.DIGIT9,
+            false,
+            true,
+            false),
     // The core loop (docs/design/05). Given a letter rather than a digit because the digit row is
     // full, and B is the one accelerator a player will reach for without being told.
-    BREACH("breach", "Breach", "an exploit console", "The puzzle itself. Spend attention to clear a node's layers before the budget runs out; nothing here is on a clock.", 1080, 760, 720, 480, KeyCode.B, false, true, false),
+    BREACH(
+            "breach",
+            "Breach",
+            "an exploit console",
+            "The puzzle itself. Spend attention to clear a node's layers before the budget runs out; nothing here is on a clock.",
+            1080,
+            760,
+            720,
+            480,
+            KeyCode.B,
+            false,
+            true,
+            false),
 
-    MARKET("market", "Market", "a package manager", "What is for sale, what it costs, and which gate stands in front of it.", 900, 640, 600, 440, KeyCode.M, true, true, false),
-    IDENTITY("identity", "Identity", "whoami / id", "Your handle, faction standing and heat. Who the Eye thinks you are.", 560, 640, 420, 440, KeyCode.I, true, true, false),
-    COMMS("comms", "Comms", "mail / who", "Messages and contacts. Who is talking to you, and who can see that they did.", 720, 620, 480, 400, KeyCode.P, true, true, false),
-    SETTINGS("settings", "Settings", "~/.config", "Theme, teaching level, desk behaviour, notices, pointer and motion.", 760, 620, 560, 440, KeyCode.COMMA, false, true, false),
+    MARKET(
+            "market",
+            "Market",
+            "a package manager",
+            "What is for sale, what it costs, and which gate stands in front of it.",
+            900,
+            640,
+            600,
+            440,
+            KeyCode.M,
+            true,
+            true,
+            false),
+    IDENTITY(
+            "identity",
+            "Identity",
+            "whoami / id",
+            "Your handle, faction standing and heat. Who the Eye thinks you are.",
+            560,
+            640,
+            420,
+            440,
+            KeyCode.I,
+            true,
+            true,
+            false),
+    COMMS(
+            "comms",
+            "Comms",
+            "mail / who",
+            "Messages and contacts. Who is talking to you, and who can see that they did.",
+            720,
+            620,
+            480,
+            400,
+            KeyCode.P,
+            true,
+            true,
+            false),
+    SETTINGS(
+            "settings",
+            "Settings",
+            "~/.config",
+            "Theme, teaching level, desk behaviour, notices, pointer and motion.",
+            760,
+            620,
+            560,
+            440,
+            KeyCode.COMMA,
+            false,
+            true,
+            false),
 
     /**
      * The rig log — a live stream of what the machine has been doing.
@@ -99,7 +279,19 @@ public enum WindowSpec {
      * <b>WL-1</b> with {@code man}, since the catalogue's size is now three windows past what §2.1
      * lists.
      */
-    LOG("log", "Log", "journalctl -f", "What the rig has been doing, newest last — including everything that happened while you were away.", 720, 620, 460, 320, KeyCode.L, true, true, false),
+    LOG(
+            "log",
+            "Log",
+            "journalctl -f",
+            "What the rig has been doing, newest last — including everything that happened while you were away.",
+            720,
+            620,
+            460,
+            320,
+            KeyCode.L,
+            true,
+            true,
+            false),
 
     /**
      * The manual and the term index.
@@ -115,7 +307,19 @@ public enum WindowSpec {
      * document and not the other should be resolved by building the thing and reporting the
      * discrepancy rather than by silently dropping it. Logged against <b>T-1</b> and <b>WL-1</b>.
      */
-    MAN("man", "Manual", "man / apropos", "The offline manual. Every term the game uses, and what the real thing is called.", 820, 680, 520, 420, KeyCode.SLASH, false, true, false),
+    MAN(
+            "man",
+            "Manual",
+            "man / apropos",
+            "The offline manual. Every term the game uses, and what the real thing is called.",
+            820,
+            680,
+            520,
+            420,
+            KeyCode.SLASH,
+            false,
+            true,
+            false),
 
     /**
      * The programmer's calculator.
@@ -134,7 +338,19 @@ public enum WindowSpec {
      * nothing and cannot be lost — see {@code CalcView}. That is why its presence in the catalogue
      * costs the design nothing to justify: there is no invariant a calculator can touch.
      */
-    CALC("calc", "Calculator", "bc / printf %x / a programmer's calculator", "One value in hex, decimal, octal and binary at once, with its bits. Word width, two's complement, masks, shifts and byte order.", 820, 700, 560, 460, KeyCode.C, true, true, false),
+    CALC(
+            "calc",
+            "Calculator",
+            "bc / printf %x / a programmer's calculator",
+            "One value in hex, decimal, octal and binary at once, with its bits. Word width, two's complement, masks, shifts and byte order.",
+            820,
+            700,
+            560,
+            460,
+            KeyCode.C,
+            true,
+            true,
+            false),
 
     /**
      * The file manager.
@@ -148,10 +364,34 @@ public enum WindowSpec {
      * (§6.3) and {@code Shortcut+Shift+F} is already spoken for by {@code recon}'s search-all
      * (§2.6); taking either would break a documented binding to gain a better mnemonic.
      */
-    FILES("files", "Files", "nautilus / ls / mount", "Your rig's filesystem, and every machine you hold mounted onto it. Ubuntu's layout, because it is the one worth learning.", 980, 660, 640, 440, KeyCode.H, true, true, false),
+    FILES(
+            "files",
+            "Files",
+            "nautilus / ls / mount",
+            "Your rig's filesystem, and every machine you hold mounted onto it. Ubuntu's layout, because it is the one worth learning.",
+            980,
+            660,
+            640,
+            440,
+            KeyCode.H,
+            true,
+            true,
+            false),
 
     /** The answer to losing a window behind another. Opens on first run alongside the rig monitor. */
-    SWITCHER("switcher", "Windows", "jobs", "Every tool in the catalogue, open or not. The way back to a window you lost.", 280, 520, 240, 320, KeyCode.J, true, true, true);
+    SWITCHER(
+            "switcher",
+            "Windows",
+            "jobs",
+            "Every tool in the catalogue, open or not. The way back to a window you lost.",
+            280,
+            520,
+            240,
+            320,
+            KeyCode.J,
+            true,
+            true,
+            true);
 
     /** No window's minimum may exceed this. See the class comment. */
     public static final double MAX_MINIMUM_WIDTH = 720;

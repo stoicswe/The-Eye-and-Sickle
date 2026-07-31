@@ -8,8 +8,8 @@ import io.github.stoicswe.eyeandsickle.client.theme.ThemeId;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeManager;
 import io.github.stoicswe.eyeandsickle.client.view.CalcView;
 import io.github.stoicswe.eyeandsickle.client.view.LogView;
-import io.github.stoicswe.eyeandsickle.client.view.NetMapView;
 import io.github.stoicswe.eyeandsickle.client.view.MoreViews;
+import io.github.stoicswe.eyeandsickle.client.view.NetMapView;
 import io.github.stoicswe.eyeandsickle.client.view.RigMonitorView;
 import io.github.stoicswe.eyeandsickle.client.view.TerminalView;
 import io.github.stoicswe.eyeandsickle.client.view.Views;
@@ -160,8 +160,8 @@ public final class DeckSnapshot {
         for (ThemeId id : ThemeId.selectable()) {
             themes.select(id);
             deck.desk().closeAll();
-            deck.openStartingWindows(List.of(
-                    WindowSpec.RIG_MONITOR, WindowSpec.SETTINGS, WindowSpec.LOG, WindowSpec.DEFENSE));
+            deck.openStartingWindows(
+                    List.of(WindowSpec.RIG_MONITOR, WindowSpec.SETTINGS, WindowSpec.LOG, WindowSpec.DEFENSE));
 
             // Two passes. The first resolves CSS and sizes the panels; the desk then places windows
             // against a desk whose width is finally known, and the second pass lays those out. One
@@ -190,8 +190,8 @@ public final class DeckSnapshot {
             // Scene.snapshot takes only a target image — SnapshotParameters is Node's overload.
             WritableImage image = scene.snapshot(null);
             write(image, outputDir.resolve("deck-" + id.id() + ".png").toFile());
-            System.out.println("wrote deck-" + id.id() + ".png  "
-                    + (int) image.getWidth() + "x" + (int) image.getHeight());
+            System.out.println(
+                    "wrote deck-" + id.id() + ".png  " + (int) image.getWidth() + "x" + (int) image.getHeight());
 
             // And the pause menu over the same deck, for the default palette only — it is the same
             // panel language, so rendering it five times would prove nothing new.
@@ -227,7 +227,9 @@ public final class DeckSnapshot {
                     }
                     scene.getRoot().applyCss();
                     deck.root().layout();
-                    write(scene.snapshot(null), outputDir.resolve("deck-glitch.png").toFile());
+                    write(
+                            scene.snapshot(null),
+                            outputDir.resolve("deck-glitch.png").toFile());
                     System.out.println("wrote deck-glitch.png");
                 } catch (Exception e) {
                     System.out.println("glitch frame skipped: " + e);
@@ -236,7 +238,9 @@ public final class DeckSnapshot {
                 deck.desk().closeAll();
                 scene.getRoot().applyCss();
                 deck.root().layout();
-                write(scene.snapshot(null), outputDir.resolve("deck-wallpaper.png").toFile());
+                write(
+                        scene.snapshot(null),
+                        outputDir.resolve("deck-wallpaper.png").toFile());
                 System.out.println("wrote deck-wallpaper.png");
             }
         }

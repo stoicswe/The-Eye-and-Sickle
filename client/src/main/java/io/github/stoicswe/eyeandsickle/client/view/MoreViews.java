@@ -1,18 +1,14 @@
 package io.github.stoicswe.eyeandsickle.client.view;
 
-import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.client.session.GameSession;
+import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.protocol.game.UnlockGate;
-import java.util.List;
 import java.util.Locale;
 import javafx.geometry.Insets;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
-import javafx.scene.control.TableColumn;
-import javafx.scene.control.TableView;
-import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
@@ -47,10 +43,9 @@ public final class MoreViews {
     public static Region market(GameSession session) {
         VBox root = panel("MARKET — a package manager");
 
-        Label invariant = wrapped(
-                "Ethecoin buys breadth, never a ceiling. Consumables, replacements and horizontal "
-                        + "options are for sale. Capacity is not: you cannot buy compute, you cannot "
-                        + "buy vault space, and you cannot buy your way past a proof-of-skill gate.");
+        Label invariant = wrapped("Ethecoin buys breadth, never a ceiling. Consumables, replacements and horizontal "
+                + "options are for sale. Capacity is not: you cannot buy compute, you cannot "
+                + "buy vault space, and you cannot buy your way past a proof-of-skill gate.");
 
         VBox gates = new VBox(10);
         for (UnlockGate gate : UnlockGate.values()) {
@@ -63,14 +58,15 @@ public final class MoreViews {
         }
 
         VBox bands = new VBox(3);
-        bands.getChildren().addAll(
-                new Label("PRICE BANDS"),
-                mono("consumables            5 – 15 EC"),
-                mono("mid-tier tools        40 – 60 EC"),
-                mono("top purchasable          ~200 EC"),
-                mono("black-market zero-day    400+ EC"),
-                secondary("Zero-days are never reliably purchasable or farmable. A price band is not "
-                        + "an offer."));
+        bands.getChildren()
+                .addAll(
+                        new Label("PRICE BANDS"),
+                        mono("consumables            5 – 15 EC"),
+                        mono("mid-tier tools        40 – 60 EC"),
+                        mono("top purchasable          ~200 EC"),
+                        mono("black-market zero-day    400+ EC"),
+                        secondary("Zero-days are never reliably purchasable or farmable. A price band is not "
+                                + "an offer."));
 
         Label balance = new Label();
         balance.getStyleClass().addAll("es-numeric", "es-ethecoin");
@@ -88,10 +84,13 @@ public final class MoreViews {
             Label name = new Label(o.name());
             name.getStyleClass().add("es-panel-title");
             Label desc = wrapped(o.description());
-            Label terms = new Label(o.purchasable()
-                    ? Ethecoin.format(o.priceWei()) + (o.equippedCycles() > 0
-                            ? "   ·   " + o.equippedCycles() + " cycles while armed" : "")
-                    : o.gate().name().toLowerCase(Locale.ROOT).replace('_', '-') + " gate");
+            Label terms = new Label(
+                    o.purchasable()
+                            ? Ethecoin.format(o.priceWei())
+                                    + (o.equippedCycles() > 0
+                                            ? "   ·   " + o.equippedCycles() + " cycles while armed"
+                                            : "")
+                            : o.gate().name().toLowerCase(Locale.ROOT).replace('_', '-') + " gate");
             terms.getStyleClass().add(o.purchasable() ? "es-ethecoin" : "es-state-unreachable");
             card.getChildren().addAll(name, desc, terms);
             if (!o.purchasable()) {
@@ -107,9 +106,19 @@ public final class MoreViews {
             listing.getChildren().add(card);
         }
 
-        ScrollPane scroll = new ScrollPane(new VBox(12, invariant, balance, new Separator(),
-                new Label("OFFERINGS"), listing, result, new Separator(),
-                new Label("THE FIVE GATES"), gates, new Separator(), bands));
+        ScrollPane scroll = new ScrollPane(new VBox(
+                12,
+                invariant,
+                balance,
+                new Separator(),
+                new Label("OFFERINGS"),
+                listing,
+                result,
+                new Separator(),
+                new Label("THE FIVE GATES"),
+                gates,
+                new Separator(),
+                bands));
         scroll.setFitToWidth(true);
         VBox.setVgrow(scroll, Priority.ALWAYS);
         root.getChildren().add(scroll);
@@ -129,13 +138,16 @@ public final class MoreViews {
     private static String gateExplanation(UnlockGate gate) {
         return switch (gate) {
             case ETHECOIN -> "Consumables, replacements, horizontal options. Never a permanent ceiling.";
-            case SCHEMATIC -> "Permanent capability. Found or earned, never bought — this is what stops "
-                    + "money from becoming progress.";
+            case SCHEMATIC ->
+                "Permanent capability. Found or earned, never bought — this is what stops "
+                        + "money from becoming progress.";
             case REPUTATION -> "Things that would distort the economy if they were simply free.";
-            case PROOF_OF_SKILL -> "Automation shortcuts. Tier-gated, never count-gated: doing an easy "
-                    + "thing a hundred times proves nothing.";
-            case HEAT_STATE -> "Access that swings both ways. Some contacts only deal with you while you "
-                    + "are cold; some only once you are notorious.";
+            case PROOF_OF_SKILL ->
+                "Automation shortcuts. Tier-gated, never count-gated: doing an easy "
+                        + "thing a hundred times proves nothing.";
+            case HEAT_STATE ->
+                "Access that swings both ways. Some contacts only deal with you while you "
+                        + "are cold; some only once you are notorious.";
         };
     }
 
@@ -156,8 +168,8 @@ public final class MoreViews {
      */
     public static Region recon(GameSession session) {
         VBox root = panel("RECON — less");
-        root.getChildren().add(wrapped(
-                "This window is now the collected reports — see ReconView. What a port scan costs, "
+        root.getChildren()
+                .add(wrapped("This window is now the collected reports — see ReconView. What a port scan costs, "
                         + "what each depth buys and what the whole thing is a model of is in "
                         + "`man port-scan`."));
         return scrollable(root);
@@ -175,20 +187,21 @@ public final class MoreViews {
         into.getChildren().clear();
         var reports = session.nodeReports();
         if (reports.isEmpty()) {
-            into.getChildren().add(secondary(
-                    "Nothing collected yet. Port-scan a machine and its report appears here."));
+            into.getChildren()
+                    .add(secondary("Nothing collected yet. Port-scan a machine and its report appears here."));
             return;
         }
-        Label head = mono(pad("ADDRESS", 18) + pad("KNOWN", 8) + pad("SCANS", 8)
-                + pad("OPENED", 20) + "UPDATED");
+        Label head = mono(pad("ADDRESS", 18) + pad("KNOWN", 8) + pad("SCANS", 8) + pad("OPENED", 20) + "UPDATED");
         head.getStyleClass().add("es-text-secondary");
         into.getChildren().add(head);
         var now = session.now();
         for (var report : reports) {
-            into.getChildren().add(mono(
-                    pad(report.address(), 18)
-                            + pad(report.known() + "/"
-                                    + io.github.stoicswe.eyeandsickle.protocol.game.NodeReport.total(), 8)
+            into.getChildren()
+                    .add(mono(pad(report.address(), 18)
+                            + pad(
+                                    report.known() + "/"
+                                            + io.github.stoicswe.eyeandsickle.protocol.game.NodeReport.total(),
+                                    8)
                             + pad(String.valueOf(report.scans()), 8)
                             + pad(NodeReportView.age(report.createdAt(), now), 20)
                             + NodeReportView.age(report.updatedAt(), now)));
@@ -307,11 +320,9 @@ public final class MoreViews {
         return l;
     }
 
-
     private static void styleByOutcome(Label label, GameSession.Outcome outcome) {
         label.getStyleClass().removeAll("es-state-refused", "es-state-unreachable");
-        if (outcome.status() == GameSession.Outcome.NOPERM
-                || outcome.status() == GameSession.Outcome.UNAVAILABLE) {
+        if (outcome.status() == GameSession.Outcome.NOPERM || outcome.status() == GameSession.Outcome.UNAVAILABLE) {
             // A gate is not a refusal: 77 says "you may have this, but not yet, and here is why".
             label.getStyleClass().add("es-state-unreachable");
         } else if (!outcome.succeeded()) {

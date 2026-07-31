@@ -90,8 +90,7 @@ public final class TransferRules {
      * @param now the session clock. ⚠ Never {@code Instant.now()} — a task whose deadline is measured
      *     against a different clock from the one that completes it reports 100% the moment it starts
      */
-    public static Started begin(
-            SoloSave save, String address, FsEntry entry, String destination, Instant now) {
+    public static Started begin(SoloSave save, String address, FsEntry entry, String destination, Instant now) {
         if (save == null || entry == null) {
             return new Started(null, Refusal.NOT_TRANSFERABLE, 0, Duration.ZERO);
         }
@@ -110,8 +109,7 @@ public final class TransferRules {
 
         long bytes = Math.max(1L, entry.sizeBytes());
         Duration duration = Balance.transferTime(bytes);
-        TaskState task = new TaskState(
-                KIND, "downloading " + entry.name(), "", 0L, now, now.plus(duration));
+        TaskState task = new TaskState(KIND, "downloading " + entry.name(), "", 0L, now, now.plus(duration));
         // Address, path, size and DESTINATION ride on the task — the destination especially,
         // because the player chose it and the tick that completes the transfer minutes later has no
         // other way to know where they wanted it.
@@ -149,8 +147,7 @@ public final class TransferRules {
      * @param entryId the ledger row for the payment. Rides on the task so the package that lands
      *     minutes later knows which transaction releases it — see {@code Repac.locked}.
      */
-    public static Started beginPurchase(
-            SoloSave save, String itemType, String fileName, String entryId, Instant now) {
+    public static Started beginPurchase(SoloSave save, String itemType, String fileName, String entryId, Instant now) {
         if (save == null || itemType == null || itemType.isBlank()) {
             return new Started(null, Refusal.NOT_TRANSFERABLE, 0, Duration.ZERO);
         }
@@ -162,8 +159,7 @@ public final class TransferRules {
         // from the same function — a bought copy and a stolen copy of one tool are one file.
         long bytes = io.github.stoicswe.eyeandsickle.solo.fs.VirtualFs.upgradeBytes(itemType);
         Duration duration = Balance.transferTime(bytes);
-        TaskState task = new TaskState(
-                KIND, "downloading " + fileName, "", 0L, now, now.plus(duration));
+        TaskState task = new TaskState(KIND, "downloading " + fileName, "", 0L, now, now.plus(duration));
         task.outcome = VENDOR + " " + path + " " + bytes + " "
                 + io.github.stoicswe.eyeandsickle.solo.rules.Repac.defaultDestination(save.handle)
                 + " " + itemType + " " + entryId;
@@ -205,7 +201,8 @@ public final class TransferRules {
 
     /** Every transfer currently in flight. */
     public static java.util.List<TaskState> inFlight(SoloSave save) {
-        return save == null ? java.util.List.of()
+        return save == null
+                ? java.util.List.of()
                 : save.tasks.stream().filter(task -> KIND.equals(task.kind)).toList();
     }
 

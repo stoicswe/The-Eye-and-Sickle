@@ -45,7 +45,8 @@ public final class CharacterSlots {
         // Slot 1 is deliberately `solo-save.json` rather than `solo-save-1.json`: that is the name
         // every save written before slots existed already has, and silently stranding somebody's
         // character behind a rename would be an unforced loss.
-        return slot == 1 ? profile.directory().resolve("solo-save.json")
+        return slot == 1
+                ? profile.directory().resolve("solo-save.json")
                 : profile.directory().resolve("solo-save-" + slot + ".json");
     }
 
@@ -68,13 +69,24 @@ public final class CharacterSlots {
             if (save == null) {
                 return Slot.empty(index, file);
             }
-            return new Slot(index, file, true, save.handle, save.ethecoinWei, save.rig.totalCycles,
-                    save.playedSeconds, save.lastPlayedAt, save.createdAt, null, save.avatarPng);
+            return new Slot(
+                    index,
+                    file,
+                    true,
+                    save.handle,
+                    save.ethecoinWei,
+                    save.rig.totalCycles,
+                    save.playedSeconds,
+                    save.lastPlayedAt,
+                    save.createdAt,
+                    null,
+                    save.avatarPng);
         } catch (RuntimeException unreadable) {
             // A corrupt or future-format save is shown as such rather than hidden. A slot that
             // silently reads as empty invites the player to overwrite the thing they were trying to
             // recover.
-            return new Slot(index, file, false, "", java.math.BigInteger.ZERO, 0, 0, null, null, unreadable.getMessage(), "");
+            return new Slot(
+                    index, file, false, "", java.math.BigInteger.ZERO, 0, 0, null, null, unreadable.getMessage(), "");
         }
     }
 

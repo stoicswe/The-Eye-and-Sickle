@@ -1,9 +1,9 @@
 package io.github.stoicswe.eyeandsickle.solo.fs;
 
-import java.math.BigInteger;
 import io.github.stoicswe.eyeandsickle.protocol.game.FsEntry;
 import io.github.stoicswe.eyeandsickle.protocol.game.FsKind;
 import io.github.stoicswe.eyeandsickle.solo.state.HostState;
+import java.math.BigInteger;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -75,7 +75,6 @@ public final class VirtualFs {
     public static final String SYSTEM = SystemTree.ROOT;
 
     public static final String USERS = "/Users";
-
 
     // ── The player's own rig ──────────────────────────────────────────────────────────────────
 
@@ -258,28 +257,39 @@ public final class VirtualFs {
         } else if (p.equals(home + "/.local/share")) {
             out.add(dir(Recents.dirFor(user), user, now));
         } else if (p.equals(Recents.dirFor(user))) {
-            for (var recent : recents == null
-                    ? List.<io.github.stoicswe.eyeandsickle.solo.state.RecentEntry>of() : recents) {
+            for (var recent :
+                    recents == null ? List.<io.github.stoicswe.eyeandsickle.solo.state.RecentEntry>of() : recents) {
                 out.add(new FsEntry(
-                        nameOf(recent.path), recent.path,
+                        nameOf(recent.path),
+                        recent.path,
                         recent.directory ? FsKind.DIRECTORY : FsKind.SYMLINK,
-                        0, "lrwxrwxrwx", user, user, recent.at, true));
+                        0,
+                        "lrwxrwxrwx",
+                        user,
+                        user,
+                        recent.at,
+                        true));
             }
         }
 
         // Files the player actually downloaded, wherever they put them. The only stored part of
         // this tree — everything else is derived. See StoredFileState.
-        for (var file : stored == null
-                ? List.<io.github.stoicswe.eyeandsickle.solo.state.StoredFileState>of() : stored) {
+        for (var file :
+                stored == null ? List.<io.github.stoicswe.eyeandsickle.solo.state.StoredFileState>of() : stored) {
             if (file.directory.equals(p)) {
                 out.add(new FsEntry(
-                        file.name, file.path(),
+                        file.name,
+                        file.path(),
                         // ⚠ Both installable suffixes mark as executable. `.frm` is firmware and
                         // `.upg` is software, and `ls -F` marks a thing you can run — a firmware
                         // image that listed as a plain file would read as inert data.
-                        file.name.endsWith(".upg") || file.name.endsWith(".frm")
-                                ? FsKind.EXECUTABLE : FsKind.FILE,
-                        file.bytes, "-rw-r--r--", user, user, file.at, true));
+                        file.name.endsWith(".upg") || file.name.endsWith(".frm") ? FsKind.EXECUTABLE : FsKind.FILE,
+                        file.bytes,
+                        "-rw-r--r--",
+                        user,
+                        user,
+                        file.at,
+                        true));
             }
         }
         out.sort(ORDER);
@@ -293,8 +303,7 @@ public final class VirtualFs {
      * {@code Contents/Resources}. ⚠ {@code Contents/Upgrades} is ours and is not part of a real bundle.
      */
     private static void bundle(
-            List<FsEntry> out, String path, String applications,
-            List<Installed> owned, String user, Instant now) {
+            List<FsEntry> out, String path, String applications, List<Installed> owned, String user, Instant now) {
         String rest = path.substring(applications.length() + 1);
         String[] parts = rest.split("/");
         Optional<Apps.App> app = Apps.byBundle(parts[0]);
@@ -315,8 +324,12 @@ public final class VirtualFs {
             return;
         }
         if (parts.length == 3 && parts[1].equals("Contents") && parts[2].equals(Apps.BINARIES)) {
-            out.add(file(base + "/Contents/" + Apps.BINARIES + "/" + app.get().binary(),
-                    420_000, user, now, FsKind.EXECUTABLE));
+            out.add(file(
+                    base + "/Contents/" + Apps.BINARIES + "/" + app.get().binary(),
+                    420_000,
+                    user,
+                    now,
+                    FsKind.EXECUTABLE));
             return;
         }
         if (parts.length == 3 && parts[1].equals("Contents") && parts[2].equals("Resources")) {
@@ -327,32 +340,44 @@ public final class VirtualFs {
         if (parts.length == 3 && parts[1].equals("Contents") && parts[2].equals(Apps.UPGRADES)) {
             String dir = base + "/Contents/" + Apps.UPGRADES;
             for (Installed item : owned) {
-                if (Apps.forItem(item.itemType()).map(a -> a.bundle().equals(parts[0])).orElse(false)) {
+                if (Apps.forItem(item.itemType())
+                        .map(a -> a.bundle().equals(parts[0]))
+                        .orElse(false)) {
                     // ⚠ Readable to the owner, always. Whether a REMOTE actor may take it is the
                     // tier's answer and is decided in AccessLog, not here — this is a view onto an
                     // item, not a second place it lives.
-                    String suffix = io.github.stoicswe.eyeandsickle.solo.rules.Repac
-                            .installableSuffix(item.itemType());
+                    String suffix = io.github.stoicswe.eyeandsickle.solo.rules.Repac.installableSuffix(item.itemType());
                     out.add(new FsEntry(
                             slug(item.displayName()) + suffix,
                             dir + "/" + slug(item.displayName()) + suffix,
-                            FsKind.FILE, upgradeBytes(item.itemType()),
-                            "-rw-r--r--", user, user, now, true));
+                            FsKind.FILE,
+                            upgradeBytes(item.itemType()),
+                            "-rw-r--r--",
+                            user,
+                            user,
+                            now,
+                            true));
                 }
             }
         }
     }
 
     private static void items(
-            List<FsEntry> out, String base, List<Installed> owned,
-            String tier, String user, Instant now) {
+            List<FsEntry> out, String base, List<Installed> owned, String tier, String user, Instant now) {
         for (Installed item : owned) {
             if (!tier.equals(item.tier())) {
                 continue;
             }
             out.add(new FsEntry(
-                    slug(item.displayName()), base + "/" + slug(item.displayName()), FsKind.FILE,
-                    4_096, "-rw-------", user, user, now, true));
+                    slug(item.displayName()),
+                    base + "/" + slug(item.displayName()),
+                    FsKind.FILE,
+                    4_096,
+                    "-rw-------",
+                    user,
+                    user,
+                    now,
+                    true));
         }
     }
 
@@ -379,8 +404,7 @@ public final class VirtualFs {
      * deployed miner is the player's own record. Reaching across that split inside a layout class
      * would put a knowledge question in the one place that must only answer shape questions.
      */
-    public static List<FsEntry> listHost(
-            HostState host, String path, List<String> minerIds, Instant now) {
+    public static List<FsEntry> listHost(HostState host, String path, List<String> minerIds, Instant now) {
         String p = normalise(path);
         boolean readable = host != null && host.foothold;
         String user = hostUser(host);
@@ -403,10 +427,10 @@ public final class VirtualFs {
             out.add(dir(LIBRARY + "/Logs", "root", now, readable));
             out.add(dir(LIBRARY + "/Preferences", "root", now, readable));
         } else if (p.equals(LIBRARY + "/Logs")) {
-            out.add(file(LIBRARY + "/Logs/system.log",
-                    20_000 + random.nextInt(60_000), "root", now, FsKind.FILE, readable));
-            out.add(file(LIBRARY + "/Logs/auth.log",
-                    4_000 + random.nextInt(20_000), "root", now, FsKind.FILE, readable));
+            out.add(file(
+                    LIBRARY + "/Logs/system.log", 20_000 + random.nextInt(60_000), "root", now, FsKind.FILE, readable));
+            out.add(file(
+                    LIBRARY + "/Logs/auth.log", 4_000 + random.nextInt(20_000), "root", now, FsKind.FILE, readable));
         } else if (p.equals(APPLICATIONS) || p.startsWith(APPLICATIONS + "/")) {
             hostApplications(out, host, p, APPLICATIONS, user, now, readable);
         } else if (p.equals(home)) {
@@ -419,8 +443,7 @@ public final class VirtualFs {
         } else if (p.equals(home + "/Library/LaunchAgents")) {
             for (String minerId : minerIds == null ? List.<String>of() : minerIds) {
                 String name = "com.uos.agent." + shortId(minerId) + ".plist";
-                out.add(file(home + "/Library/LaunchAgents/" + name,
-                        386, user, now, FsKind.FILE, readable));
+                out.add(file(home + "/Library/LaunchAgents/" + name, 386, user, now, FsKind.FILE, readable));
             }
         }
         out.sort(ORDER);
@@ -434,8 +457,7 @@ public final class VirtualFs {
      * the same things and "I saw a deep sweep on that box" stays true between visits.
      */
     private static void hostApplications(
-            List<FsEntry> out, HostState host, String path, String base,
-            String user, Instant now, boolean readable) {
+            List<FsEntry> out, HostState host, String path, String base, String user, Instant now, boolean readable) {
         Random random = seeded(host);
         List<Apps.App> present = Apps.catalogue().stream()
                 .filter(app -> !app.itemPrefixes().isEmpty())
@@ -461,8 +483,13 @@ public final class VirtualFs {
             out.add(dir(bundle + "/Contents/" + Apps.BINARIES, user, now, readable));
             out.add(dir(bundle + "/Contents/" + Apps.UPGRADES, user, now, readable));
         } else if (parts.length == 3 && parts[2].equals(Apps.BINARIES)) {
-            out.add(file(bundle + "/Contents/" + Apps.BINARIES + "/" + app.get().binary(),
-                    420_000, user, now, FsKind.EXECUTABLE, readable));
+            out.add(file(
+                    bundle + "/Contents/" + Apps.BINARIES + "/" + app.get().binary(),
+                    420_000,
+                    user,
+                    now,
+                    FsKind.EXECUTABLE,
+                    readable));
         } else if (parts.length == 3 && parts[2].equals(Apps.UPGRADES)) {
             // ⚠ `.pkg` on somebody else's machine, `.upg` on yours. A vendor package is not the
             // same object as an installable one, and Repac is the step between — see solo/rules/Repac.
@@ -471,45 +498,59 @@ public final class VirtualFs {
             // `ls` before anything is spent. Same reasoning as the `.pkg`/`.upg` rename: a fact the
             // player can see in the listing is a fact they do not have to be told twice, and firmware
             // is the class with conditions attached to installing it.
-            String name = app.get().binary()
-                    + (Apps.isFirmwareApp(app.get()) ? "-firmware" : "-upgrade");
+            String name = app.get().binary() + (Apps.isFirmwareApp(app.get()) ? "-firmware" : "-upgrade");
             out.add(new FsEntry(
-                    name + ".pkg", bundle + "/Contents/" + Apps.UPGRADES + "/" + name + ".pkg",
-                    FsKind.FILE, upgradeBytes(app.get().id() + host.address),
-                    "-rw-r--r--", user, user, now, readable));
+                    name + ".pkg",
+                    bundle + "/Contents/" + Apps.UPGRADES + "/" + name + ".pkg",
+                    FsKind.FILE,
+                    upgradeBytes(app.get().id() + host.address),
+                    "-rw-r--r--",
+                    user,
+                    user,
+                    now,
+                    readable));
         }
     }
 
     private static void homeOf(
-            List<FsEntry> out, HostState host, String user, Instant now,
-            boolean readable, Random random) {
+            List<FsEntry> out, HostState host, String user, Instant now, boolean readable, Random random) {
         String home = home(user);
         out.add(dir(home + "/Library", user, now, readable));
         out.add(dir(home + "/.ssh", user, now, readable));
         out.add(dir(home + "/Desktop", user, now, readable));
         out.add(dir(home + "/Documents", user, now, readable));
         out.add(dir(home + "/Downloads", user, now, readable));
-        out.add(file(home + "/.bash_history", 400 + random.nextInt(3_000), user, now,
-                FsKind.FILE, readable));
+        out.add(file(home + "/.bash_history", 400 + random.nextInt(3_000), user, now, FsKind.FILE, readable));
         if (host == null) {
             return;
         }
         if (!host.documentId.isBlank() && !host.documentTaken) {
             out.add(new FsEntry(
-                    documentFileName(host.documentId), home + "/Documents/"
-                            + documentFileName(host.documentId),
-                    FsKind.DOCUMENT, 2_400 + random.nextInt(6_000), "-rw-r--r--",
-                    user, user, now, readable));
+                    documentFileName(host.documentId),
+                    home + "/Documents/" + documentFileName(host.documentId),
+                    FsKind.DOCUMENT,
+                    2_400 + random.nextInt(6_000),
+                    "-rw-r--r--",
+                    user,
+                    user,
+                    now,
+                    readable));
         }
         if (host.lootWei.signum() > 0 && !host.looted) {
             out.add(new FsEntry(
-                    "wallet.dat", home + "/wallet.dat", FsKind.LOOT,
+                    "wallet.dat",
+                    home + "/wallet.dat",
+                    FsKind.LOOT,
                     // ⚠ A file SIZE, so bytes rather than money — the loot amount doubles as the
                     // wallet's size on disk, which is the joke and is why it is not reformatted.
                     // Clamped into a long because a size is one; a wallet over nine exabytes is not
                     // a case this filesystem has to render.
                     host.lootWei.min(BigInteger.valueOf(Long.MAX_VALUE)).longValueExact(),
-                    "-rw-------", user, user, now, readable));
+                    "-rw-------",
+                    user,
+                    user,
+                    now,
+                    readable));
         }
     }
 
@@ -535,9 +576,7 @@ public final class VirtualFs {
         if (p.equals("/")) {
             return true;
         }
-        List<FsEntry> parent = host == null
-                ? List.of()
-                : listHost(host, parentOf(p), now);
+        List<FsEntry> parent = host == null ? List.of() : listHost(host, parentOf(p), now);
         return parent.stream().anyMatch(e -> e.path().equals(p) && e.directory());
     }
 
@@ -611,30 +650,26 @@ public final class VirtualFs {
      * where directories are interleaved with files makes "what can I go into" a per-row decision, and
      * this window's whole job is going somewhere.
      */
-    private static final Comparator<FsEntry> ORDER =
-            Comparator.comparing((FsEntry e) -> !e.directory())
-                    .thenComparing(e -> e.name().toLowerCase(Locale.ROOT));
+    private static final Comparator<FsEntry> ORDER = Comparator.comparing((FsEntry e) -> !e.directory())
+            .thenComparing(e -> e.name().toLowerCase(Locale.ROOT));
 
     private static FsEntry dir(String path, String owner, Instant now) {
         return dir(path, owner, now, true);
     }
 
     private static FsEntry dir(String path, String owner, Instant now, boolean readable) {
-        return new FsEntry(nameOf(path), path, FsKind.DIRECTORY, 0,
-                "drwxr-xr-x", owner, owner, now, readable);
+        return new FsEntry(nameOf(path), path, FsKind.DIRECTORY, 0, "drwxr-xr-x", owner, owner, now, readable);
     }
 
     private static FsEntry mount(String path, String note, Instant now) {
-        return new FsEntry(nameOf(path), path, FsKind.MOUNT, 0, "drwx------",
-                DEFAULT_USER, DEFAULT_USER, now, true);
+        return new FsEntry(nameOf(path), path, FsKind.MOUNT, 0, "drwx------", DEFAULT_USER, DEFAULT_USER, now, true);
     }
 
     private static FsEntry file(String path, long size, String owner, Instant now, FsKind kind) {
         return file(path, size, owner, now, kind, true);
     }
 
-    private static FsEntry file(
-            String path, long size, String owner, Instant now, FsKind kind, boolean readable) {
+    private static FsEntry file(String path, long size, String owner, Instant now, FsKind kind, boolean readable) {
         String mode = kind == FsKind.EXECUTABLE ? "-rwxr-xr-x" : "-rw-r--r--";
         return new FsEntry(nameOf(path), path, kind, size, mode, owner, owner, now, readable);
     }

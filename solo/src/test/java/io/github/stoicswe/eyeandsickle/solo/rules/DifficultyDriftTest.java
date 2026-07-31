@@ -60,9 +60,13 @@ class DifficultyDriftTest {
         System.out.printf(
                 "offline: %d blocks, %d retargets, mean interval %.1fs (target %d), "
                         + "difficulty %.2f (equilibrium %.2f, drift %+.2f%%)%n",
-                sync.report().blocks(), sync.report().retargets(), interval,
-                Balance.CHAIN_TARGET_BLOCK_SECONDS, save.chain.difficulty,
-                Balance.chainDifficultyFor(save.chain.networkHashrate), drift(save) * 100);
+                sync.report().blocks(),
+                sync.report().retargets(),
+                interval,
+                Balance.CHAIN_TARGET_BLOCK_SECONDS,
+                save.chain.difficulty,
+                Balance.chainDifficultyFor(save.chain.networkHashrate),
+                drift(save) * 100);
 
         assertThat(sync.report().retargets()).isGreaterThanOrEqualTo(5);
         assertThat(drift(save))
@@ -70,8 +74,7 @@ class DifficultyDriftTest {
                 .isBetween(-0.10d, 0.10d);
         assertThat(interval)
                 .as("and the chain must actually produce blocks at its published interval")
-                .isBetween(Balance.CHAIN_TARGET_BLOCK_SECONDS * 0.9d,
-                        Balance.CHAIN_TARGET_BLOCK_SECONDS * 1.1d);
+                .isBetween(Balance.CHAIN_TARGET_BLOCK_SECONDS * 0.9d, Balance.CHAIN_TARGET_BLOCK_SECONDS * 1.1d);
     }
 
     @Test
@@ -99,8 +102,8 @@ class DifficultyDriftTest {
                 step, blocks, interval, save.chain.difficulty, drift(save) * 100);
 
         assertThat(drift(save)).isBetween(-0.10d, 0.10d);
-        assertThat(interval).isBetween(Balance.CHAIN_TARGET_BLOCK_SECONDS * 0.9d,
-                Balance.CHAIN_TARGET_BLOCK_SECONDS * 1.1d);
+        assertThat(interval)
+                .isBetween(Balance.CHAIN_TARGET_BLOCK_SECONDS * 0.9d, Balance.CHAIN_TARGET_BLOCK_SECONDS * 1.1d);
     }
 
     /**
@@ -131,8 +134,7 @@ class DifficultyDriftTest {
         double old = 2352L * Balance.HASHES_PER_CYCLE_SECOND;
         save.chain.networkHashrate = old;
         save.chain.difficulty = Balance.chainDifficultyFor(old);
-        double intervalBefore =
-                ChainRules.expectedSeconds(save.chain.difficulty, save.chain.networkHashrate);
+        double intervalBefore = ChainRules.expectedSeconds(save.chain.difficulty, save.chain.networkHashrate);
 
         // What SoloGame.backfill does on load, as the rule rather than through the file layer.
         double factor = Balance.chainNetworkHashrate() / save.chain.networkHashrate;
@@ -163,12 +165,12 @@ class DifficultyDriftTest {
             }
             rng.commit(save);
             double interval = seconds / (double) blocks;
-            System.out.printf("  step %4ds -> %d blocks, interval %.1fs, drift %+.2f%%%n",
+            System.out.printf(
+                    "  step %4ds -> %d blocks, interval %.1fs, drift %+.2f%%%n",
                     step, blocks, interval, drift(save) * 100);
             assertThat(interval)
                     .as("tick of %ds", step)
-                    .isBetween(Balance.CHAIN_TARGET_BLOCK_SECONDS * 0.85d,
-                            Balance.CHAIN_TARGET_BLOCK_SECONDS * 1.15d);
+                    .isBetween(Balance.CHAIN_TARGET_BLOCK_SECONDS * 0.85d, Balance.CHAIN_TARGET_BLOCK_SECONDS * 1.15d);
         }
     }
 }

@@ -177,6 +177,53 @@ preferred height. Settings had exactly this: the grow call was present and obvio
 pane sat in the top third of the window. Invisible in review. Also: an unstyled `ScrollPane` paints
 Modena's **white** viewport over a dark theme.
 
+**The rig monitor's OVERVIEW is a two-column split (2026-07-30)** — cell grid **and its legend** on
+the left, `CoreCage` + `HexStream` on the right, tops aligned. The legend used to span both columns,
+putting the key to the left half's colours under the right half's animations.
+⚠ **Equal halves need `prefWidth(0)` on BOTH children, not just `Hgrow`** — otherwise the `HBox`
+divides the *surplus* evenly and the wider column keeps its head start (measured 64/36).
+⚠ **`Greeble.filling()` is opt-in.** A greeble that spans a panel measures the advance and follows
+the width; one in a fixed slot (the command strip) keeps its fixed count, so making it the default
+would change layouts that are already right. ⚠ Its generator's guard scales with the length now — a
+flat 80 iterations silently truncated a filled strip on a wide panel.
+⚠ **Matching two bounded panels means matching their INSETS, not their box tops.** Adding the right
+half's border pushed the cutaway down 9px; `.es-aside-well` now carries `padding: 10` + 1px like
+`.es-grid-well`, and the snapshot probe measures a **cell** rather than the well because comparing
+boxes hid the drift. ⚠ **`HexStream` measures the character advance off the applied font** (as
+`Substrate` does) and refits its word count to the column — a fixed count half-empties a wide panel
+or clips mid-word on a narrow one; every line is rewritten on resize, not just new ones.
+⚠ **The cutaway started low even at delta 0.0** — the gap was inside the ART: `CoreCage` projected
+its top plate to row 2 of 14. `ROWS` is now 10 with the waist derived from the cage's half-height,
+not `ROWS/2`. Safe to trim only because `yaw` enters through x/z, so the drawn extent is constant as
+it turns; a varying extent would bob against the grid. **Measure node bounds before hunting a gap in
+the layout** — `well top=127.0, cage top=127.0` ended that search in one line.
+
+⚠ **`HBox` FILLS its resizable children to the row height — alignment does not stop it.** The rig
+monitor's core cutaway sat with a visible gap above it because `beside` had `TOP_LEFT` but not
+`setFillHeight(false)`: the `StackPane` was stretched to the full height of the cell well and centred
+its content inside. **Alignment says where a child sits; `fillHeight` says whether it was handed a
+height to sit in.** Fixing it also let the cell well shrink-wrap, which is what its own comment always
+said it wanted. `ui/widgets/HexStream` now fills the freed space below the cutaway — decoration, on
+`Pulse.animate` (so Reduce motion holds one frame), hex digits only for `GlyphCoverageTest`.
+⚠ **`CycleGrid.dispose` and `CoreCage.dispose` were written, correct, and called by NOBODY** — every
+open of the rig monitor leaked another Pulse subscription. `RigMonitorView` now tears all three down
+on the scene listener, guarded by an `attached` flag because that listener fires with null *before*
+the panel is ever added as well as after it is removed.
+
+⚠ **Contrast is MEASURED, not assumed — `ui/ContrastTest` (2026-07-30).** It computes real WCAG
+ratios for every text token against `-es-panel` and `-es-panel-hi` in all six palettes and fails the
+build below **3:1**. It caught the network map drawing CONTACT/LOCKED in `-es-dim-3` — the *greeble*
+token — at **1.77:1** on the deck and **2.06:1** on Classic, where those nodes vanished outright;
+and the deck's own `-es-dim-2` at 2.78:1. ⚠ **uOS Classic is the palette that catches this class of
+bug** (the only light one), and rendering one theme proves nothing about the others.
+⚠ **The exemptions are load-bearing**: `-es-rule`, `-es-rule-hi` and `-es-dim-3` draw hairlines and
+texture, and holding a rule to a text threshold would turn every border into a stripe. ⚠ A test also
+asserts the floor did **not flatten the hierarchy** — quiet must stay quieter than body text.
+⚠ **A RUNTIME auto-contrast layer was rejected**: §10 criterion 2 requires every colour to be a
+looked-up token in a stylesheet, and computing one at run time makes the palette unpredictable,
+unreviewable, and overrules each theme's deliberate choices. Build-time enforcement puts the fix in
+the stylesheet, chosen by a person.
+
 **Every checkbox is a `ui/widgets/Switch` now (2026-07-30)** — a horizontal toggle, because these
 settings take effect on change and there is no submit. ⚠ **Square**, pill only under `.es-rounded`
 (§9 unamended). ⚠ **The knob SNAPS** — a slide is a tween and a stepped one is a `Timeline` in a
@@ -534,6 +581,20 @@ list and the set of open shells are one fact rather than two that drift. Kind ma
 and are shared with the node shell (`NodeCommands.marker`). ⚠ Block-element icons were tried first
 and `GlyphCoverageTest` rejected four of them — they are in neither bundled face.
 
+**The local terminal is the same surface as a machine shell (2026-07-30)** — same markup, same
+scrollback trimming, same right-click menu with the option builder. `NodeShellView.buildMenu` is
+parameterised over the catalogue rather than copied.
+- ⚠ **`shell/LocalCatalogue` GENERATES the menu from `Shell.CommandRegistry`.** A hand-kept second
+  list would offer a verb the shell no longer has — menu inserts a line, shell answers 127, the game
+  looks like it lied. Measured: 40 offered, 40 registered.
+- ⚠ **Only the universal flags** (`--explain`, `--dry-run`, `--verbose`) are offered. A `Command`
+  does not declare its own options, so anything per-command would be invented and the parser would
+  reject it. Per-command flags belong in the `Command` interface as data first.
+- ⚠ **Groups derive from `isFilter`/`hasSideEffect`**, which are already load-bearing, so a new
+  command lands in the right group by being what it is.
+- ⚠ **Tab completion, Ctrl-R, `$?` styling and the security-boundary banner all survived** — the node
+  shell lent a look, not a veto.
+
 **Shell sessions (2026-07-28).** Right-click a machine on the map → *Open a shell*, and a terminal
 window opens on it: `ls`, `cd`, `cat`, `stat`, `find`, `df`, `get` and the rest, with a right-click
 menu that templates any command's options and previews the line before writing it into the input.
@@ -815,6 +876,71 @@ hand, and now it changes what the breach *is*.
   .fullyScanned`. Without it the class is unreachable and the helper loops every seed and throws.
 - ⚠ **Staleness deliberately does not count against a report.** A week-old finding still counts; its
   age is already on screen, and discounting it silently would move the odds with nothing changing.
+
+**Commands declare their own schema, and there is now ONE way to declare a command (2026-07-31).**
+`shell/Commands` is a builder; `shell/CommandSpec` is what a command takes; `shell/CommandCategory`
+is which drawer it sits in; `i18n/Messages` supplies the prose. All 51 registrations across the four
+registries go through the builder, and the terminal's right-click menu drills down by category and
+offers each command's **real** options instead of three universal flags.
+
+- ⚠ **STRUCTURE IS CODE, PROSE IS TEXT — the whole design turns on this line.** Command names, flag
+  names and choice values are **never** translated: the parser has no other name for them, real Unix
+  does not localise them, and pillar **C6** sells skill that transfers to a real terminal. Localising
+  `grep -v` would take that away from exactly the players a translation exists to serve. A spec
+  therefore carries a **message key**, never a sentence.
+- ⚠ **There were FOUR declaration shapes and that is why the spec had nowhere to live.**
+  `BuiltinCommands` had `source`/`filter`/`action` helpers; `NetCommands` and `BreachCommands` each
+  had a private `Verb` record with the same six components in the same order; `ClientCommands` had a
+  five-component `Simple`. Anything a command needs to carry had to be added in four places, so it
+  never was. One `Commands.Definition` is the only `Command` implementation now.
+- ⚠ **A declared flag is a CLAIM ABOUT THE BODY, and `CommandSpecTest` holds both directions.**
+  Declared-but-unparsed puts a flag in the menu that the parser ignores — worse than a short menu,
+  because the game has told the player something false with nothing on screen to contradict it.
+  Parsed-but-undeclared means a new flag works from the keyboard and is undiscoverable. Verified by
+  breaking all four checks first; each named the exact defect.
+- ⚠ **The test reads SOURCE, and not out of laziness.** No runtime call asks a lambda which flags it
+  inspects — and **`ClientCommands.register` takes the deck, the themes and the profile**, so a test
+  driven off `BuiltinCommands.registry()` silently checks nothing for that whole file while reporting
+  success. That is the exact failure the class exists to prevent.
+- ⚠ **Flags are attributed PER FILE, never per command.** A flag is read inside a lambda and there is
+  no reliable textual way to say which lambda a line sits in — "nearest declaration above"
+  mis-attributed `--signed` and `--bits` to `abort` and `verify` when this was written; they are
+  `calc`'s.
+- ⚠ **`flagText()` derives the dashes from the NAME'S LENGTH**, because that is what the parser does:
+  `CommandLine` stores a flag under its dash-stripped token, so `-i` and `--ignore` are different
+  keys and `hasFlag("h") || hasFlag("help")` has to ask for both.
+- ⚠ **`grep -E` and `wc -l` are advertised in their synopses and NEVER PARSED.** Found by the reverse
+  check and left alone — declaring them would be the lie the mechanism exists to stop. Either
+  implement them or drop them from the synopsis; the spec deliberately does not paper over it.
+- ⚠ **Category is the SUBJECT, not the pipeline behaviour.** Grouping was `isFilter`/`hasSideEffect`
+  — true statements, and the wrong question for a menu: it filed `send`, `theme` and `mkdir` together
+  under "Act". Those two stay exactly where they were and remain what `Shell` enforces. The enum is
+  closed (a free-text group is one typo from a second menu with one command in it) and `values()`
+  order **is** the submenu order.
+- ⚠ **`Command.category()` defaults to `SHELL` so an undeclared command is still findable — which
+  makes a missing declaration INVISIBLE.** `CommandSpecTest.everyCommandIsFiled` checks at the
+  declaration site, the only place the omission is legible.
+- ⚠ **`LocalCatalogueTest.nothingIsInvented` was WEAKENED deliberately, and only because the other
+  half exists.** It used to assert the menu offered *only* the three universal flags — correct while
+  a command could not declare anything. It now permits {universal} ∪ {declared}; the "no invented
+  flag" property survives solely because `CommandSpecTest` proves declared == parsed. Weakening one
+  without the other lets the menu invent flags again.
+- ⚠ **The man page INDEX is always English, whatever the locale.** The index is which pages exist — a
+  structural fact — so reading a translated one lets a partial translation *silently shrink the
+  manual*: twelve of twenty-three rendered means eleven pages cease to exist, and a shorter manual
+  looks exactly like a shorter manual. English decides which pages there are; the locale decides how
+  each reads.
+- ⚠ **Fallback is per KEY and per PAGE, never per file** — a partial translation is the normal state
+  of one. A blank value means "not done yet" and does **not** overwrite English; a key nothing defines
+  returns **itself** (blank is invisible, null is a crash, the key names what to add). Every page that
+  fell back lands in `problems()`, so an unfinished translation is visible to whoever is finishing it.
+- ⚠ **A translated page that EXISTS but is malformed reports as malformed** — `exists()` is asked
+  before parsing rather than falling back on a parse error, which would hide the one problem a
+  translator most needs to see.
+- ⚠ **Bundles read as UTF-8 explicitly.** `Properties.load(InputStream)` is ISO-8859-1 *by definition*
+  and mangles every accented character in exactly the files a translation puts them in.
+- No command uses `section() == 8` today, so `LocalCatalogue`'s old "Rig maintenance" group was always
+  empty. Sections are now purely the man page number; the menu drawer is `category()`.
 
 **The client has an event bus, and it is CloudEvents v1.0.2 (2026-07-29)** — `client/.../events/`,
 over Spring's `SimpleApplicationEventMulticaster`. The LOG window gained an **EVENTS** tab beside

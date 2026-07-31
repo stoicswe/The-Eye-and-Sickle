@@ -1,6 +1,5 @@
 package io.github.stoicswe.eyeandsickle.solo.rules;
 
-import java.math.BigInteger;
 import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.protocol.game.PackageManifest;
 import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
@@ -12,8 +11,9 @@ import io.github.stoicswe.eyeandsickle.solo.net.TransferRules;
 import io.github.stoicswe.eyeandsickle.solo.state.ItemState;
 import io.github.stoicswe.eyeandsickle.solo.state.LedgerEntryState;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
-import io.github.stoicswe.eyeandsickle.solo.state.TaskState;
 import io.github.stoicswe.eyeandsickle.solo.state.StoredFileState;
+import io.github.stoicswe.eyeandsickle.solo.state.TaskState;
+import java.math.BigInteger;
 import java.time.Instant;
 import java.util.Optional;
 
@@ -111,9 +111,14 @@ public final class Repac {
      * filesystem a metaphor again, and the whole point of it being a filesystem is that it is not.
      */
     public static StoredFileState arrive(
-            SoloSave save, String directory, String name, String sourceAddress,
-            long bytes, String itemType,
-            io.github.stoicswe.eyeandsickle.protocol.game.UpgradeVersion version, Instant now) {
+            SoloSave save,
+            String directory,
+            String name,
+            String sourceAddress,
+            long bytes,
+            String itemType,
+            io.github.stoicswe.eyeandsickle.protocol.game.UpgradeVersion version,
+            Instant now) {
         StoredFileState file = new StoredFileState();
         file.directory = VirtualFs.normalise(directory);
         file.name = name;
@@ -140,8 +145,8 @@ public final class Repac {
         if (file == null || !"payload".equals(file.kind)) {
             return Optional.empty();
         }
-        file.name = file.name.substring(0, file.name.length() - PAYLOAD_SUFFIX.length())
-                + installableSuffix(file.itemType);
+        file.name =
+                file.name.substring(0, file.name.length() - PAYLOAD_SUFFIX.length()) + installableSuffix(file.itemType);
         file.kind = "package";
         file.at = now;
         return Optional.of(file);
@@ -178,16 +183,17 @@ public final class Repac {
                 file.name,
                 file.itemType,
                 displayName(file.itemType),
-                offering.map(Catalogue.Offering::description).orElse(
-                        // A package for something the catalogue no longer lists. Said plainly rather
-                        // than rendered blank — a manifest with an empty contents field reads as a
-                        // panel that failed to load.
-                        "This rig has no catalogue entry for " + file.itemType
-                                + ". It will install, and nothing here can describe what it does."),
+                offering.map(Catalogue.Offering::description)
+                        .orElse(
+                                // A package for something the catalogue no longer lists. Said plainly rather
+                                // than rendered blank — a manifest with an empty contents field reads as a
+                                // panel that failed to load.
+                                "This rig has no catalogue entry for " + file.itemType
+                                        + ". It will install, and nothing here can describe what it does."),
                 publisherOf(file, market),
-                market ? TransferRules.VENDOR
-                        : file.sourceAddress == null || file.sourceAddress.isBlank()
-                                ? "recovered" : file.sourceAddress,
+                market
+                        ? TransferRules.VENDOR
+                        : file.sourceAddress == null || file.sourceAddress.isBlank() ? "recovered" : file.sourceAddress,
                 offering.map(Catalogue.Offering::gate).orElse(UnlockGate.ETHECOIN),
                 file.bytes,
                 offering.map(Catalogue.Offering::equippedCycles).orElse(0L),
@@ -315,8 +321,7 @@ public final class Repac {
      * one item in a single-player game.
      */
     public static Optional<LedgerEntryState> heldBy(SoloSave save, StoredFileState file) {
-        if (save == null || file == null || file.lockedByEntryId == null
-                || file.lockedByEntryId.isBlank()) {
+        if (save == null || file == null || file.lockedByEntryId == null || file.lockedByEntryId.isBlank()) {
             return Optional.empty();
         }
         return save.ledger.stream()
@@ -334,7 +339,6 @@ public final class Repac {
     public static boolean locked(SoloSave save, StoredFileState file) {
         return heldBy(save, file).filter(entry -> entry.blockNumber < 0).isPresent();
     }
-
 
     /** The outcome of an install or a sale. */
     public record Result(boolean ok, Refusal refusal, String message, BigInteger wei) {
@@ -372,21 +376,22 @@ public final class Repac {
         // a purchase handed over the goods in the same call that took the money, so the fee bought
         // only how soon a row stopped saying "—" in the ledger. See docs/design/04-mining.md §1.3e.
         if (locked(save, file)) {
-            return Result.refused(Refusal.UNCONFIRMED,
+            return Result.refused(
+                    Refusal.UNCONFIRMED,
                     file.name + " is paid for and downloaded, but the payment has not been mined "
                             + "yet. It becomes installable when the block carrying it is confirmed "
                             + "— a higher fee buys a place in an earlier block, not a faster chain.");
         }
         if (!"package".equals(file.kind) || file.itemType.isBlank()) {
-            return Result.refused(Refusal.NOT_INSTALLABLE,
-                    file.name + " is not an installable upgrade.");
+            return Result.refused(Refusal.NOT_INSTALLABLE, file.name + " is not an installable upgrade.");
         }
         boolean owned = save.items.stream().anyMatch(i -> file.itemType.equals(i.itemType));
         if (owned) {
             // Refused rather than silently consumed. A player who installs a duplicate and watches
             // the file vanish for nothing has been robbed by their own interface — and the duplicate
             // is worth real ethecoin on the secondary market, which the refusal points at.
-            return Result.refused(Refusal.ALREADY_OWNED,
+            return Result.refused(
+                    Refusal.ALREADY_OWNED,
                     "You already have " + displayName(file.itemType)
                             + ". This copy is worth more sold than installed.");
         }
@@ -400,14 +405,16 @@ public final class Repac {
         if (offering.map(Catalogue.Offering::firmware).orElse(false)) {
             String schematic = offering.get().requiresSchematic();
             if (save.schematics == null || !save.schematics.contains(schematic)) {
-                return Result.refused(Refusal.NO_SCHEMATIC,
+                return Result.refused(
+                        Refusal.NO_SCHEMATIC,
                         displayName(file.itemType) + " is firmware. Flashing it needs the "
                                 + schematic + " schematic, which is recovered rather than bought -- "
                                 + "the image on its own is inert. Keep it; it does not expire.");
             }
             String running = runningTool(save, offering.get().stopsTool());
             if (!running.isBlank()) {
-                return Result.refused(Refusal.TOOL_RUNNING,
+                return Result.refused(
+                        Refusal.TOOL_RUNNING,
                         displayName(file.itemType) + " is firmware, and firmware sits underneath the "
                                 + "program using it. " + running + " Stop it and flash again.");
             }
@@ -432,8 +439,7 @@ public final class Repac {
         save.items.add(item);
         save.files.remove(file);
 
-        return new Result(true, null,
-                "installed " + item.displayName + " — the package is consumed", BigInteger.ZERO);
+        return new Result(true, null, "installed " + item.displayName + " — the package is consumed", BigInteger.ZERO);
     }
 
     // ── flashing ──────────────────────────────────────────────────────────────────────────────
@@ -457,7 +463,8 @@ public final class Repac {
      */
     private static Result beginFlash(SoloSave save, StoredFileState file, Instant now) {
         if (flashing(save).isPresent()) {
-            return Result.refused(Refusal.TOOL_RUNNING,
+            return Result.refused(
+                    Refusal.TOOL_RUNNING,
                     "A firmware flash is already running. One at a time — two writes to the same "
                             + "device is how it is bricked.");
         }
@@ -472,20 +479,28 @@ public final class Repac {
         // way to know which image it was writing.
         task.outcome = file.path();
         save.tasks.add(task);
-        EventLog.notice(save, "storage",
+        EventLog.notice(
+                save,
+                "storage",
                 "flashing " + displayName(file.itemType) + " -- "
                         + Balance.FIRMWARE_FLASH_SECONDS + "s. The mining tool is frozen until it "
-                        + "finishes. Do not expect it back before then.", now);
-        return new Result(true, null,
+                        + "finishes. Do not expect it back before then.",
+                now);
+        return new Result(
+                true,
+                null,
                 "flashing " + displayName(file.itemType) + " — the mining tool is frozen for "
-                        + Balance.FIRMWARE_FLASH_SECONDS + "s", BigInteger.ZERO);
+                        + Balance.FIRMWARE_FLASH_SECONDS + "s",
+                BigInteger.ZERO);
     }
 
     /** The flash in progress, if there is one. */
     public static Optional<TaskState> flashing(SoloSave save) {
         return save == null || save.tasks == null
                 ? Optional.empty()
-                : save.tasks.stream().filter(task -> FLASH_KIND.equals(task.kind)).findFirst();
+                : save.tasks.stream()
+                        .filter(task -> FLASH_KIND.equals(task.kind))
+                        .findFirst();
     }
 
     /**
@@ -557,9 +572,7 @@ public final class Repac {
      * disagree, and the shape of that bug is a panel promising an install that then refuses.
      */
     public static String blockedBy(SoloSave save, Catalogue.Offering offering) {
-        return offering == null || !offering.firmware()
-                ? ""
-                : runningTool(save, offering.stopsTool());
+        return offering == null || !offering.firmware() ? "" : runningTool(save, offering.stopsTool());
     }
 
     private static String runningTool(SoloSave save, String tool) {
@@ -573,8 +586,8 @@ public final class Repac {
                 .sum();
         boolean selfMining = save.rig != null && save.rig.selfMiningCycles > 0;
         if (selfMining && deployed > 0) {
-            return "Mining is running: " + save.rig.selfMiningCycles + " cycles self-mining and "
-                    + deployed + " deployed miner(s).";
+            return "Mining is running: " + save.rig.selfMiningCycles + " cycles self-mining and " + deployed
+                    + " deployed miner(s).";
         }
         if (selfMining) {
             return "Mining is running: " + save.rig.selfMiningCycles + " cycles self-mining.";
@@ -616,7 +629,8 @@ public final class Repac {
     public static Result delete(SoloSave save, String path, Instant now) {
         Optional<StoredFileState> found = at(save, path);
         if (found.isEmpty()) {
-            return Result.refused(Refusal.NO_SUCH_FILE,
+            return Result.refused(
+                    Refusal.NO_SUCH_FILE,
                     "Nothing to delete at " + path + ". Only files this rig actually stores can be "
                             + "removed -- the system tree, application bundles and vault views are "
                             + "generated from state, not kept on disk.");
@@ -626,7 +640,8 @@ public final class Repac {
         // dropping the task silently, so without this the player would delete mid-flash, wait out
         // the remaining minute, and get nothing — with the log saying a flash had run.
         if (flashing(save).filter(task -> file.path().equals(task.outcome)).isPresent()) {
-            return Result.refused(Refusal.TOOL_RUNNING,
+            return Result.refused(
+                    Refusal.TOOL_RUNNING,
                     file.name + " is being flashed right now. Deleting the image mid-write is how a "
                             + "device is bricked -- wait for it to finish.");
         }
@@ -635,10 +650,12 @@ public final class Repac {
         // ⚠ The value is named on the way out. A player who deletes a 180 EC firmware image by
         // accident deserves to find out from the log rather than from the market three days later.
         BigInteger worth = "package".equals(file.kind) && sellable(file.itemType)
-                ? resaleValue(file.itemType,
-                        io.github.stoicswe.eyeandsickle.protocol.game.UpgradeVersion.parse(file.version))
+                ? resaleValue(
+                        file.itemType, io.github.stoicswe.eyeandsickle.protocol.game.UpgradeVersion.parse(file.version))
                 : BigInteger.ZERO;
-        EventLog.notice(save, "storage",
+        EventLog.notice(
+                save,
+                "storage",
                 "deleted " + file.name + " from " + file.directory
                         + (worth.signum() > 0 ? " -- it would have sold for " + Ethecoin.format(worth) + "." : "."),
                 now);
@@ -650,7 +667,9 @@ public final class Repac {
         String normalised = VirtualFs.normalise(path);
         return save == null || save.files == null
                 ? Optional.empty()
-                : save.files.stream().filter(file -> file.path().equals(normalised)).findFirst();
+                : save.files.stream()
+                        .filter(file -> file.path().equals(normalised))
+                        .findFirst();
     }
 
     // ── selling ───────────────────────────────────────────────────────────────────────────────
@@ -677,13 +696,12 @@ public final class Repac {
      * is what keeps raiding harder machines a reward in value rather than a ladder to a capability
      * ceiling nobody sold (<b>I2</b>).
      */
-    public static BigInteger resaleValue(String itemType, io.github.stoicswe.eyeandsickle.protocol.game.UpgradeVersion version) {
+    public static BigInteger resaleValue(
+            String itemType, io.github.stoicswe.eyeandsickle.protocol.game.UpgradeVersion version) {
         return Versions.resaleWei(
                 resaleValue(itemType),
                 Catalogue.byId(itemType).map(Catalogue.Offering::priceWei).orElse(BigInteger.ZERO),
-                version == null
-                        ? io.github.stoicswe.eyeandsickle.protocol.game.UpgradeVersion.UNKNOWN
-                        : version);
+                version == null ? io.github.stoicswe.eyeandsickle.protocol.game.UpgradeVersion.UNKNOWN : version);
     }
 
     /** What a copy fetches before its build is taken into account. See {@link #RESALE_PERCENT}. */
@@ -713,7 +731,8 @@ public final class Repac {
         // the player has not finished paying for into ethecoin they can spend before the debit is
         // mined. Without this the escrow would have a hole shaped exactly like the secondary market.
         if (locked(save, file)) {
-            return Result.refused(Refusal.UNCONFIRMED,
+            return Result.refused(
+                    Refusal.UNCONFIRMED,
                     file.name + " has not been paid for on-chain yet. It cannot be resold until the "
                             + "block carrying the purchase is confirmed.");
         }
@@ -723,29 +742,31 @@ public final class Repac {
         if (!sellable(file.itemType)) {
             // Named, not generic. A player told only "cannot sell" will try again; one told the
             // reason has learned something about how the gates work.
-            return Result.refused(Refusal.NOT_SELLABLE,
+            return Result.refused(
+                    Refusal.NOT_SELLABLE,
                     displayName(file.itemType) + " is not gated on ethecoin, so it cannot be turned "
                             + "into ethecoin. Nobody sells a way past a schematic. You can still "
                             + "use it.");
         }
         BigInteger value = resaleValue(file.itemType);
         save.files.remove(file);
-        return new Result(true, null,
-                "sold " + displayName(file.itemType) + " on the secondary market", value);
+        return new Result(true, null, "sold " + displayName(file.itemType) + " on the secondary market", value);
     }
 
     // ── helpers ───────────────────────────────────────────────────────────────────────────────
 
     public static Optional<StoredFileState> find(SoloSave save, String path) {
         String p = VirtualFs.normalise(path);
-        return save == null ? Optional.empty()
+        return save == null
+                ? Optional.empty()
                 : save.files.stream().filter(f -> f.path().equals(p)).findFirst();
     }
 
     /** Every stored file directly inside a folder. */
     public static java.util.List<StoredFileState> in(SoloSave save, String directory) {
         String d = VirtualFs.normalise(directory);
-        return save == null ? java.util.List.of()
+        return save == null
+                ? java.util.List.of()
                 : save.files.stream().filter(f -> f.directory.equals(d)).toList();
     }
 

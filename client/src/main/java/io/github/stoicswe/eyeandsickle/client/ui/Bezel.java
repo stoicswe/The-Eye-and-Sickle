@@ -115,7 +115,7 @@ public final class Bezel extends Region {
             case CHROME_31 -> chrome31(w, h, m);
             case MOTIF -> motif(w, h, m);
             case RULE -> rule(w, h, m);
-            default -> { }
+            default -> {}
         }
     }
 
@@ -195,8 +195,9 @@ public final class Bezel extends Region {
         double fix = 4;
         double inset = m * 0.5 - fix / 2;
         for (double[] at : new double[][] {
-                {cut + 6, inset}, {w - cut - 6 - fix, inset},
-                {cut + 6, h - inset - fix}, {w - cut - 6 - fix, h - inset - fix}}) {
+            {cut + 6, inset}, {w - cut - 6 - fix, inset},
+            {cut + 6, h - inset - fix}, {w - cut - 6 - fix, h - inset - fix}
+        }) {
             fill(at[0], at[1], fix, fix, "es-bezel-fixing");
         }
 
@@ -244,8 +245,9 @@ public final class Bezel extends Region {
             terminator(d, h * (0.70 - 0.12 * i));
         }
         // Junction pads where the bundle turns each corner — a harness is clamped at every bend.
-        for (double[] at : new double[][] {{m * 0.5, m * 0.5}, {w - m * 0.5, m * 0.5},
-                {m * 0.5, h - m * 0.5}, {w - m * 0.5, h - m * 0.5}}) {
+        for (double[] at : new double[][] {
+            {m * 0.5, m * 0.5}, {w - m * 0.5, m * 0.5}, {m * 0.5, h - m * 0.5}, {w - m * 0.5, h - m * 0.5}
+        }) {
             fill(at[0] - 4, at[1] - 4, 8, 8, "es-bezel-junction");
         }
         frame(m - 1, m - 1, w - 2 * (m - 1), h - 2 * (m - 1), "es-bezel-rule-inner");
@@ -293,10 +295,8 @@ public final class Bezel extends Region {
         // the deck's own hazard band lives inside the viewport, which is a different surface.
         double chev = 13;
         for (double y = h * 0.30; y < h * 0.70; y += chev * 2) {
-            triangle("es-bezel-chevron",
-                    m * 0.55, y, m * 0.95, y + chev, m * 0.55, y + chev * 2);
-            triangle("es-bezel-chevron",
-                    w - m * 0.55, y, w - m * 0.95, y + chev, w - m * 0.55, y + chev * 2);
+            triangle("es-bezel-chevron", m * 0.55, y, m * 0.95, y + chev, m * 0.55, y + chev * 2);
+            triangle("es-bezel-chevron", w - m * 0.55, y, w - m * 0.95, y + chev, w - m * 0.55, y + chev * 2);
         }
         frame(m - 2, m - 2, w - 2 * (m - 2), h - 2 * (m - 2), "es-bezel-rule");
         frame(m - 1, m - 1, w - 2 * (m - 1), h - 2 * (m - 1), "es-bezel-rule-inner");
@@ -322,8 +322,7 @@ public final class Bezel extends Region {
         fill(bayX - 6, bayY - 4, bayW + 12, bayH + 8, "es-bezel-bay");
         double lamp = Math.max(6, bayH * 0.5);
         for (int i = 0; i < 8; i++) {
-            Rectangle led = new Rectangle(
-                    bayX + i * (lamp + 12), bayY + (bayH - lamp) / 2, lamp, lamp);
+            Rectangle led = new Rectangle(bayX + i * (lamp + 12), bayY + (bayH - lamp) / 2, lamp, lamp);
             led.getStyleClass().add("es-bezel-lamp");
             getChildren().add(led);
             lamps.add(led);
@@ -334,8 +333,7 @@ public final class Bezel extends Region {
         for (int i = 0; i < 4; i++) {
             double sx = w - 40 - i * 30;
             fill(sx, bayY, 12, bayH, "es-bezel-switch-well");
-            fill(sx + 2, i % 2 == 0 ? bayY + 2 : bayY + bayH * 0.5, 8, bayH * 0.45,
-                    "es-bezel-switch");
+            fill(sx + 2, i % 2 == 0 ? bayY + 2 : bayY + bayH * 0.5, 8, bayH * 0.45, "es-bezel-switch");
         }
 
         // A grille along the bottom: long thin slots, the width of the machine.
@@ -388,8 +386,7 @@ public final class Bezel extends Region {
             raised(bx, barY + 3, box, box);
             if (i == 0) {
                 // Maximise: an outlined square.
-                frame(bx + box * 0.24, barY + 3 + box * 0.22, box * 0.52, box * 0.56,
-                        "es-bezel-glyph-line");
+                frame(bx + box * 0.24, barY + 3 + box * 0.22, box * 0.52, box * 0.56, "es-bezel-glyph-line");
             } else {
                 // Minimise: a bar on the baseline.
                 fill(bx + box * 0.24, barY + 3 + box * 0.66, box * 0.52, box * 0.14, "es-bezel-glyph");
@@ -410,10 +407,11 @@ public final class Bezel extends Region {
         // resize grips, which is the detail that makes an mwm frame recognisable at a glance.
         double grip = m * 2.4;
         for (double[] seg : new double[][] {
-                {grip, 0, grip, m}, {w - grip, 0, w - grip, m},
-                {grip, h - m, grip, h}, {w - grip, h - m, w - grip, h},
-                {0, grip, m, grip}, {0, h - grip, m, h - grip},
-                {w - m, grip, w, grip}, {w - m, h - grip, w, h - grip}}) {
+            {grip, 0, grip, m}, {w - grip, 0, w - grip, m},
+            {grip, h - m, grip, h}, {w - grip, h - m, w - grip, h},
+            {0, grip, m, grip}, {0, h - grip, m, h - grip},
+            {w - m, grip, w, grip}, {w - m, h - grip, w, h - grip}
+        }) {
             line(seg[0], seg[1], seg[2], seg[3]);
         }
 

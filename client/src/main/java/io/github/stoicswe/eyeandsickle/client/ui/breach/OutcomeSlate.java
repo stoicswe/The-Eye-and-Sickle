@@ -1,12 +1,12 @@
 package io.github.stoicswe.eyeandsickle.client.ui.breach;
 
-import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.client.ui.Ui;
 import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachLayer;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachOutcome;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachResolution;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachSnapshot;
+import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.protocol.game.ResolutionRecord;
 import java.util.List;
 import java.util.Locale;
@@ -100,44 +100,54 @@ public final class OutcomeSlate extends VBox {
         // Two columns of key:value, §4's readout component. Units always present, and the right-hand
         // column is the cost side — which is the column a player re-reads after a loss.
         row(0, "Class", record.puzzleClass().name(), "Noise", Integer.toString(resolution.noiseGenerated()));
-        row(1, "Tier", "T" + record.difficultyTier().tier(),
-                "Attention", attention.spent() + " / " + attention.budget()
-                        + "  (" + Math.round(resolution.traceProgress() * 100) + "%)");
+        row(
+                1,
+                "Tier",
+                "T" + record.difficultyTier().tier(),
+                "Attention",
+                attention.spent() + " / " + attention.budget() + "  (" + Math.round(resolution.traceProgress() * 100)
+                        + "%)");
         row(2, "Target", record.liveOrDormant().name(), "Probes", Integer.toString(probes));
         // Heat is printed even when it is zero, and especially then: Invariant I9 makes a miner
         // crack cost zero heat on EVERY outcome including failure, and a player who never sees the
         // zero has no way to learn that the safest attempt in the game is the one on their own rig.
-        row(3, "Heat gained", resolution.heatGained() + (snapshot.minerCrack() ? "  (own rig)" : ""),
-                "Cycles released", Long.toString(snapshot.reservedCycles()));
+        row(
+                3,
+                "Heat gained",
+                resolution.heatGained() + (snapshot.minerCrack() ? "  (own rig)" : ""),
+                "Cycles released",
+                Long.toString(snapshot.reservedCycles()));
 
         if (resolution.lootWei().signum() > 0) {
             Label extracted = Ui.value(Ethecoin.format(resolution.lootWei()));
             // D-7. The only amber in the breach. Do not add a second use of this class.
             extracted.getStyleClass().add("es-breach-extract");
-            HBox line = Ui.row(UiTokens.SPACE_4, Ui.label("Extracted"), extracted,
-                    Ui.small(resolution.lootLabel()));
+            HBox line = Ui.row(UiTokens.SPACE_4, Ui.label("Extracted"), extracted, Ui.small(resolution.lootLabel()));
             line.setAlignment(Pos.BASELINE_LEFT);
             yield.getChildren().add(line);
         } else if (!resolution.lootLabel().isBlank()) {
-            yield.getChildren().add(Ui.row(UiTokens.SPACE_4,
-                    Ui.label("Salvaged"), Ui.value(resolution.lootLabel())));
+            yield.getChildren().add(Ui.row(UiTokens.SPACE_4, Ui.label("Salvaged"), Ui.value(resolution.lootLabel())));
         }
         if (resolution.schematicMaterial() > 0) {
             // Tier-gated partial progress (I13). Printed as a plain value, never as a reward flourish
             // — 02 §2.2 makes this a slow accumulation and dressing it up would misprice it.
-            yield.getChildren().add(Ui.row(UiTokens.SPACE_4,
-                    Ui.label("Material"),
-                    Ui.value("+" + resolution.schematicMaterial() + " SCHEMATIC UNIT"
-                            + (resolution.schematicMaterial() == 1 ? "" : "S"))));
+            yield.getChildren()
+                    .add(Ui.row(
+                            UiTokens.SPACE_4,
+                            Ui.label("Material"),
+                            Ui.value("+" + resolution.schematicMaterial() + " SCHEMATIC UNIT"
+                                    + (resolution.schematicMaterial() == 1 ? "" : "S"))));
         }
 
         consequences.getChildren().add(Ui.label("Consequences"));
         List<String> lines = resolution.consequences();
         if (lines.isEmpty() && outcome == BreachOutcome.FAILED) {
             // See the class comment. Loudly incomplete beats quietly clean.
-            consequences.getChildren().add(io.github.stoicswe.eyeandsickle.client.ui.widgets.Note.loss(
-                    "Consequence record incomplete.",
-                    "The attempt failed but nothing was itemised. Report this."));
+            consequences
+                    .getChildren()
+                    .add(io.github.stoicswe.eyeandsickle.client.ui.widgets.Note.loss(
+                            "Consequence record incomplete.",
+                            "The attempt failed but nothing was itemised. Report this."));
         } else if (lines.isEmpty()) {
             consequences.getChildren().add(Ui.small("None."));
         } else {
@@ -162,9 +172,9 @@ public final class OutcomeSlate extends VBox {
      */
     private void stampFor(BreachOutcome outcome) {
         stamp.clear();
-        int ink = outcome == BreachOutcome.FAILED ? AsciiCanvas.INK_ALARM
-                : outcome == BreachOutcome.BREACHED ? AsciiCanvas.INK_LIVE
-                : AsciiCanvas.INK_DIM;
+        int ink = outcome == BreachOutcome.FAILED
+                ? AsciiCanvas.INK_ALARM
+                : outcome == BreachOutcome.BREACHED ? AsciiCanvas.INK_LIVE : AsciiCanvas.INK_DIM;
         stamp.box(0, 0, STAMP_ROWS, STAMP_COLS, ink);
         StringBuilder spaced = new StringBuilder();
         for (char c : outcome.name().toCharArray()) {
@@ -199,19 +209,27 @@ public final class OutcomeSlate extends VBox {
         };
     }
 
-
-    private static String describe(BreachSnapshot snapshot, BreachResolution resolution,
-            BreachOutcome outcome, int probes) {
+    private static String describe(
+            BreachSnapshot snapshot, BreachResolution resolution, BreachOutcome outcome, int probes) {
         StringBuilder out = new StringBuilder("Breach ")
                 .append(outcome.name().toLowerCase(Locale.ROOT))
-                .append(" on ").append(snapshot.targetLabel())
-                .append(". Attention ").append(snapshot.totalAttention().spent())
-                .append(" of ").append(snapshot.totalAttention().budget())
-                .append(", ").append(probes).append(" probes, noise ")
+                .append(" on ")
+                .append(snapshot.targetLabel())
+                .append(". Attention ")
+                .append(snapshot.totalAttention().spent())
+                .append(" of ")
+                .append(snapshot.totalAttention().budget())
+                .append(", ")
+                .append(probes)
+                .append(" probes, noise ")
                 .append(resolution.noiseGenerated())
-                .append(", heat gained ").append(resolution.heatGained()).append(". ");
+                .append(", heat gained ")
+                .append(resolution.heatGained())
+                .append(". ");
         if (resolution.lootWei().signum() > 0) {
-            out.append("Extracted ").append(Ethecoin.format(resolution.lootWei())).append(". ");
+            out.append("Extracted ")
+                    .append(Ethecoin.format(resolution.lootWei()))
+                    .append(". ");
         }
         for (String line : resolution.consequences()) {
             out.append(line).append(". ");

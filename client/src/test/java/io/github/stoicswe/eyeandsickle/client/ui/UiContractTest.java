@@ -126,7 +126,8 @@ class UiContractTest {
             // every theme except the one it was written against.
             List<String> offenders = new ArrayList<>();
             for (Path source : javaSources()) {
-                if (!source.toString().contains("/client/ui/") && !source.toString().contains("/client/view/")) {
+                if (!source.toString().contains("/client/ui/")
+                        && !source.toString().contains("/client/view/")) {
                     continue;
                 }
                 String body = stripComments(read(source));
@@ -135,7 +136,9 @@ class UiContractTest {
                     offenders.add(source.getFileName() + " → " + matcher.group());
                 }
             }
-            assertThat(offenders).as("hex literals belong in theme.css, never in Java").isEmpty();
+            assertThat(offenders)
+                    .as("hex literals belong in theme.css, never in Java")
+                    .isEmpty();
         }
 
         @Test
@@ -143,9 +146,21 @@ class UiContractTest {
         void everyTokenExists() throws IOException {
             String css = Files.readString(CLIENT_RESOURCES.resolve(UI_RESOURCES + "theme.css"));
             for (String token : List.of(
-                    "-es-void", "-es-panel", "-es-panel-hi", "-es-rule", "-es-rule-hi",
-                    "-es-dim-3", "-es-dim-2", "-es-dim-1", "-es-text", "-es-text-hi",
-                    "-es-amber", "-es-amber-mid", "-es-amber-low", "-es-alarm", "-es-tool")) {
+                    "-es-void",
+                    "-es-panel",
+                    "-es-panel-hi",
+                    "-es-rule",
+                    "-es-rule-hi",
+                    "-es-dim-3",
+                    "-es-dim-2",
+                    "-es-dim-1",
+                    "-es-text",
+                    "-es-text-hi",
+                    "-es-amber",
+                    "-es-amber-mid",
+                    "-es-amber-low",
+                    "-es-alarm",
+                    "-es-tool")) {
                 assertThat(css).as("theme.css declares %s", token).contains(token + ":");
             }
         }
@@ -170,7 +185,8 @@ class UiContractTest {
             //
             // Checked by scanning back to the start of each declaration block, because a radius
             // smuggled into an ungated rule is exactly the drift this test exists to catch.
-            Matcher radius = Pattern.compile("-fx-(background|border)-radius:\\s*([^;]+);").matcher(body);
+            Matcher radius = Pattern.compile("-fx-(background|border)-radius:\\s*([^;]+);")
+                    .matcher(body);
             while (radius.find()) {
                 if (radius.group(2).trim().equals("0")) {
                     continue;
@@ -197,7 +213,8 @@ class UiContractTest {
             // entire point of a discrete meter (§4) is that a player can count it.
             String css = Files.readString(CLIENT_RESOURCES.resolve(UI_RESOURCES + "theme.css"));
             String body = css.replaceAll("(?s)/\\*.*?\\*/", "");
-            Matcher radius = Pattern.compile("-fx-(background|border)-radius:\\s*([^;]+);").matcher(body);
+            Matcher radius = Pattern.compile("-fx-(background|border)-radius:\\s*([^;]+);")
+                    .matcher(body);
             while (radius.find()) {
                 if (radius.group(2).trim().equals("0")) {
                     continue;
@@ -206,8 +223,14 @@ class UiContractTest {
                 int selectorStart = Math.max(0, body.lastIndexOf('}', blockStart) + 1);
                 String selector = body.substring(selectorStart, blockStart);
                 for (String forbidden : java.util.List.of(
-                        "es-cell", "es-meter", "es-cycle", "es-hazard", "es-greeble",
-                        "es-substrate", "es-block", "es-tick")) {
+                        "es-cell",
+                        "es-meter",
+                        "es-cycle",
+                        "es-hazard",
+                        "es-greeble",
+                        "es-substrate",
+                        "es-block",
+                        "es-tick")) {
                     assertThat(selector)
                             .as("%s must never be rounded — it is a measurement", forbidden)
                             .doesNotContain(forbidden);
@@ -220,8 +243,7 @@ class UiContractTest {
         void defaultIsSquare() {
             // The setting exists; it is not the default. §9's rejection list still describes what
             // this client looks like out of the box.
-            assertThat(new io.github.stoicswe.eyeandsickle.client.profile.VisualSettings()
-                            .roundedWindows)
+            assertThat(new io.github.stoicswe.eyeandsickle.client.profile.VisualSettings().roundedWindows)
                     .isFalse();
         }
     }
@@ -242,8 +264,7 @@ class UiContractTest {
                     "IBMPlexMono-Light.ttf",
                     "IBMPlexMono-Regular.ttf",
                     "IBMPlexMono-Medium.ttf")) {
-                assertThat(getClass().getResource(
-                                "/io/github/stoicswe/eyeandsickle/client/fonts/" + file))
+                assertThat(getClass().getResource("/io/github/stoicswe/eyeandsickle/client/fonts/" + file))
                         .as("%s is bundled", file)
                         .isNotNull();
             }
@@ -255,8 +276,8 @@ class UiContractTest {
             // §9: "Proportional (non-mono) type anywhere, including body copy" is build-blocking.
             String css = Files.readString(CLIENT_RESOURCES.resolve(UI_RESOURCES + "theme.css"));
             assertThat(css).contains(UiTokens.DISPLAY_FAMILY).contains(UiTokens.BODY_FAMILY);
-            for (String proportional : List.of(
-                    "Helvetica", "Arial", "Segoe UI", "Roboto", "system-ui", "sans-serif", "serif")) {
+            for (String proportional :
+                    List.of("Helvetica", "Arial", "Segoe UI", "Roboto", "system-ui", "sans-serif", "serif")) {
                 assertThat(css).as("no proportional face (§9)").doesNotContain(proportional);
             }
         }
@@ -305,8 +326,12 @@ class UiContractTest {
             // Density is the aesthetic. A 16px gutter appearing because a panel "felt cramped" is
             // the first step towards §1's named failure mode — a competent dark-mode dev tool.
             assertThat(List.of(
-                            UiTokens.SPACE_1, UiTokens.SPACE_2, UiTokens.SPACE_3,
-                            UiTokens.SPACE_4, UiTokens.SPACE_5, UiTokens.SPACE_6))
+                            UiTokens.SPACE_1,
+                            UiTokens.SPACE_2,
+                            UiTokens.SPACE_3,
+                            UiTokens.SPACE_4,
+                            UiTokens.SPACE_5,
+                            UiTokens.SPACE_6))
                     .containsExactly(1.0, 5.0, 7.0, 9.0, 12.0, 14.0);
         }
 
@@ -335,8 +360,8 @@ class UiContractTest {
             //      ClassCastException: String incompatible with Cursor.
             // Together they mean cursors can only come from Java. This test is what stops a
             // well-meaning `-fx-cursor: hand` from reappearing on .button.
-            for (String sheet : List.of("theme.css", "theme-hc.css", "theme-phosphor.css",
-                    "theme-amber.css", "theme-classic.css")) {
+            for (String sheet : List.of(
+                    "theme.css", "theme-hc.css", "theme-phosphor.css", "theme-amber.css", "theme-classic.css")) {
                 String css = Files.readString(CLIENT_RESOURCES.resolve(UI_RESOURCES + sheet));
                 String body = css.replaceAll("(?s)/\\*.*?\\*/", "");
                 assertThat(body).as("%s declares no cursor", sheet).doesNotContain("-fx-cursor");

@@ -85,7 +85,6 @@ public record PortScanReport(
 
     /** A scan that was refused before it learned anything worth reporting. */
     public static PortScanReport refused(String address, PortScanTarget target, Instant at, String why) {
-        return new PortScanReport(address, target, at, true, true,
-                -1, "", -1L, -1L, -1L, -1, -1, 0, why);
+        return new PortScanReport(address, target, at, true, true, -1, "", -1L, -1L, -1L, -1, -1, 0, why);
     }
 }

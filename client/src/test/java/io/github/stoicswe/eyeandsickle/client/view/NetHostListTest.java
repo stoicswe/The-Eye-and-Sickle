@@ -39,13 +39,39 @@ class NetHostListTest {
     private static final ServerRef SOUTH = new ServerRef("s1", "south-exchange", 1, false);
 
     private static Sighting self() {
-        return new Sighting("10.0.0.1", "localhost", "s0", HostKind.SELF, null,
-                SignalStrength.LOW, 0, true, true, false, false, false, false, "");
+        return new Sighting(
+                "10.0.0.1",
+                "localhost",
+                "s0",
+                HostKind.SELF,
+                null,
+                SignalStrength.LOW,
+                0,
+                true,
+                true,
+                false,
+                false,
+                false,
+                false,
+                "");
     }
 
     private static Sighting contact(String address, int hops, int tier) {
-        return new Sighting(address, "", "s0", HostKind.UNKNOWN, DifficultyTier.of(tier),
-                SignalStrength.LOW, hops, false, false, false, false, false, false, "");
+        return new Sighting(
+                address,
+                "",
+                "s0",
+                HostKind.UNKNOWN,
+                DifficultyTier.of(tier),
+                SignalStrength.LOW,
+                hops,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                "");
     }
 
     private static NetMap map(Sighting... sightings) {
@@ -70,16 +96,16 @@ class NetHostListTest {
         @Test
         @DisplayName("the header is exactly the seven columns at the specified widths")
         void header() {
-            assertThat(NetText.header(false)).isEqualTo(
-                    "ADDRESS         SERVER          HOPS  KIND      TIER  STATE         NOTE");
+            assertThat(NetText.header(false))
+                    .isEqualTo("ADDRESS         SERVER          HOPS  KIND      TIER  STATE         NOTE");
         }
 
         @Test
         @DisplayName("a plain contact lands in those columns character for character")
         void plainRow() {
             NetMap map = map(contact("10.0.0.4", 1, 1));
-            assertThat(NetText.rows(map, false)).containsExactly(
-                    "10.0.0.4        home-relay      1     --------  T1    contact");
+            assertThat(NetText.rows(map, false))
+                    .containsExactly("10.0.0.4        home-relay      1     --------  T1    contact");
         }
 
         @Test
@@ -95,23 +121,23 @@ class NetHostListTest {
         @Test
         @DisplayName("-v adds SIGNAL and DEPTH and moves nothing else")
         void verboseColumns() {
-            assertThat(NetText.header(true)).isEqualTo(
-                    "ADDRESS         SERVER          HOPS  KIND      TIER  STATE         "
+            assertThat(NetText.header(true))
+                    .isEqualTo("ADDRESS         SERVER          HOPS  KIND      TIER  STATE         "
                             + "SIGNAL    DEPTH  NOTE");
-            assertThat(NetText.header(true)).startsWith(
-                    NetText.header(false).substring(0, NetText.header(false).length() - "NOTE".length()));
+            assertThat(NetText.header(true))
+                    .startsWith(NetText.header(false)
+                            .substring(0, NetText.header(false).length() - "NOTE".length()));
         }
 
         @Test
         @DisplayName("an over-long value is clipped, so nothing to its right moves")
         void clipping() {
             ServerRef long1 = new ServerRef("s0", "a-server-with-a-very-long-name", 0, true);
-            NetMap map = new NetMap(long1, "10.0.0.1", 1, List.of(long1),
-                    List.of(contact("10.0.0.4", 1, 1)), List.of());
+            NetMap map =
+                    new NetMap(long1, "10.0.0.1", 1, List.of(long1), List.of(contact("10.0.0.4", 1, 1)), List.of());
             String row = NetText.rows(map, false).getFirst();
             // The KIND column still starts where the header says it does.
-            assertThat(row.indexOf("--------"))
-                    .isEqualTo(NetText.header(false).indexOf("KIND"));
+            assertThat(row.indexOf("--------")).isEqualTo(NetText.header(false).indexOf("KIND"));
         }
     }
 
@@ -147,9 +173,21 @@ class NetHostListTest {
         @Test
         @DisplayName("a suspected honeypot is punctuated as a suspicion")
         void trapIsAQuestion() {
-            Sighting suspect = new Sighting("10.1.0.4", "", "s1", HostKind.SENTRY,
-                    DifficultyTier.of(4), SignalStrength.MODERATE, 1,
-                    false, false, false, true, false, false, "");
+            Sighting suspect = new Sighting(
+                    "10.1.0.4",
+                    "",
+                    "s1",
+                    HostKind.SENTRY,
+                    DifficultyTier.of(4),
+                    SignalStrength.MODERATE,
+                    1,
+                    false,
+                    false,
+                    false,
+                    true,
+                    false,
+                    false,
+                    "");
             assertThat(NetText.note(suspect)).contains("trap?");
         }
 
@@ -173,9 +211,21 @@ class NetHostListTest {
         @Test
         @DisplayName("a bridge row carries both BRIDGE and bridge, because grep is case-sensitive")
         void bridgeIsGreppableEitherWay() {
-            Sighting bridge = new Sighting("10.1.0.9", "", "s1", HostKind.BRIDGE,
-                    DifficultyTier.of(3), SignalStrength.HIGH, 2,
-                    false, false, false, false, false, false, "north-yard");
+            Sighting bridge = new Sighting(
+                    "10.1.0.9",
+                    "",
+                    "s1",
+                    HostKind.BRIDGE,
+                    DifficultyTier.of(3),
+                    SignalStrength.HIGH,
+                    2,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    "north-yard");
             String row = NetText.row(map(bridge), bridge, false);
             assertThat(row).contains("BRIDGE").contains("bridge -> north-yard");
         }
@@ -183,9 +233,21 @@ class NetHostListTest {
         @Test
         @DisplayName("the note carries every flag that has no column of its own")
         void notes() {
-            Sighting busy = new Sighting("10.1.0.5", "", "s1", HostKind.STORE,
-                    DifficultyTier.of(3), SignalStrength.MODERATE, 1,
-                    false, true, true, false, true, true, "");
+            Sighting busy = new Sighting(
+                    "10.1.0.5",
+                    "",
+                    "s1",
+                    HostKind.STORE,
+                    DifficultyTier.of(3),
+                    SignalStrength.MODERATE,
+                    1,
+                    false,
+                    true,
+                    true,
+                    false,
+                    true,
+                    true,
+                    "");
             assertThat(NetText.note(busy)).isEqualTo("looted document miner");
         }
     }

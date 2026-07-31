@@ -75,8 +75,7 @@ public final class AccessLog {
      * @param fromAddress the intruder's address — the thing the victim needs in order to retaliate,
      *     and the thing {@link #redact} exists to remove
      */
-    public static AccessEntry record(
-            SoloSave save, String fromAddress, String action, String path, Instant now) {
+    public static AccessEntry record(SoloSave save, String fromAddress, String action, String path, Instant now) {
         AccessEntry entry = new AccessEntry();
         entry.at = now;
         entry.fromAddress = fromAddress == null ? "" : fromAddress.trim();
@@ -120,8 +119,11 @@ public final class AccessLog {
 
     /** How many lines have had their address wiped — the count of things you cannot hit back at. */
     public static long gaps(SoloSave save) {
-        return save == null ? 0
-                : save.remoteAccessLog.stream().filter(e -> e.fromAddress.isBlank()).count();
+        return save == null
+                ? 0
+                : save.remoteAccessLog.stream()
+                        .filter(e -> e.fromAddress.isBlank())
+                        .count();
     }
 
     /** Distinct addresses still in the log — everyone who did not clean up after themselves. */

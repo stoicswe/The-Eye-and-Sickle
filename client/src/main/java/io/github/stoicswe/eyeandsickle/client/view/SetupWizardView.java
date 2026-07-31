@@ -131,11 +131,7 @@ public final class SetupWizardView {
      * @param suggestedHandle what the player typed on the login screen, or empty
      */
     public static Region create(
-            ClientProfile profile,
-            ThemeManager themes,
-            int slot,
-            String suggestedHandle,
-            Actions actions) {
+            ClientProfile profile, ThemeManager themes, int slot, String suggestedHandle, Actions actions) {
 
         String[] handle = {suggestedHandle == null ? "" : suggestedHandle.trim()};
         String[] avatar = {""};
@@ -297,8 +293,11 @@ public final class SetupWizardView {
      * @param complain shows that reason
      * @param onShown run each time the pane comes back into view — focus, or a refresh
      */
-    private record Pane(Node node, java.util.function.Supplier<String> blocker,
-            java.util.function.Consumer<String> report, Runnable arrival) {
+    private record Pane(
+            Node node,
+            java.util.function.Supplier<String> blocker,
+            java.util.function.Consumer<String> report,
+            Runnable arrival) {
 
         /** @return why Continue cannot proceed, or null */
         String problem() {
@@ -368,8 +367,7 @@ public final class SetupWizardView {
             // hostname rather than the raw field: a player typing "My Rig" should see what the
             // machine will make of it while they are still typing, not after they commit.
             preview.setText(Hostname.prompt(
-                    handle[0].isBlank() ? "operator" : handle[0],
-                    wanted.isBlank() ? Hostname.DEFAULT : wanted));
+                    handle[0].isBlank() ? "operator" : handle[0], wanted.isBlank() ? Hostname.DEFAULT : wanted));
             profile.settings().rigHostname = wanted.isBlank() ? Hostname.DEFAULT : wanted;
 
             String raw = host.getText() == null ? "" : host.getText().trim();
@@ -400,10 +398,7 @@ public final class SetupWizardView {
                         + "most: DNS's rules, not this game's."),
                 trouble);
 
-        return new Pane(body,
-                () -> Views.validateHandle(handle[0]),
-                trouble::setText,
-                name::requestFocus);
+        return new Pane(body, () -> Views.validateHandle(handle[0]), trouble::setText, name::requestFocus);
     }
 
     /** The picture. Shows the generated silhouette the moment there is a handle to derive it from. */
@@ -425,17 +420,13 @@ public final class SetupWizardView {
 
         refresh[0] = () -> {
             portrait.setImage(Avatar.image(avatar[0], handle[0]));
-            state.setText(avatar[0].isEmpty()
-                    ? "Generated from your handle."
-                    : "Your picture.");
+            state.setText(avatar[0].isEmpty() ? "Generated from your handle." : "Your picture.");
         };
 
         BreachView.Chip choose = new BreachView.Chip("Choose a picture", "es-setup-action");
         BreachView.Chip clear = new BreachView.Chip("Use the generated one", "es-setup-action");
         choose.onInvoke(() -> AvatarChooser.choose(
-                plate.getScene() == null ? null : plate.getScene().getWindow(),
-                handle[0],
-                encoded -> {
+                plate.getScene() == null ? null : plate.getScene().getWindow(), handle[0], encoded -> {
                     avatar[0] = encoded;
                     refresh[0].run();
                 }));
@@ -519,12 +510,17 @@ public final class SetupWizardView {
 
     /** Pointer, motion and text size — the three that change whether the deck is usable at all. */
     private static Pane accessibility(ClientProfile profile, ThemeManager themes, Actions actions) {
-        VBox pointer = choices("POINTER",
+        VBox pointer = choices(
+                "POINTER",
                 CursorSkin.selectable().stream().map(CursorSkin::label).toList(),
-                Math.max(0, CursorSkin.selectable().indexOf(
-                        CursorSkin.byId(profile.appearance().cursorSkin).orElse(CursorSkin.SYSTEM))),
+                Math.max(
+                        0,
+                        CursorSkin.selectable()
+                                .indexOf(CursorSkin.byId(profile.appearance().cursorSkin)
+                                        .orElse(CursorSkin.SYSTEM))),
                 index -> {
-                    profile.appearance().cursorSkin = CursorSkin.selectable().get(index).id();
+                    profile.appearance().cursorSkin =
+                            CursorSkin.selectable().get(index).id();
                     // Through the theme manager: a drawn pointer is painted in the current
                     // palette's colours, and only it knows which stylesheets are live.
                     themes.refreshCursors();
@@ -537,8 +533,7 @@ public final class SetupWizardView {
         int[] scales = io.github.stoicswe.eyeandsickle.client.ui.UiScale.PERCENTAGES;
         List<String> sizes = new ArrayList<>();
         int chosenScale = 0;
-        int running = io.github.stoicswe.eyeandsickle.client.ui.UiScale
-                .sanitise(profile.settings().uiScalePercent);
+        int running = io.github.stoicswe.eyeandsickle.client.ui.UiScale.sanitise(profile.settings().uiScalePercent);
         for (int i = 0; i < scales.length; i++) {
             sizes.add(scales[i] + "%");
             if (scales[i] == running) {
@@ -556,9 +551,10 @@ public final class SetupWizardView {
             actions.applyPreview();
         });
 
-        VBox motion = choices("MOTION", List.of("Follow my system", "Reduce motion", "Full motion"),
-                profile.settings().reducedMotionOverride == null ? 0
-                        : profile.settings().reducedMotionOverride ? 1 : 2,
+        VBox motion = choices(
+                "MOTION",
+                List.of("Follow my system", "Reduce motion", "Full motion"),
+                profile.settings().reducedMotionOverride == null ? 0 : profile.settings().reducedMotionOverride ? 1 : 2,
                 index -> {
                     themes.setReducedMotionOverride(index == 0 ? null : index == 1);
                     profile.save();
@@ -588,7 +584,8 @@ public final class SetupWizardView {
     /** CL-4 / T-2, asked properly. */
     private static Pane teaching(ClientProfile profile) {
         List<String> levels = List.of("explain", "terms", "off");
-        VBox picker = choices("EXPLANATIONS",
+        VBox picker = choices(
+                "EXPLANATIONS",
                 levels.stream().map(TEACHING_LABELS::get).toList(),
                 Math.max(0, levels.indexOf(profile.settings().teachingLevel)),
                 index -> {
@@ -635,16 +632,29 @@ public final class SetupWizardView {
             String[][] rows = {
                 {"OPERATOR", Hostname.prompt(handle[0], profile.settings().rigHostname)},
                 {"PICTURE", avatar[0].isEmpty() ? "generated from your handle" : "the one you chose"},
-                {"PALETTE", ThemeId.byId(profile.appearance().themeId)
-                        .map(ThemeId::label).orElse(profile.appearance().themeId)},
-                {"POINTER", CursorSkin.byId(profile.appearance().cursorSkin)
-                        .map(CursorSkin::label).orElse(profile.appearance().cursorSkin)},
+                {
+                    "PALETTE",
+                    ThemeId.byId(profile.appearance().themeId)
+                            .map(ThemeId::label)
+                            .orElse(profile.appearance().themeId)
+                },
+                {
+                    "POINTER",
+                    CursorSkin.byId(profile.appearance().cursorSkin)
+                            .map(CursorSkin::label)
+                            .orElse(profile.appearance().cursorSkin)
+                },
                 {"TEXT SIZE", profile.settings().uiScalePercent + "%"},
-                {"MOTION", profile.settings().reducedMotionOverride == null
-                        ? "follows your system"
-                        : profile.settings().reducedMotionOverride ? "reduced" : "full"},
-                {"EXPLANATIONS", TEACHING_LABELS.getOrDefault(
-                        profile.settings().teachingLevel, profile.settings().teachingLevel)},
+                {
+                    "MOTION",
+                    profile.settings().reducedMotionOverride == null
+                            ? "follows your system"
+                            : profile.settings().reducedMotionOverride ? "reduced" : "full"
+                },
+                {
+                    "EXPLANATIONS",
+                    TEACHING_LABELS.getOrDefault(profile.settings().teachingLevel, profile.settings().teachingLevel)
+                },
             };
             for (int i = 0; i < rows.length; i++) {
                 Label key = Ui.label(rows[i][0]);
@@ -759,8 +769,8 @@ public final class SetupWizardView {
     }
 
     /** The same exclusive choice, laid out along a row. For an ordered scale rather than a list. */
-    private static VBox strip(String heading, List<String> options, int selected,
-            java.util.function.IntConsumer onPick) {
+    private static VBox strip(
+            String heading, List<String> options, int selected, java.util.function.IntConsumer onPick) {
 
         VBox built = choices(heading, options, selected, onPick);
         Label heading0 = (Label) built.getChildren().getFirst();
@@ -768,7 +778,8 @@ public final class SetupWizardView {
         line.setAlignment(Pos.CENTER_LEFT);
         // ⚠ Copied out of the column rather than rebuilt, so the two layouts cannot come to
         // different selection behaviour. Everything after the heading is an option row.
-        line.getChildren().addAll(built.getChildren().subList(1, built.getChildren().size()));
+        line.getChildren()
+                .addAll(built.getChildren().subList(1, built.getChildren().size()));
         // ⚠ A style class, not setMinWidth. `.es-setup-choice` carries `-fx-min-width: 168` so a
         // column of options lines up, and CSS wins over a programmatic minimum on the next
         // applyCss — eight 168-point cells is 1,500 points of row, which shoved the whole pane off
@@ -790,8 +801,8 @@ public final class SetupWizardView {
      * click. §9 bans hidden UI for the deck for the same reason; on a screen with one question and
      * a whole window to put it in there is no argument for a menu at all.
      */
-    private static VBox choices(String heading, List<String> options, int selected,
-            java.util.function.IntConsumer onPick) {
+    private static VBox choices(
+            String heading, List<String> options, int selected, java.util.function.IntConsumer onPick) {
 
         VBox box = new VBox(UiTokens.SPACE_2);
         box.setAlignment(Pos.TOP_LEFT);

@@ -1,8 +1,6 @@
 package io.github.stoicswe.eyeandsickle.client.ui;
 
 import io.github.stoicswe.eyeandsickle.client.session.GameSession;
-import java.time.Duration;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -130,26 +128,39 @@ public final class BootSequence extends StackPane {
         script.add(new Line("", "es-boot-dim", false));
 
         script.add(new Line("[  ok  ] mounting /rig", "es-boot-ok", false));
-        script.add(new Line("         rig " + shortId(session) + " · capacity " + total + " cycles",
-                "es-boot-dim", false));
+        script.add(new Line(
+                "         rig " + shortId(session) + " · capacity " + total + " cycles", "es-boot-dim", false));
         script.add(new Line("[  ok  ] compute ledger reconciled", "es-boot-ok", false));
-        script.add(new Line("         " + available + " of " + total + " cycles available · "
-                + budget.recovering().cycles() + " recovering", "es-boot-dim", true));
+        script.add(new Line(
+                "         " + available + " of " + total + " cycles available · "
+                        + budget.recovering().cycles() + " recovering",
+                "es-boot-dim",
+                true));
 
         script.add(new Line("[  ok  ] thermal budget T" + capacity.thermalBudget(), "es-boot-ok", false));
-        script.add(new Line("[  ok  ] memory buffer  " + capacity.memoryBuffer() + " slot"
-                + (capacity.memoryBuffer() == 1 ? "" : "s"), "es-boot-ok", false));
-        script.add(new Line("[  ok  ] bandwidth      " + capacity.bandwidth() + " engagement"
-                + (capacity.bandwidth() == 1 ? "" : "s"), "es-boot-ok", true));
+        script.add(new Line(
+                "[  ok  ] memory buffer  " + capacity.memoryBuffer() + " slot"
+                        + (capacity.memoryBuffer() == 1 ? "" : "s"),
+                "es-boot-ok",
+                false));
+        script.add(new Line(
+                "[  ok  ] bandwidth      " + capacity.bandwidth() + " engagement"
+                        + (capacity.bandwidth() == 1 ? "" : "s"),
+                "es-boot-ok",
+                true));
 
-        script.add(new Line(defenses == 0
-                ? "[ warn ] defensive array: nothing armed"
-                : "[  ok  ] defensive array: " + defenses + " armed",
-                defenses == 0 ? "es-boot-warn" : "es-boot-ok", false));
-        script.add(new Line(mining.selfMiningCycles() == 0
-                ? "[ warn ] self-mining idle — the income floor is not running"
-                : "[  ok  ] self-mining " + mining.selfMiningCycles() + " cycles",
-                mining.selfMiningCycles() == 0 ? "es-boot-warn" : "es-boot-ok", false));
+        script.add(new Line(
+                defenses == 0
+                        ? "[ warn ] defensive array: nothing armed"
+                        : "[  ok  ] defensive array: " + defenses + " armed",
+                defenses == 0 ? "es-boot-warn" : "es-boot-ok",
+                false));
+        script.add(new Line(
+                mining.selfMiningCycles() == 0
+                        ? "[ warn ] self-mining idle — the income floor is not running"
+                        : "[  ok  ] self-mining " + mining.selfMiningCycles() + " cycles",
+                mining.selfMiningCycles() == 0 ? "es-boot-warn" : "es-boot-ok",
+                false));
 
         // ⚠ Ethecoin.format, not a local "%.2f" — that was one of the thirteen private formatters, and
         // at 18 decimals a fixed two-place format would round a real amount away on the boot screen.
@@ -160,8 +171,10 @@ public final class BootSequence extends StackPane {
         script.add(new Line("[ ---- ] external interfaces: none configured", "es-boot-dim", false));
         script.add(new Line("[ ---- ] surveillance posture: unknown", "es-boot-dim", true));
         script.add(new Line("", "es-boot-dim", false));
-        script.add(new Line("operator " + session.handle().toUpperCase(Locale.ROOT)
-                + " authenticated against local keyring", "es-boot-text", false));
+        script.add(new Line(
+                "operator " + session.handle().toUpperCase(Locale.ROOT) + " authenticated against local keyring",
+                "es-boot-text",
+                false));
         script.add(new Line("uOS ready.", "es-boot-text", true));
     }
 

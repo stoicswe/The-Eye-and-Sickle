@@ -90,8 +90,7 @@ class CalculatorTest {
             // 0xFFFFFFFFFFFFFFFF / 2 is -1/2 = 0 with Java's operator and a very large number with
             // the right one. There is no width at which this is a rounding difference.
             long all = -1L;
-            assertThat(CalcOp.DIV.apply(all, 2, WordSize.QWORD, false))
-                    .isEqualTo(Long.divideUnsigned(all, 2));
+            assertThat(CalcOp.DIV.apply(all, 2, WordSize.QWORD, false)).isEqualTo(Long.divideUnsigned(all, 2));
             assertThat(CalcOp.DIV.apply(all, 2, WordSize.QWORD, true)).isZero();
             assertThat(CalcOp.DIV.apply(0xFF, 16, WordSize.BYTE, false)).isEqualTo(0x0F);
             assertThat(CalcOp.DIV.apply(0xFF, 16, WordSize.BYTE, true)).isZero();
@@ -343,10 +342,15 @@ class CalculatorTest {
         @Test
         @DisplayName("symbols and words are the same operators")
         void symbolsAndWords() {
-            assertThat(Calculator.evaluate("12 & 10", WordSize.DWORD, false).calculator().value())
+            assertThat(Calculator.evaluate("12 & 10", WordSize.DWORD, false)
+                            .calculator()
+                            .value())
                     .isEqualTo(Calculator.evaluate("12 and 10", WordSize.DWORD, false)
-                            .calculator().value());
-            assertThat(Calculator.evaluate("1 << 12", WordSize.DWORD, false).calculator().value())
+                            .calculator()
+                            .value());
+            assertThat(Calculator.evaluate("1 << 12", WordSize.DWORD, false)
+                            .calculator()
+                            .value())
                     .isEqualTo(0x1000);
         }
 
@@ -372,9 +376,13 @@ class CalculatorTest {
         @Test
         @DisplayName("a minus keeps working as both an operator and a sign")
         void minusIsBothThings() {
-            assertThat(Calculator.evaluate("8 - 1", WordSize.DWORD, false).calculator().value())
+            assertThat(Calculator.evaluate("8 - 1", WordSize.DWORD, false)
+                            .calculator()
+                            .value())
                     .isEqualTo(7);
-            assertThat(Calculator.evaluate("-1", WordSize.BYTE, false).calculator().value())
+            assertThat(Calculator.evaluate("-1", WordSize.BYTE, false)
+                            .calculator()
+                            .value())
                     .isEqualTo(0xFF);
         }
 
@@ -386,7 +394,8 @@ class CalculatorTest {
                     .contains("not a number");
             assertThat(Calculator.evaluate("1 +", WordSize.DWORD, false).error())
                     .contains("ends with an operator");
-            assertThat(Calculator.evaluate("1 / 0", WordSize.DWORD, false).error()).contains("zero");
+            assertThat(Calculator.evaluate("1 / 0", WordSize.DWORD, false).error())
+                    .contains("zero");
         }
 
         @Test

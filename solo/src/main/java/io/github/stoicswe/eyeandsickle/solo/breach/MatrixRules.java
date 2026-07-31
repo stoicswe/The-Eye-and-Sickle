@@ -67,9 +67,10 @@ public final class MatrixRules {
         // Charging attention for a typo would make the terminal worse to play than the window.
         boolean legal = layer.matrixRowTurn ? row == layer.matrixCursorRow : column == layer.matrixCursorColumn;
         if (!legal) {
-            return Move.refunded(layer.matrixRowTurn
-                    ? "the path is in row " + layer.matrixCursorRow + " this pick"
-                    : "the path is in column " + layer.matrixCursorColumn + " this pick");
+            return Move.refunded(
+                    layer.matrixRowTurn
+                            ? "the path is in row " + layer.matrixCursorRow + " this pick"
+                            : "the path is in column " + layer.matrixCursorColumn + " this pick");
         }
         if (layer.matrixBuffer.size() >= layer.matrixBufferSize) {
             return Move.refunded("the buffer is full");

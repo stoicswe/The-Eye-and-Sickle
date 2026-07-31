@@ -132,8 +132,7 @@ public final class NetGraph extends VBox {
 
     /** Rebuilds the picture. Null-safe: a null map draws the same empty state an empty one does. */
     /** Installs the right-click handler. See the field for why it is not {@code onNode}. */
-    public void setOnNodeMenu(
-            java.util.function.BiConsumer<String, javafx.scene.input.ContextMenuEvent> handler) {
+    public void setOnNodeMenu(java.util.function.BiConsumer<String, javafx.scene.input.ContextMenuEvent> handler) {
         this.onNodeMenu = handler == null ? (address, event) -> {} : handler;
     }
 

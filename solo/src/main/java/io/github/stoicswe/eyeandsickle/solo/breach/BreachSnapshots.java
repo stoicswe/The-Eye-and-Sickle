@@ -4,14 +4,14 @@ import io.github.stoicswe.eyeandsickle.protocol.game.AttentionBudget;
 import io.github.stoicswe.eyeandsickle.protocol.game.AttentionEntry;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachActionKind;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachBoard;
-import io.github.stoicswe.eyeandsickle.protocol.game.MatrixBoard;
-import io.github.stoicswe.eyeandsickle.protocol.game.OffsetBoard;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachLayer;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachOutcome;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachResolution;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachSnapshot;
 import io.github.stoicswe.eyeandsickle.protocol.game.DifficultyTier;
 import io.github.stoicswe.eyeandsickle.protocol.game.LayerOutcome;
+import io.github.stoicswe.eyeandsickle.protocol.game.MatrixBoard;
+import io.github.stoicswe.eyeandsickle.protocol.game.OffsetBoard;
 import io.github.stoicswe.eyeandsickle.protocol.game.PuzzleClass;
 import io.github.stoicswe.eyeandsickle.protocol.game.ResolutionRecord;
 import io.github.stoicswe.eyeandsickle.protocol.game.TargetState;
@@ -201,9 +201,8 @@ public final class BreachSnapshots {
         }
         int spent = 0;
         int budget = 0;
-        String deepest = breach.layers.isEmpty()
-                ? PuzzleClass.BREACH_PROTOCOL.name()
-                : breach.layers.getFirst().puzzleClass;
+        String deepest =
+                breach.layers.isEmpty() ? PuzzleClass.BREACH_PROTOCOL.name() : breach.layers.getFirst().puzzleClass;
         for (LayerState layer : breach.layers) {
             spent += Math.min(layer.spent, layer.budget);
             budget += layer.budget;

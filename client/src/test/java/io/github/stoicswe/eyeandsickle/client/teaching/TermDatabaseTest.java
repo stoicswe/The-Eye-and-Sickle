@@ -135,8 +135,7 @@ class TermDatabaseTest {
     @DisplayName("the parser refuses what it promised to refuse")
     class Parsing {
 
-        private static final String VALID =
-                """
+        private static final String VALID = """
                 ---
                 id: example
                 section: 7

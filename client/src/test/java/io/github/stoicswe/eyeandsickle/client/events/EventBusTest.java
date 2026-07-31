@@ -91,7 +91,8 @@ class EventBusTest {
         // ⚠ And the failure itself is recorded, not swallowed. A packaged client has no console
         // behind it, so a printed stack trace would be genuinely lost; the EVENTS tab is where a
         // player reporting a bug can actually see it.
-        assertThat(bus.recorder().events()).extracting(CloudEvent::shortType)
+        assertThat(bus.recorder().events())
+                .extracting(CloudEvent::shortType)
                 .containsExactly("intent", "subscriber.failed");
         assertThat(bus.recorder().events().getLast().payload()).contains("panel is mid-rebuild");
     }

@@ -59,8 +59,7 @@ class SetupSwatchTest {
                 String want = token(palette, part.getValue());
                 String got = background(base, ".es-swatch-" + id.id() + " ." + part.getKey());
                 assertThat(got)
-                        .as("%s's %s swatch part should be %s (%s)",
-                                id.id(), part.getKey(), part.getValue(), want)
+                        .as("%s's %s swatch part should be %s (%s)", id.id(), part.getKey(), part.getValue(), want)
                         .isEqualToIgnoringCase(want);
             }
 
@@ -81,8 +80,8 @@ class SetupSwatchTest {
         String base = Files.readString(UI.resolve("theme.css"));
         // ⚠ Both directions. A palette with no swatch is a hole in the picker; a swatch with no
         // palette is a tile the assistant will never draw, which rots without ever being seen.
-        Matcher declared = Pattern.compile("\\.es-swatch-([a-z0-9-]+) \\.es-swatch-screen")
-                .matcher(base);
+        Matcher declared =
+                Pattern.compile("\\.es-swatch-([a-z0-9-]+) \\.es-swatch-screen").matcher(base);
         java.util.Set<String> inCss = new java.util.LinkedHashSet<>();
         while (declared.find()) {
             inCss.add(declared.group(1));
@@ -105,13 +104,13 @@ class SetupSwatchTest {
 
     /** Reads one declaration out of one rule. */
     private static String property(String css, String selector, String name) {
-        Matcher matcher = Pattern
-                .compile(Pattern.quote(selector) + "\\s*\\{([^}]*)\\}")
-                .matcher(css);
-        assertThat(matcher.find()).as("theme.css declares a rule for %s", selector).isTrue();
-        Matcher declaration = Pattern
-                .compile(Pattern.quote(name) + ":\\s*([^;]+);")
-                .matcher(matcher.group(1));
+        Matcher matcher =
+                Pattern.compile(Pattern.quote(selector) + "\\s*\\{([^}]*)\\}").matcher(css);
+        assertThat(matcher.find())
+                .as("theme.css declares a rule for %s", selector)
+                .isTrue();
+        Matcher declaration =
+                Pattern.compile(Pattern.quote(name) + ":\\s*([^;]+);").matcher(matcher.group(1));
         assertThat(declaration.find()).as("%s sets %s", selector, name).isTrue();
         return declaration.group(1).trim();
     }

@@ -146,9 +146,23 @@ public record Sighting(
             boolean hostsDeployedMiner,
             boolean documentAvailable,
             String bridgePeerServerName) {
-        this(address, label, serverId, kind, tier, signal, hopsFromVantage, vantage, foothold,
-                false, looted, honeypotSuspected, hostsDeployedMiner, documentAvailable,
-                bridgePeerServerName, false);
+        this(
+                address,
+                label,
+                serverId,
+                kind,
+                tier,
+                signal,
+                hopsFromVantage,
+                vantage,
+                foothold,
+                false,
+                looted,
+                honeypotSuspected,
+                hostsDeployedMiner,
+                documentAvailable,
+                bridgePeerServerName,
+                false);
     }
 
     /**
@@ -174,9 +188,23 @@ public record Sighting(
             boolean hostsDeployedMiner,
             boolean documentAvailable,
             String bridgePeerServerName) {
-        this(address, label, serverId, kind, tier, signal, hopsFromVantage, vantage, foothold,
-                patched, looted, honeypotSuspected, hostsDeployedMiner, documentAvailable,
-                bridgePeerServerName, false);
+        this(
+                address,
+                label,
+                serverId,
+                kind,
+                tier,
+                signal,
+                hopsFromVantage,
+                vantage,
+                foothold,
+                patched,
+                looted,
+                honeypotSuspected,
+                hostsDeployedMiner,
+                documentAvailable,
+                bridgePeerServerName,
+                false);
     }
 
     public Sighting {

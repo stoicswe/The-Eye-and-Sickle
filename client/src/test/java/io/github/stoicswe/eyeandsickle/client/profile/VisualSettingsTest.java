@@ -180,8 +180,8 @@ class VisualSettingsTest {
         // ⚠ Comments stripped FIRST. One of the four swaps is followed by an explanatory comment,
         // and matching against the raw source silently found three — a check that misses the case
         // somebody bothered to explain is worse than no check.
-        String client = Files.readString(Path.of(
-                        "src/main/java/io/github/stoicswe/eyeandsickle/client/EyeAndSickleClient.java"))
+        String client = Files.readString(
+                        Path.of("src/main/java/io/github/stoicswe/eyeandsickle/client/EyeAndSickleClient.java"))
                 .replaceAll("(?s)/\\*.*?\\*/", "")
                 .replaceAll("//[^\n]*", "");
 
@@ -196,8 +196,7 @@ class VisualSettingsTest {
         // The count is asserted too: a swap the regex fails to see is a swap this test is not
         // protecting, and "all zero matches passed" is the classic way a source scan rots.
         assertThat(followedBy)
-                .as("every appearance swap in EyeAndSickleClient must be followed by "
-                        + "themes.reloadAppearance()")
+                .as("every appearance swap in EyeAndSickleClient must be followed by " + "themes.reloadAppearance()")
                 .hasSize(client.split("profile\\.use", -1).length - 1)
                 .allMatch(call -> call.equals("themes.reloadAppearance("));
     }
@@ -213,19 +212,26 @@ class VisualSettingsTest {
             onSettings.add(field.getName());
         }
 
-        assertThat(onSettings).doesNotContain(
-                "themeId", "cursorSkin", "wallpaper", "bezel",
-                "crtScanlines", "crtAberration", "crtGlitch", "crtCurvature",
-                "roundedWindows", "subwindowControlOrder");
+        assertThat(onSettings)
+                .doesNotContain(
+                        "themeId",
+                        "cursorSkin",
+                        "wallpaper",
+                        "bezel",
+                        "crtScanlines",
+                        "crtAberration",
+                        "crtGlitch",
+                        "crtCurvature",
+                        "roundedWindows",
+                        "subwindowControlOrder");
 
         // ⚠ And the deliberate exceptions, asserted so that moving one is a decision rather than a
         // drift. uiScalePercent and reducedMotionOverride are accessibility FLOORS (docs/client/07)
         // — per-character would hand a player who needs 150% text 100% on every new character.
         // nativeWindowBorder cannot be per-character at all: Stage.initStyle is rejected on a
         // realised Stage, so it could not take effect until a restart.
-        assertThat(onSettings).contains(
-                "uiScalePercent", "reducedMotionOverride", "nativeWindowBorder",
-                "windowSize", "fullScreen");
+        assertThat(onSettings)
+                .contains("uiScalePercent", "reducedMotionOverride", "nativeWindowBorder", "windowSize", "fullScreen");
     }
 
     /**
@@ -244,9 +250,16 @@ class VisualSettingsTest {
      * save has ever contained, which is exactly the dead code the second half of this test refuses.
      */
     private static final List<String> LEGACY_KEYS = List.of(
-            "themeId", "cursorSkin", "wallpaper", "bezel",
-            "crtScanlines", "crtAberration", "crtGlitch", "crtCurvature",
-            "roundedWindows", "subwindowControlOrder");
+            "themeId",
+            "cursorSkin",
+            "wallpaper",
+            "bezel",
+            "crtScanlines",
+            "crtAberration",
+            "crtGlitch",
+            "crtCurvature",
+            "roundedWindows",
+            "subwindowControlOrder");
 
     @Test
     @DisplayName("every legacy key has a migration hook, and every hook names a real field")
@@ -254,8 +267,8 @@ class VisualSettingsTest {
         // Both directions. A legacy key with no hook loses its value on upgrade — the mapper has
         // FAIL_ON_UNKNOWN_PROPERTIES off, so it is dropped in silence; a hook naming a field that no
         // longer exists is dead code that reads as coverage.
-        String source = Files.readString(Path.of(
-                "src/main/java/io/github/stoicswe/eyeandsickle/client/profile/ClientProfile.java"));
+        String source = Files.readString(
+                Path.of("src/main/java/io/github/stoicswe/eyeandsickle/client/profile/ClientProfile.java"));
 
         Matcher hooks = Pattern.compile("@com\\.fasterxml\\.jackson\\.annotation\\.JsonProperty\\(\"([A-Za-z]+)\"\\)")
                 .matcher(source);
@@ -272,9 +285,7 @@ class VisualSettingsTest {
         for (var field : VisualSettings.class.getFields()) {
             fields.add(field.getName());
         }
-        assertThat(fields)
-                .as("every hook names a field that still exists")
-                .containsAll(LEGACY_KEYS);
+        assertThat(fields).as("every hook names a field that still exists").containsAll(LEGACY_KEYS);
     }
 
     /**

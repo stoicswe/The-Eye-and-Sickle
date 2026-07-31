@@ -46,15 +46,16 @@ class NetGraphTest {
      * which is right — but a test that hard-codes {@code 23} passes for the wrong reason the day one
      * of those tokens moves, reading a node cell at an offset that is no longer where node cells are.
      */
-    private static final int PITCH =
-            UiTokens.NET_LATERAL_COLS + UiTokens.NET_NODE_COLS + UiTokens.NET_GAP_COLS;
+    private static final int PITCH = UiTokens.NET_LATERAL_COLS + UiTokens.NET_NODE_COLS + UiTokens.NET_GAP_COLS;
 
     private static List<String> lines(NetMap map, int phase) {
         return NetCanvas.paint(map, MAX_ROWS, phase).lines();
     }
 
     private static char at(List<String> grid, int line, int col) {
-        return line < grid.size() && col < grid.get(line).length() ? grid.get(line).charAt(col) : ' ';
+        return line < grid.size() && col < grid.get(line).length()
+                ? grid.get(line).charAt(col)
+                : ' ';
     }
 
     @Nested
@@ -77,8 +78,7 @@ class NetGraphTest {
             // The rule itself is what matters and it is total, so it is asserted directly. The
             // structural evidence that merging really happens in a render lives in fanOutMerges
             // below, which passes against a real fixture.
-            assertThat(AsciiCanvas.junction(
-                            AsciiCanvas.UP | AsciiCanvas.DOWN | AsciiCanvas.LEFT | AsciiCanvas.RIGHT))
+            assertThat(AsciiCanvas.junction(AsciiCanvas.UP | AsciiCanvas.DOWN | AsciiCanvas.LEFT | AsciiCanvas.RIGHT))
                     .as("a four-way crossing has a glyph, so a crossing can never erase")
                     .isEqualTo('┼');
             for (int bits = 1; bits < 16; bits++) {
@@ -238,8 +238,7 @@ class NetGraphTest {
                             int within = col % PITCH;
                             assertThat(within)
                                     .as("phase %d changed (%d,%d), which is not in a gap", phase, line, col)
-                                    .isGreaterThanOrEqualTo(
-                                            UiTokens.NET_LATERAL_COLS + UiTokens.NET_NODE_COLS);
+                                    .isGreaterThanOrEqualTo(UiTokens.NET_LATERAL_COLS + UiTokens.NET_NODE_COLS);
                         }
                     }
                 }
@@ -317,7 +316,8 @@ class NetGraphTest {
                     .contains(NetFixtures.HOME.name())
                     .contains("HOSTS SEEN 5")
                     .contains("CEILING 1 HOP");
-            assertThat(NetCanvas.paint(NetMap.empty(), MAX_ROWS, 0).serverStrip()).contains("HOSTS SEEN 0");
+            assertThat(NetCanvas.paint(NetMap.empty(), MAX_ROWS, 0).serverStrip())
+                    .contains("HOSTS SEEN 0");
         }
 
         @Test
@@ -336,7 +336,8 @@ class NetGraphTest {
             // MORE`, a dangling separator followed by an ellipsis followed by a second separator.
             // A middle column failed worse: it clipped mid-number, showing a count that was wrong
             // rather than absent.
-            String header = NetCanvas.paint(NetFixtures.crowded(50), MAX_ROWS, 0).header();
+            String header =
+                    NetCanvas.paint(NetFixtures.crowded(50), MAX_ROWS, 0).header();
             assertThat(header).contains("+40 MORE");
             assertThat(header)
                     .as("an elision mark never follows a separator")

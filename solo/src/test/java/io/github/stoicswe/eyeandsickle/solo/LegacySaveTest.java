@@ -80,8 +80,7 @@ class LegacySaveTest {
         Path file = dir.resolve("legacy.json");
         Files.writeString(file, LEGACY_JSON);
 
-        SoloGame game = SoloGame.open(
-                new SaveStore(file), "kyyrell", Clock.fixed(NOW, ZoneOffset.UTC));
+        SoloGame game = SoloGame.open(new SaveStore(file), "kyyrell", Clock.fixed(NOW, ZoneOffset.UTC));
         SoloSave save = game.state();
 
         // 50 000 hundredths was 500.00 EC, and it still is.
@@ -110,12 +109,10 @@ class LegacySaveTest {
         Path file = dir.resolve("legacy.json");
         Files.writeString(file, LEGACY_JSON);
 
-        SoloGame first = SoloGame.open(
-                new SaveStore(file), "kyyrell", Clock.fixed(NOW, ZoneOffset.UTC));
+        SoloGame first = SoloGame.open(new SaveStore(file), "kyyrell", Clock.fixed(NOW, ZoneOffset.UTC));
         first.persist();
 
-        SoloGame second = SoloGame.open(
-                new SaveStore(file), "kyyrell", Clock.fixed(NOW, ZoneOffset.UTC));
+        SoloGame second = SoloGame.open(new SaveStore(file), "kyyrell", Clock.fixed(NOW, ZoneOffset.UTC));
         assertThat(second.state().ethecoinWei).isEqualTo(Balance.ec("500"));
         assertThat(second.state().moneySchema).isEqualTo(SoloSave.MONEY_SCHEMA);
     }
@@ -132,11 +129,10 @@ class LegacySaveTest {
     @DisplayName("no money field is null on a save that omits it entirely")
     void absentAmountsAreZeroNotNull(@TempDir Path dir) throws Exception {
         Path file = dir.resolve("sparse.json");
-        Files.writeString(file, "{ \"handle\" : \"ghost\", \"characterId\" : "
-                + "\"22222222-3333-4444-5555-666666666666\" }");
+        Files.writeString(
+                file, "{ \"handle\" : \"ghost\", \"characterId\" : " + "\"22222222-3333-4444-5555-666666666666\" }");
 
-        SoloGame game = SoloGame.open(
-                new SaveStore(file), "ghost", Clock.fixed(NOW, ZoneOffset.UTC));
+        SoloGame game = SoloGame.open(new SaveStore(file), "ghost", Clock.fixed(NOW, ZoneOffset.UTC));
         assertThat(game.state().ethecoinWei).isNotNull();
         assertThat(game.state().rig.miningWei).isNotNull();
         assertThat(game.state().rig.miningResidueWei).isNotNull();

@@ -19,8 +19,7 @@ class CipherPrefillTest {
 
     /** {@code buildCipher} is private and stays that way; the test reaches it rather than widening it. */
     private static void buildCipher(LayerState layer, int tier, Rng rng) throws Exception {
-        Method m = BoardFactory.class.getDeclaredMethod(
-                "buildCipher", LayerState.class, int.class, Rng.class);
+        Method m = BoardFactory.class.getDeclaredMethod("buildCipher", LayerState.class, int.class, Rng.class);
         m.setAccessible(true);
         m.invoke(null, layer, tier, rng);
     }
@@ -125,7 +124,9 @@ class CipherPrefillTest {
             LayerState layer = new LayerState();
             buildCipher(layer, 5, rng);
             rng.commit(save);
-            assertThat(save.rngSeed).as("seed %d replays identically", 1000L + i).isEqualTo(after[i]);
+            assertThat(save.rngSeed)
+                    .as("seed %d replays identically", 1000L + i)
+                    .isEqualTo(after[i]);
         }
     }
 }

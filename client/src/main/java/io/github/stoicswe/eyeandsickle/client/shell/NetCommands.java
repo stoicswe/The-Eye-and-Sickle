@@ -85,12 +85,11 @@ public final class NetCommands {
     public static void register(Shell.CommandRegistry registry) {
 
         // ---------------------------------------------------------------- the read
-        registry.add(new Verb(
-                "net",
-                List.of(),
-                "Every machine you have discovered, and how far away each one is.",
-                false,
-                List.of(
+        registry.add(Commands.read("net")
+                .category(CommandCategory.NETWORK)
+                .value("docs", "cmd.net.docs")
+                .synopsis("Every machine you have discovered, and how far away each one is.")
+                .help(
                         "net                        one row per discovered machine",
                         "net -v                     adds SIGNAL and DEPTH, and the server strip",
                         "net --docs                 the story fragments recovered so far",
@@ -101,8 +100,8 @@ public final class NetCommands {
                         "KIND prints -------- until a type-revealing tool has run. That is not the same",
                         "as 'ordinary machine': a sweep sells existence and adjacency, and naming what a",
                         "machine IS is what the Passive Sniffer sells. HOPS is measured from your",
-                        "vantage, not from your rig — see connect(1)."),
-                inv -> {
+                        "vantage, not from your rig — see connect(1).")
+                .runs(inv -> {
                     if (inv.stage().hasFlag("docs")) {
                         return documents(inv.session(), inv.stage().flag("docs").orElse(""));
                     }
@@ -126,12 +125,12 @@ public final class NetCommands {
                 }));
 
         // ---------------------------------------------------------------- the intents
-        registry.add(new Verb(
-                "sweep",
-                List.of(),
-                "Probe the network around your vantage for machines you have not seen.",
-                true,
-                List.of(
+        registry.add(Commands.act("sweep")
+                .category(CommandCategory.NETWORK)
+                .flag("wide", "cmd.sweep.wide")
+                .flag("deep", "cmd.sweep.deep")
+                .synopsis("Probe the network around your vantage for machines you have not seen.")
+                .help(
                         "sweep                      the base sweep; in the starting kit",
                         "sweep --wide               a wider sweep of the same distance",
                         "sweep --deep               the widest sweep of the same distance",
@@ -145,13 +144,12 @@ public final class NetCommands {
                         "only for a schematic, and no amount of ethecoin changes it. What does change is",
                         "how quiet a machine can be and still be heard. If a sweep finds nothing new,",
                         "running the same one again will find nothing new again — a louder instrument or",
-                        "a closer position is what moves it. See connect(1)."),
-                inv -> {
+                        "a closer position is what moves it. See connect(1).")
+                .runs(inv -> {
                     boolean wide = inv.stage().hasFlag("wide");
                     boolean deep = inv.stage().hasFlag("deep");
                     if (wide && deep) {
-                        return Command.Output.usage(
-                                "sweep: --wide and --deep are two different instruments; pick one");
+                        return Command.Output.usage("sweep: --wide and --deep are two different instruments; pick one");
                     }
                     String flag = deep ? "--deep" : wide ? "--wide" : "";
                     if (inv.stage().isDryRun()) {
@@ -160,12 +158,10 @@ public final class NetCommands {
                     return Command.Output.of(inv.session().sweep(flag));
                 }));
 
-        registry.add(new Verb(
-                "connect",
-                List.of(),
-                "Move your vantage to a machine you hold a foothold on.",
-                true,
-                List.of(
+        registry.add(Commands.act("connect")
+                .category(CommandCategory.NETWORK)
+                .synopsis("Move your vantage to a machine you hold a foothold on.")
+                .help(
                         "connect <address>          operate from there instead",
                         "connect -n <address>       say what that would mean, and move nothing",
                         "",
@@ -175,8 +171,8 @@ public final class NetCommands {
                         "to it, and sweep again — everything one hop from THERE is now in reach.",
                         "",
                         "A foothold is what a successful breach leaves behind. Without one this refuses,",
-                        "and the refusal names what is missing."),
-                inv -> {
+                        "and the refusal names what is missing.")
+                .runs(inv -> {
                     String address = address(inv);
                     if (address.isBlank()) {
                         return Command.Output.usage(
@@ -195,18 +191,15 @@ public final class NetCommands {
                         // Status preserved, so `$?` still carries what the rules decided; only the
                         // wording is ours, because a command that prints nothing looks like one
                         // that did nothing.
-                        return new Command.Output(
-                                List.of("vantage is now " + address), outcome.status());
+                        return new Command.Output(List.of("vantage is now " + address), outcome.status());
                     }
                     return Command.Output.of(outcome);
                 }));
 
-        registry.add(new Verb(
-                "download",
-                List.of(),
-                "Pull a recoverable document off a machine you hold.",
-                true,
-                List.of(
+        registry.add(Commands.act("download")
+                .category(CommandCategory.NETWORK)
+                .synopsis("Pull a recoverable document off a machine you hold.")
+                .help(
                         "download <address>         recover what is there, and print it",
                         "download -n <address>      say what that would mean, and take nothing",
                         "",
@@ -216,8 +209,8 @@ public final class NetCommands {
                         "downloads a single fragment can reach everything a run that downloads all of",
                         "them can.",
                         "",
-                        "`net` marks a machine with `document` when there is something there to take."),
-                inv -> {
+                        "`net` marks a machine with `document` when there is something there to take.")
+                .runs(inv -> {
                     String address = address(inv);
                     if (address.isBlank()) {
                         return Command.Output.usage(
@@ -273,12 +266,11 @@ public final class NetCommands {
      */
     private static void registerFolders(Shell.CommandRegistry registry) {
 
-        registry.add(new Verb(
-                "folders",
-                List.of("lsdir"),
-                "How you have filed the machines you have found.",
-                false,
-                List.of(
+        registry.add(Commands.read("folders")
+                .category(CommandCategory.NETWORK)
+                .aliases("lsdir")
+                .synopsis("How you have filed the machines you have found.")
+                .help(
                         "folders                    the whole tree, and what is not filed yet",
                         "",
                         "A source, so it may head a pipeline:  folders | grep 10.0.4",
@@ -289,8 +281,8 @@ public final class NetCommands {
                         "somewhere to put the address you will want in an hour and will not remember.",
                         "",
                         "The count after a folder's name is everything filed under it INCLUDING its",
-                        "sub-folders, which is the number that tells you whether opening it is worth it."),
-                inv -> {
+                        "sub-folders, which is the number that tells you whether opening it is worth it.")
+                .runs(inv -> {
                     List<NetFolder> folders = inv.session().folders();
                     List<String> unfiled = inv.session().unfiledNodes();
                     if (folders.isEmpty() && unfiled.isEmpty()) {
@@ -299,12 +291,11 @@ public final class NetCommands {
                     return Command.Output.ok(NetText.folderRows(folders, unfiled));
                 }));
 
-        registry.add(new Verb(
-                "mkdir",
-                List.of(),
-                "Make a folder to file machines into.",
-                true,
-                List.of(
+        registry.add(Commands.act("mkdir")
+                .category(CommandCategory.NETWORK)
+                .arg("path", "cmd.mkdir.arg.path")
+                .synopsis("Make a folder to file machines into.")
+                .help(
                         "mkdir <name>               a folder at the top level",
                         "mkdir <parent>/<name>      a folder inside an existing one",
                         "",
@@ -318,8 +309,8 @@ public final class NetCommands {
                         "hundred machines, shallow enough that the deepest row still fits beside its",
                         "address.",
                         "",
-                        "Two folders in the same place cannot share a name. Two in different places can."),
-                inv -> {
+                        "Two folders in the same place cannot share a name. Two in different places can.")
+                .runs(inv -> {
                     String path = inv.stage().argument(0).orElse("");
                     if (path.isBlank()) {
                         return Command.Output.usage("mkdir <name> — or <parent>/<name> to nest it");
@@ -340,19 +331,18 @@ public final class NetCommands {
                             : Command.Output.of(outcome);
                 }));
 
-        registry.add(new Verb(
-                "rmdir",
-                List.of(),
-                "Remove a folder. What was inside it moves up a level.",
-                true,
-                List.of(
+        registry.add(Commands.act("rmdir")
+                .category(CommandCategory.NETWORK)
+                .arg("path", "cmd.rmdir.arg.path")
+                .synopsis("Remove a folder. What was inside it moves up a level.")
+                .help(
                         "rmdir <path>               remove one folder",
                         "",
                         "NOT RECURSIVE, AND THAT IS DELIBERATE. Sub-folders and filed machines re-parent",
                         "to wherever the removed folder was, so the worst a mistaken rmdir can do is",
                         "flatten a level. Nothing about a machine is lost — filing is a note you wrote,",
-                        "not a thing you own, and there is no risk lesson worth teaching by deleting it."),
-                inv -> {
+                        "not a thing you own, and there is no risk lesson worth teaching by deleting it.")
+                .runs(inv -> {
                     String path = inv.stage().argument(0).orElse("");
                     if (path.isBlank()) {
                         return Command.Output.usage("rmdir <path> — run `folders` for what there is");
@@ -364,17 +354,17 @@ public final class NetCommands {
                     GameSession.Outcome outcome = inv.session().removeFolder(id);
                     return outcome.succeeded()
                             ? new Command.Output(
-                                    List.of("removed " + path + "; what was in it moved up a level"),
-                                    outcome.status())
+                                    List.of("removed " + path + "; what was in it moved up a level"), outcome.status())
                             : Command.Output.of(outcome);
                 }));
 
-        registry.add(new Verb(
-                "mvdir",
-                List.of(),
-                "Move or rename a folder.",
-                true,
-                List.of(
+        registry.add(Commands.act("mvdir")
+                .category(CommandCategory.NETWORK)
+                .value("name", "cmd.mvdir.name")
+                .arg("path", "cmd.mvdir.arg.path")
+                .optionalArg("new-parent", "cmd.mvdir.arg.new-parent")
+                .synopsis("Move or rename a folder.")
+                .help(
                         "mvdir <path> <new-parent>  put it inside another folder",
                         "mvdir <path> /             put it back at the top level",
                         "mvdir <path> --name <new>  rename it where it is",
@@ -385,8 +375,8 @@ public final class NetCommands {
                         "folder, that is file(1); a machine is not a file on your disk and does not",
                         "pretend to be one.",
                         "",
-                        "A folder cannot be moved inside itself or inside anything it already contains."),
-                inv -> {
+                        "A folder cannot be moved inside itself or inside anything it already contains.")
+                .runs(inv -> {
                     String path = inv.stage().argument(0).orElse("");
                     if (path.isBlank()) {
                         return Command.Output.usage("mvdir <path> <new-parent>  |  mvdir <path> --name <new>");
@@ -411,12 +401,13 @@ public final class NetCommands {
                     return Command.Output.of(inv.session().moveFolder(id, parentId));
                 }));
 
-        registry.add(new Verb(
-                "file",
-                List.of(),
-                "Put a machine you have discovered into a folder.",
-                true,
-                List.of(
+        registry.add(Commands.act("file")
+                .category(CommandCategory.NETWORK)
+                .flag("out", "cmd.file.out")
+                .arg("address", "cmd.file.arg.address")
+                .optionalArg("folder", "cmd.file.arg.folder")
+                .synopsis("Put a machine you have discovered into a folder.")
+                .help(
                         "file <address> <path>      file it there",
                         "file <address> --out       take it out of whatever folder it is in",
                         "",
@@ -426,8 +417,8 @@ public final class NetCommands {
                         "Only an address you have actually DISCOVERED can be filed, and the refusal for",
                         "an address you have not found is word-for-word the refusal for one that does not",
                         "exist. That is on purpose: two different answers would let you map the whole",
-                        "world one guess at a time without ever running a sweep."),
-                inv -> {
+                        "world one guess at a time without ever running a sweep.")
+                .runs(inv -> {
                     String address = inv.stage().argument(0).orElse("");
                     if (address.isBlank()) {
                         return Command.Output.usage("file <address> <folder>  |  file <address> --out");
@@ -514,15 +505,13 @@ public final class NetCommands {
      * teaching anything.
      */
     private static List<String> dryRun(GameSession session, String flag) {
-        Sweep sweep = SWEEPS.stream()
-                .filter(s -> s.flag().equals(flag))
-                .findFirst()
-                .orElse(SWEEPS.getFirst());
+        Sweep sweep =
+                SWEEPS.stream().filter(s -> s.flag().equals(flag)).findFirst().orElse(SWEEPS.getFirst());
 
         List<String> out = new ArrayList<>();
         out.add("would run " + sweep.label() + " (" + sweep.itemId() + ")");
-        out.add("published cost: " + sweep.cycles() + " cycles, held for about "
-                + sweep.seconds() + "s and released into thermal recovery when it ends");
+        out.add("published cost: " + sweep.cycles() + " cycles, held for about " + sweep.seconds()
+                + "s and released into thermal recovery when it ends");
         out.add("costs no ethecoin, at any tier — the tool is bought once, running it is cycles only");
         out.add("published noise: " + sweep.noise() + " while it runs, and NOTHING after it ends");
         out.add("  a sweep is cheap and loud: it puts packets on machines that are not yours, which is");
@@ -613,55 +602,4 @@ public final class NetCommands {
     }
 
     // ------------------------------------------------------------------ the verb type
-
-    private interface Body {
-        Command.Output apply(Command.Invocation invocation);
-    }
-
-    /**
-     * One network verb.
-     *
-     * <p>Structurally identical to {@code BreachCommands.Verb} and separate from it for the same
-     * reason that one is separate from {@code BuiltinCommands.SimpleCommand}: both are private to
-     * their file. Three near-identical private records is a real smell, and the right fix is one
-     * package-private verb type — but that is a change to two files this lane does not own, so it is
-     * raised in the integration note rather than made here.
-     */
-    private record Verb(
-            String name,
-            List<String> aliases,
-            String synopsis,
-            boolean sideEffect,
-            List<String> helpLines,
-            Body body)
-            implements Command {
-
-        Verb {
-            aliases = List.copyOf(aliases);
-            helpLines = List.copyOf(helpLines);
-        }
-
-        @Override
-        public boolean hasSideEffect() {
-            return sideEffect;
-        }
-
-        @Override
-        public List<String> help() {
-            List<String> out = new ArrayList<>();
-            out.add(synopsis);
-            if (!helpLines.isEmpty()) {
-                out.add("");
-                out.addAll(helpLines);
-            }
-            out.add("");
-            out.add("Universal flags: -h  --explain  -n/--dry-run  -v/--verbose  --");
-            return out;
-        }
-
-        @Override
-        public Output run(Invocation invocation) {
-            return body.apply(invocation);
-        }
-    }
 }

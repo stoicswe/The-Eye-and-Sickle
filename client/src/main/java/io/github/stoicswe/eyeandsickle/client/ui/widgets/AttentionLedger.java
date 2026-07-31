@@ -118,22 +118,22 @@ public final class AttentionLedger extends VBox {
             rows.layout();
             scroll.setVvalue(1.0);
         }
-        setAccessibleText("Attention ledger, " + entries.size() + " entries. "
-                + "Latest: " + describe(entries.getLast()));
+        setAccessibleText(
+                "Attention ledger, " + entries.size() + " entries. " + "Latest: " + describe(entries.getLast()));
     }
 
     /** The empty state — an instruction, not a mood piece (§6). */
     public void clear() {
         rows.getChildren().clear();
-        Label empty = Note.empty(
-                "No moves yet. Every action is itemised here with what it cost and what came back.");
+        Label empty = Note.empty("No moves yet. Every action is itemised here with what it cost and what came back.");
         empty.getStyleClass().add("es-ledger-empty");
         rows.getChildren().add(empty);
         setAccessibleText("Attention ledger, empty.");
     }
 
     private HBox header() {
-        HBox head = new HBox(UiTokens.SPACE_2,
+        HBox head = new HBox(
+                UiTokens.SPACE_2,
                 cell("NO", COL_SEQUENCE),
                 cell("ACTION", COL_ACTION),
                 cell("COST", COL_COST),
@@ -145,7 +145,8 @@ public final class AttentionLedger extends VBox {
     }
 
     private HBox row(AttentionEntry entry) {
-        HBox row = new HBox(UiTokens.SPACE_2,
+        HBox row = new HBox(
+                UiTokens.SPACE_2,
                 cell(String.format(Locale.ROOT, "%02d", entry.sequence()), COL_SEQUENCE),
                 cell(Ui.upper(entry.label()), COL_ACTION),
                 cell(entry.cost() == 0 ? "" : MINUS + Integer.toString(entry.cost()), COL_COST),

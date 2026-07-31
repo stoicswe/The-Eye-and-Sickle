@@ -76,6 +76,7 @@ public final class DeskManager {
 
     /** Where this desk narrates itself. Null until {@link #setEventBus} is called. */
     private EventBus bus;
+
     private int cascadeIndex;
 
     public DeskManager() {
@@ -241,8 +242,8 @@ public final class DeskManager {
             return Optional.of(existing);
         }
         if (openCount() >= windowCap) {
-            onRefusal.accept(capName.toUpperCase(java.util.Locale.ROOT)
-                    + " EXHAUSTED — " + windowCap + " WINDOWS IS THE LIMIT. CLOSE ONE FIRST.");
+            onRefusal.accept(capName.toUpperCase(java.util.Locale.ROOT) + " EXHAUSTED — " + windowCap
+                    + " WINDOWS IS THE LIMIT. CLOSE ONE FIRST.");
             publish("refused", spec.id());
             return Optional.empty();
         }
@@ -391,7 +392,8 @@ public final class DeskManager {
 
     /** Focus the next non-minimised window — the desk's answer to alt-tab. */
     public void focusNext() {
-        List<DeskWindow> open = windows.values().stream().filter(w -> !w.minimized).toList();
+        List<DeskWindow> open =
+                windows.values().stream().filter(w -> !w.minimized).toList();
         if (open.isEmpty()) {
             return;
         }
@@ -581,8 +583,7 @@ public final class DeskManager {
                 return;
             }
             javafx.geometry.Point2D at = frame.sceneToLocal(e.getSceneX(), e.getSceneY());
-            frame.setCursor(cursorFor(
-                    edgeAt(at.getX(), at.getY(), frame.getWidth(), frame.getHeight())));
+            frame.setCursor(cursorFor(edgeAt(at.getX(), at.getY(), frame.getWidth(), frame.getHeight())));
         });
         // Without this the cursor keeps whatever arrow it had when the pointer left a panel edge.
         frame.addEventFilter(MouseEvent.MOUSE_EXITED, e -> {
@@ -728,8 +729,8 @@ public final class DeskManager {
             // the "it doesn't take over on general hover" symptom.
             return null;
         }
-        return io.github.stoicswe.eyeandsickle.client.ui.cursors.Cursors.shared().resize(
-                (edge & NORTH) != 0, (edge & SOUTH) != 0, (edge & WEST) != 0, (edge & EAST) != 0);
+        return io.github.stoicswe.eyeandsickle.client.ui.cursors.Cursors.shared()
+                .resize((edge & NORTH) != 0, (edge & SOUTH) != 0, (edge & WEST) != 0, (edge & EAST) != 0);
     }
 
     private void showPreview(Geometry geometry) {
@@ -778,8 +779,14 @@ public final class DeskManager {
             Runnable onClosed) {
 
         /** The ordinary window: a view onto state, with nothing to release when it goes. */
-        public Spec(String id, String title, String identifier, Node content,
-                double width, double height, boolean closable) {
+        public Spec(
+                String id,
+                String title,
+                String identifier,
+                Node content,
+                double width,
+                double height,
+                boolean closable) {
             this(id, title, identifier, content, width, height, closable, null);
         }
     }
@@ -913,7 +920,7 @@ public final class DeskManager {
             maximized = false;
         }
 
-            /** Where this window would go on a double-click, or null if it is where the player put it. */
+        /** Where this window would go on a double-click, or null if it is where the player put it. */
         public Geometry restorePoint() {
             return restoreGeometry;
         }
@@ -925,13 +932,11 @@ public final class DeskManager {
          * going through {@link #expandTo}, because that would overwrite the restore point with the
          * expanded bounds — the saved one is the answer the player actually wants back.
          */
-        public void restoreState(
-                Geometry geometry, boolean minimized, boolean expanded, Geometry restorePoint) {
+        public void restoreState(Geometry geometry, boolean minimized, boolean expanded, Geometry restorePoint) {
             setGeometry(geometry);
             this.expanded = expanded;
-            this.maximized = expanded
-                    && geometry.width() >= desk.getWidth() - 1
-                    && geometry.height() >= desk.getHeight() - 1;
+            this.maximized =
+                    expanded && geometry.width() >= desk.getWidth() - 1 && geometry.height() >= desk.getHeight() - 1;
             this.restoreGeometry = restorePoint;
             setMinimized(minimized);
         }
@@ -978,7 +983,8 @@ public final class DeskManager {
      * same as the section's responsive rule.
      */
     public void tileAll() {
-        List<DeskWindow> open = windows.values().stream().filter(w -> !w.minimized).toList();
+        List<DeskWindow> open =
+                windows.values().stream().filter(w -> !w.minimized).toList();
         if (open.isEmpty()) {
             return;
         }
@@ -1013,8 +1019,7 @@ public final class DeskManager {
         }
         double rightEach = h / rightCount;
         for (int i = 0; i < rightCount; i++) {
-            open.get(leftCount + i)
-                    .setGeometry(new Geometry(leftWidth, i * rightEach, w - leftWidth, rightEach));
+            open.get(leftCount + i).setGeometry(new Geometry(leftWidth, i * rightEach, w - leftWidth, rightEach));
         }
     }
 

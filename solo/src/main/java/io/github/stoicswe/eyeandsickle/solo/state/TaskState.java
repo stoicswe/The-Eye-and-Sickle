@@ -119,8 +119,7 @@ public final class TaskState {
 
     public TaskState() {}
 
-    public TaskState(
-            String kind, String label, String allocationId, long cycles, Instant startedAt, Instant endsAt) {
+    public TaskState(String kind, String label, String allocationId, long cycles, Instant startedAt, Instant endsAt) {
         this.kind = kind;
         this.label = label;
         this.allocationId = allocationId;

@@ -1,13 +1,11 @@
 package io.github.stoicswe.eyeandsickle.client.view;
 
-import static org.assertj.core.api.Assertions.withinPercentage;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
-
-import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
+import static org.assertj.core.api.Assertions.withinPercentage;
 
 import io.github.stoicswe.eyeandsickle.client.session.LocalGameSession;
-import io.github.stoicswe.eyeandsickle.solo.SoloGame;
+import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
 import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -35,14 +33,13 @@ class RigStatusTest {
     }
 
     /** How much a block's fees add to a reward that includes them. See MiningRules.rewardBase. */
-    private static final double FEE_EXPOSURE =
-            new java.math.BigDecimal(
-                            io.github.stoicswe.eyeandsickle.solo.Balance.BLOCK_SUBSIDY_WEI
-                                    .add(io.github.stoicswe.eyeandsickle.solo.Balance.expectedBlockFeesWei()))
-                    .divide(new java.math.BigDecimal(
-                                    io.github.stoicswe.eyeandsickle.solo.Balance.BLOCK_SUBSIDY_WEI),
-                            java.math.MathContext.DECIMAL64)
-                    .doubleValue();
+    private static final double FEE_EXPOSURE = new java.math.BigDecimal(
+                    io.github.stoicswe.eyeandsickle.solo.Balance.BLOCK_SUBSIDY_WEI.add(
+                            io.github.stoicswe.eyeandsickle.solo.Balance.expectedBlockFeesWei()))
+            .divide(
+                    new java.math.BigDecimal(io.github.stoicswe.eyeandsickle.solo.Balance.BLOCK_SUBSIDY_WEI),
+                    java.math.MathContext.DECIMAL64)
+            .doubleValue();
 
     @Nested
     @DisplayName("income projection")
@@ -78,8 +75,7 @@ class RigStatusTest {
             assertThat(Double.parseDouble(soloRate)).isGreaterThan(Double.parseDouble(pooledRate));
             // ⚠ Two factors since 2026-07-27. The default pool is pay-per-share, so it neither
             // waives its 2% nor passes on block fees; solo gets both. See MiningRules.rewardBase.
-            assertThat(Double.parseDouble(soloRate))
-                    .isCloseTo(40.0d / 0.98d * FEE_EXPOSURE, within(0.05d));
+            assertThat(Double.parseDouble(soloRate)).isCloseTo(40.0d / 0.98d * FEE_EXPOSURE, within(0.05d));
         }
 
         @Test
@@ -120,8 +116,7 @@ class RigStatusTest {
             assertThat(s.miningRateFor(0)).isZero();
             // And the preview must not disturb what the rig is actually doing.
             assertThat(s.mining().selfMiningCycles()).isEqualTo(100L);
-            assertThat(ec(s.miningChain().expectedWeiPerHour()))
-                    .isCloseTo(40.0d, withinPercentage(1e-10d));
+            assertThat(ec(s.miningChain().expectedWeiPerHour())).isCloseTo(40.0d, withinPercentage(1e-10d));
         }
 
         @Test
@@ -224,7 +219,9 @@ class RigStatusTest {
             // player actually reads.
             for (RigStatus.HeatBand band : RigStatus.HeatBand.values()) {
                 assertThat(band.label()).isNotBlank();
-                assertThat(band.consequence()).as("%s must say what it means", band).isNotBlank();
+                assertThat(band.consequence())
+                        .as("%s must say what it means", band)
+                        .isNotBlank();
                 assertThat(band.styleClass()).isEqualTo("es-heat-" + band.index());
             }
         }
@@ -282,5 +279,4 @@ class RigStatusTest {
                         io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.WEI_PER_ETHECOIN))
                 .doubleValue();
     }
-
 }

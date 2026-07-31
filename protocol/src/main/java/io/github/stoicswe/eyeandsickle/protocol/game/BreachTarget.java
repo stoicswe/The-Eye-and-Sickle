@@ -95,8 +95,7 @@ public record BreachTarget(
                             + firewallTier);
         }
         if (estimatedBufferWei.signum() < 0) {
-            throw new IllegalArgumentException(
-                    "estimatedBufferWei must not be negative, was " + estimatedBufferWei);
+            throw new IllegalArgumentException("estimatedBufferWei must not be negative, was " + estimatedBufferWei);
         }
         // A buffer estimate on a non-crack is not harmless flavour: a buffer is the accumulated yield of
         // a miner sitting on the player's own rig, so quoting one against an offensive target promises

@@ -39,16 +39,44 @@ public final class TermDatabase {
 
     private TermDatabase() {}
 
+    /** The language every page falls back to. English is the source language, not a preference. */
+    public static final String FALLBACK = "en";
+
     /** Loads the shipped English pages. */
     public static TermDatabase load() {
-        return load("en");
+        return load(FALLBACK);
     }
 
+    /**
+     * Loads the manual in {@code locale}, with English underneath it page by page.
+     *
+     * <h2>⚠ The INDEX is always English, whatever the locale</h2>
+     *
+     * The index is the list of pages the manual has — a structural fact about the curriculum, not
+     * text. Reading a translated index would let a partial translation <b>silently shrink the
+     * manual</b>: a translator who has rendered twelve of twenty-three pages writes an index with
+     * twelve lines, and the other eleven do not go missing in one language, they cease to exist. The
+     * player would have no way to know, because a manual with eleven fewer pages looks exactly like a
+     * manual with eleven fewer pages.
+     *
+     * <p>So English decides which pages there are; the locale decides how each one reads.
+     *
+     * <h2>⚠ Fallback is per PAGE</h2>
+     *
+     * A partial translation is the normal state of a translation. Falling back wholesale would drop a
+     * player into English for the entire manual over one missing file; falling back per page gives
+     * them their language for everything that has been done. Same rule as {@code i18n.Messages}, for
+     * the same reason — and every page that fell back is recorded in {@link #problems()}, so an
+     * incomplete translation is visible to whoever is working on it rather than only to the player.
+     */
     public static TermDatabase load(String locale) {
         TermDatabase db = new TermDatabase();
-        String indexPath = ROOT + locale + "/index.txt";
+        String wanted =
+                locale == null || locale.isBlank() ? FALLBACK : locale.trim().toLowerCase(Locale.ROOT);
+        String indexPath = ROOT + FALLBACK + "/index.txt";
         try (InputStream in = TermDatabase.class.getResourceAsStream(indexPath)) {
             if (in == null) {
+                // The English index missing is a packaging fault, not a missing translation.
                 db.problems.add("No term index at " + indexPath);
                 return db;
             }
@@ -58,7 +86,14 @@ public final class TermDatabase {
                 if (entry.isEmpty() || entry.startsWith("#")) {
                     continue;
                 }
-                db.loadPage(ROOT + locale + "/" + entry, entry);
+                if (!wanted.equals(FALLBACK) && db.exists(ROOT + wanted + "/" + entry)) {
+                    db.loadPage(ROOT + wanted + "/" + entry, entry);
+                } else {
+                    if (!wanted.equals(FALLBACK)) {
+                        db.problems.add("Not translated into " + wanted + ", shown in English: " + entry);
+                    }
+                    db.loadPage(ROOT + FALLBACK + "/" + entry, entry);
+                }
             }
         } catch (IOException e) {
             throw new UncheckedIOException("Could not read the term index", e);
@@ -66,6 +101,21 @@ public final class TermDatabase {
         db.pages.sort((a, b) -> Collator.getInstance().compare(a.name(), b.name()));
         db.checkCrossReferences();
         return db;
+    }
+
+    /**
+     * Whether a page resource is there at all.
+     *
+     * <p>⚠ Asked <em>before</em> parsing rather than by catching a parse failure. A translated page
+     * that exists but is malformed must report as malformed — falling back to English on a parse
+     * error would hide the one class of problem a translator most needs to see.
+     */
+    private boolean exists(String path) {
+        try (InputStream probe = TermDatabase.class.getResourceAsStream(path)) {
+            return probe != null;
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     private void loadPage(String path, String origin) {
@@ -171,7 +221,8 @@ public final class TermDatabase {
         for (TermPage page : pages) {
             boolean hit = page.nameLine().toLowerCase(Locale.ROOT).contains(needle)
                     || page.id().contains(needle)
-                    || page.aliases().stream().anyMatch(a -> a.toLowerCase(Locale.ROOT).contains(needle));
+                    || page.aliases().stream()
+                            .anyMatch(a -> a.toLowerCase(Locale.ROOT).contains(needle));
             if (!hit && all) {
                 hit = page.body().values().stream()
                         .anyMatch(v -> v.toLowerCase(Locale.ROOT).contains(needle));

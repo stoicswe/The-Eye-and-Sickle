@@ -11,8 +11,8 @@ final class BreachRulesTestSupport {
 
     static void spikeAsCrack(SoloSave save, Instant now) {
         try {
-            Method m = BreachRules.class.getDeclaredMethod(
-                    "spikeOnAbandon", SoloSave.class, boolean.class, Instant.class);
+            Method m =
+                    BreachRules.class.getDeclaredMethod("spikeOnAbandon", SoloSave.class, boolean.class, Instant.class);
             m.setAccessible(true);
             m.invoke(null, save, true, now);
         } catch (Exception e) {

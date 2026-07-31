@@ -2,7 +2,6 @@ package io.github.stoicswe.eyeandsickle.solo.net;
 
 import io.github.stoicswe.eyeandsickle.protocol.game.PortScanReport;
 import io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget;
-import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.breach.Rng;
 import io.github.stoicswe.eyeandsickle.solo.state.HostState;
 import io.github.stoicswe.eyeandsickle.solo.state.NodeState;
@@ -140,9 +139,7 @@ public final class PortScanRules {
         // ⚠ SELF is the rig itself. Scanning your own machine from outside is not the tool for it —
         // the audit window reads it directly, for free and in silence, because looking at your own
         // machine is not an act against anybody (I9).
-        if (hostAt(save, address)
-                .map(host -> "SELF".equals(host.kind))
-                .orElse(false)) {
+        if (hostAt(save, address).map(host -> "SELF".equals(host.kind)).orElse(false)) {
             return new Started(null, Refusal.YOUR_OWN_RIG, 0L, Duration.ZERO, 0);
         }
         // ⚠ DISCOVERED, not merely present in the topology. The refusal already promised "no machine
@@ -175,9 +172,12 @@ public final class PortScanRules {
         allocation.startedAt = now;
 
         TaskState task = new TaskState(
-                KIND, "port scan " + address + " (" + target.label().toLowerCase(java.util.Locale.ROOT)
-                        + ")",
-                allocation.allocationId, cycles, now, now.plus(duration));
+                KIND,
+                "port scan " + address + " (" + target.label().toLowerCase(java.util.Locale.ROOT) + ")",
+                allocation.allocationId,
+                cycles,
+                now,
+                now.plus(duration));
         task.noiseCycles = noiseFor(target);
         // Address and target ride on the task: the tick that settles it minutes later has no other
         // way to know what was asked for, and the answer must not depend on what the player has
@@ -187,10 +187,13 @@ public final class PortScanRules {
         // ⚠ Announced HERE, in the rules, rather than by whichever surface started it. A scan can be
         // commissioned from the window, the node menu or the shell, and a notice written at the call
         // site would exist in some of those and not others — with no way to tell which from the log.
-        io.github.stoicswe.eyeandsickle.solo.rules.EventLog.notice(save, "net",
+        io.github.stoicswe.eyeandsickle.solo.rules.EventLog.notice(
+                save,
+                "net",
                 "port scan of " + address + " started: " + target.label().toLowerCase(java.util.Locale.ROOT)
                         + ", " + cycles + " cycles held, about " + duration.toSeconds()
-                        + "s to go. " + risk + "% chance it notices.", now);
+                        + "s to go. " + risk + "% chance it notices.",
+                now);
         return new Started(task, null, cycles, duration, risk);
     }
 
@@ -236,8 +239,7 @@ public final class PortScanRules {
         PortScanTarget target = targetOf(task);
         Optional<HostState> found = hostAt(save, address);
         if (found.isEmpty()) {
-            return PortScanReport.refused(address, target, now,
-                    "the machine is no longer reachable from here.");
+            return PortScanReport.refused(address, target, now, "the machine is no longer reachable from here.");
         }
         HostState host = found.get();
 
@@ -252,7 +254,10 @@ public final class PortScanRules {
         // job — this class reports, it does not retaliate.
         boolean blocked = detected && host.defended;
         if (blocked) {
-            return PortScanReport.refused(address, target, now,
+            return PortScanReport.refused(
+                    address,
+                    target,
+                    now,
                     "the scan was seen and cut off. Whatever answered is defended, and it now knows "
                             + "your vantage.");
         }
@@ -296,8 +301,7 @@ public final class PortScanRules {
             "Windows Server 2022",
             "OpenBSD 7.4",
         };
-        return families[(int) Math.floorMod(mix(host.address), (long) families.length)]
-                + minorOf(host);
+        return families[(int) Math.floorMod(mix(host.address), (long) families.length)] + minorOf(host);
     }
 
     private static String minorOf(HostState host) {
@@ -372,7 +376,9 @@ public final class PortScanRules {
     }
 
     private static Optional<NodeState> nodeAt(SoloSave save, String address) {
-        return save.knownNodes.stream().filter(node -> address.equals(node.address)).findFirst();
+        return save.knownNodes.stream()
+                .filter(node -> address.equals(node.address))
+                .findFirst();
     }
 
     /** splitmix64 over a string. Same mixing the rest of the derived world uses. */

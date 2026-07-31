@@ -2,7 +2,6 @@ package io.github.stoicswe.eyeandsickle.client.ui;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.github.stoicswe.eyeandsickle.client.profile.ClientProfile;
 import io.github.stoicswe.eyeandsickle.client.profile.VisualSettings;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -24,8 +23,7 @@ import org.junit.jupiter.api.Test;
  */
 class ScreenArtefactTest {
 
-    private static final Path THEME =
-            Path.of("src/main/resources/io/github/stoicswe/eyeandsickle/client/ui/theme.css");
+    private static final Path THEME = Path.of("src/main/resources/io/github/stoicswe/eyeandsickle/client/ui/theme.css");
 
     private static final Path DESIGN_LANGUAGE = Path.of("../docs/design/ui-design-language.md");
 
@@ -77,7 +75,9 @@ class ScreenArtefactTest {
 
             // §9.1 condition 1: an effect the player switches on is a costume; one welded to the
             // interface is a claim about fidelity the interface then has to keep making.
-            assertThat(look.crtScanlines).as("scanlines cost contrast on body text").isFalse();
+            assertThat(look.crtScanlines)
+                    .as("scanlines cost contrast on body text")
+                    .isFalse();
             assertThat(look.crtAberration).isFalse();
             assertThat(look.crtGlitch).as("the only artefact that moves").isFalse();
 
@@ -134,7 +134,8 @@ class ScreenArtefactTest {
             // stop has to stay far below anything that would read as a shape.
             String rule = ruleFor(read(THEME), ".es-crt-roll");
             assertThat(rule).contains("linear-gradient(");
-            Matcher alpha = Pattern.compile("rgba\\([^)]*?,\\s*([0-9.]+)\\s*\\)").matcher(rule);
+            Matcher alpha =
+                    Pattern.compile("rgba\\([^)]*?,\\s*([0-9.]+)\\s*\\)").matcher(rule);
             boolean sawOne = false;
             while (alpha.find()) {
                 sawOne = true;
@@ -204,7 +205,8 @@ class ScreenArtefactTest {
     /** The declaration block for a selector, comments stripped. */
     private static String ruleFor(String css, String selector) {
         String body = css.replaceAll("(?s)/\\*.*?\\*/", "");
-        Matcher matcher = Pattern.compile(Pattern.quote(selector) + "\\s*\\{([^}]*)\\}").matcher(body);
+        Matcher matcher =
+                Pattern.compile(Pattern.quote(selector) + "\\s*\\{([^}]*)\\}").matcher(body);
         StringBuilder found = new StringBuilder();
         while (matcher.find()) {
             found.append(matcher.group(1)).append('\n');

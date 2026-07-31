@@ -65,17 +65,19 @@ final class Credits {
      * a path rather than as a {@code -fx-background-radius} the contract test could even see.
      */
     private enum Network {
-        BLUESKY("M12 7"
-                + "C10.5 4.2 6.5 1.5 3.8 2.2 C1.2 2.9 1.1 6.4 2.6 9.1 C3.6 10.9 5.2 12.2 6.9 12.9 "
-                + "C5.1 13.4 3.7 14.6 3.6 16.2 C3.5 18.6 6.1 20.4 8.6 19.6 "
-                + "C10.6 19.0 11.7 16.6 12 14.4 C12.3 16.6 13.4 19.0 15.4 19.6 "
-                + "C17.9 20.4 20.5 18.6 20.4 16.2 C20.3 14.6 18.9 13.4 17.1 12.9 "
-                + "C18.8 12.2 20.4 10.9 21.4 9.1 C22.9 6.4 22.8 2.9 20.2 2.2 C17.5 1.5 13.5 4.2 12 7 Z",
+        BLUESKY(
+                "M12 7"
+                        + "C10.5 4.2 6.5 1.5 3.8 2.2 C1.2 2.9 1.1 6.4 2.6 9.1 C3.6 10.9 5.2 12.2 6.9 12.9 "
+                        + "C5.1 13.4 3.7 14.6 3.6 16.2 C3.5 18.6 6.1 20.4 8.6 19.6 "
+                        + "C10.6 19.0 11.7 16.6 12 14.4 C12.3 16.6 13.4 19.0 15.4 19.6 "
+                        + "C17.9 20.4 20.5 18.6 20.4 16.2 C20.3 14.6 18.9 13.4 17.1 12.9 "
+                        + "C18.8 12.2 20.4 10.9 21.4 9.1 C22.9 6.4 22.8 2.9 20.2 2.2 C17.5 1.5 13.5 4.2 12 7 Z",
                 FillRule.NON_ZERO,
                 "Bluesky"),
 
-        YOUTUBE("M5 5 H19 A4 4 0 0 1 23 9 V15 A4 4 0 0 1 19 19 H5 A4 4 0 0 1 1 15 V9 A4 4 0 0 1 5 5 Z"
-                + "M10 8.6 V15.4 L16 12 Z",
+        YOUTUBE(
+                "M5 5 H19 A4 4 0 0 1 23 9 V15 A4 4 0 0 1 19 19 H5 A4 4 0 0 1 1 15 V9 A4 4 0 0 1 5 5 Z"
+                        + "M10 8.6 V15.4 L16 12 Z",
                 FillRule.EVEN_ODD,
                 "YouTube");
 
@@ -118,12 +120,9 @@ final class Credits {
      * that re-sorts itself is a credits list that can silently reorder the people in it.
      */
     private static final List<Person> PEOPLE = List.of(
-            new Person("Nathaniel Knudsen", "Developer",
-                    "@stoicswe.com", Network.BLUESKY, "nathaniel-knudsen"),
-            new Person("Ben Havens", "Musician",
-                    "@isotop3.com", Network.BLUESKY, "ben-havens"),
-            new Person("Sham Tomaselli", "Artist",
-                    "@shamcube", Network.YOUTUBE, "sham-tomaselli"));
+            new Person("Nathaniel Knudsen", "Developer", "@stoicswe.com", Network.BLUESKY, "nathaniel-knudsen"),
+            new Person("Ben Havens", "Musician", "@isotop3.com", Network.BLUESKY, "ben-havens"),
+            new Person("Sham Tomaselli", "Artist", "@shamcube", Network.YOUTUBE, "sham-tomaselli"));
 
     private Credits() {}
 
@@ -155,9 +154,7 @@ final class Credits {
         // three unrelated fragments. ⚠ The network is SPOKEN here and nowhere else on screen: sighted
         // readers get it from the mark, and a screen reader cannot see a butterfly.
         row.setAccessibleText(person.name() + ", " + person.role()
-                + (person.handle() == null
-                        ? ""
-                        : ", on " + person.network().spokenName + " as " + person.handle()));
+                + (person.handle() == null ? "" : ", on " + person.network().spokenName + " as " + person.handle()));
         return row;
     }
 

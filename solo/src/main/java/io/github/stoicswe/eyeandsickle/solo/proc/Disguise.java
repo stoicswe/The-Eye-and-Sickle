@@ -118,8 +118,7 @@ public enum Disguise {
             List.of("thermald", "cyclesd", "provenanced", "ledgerd", "vaultd", "attestd");
 
     /** Accounts that exist nowhere else in the table. The tell on {@link #SYSTEM_MIMIC}. */
-    private static final List<String> ODD_USERS =
-            List.of("_relay", "_sysupd", "_provisioner", "nobody4", "_ecmon");
+    private static final List<String> ODD_USERS = List.of("_relay", "_sysupd", "_provisioner", "nobody4", "_ecmon");
 
     /**
      * Dresses a freshly planted parasite.
@@ -153,8 +152,7 @@ public enum Disguise {
         };
         miner.disguiseName = switch (chosen) {
             case TOOL_TWIN -> tools.get(Math.floorMod(miner.minerId.hashCode(), tools.size()));
-            case SYSTEM_MIMIC ->
-                    MIMIC_NAMES.get(Math.floorMod(miner.minerId.hashCode(), MIMIC_NAMES.size()));
+            case SYSTEM_MIMIC -> MIMIC_NAMES.get(Math.floorMod(miner.minerId.hashCode(), MIMIC_NAMES.size()));
             case TYPOSQUAT -> typo(SystemProcesses.squattableName(miner.minerId.hashCode()));
             default -> "";
         };
@@ -170,14 +168,15 @@ public enum Disguise {
      */
     private static String typo(String name) {
         for (int i = name.length() - 1; i >= 0; i--) {
-            char swap = switch (name.charAt(i)) {
-                case 'y' -> 'v';
-                case 'l' -> '1';
-                case 'o' -> '0';
-                case 'i' -> 'j';
-                case 'e' -> 'c';
-                default -> 0;
-            };
+            char swap =
+                    switch (name.charAt(i)) {
+                        case 'y' -> 'v';
+                        case 'l' -> '1';
+                        case 'o' -> '0';
+                        case 'i' -> 'j';
+                        case 'e' -> 'c';
+                        default -> 0;
+                    };
             if (swap != 0) {
                 return name.substring(0, i) + swap + name.substring(i + 1);
             }

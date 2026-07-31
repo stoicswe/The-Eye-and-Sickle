@@ -235,7 +235,9 @@ public final class WindowRegistry {
     }
 
     private static boolean isOnAScreen(ClientProfile.WindowGeometry geometry) {
-        return isOnAScreen(geometry, Screen.getScreens().stream().map(Screen::getVisualBounds).toList());
+        return isOnAScreen(
+                geometry,
+                Screen.getScreens().stream().map(Screen::getVisualBounds).toList());
     }
 
     /** Saves the position of everything currently open. Called on autosave and on exit. */

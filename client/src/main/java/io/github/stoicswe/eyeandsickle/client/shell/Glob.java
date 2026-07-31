@@ -82,8 +82,7 @@ public final class Glob {
                     ti++;
                 }
                 default -> {
-                    if (ti >= t.length()
-                            || Character.toLowerCase(pc) != Character.toLowerCase(t.charAt(ti))) {
+                    if (ti >= t.length() || Character.toLowerCase(pc) != Character.toLowerCase(t.charAt(ti))) {
                         return false;
                     }
                     pi++;

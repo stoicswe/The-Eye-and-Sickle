@@ -26,7 +26,12 @@ class AccessLogTest {
 
     private static SoloSave withEntries() {
         SoloSave save = new SoloSave();
-        AccessLog.record(save, "10.4.0.7", "copy", "/home/op/Applications/Network.app/Contents/Upgrades/net-sweep-wide.upg", NOW);
+        AccessLog.record(
+                save,
+                "10.4.0.7",
+                "copy",
+                "/home/op/Applications/Network.app/Contents/Upgrades/net-sweep-wide.upg",
+                NOW);
         AccessLog.record(save, "10.9.1.2", "read", "/home/op/Documents", NOW.plusSeconds(30));
         AccessLog.record(save, "10.4.0.7", "copy", "/home/op/.VaultStore/hot/relay-hop", NOW.plusSeconds(60));
         return save;
@@ -102,8 +107,7 @@ class AccessLogTest {
         @Test
         @DisplayName("attackers lists everyone who did not clean up after themselves")
         void attackers() {
-            assertThat(AccessLog.attackers(withEntries()))
-                    .containsExactly("10.4.0.7", "10.9.1.2");
+            assertThat(AccessLog.attackers(withEntries())).containsExactly("10.4.0.7", "10.9.1.2");
         }
     }
 

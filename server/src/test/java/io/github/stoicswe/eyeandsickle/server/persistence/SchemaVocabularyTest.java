@@ -73,8 +73,7 @@ class SchemaVocabularyTest {
         // be edited to match — Flyway checksums a migration that has already run, so a "tidied" V2
         // fails every existing deployment on startup instead of migrating it. The effective
         // vocabulary is whatever the LAST migration to touch the constraint declared.
-        assertThat(inRebuiltList(SHELL_SESSIONS_SQL, "consumer_type"))
-                .isEqualTo(EnumColumns.COMPUTE_CONSUMER_VALUES);
+        assertThat(inRebuiltList(SHELL_SESSIONS_SQL, "consumer_type")).isEqualTo(EnumColumns.COMPUTE_CONSUMER_VALUES);
     }
 
     @Test
@@ -84,8 +83,7 @@ class SchemaVocabularyTest {
         // turns a green build into a startup failure on every server that has already run V2, and
         // the failure is a checksum mismatch that says nothing about what changed. This assertion
         // exists to make that edit fail here instead of there.
-        assertThat(inList(CORE_SQL, "compute_allocations", "consumer_type"))
-                .doesNotContain("shell_session");
+        assertThat(inList(CORE_SQL, "compute_allocations", "consumer_type")).doesNotContain("shell_session");
     }
 
     @Test
@@ -204,8 +202,8 @@ class SchemaVocabularyTest {
 
         for (String sql : List.of(PUZZLE_CLASSES_SQL, SHELL_SESSIONS_SQL, ETHECOIN_WEI_SQL)) {
             String body = stripComments(sql);
-            Matcher retyped = Pattern
-                    .compile("ALTER\\s+COLUMN\\s+(\\w+)\\s+TYPE\\s+([a-z]+(?:\\s*\\([^)]*\\))?)",
+            Matcher retyped = Pattern.compile(
+                            "ALTER\\s+COLUMN\\s+(\\w+)\\s+TYPE\\s+([a-z]+(?:\\s*\\([^)]*\\))?)",
                             Pattern.CASE_INSENSITIVE)
                     .matcher(body);
             while (retyped.find()) {
@@ -213,8 +211,7 @@ class SchemaVocabularyTest {
                 String type = retyped.group(2).replaceAll("\\s+", "");
                 columns.replaceAll(c -> c[0].equals(name) ? new String[] {c[0], type} : c);
             }
-            Matcher renamed = Pattern
-                    .compile("RENAME\\s+COLUMN\\s+(\\w+)\\s+TO\\s+(\\w+)", Pattern.CASE_INSENSITIVE)
+            Matcher renamed = Pattern.compile("RENAME\\s+COLUMN\\s+(\\w+)\\s+TO\\s+(\\w+)", Pattern.CASE_INSENSITIVE)
                     .matcher(body);
             while (renamed.find()) {
                 String from = renamed.group(1);
@@ -252,8 +249,7 @@ class SchemaVocabularyTest {
         }
 
         // The columns other systems will build against. If one disappears, that is a contract change.
-        assertThat(ethecoin)
-                .containsExactlyInAnyOrder("ethecoin_balance_wei", "amount_wei", "buffer_wei");
+        assertThat(ethecoin).containsExactlyInAnyOrder("ethecoin_balance_wei", "amount_wei", "buffer_wei");
         assertThat(cycles).containsExactlyInAnyOrder("total_cycles", "allocated_cycles");
     }
 

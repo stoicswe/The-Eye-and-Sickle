@@ -81,8 +81,7 @@ public record CloudEvent(
      * as AMQP application properties, and those have their own casing and character rules — the
      * lowercase-alphanumeric intersection is what survives all of them unchanged.
      */
-    private static final java.util.regex.Pattern ATTRIBUTE_NAME =
-            java.util.regex.Pattern.compile("[a-z0-9]+");
+    private static final java.util.regex.Pattern ATTRIBUTE_NAME = java.util.regex.Pattern.compile("[a-z0-9]+");
 
     /** §4.1 — SHOULD NOT exceed 20 characters. Enforced, because a "should" nobody checks is a no-op. */
     private static final int MAX_ATTRIBUTE_NAME = 20;
@@ -94,9 +93,8 @@ public record CloudEvent(
      * attributes into a flat namespace, which is most of them, and the reader would see the core
      * attribute while the producer believed they had sent theirs.
      */
-    private static final Set<String> RESERVED = Set.of(
-            "id", "source", "specversion", "type",
-            "datacontenttype", "dataschema", "subject", "time", "data");
+    private static final Set<String> RESERVED =
+            Set.of("id", "source", "specversion", "type", "datacontenttype", "dataschema", "subject", "time", "data");
 
     public CloudEvent {
         require(id, "id");
@@ -117,8 +115,7 @@ public record CloudEvent(
             throw new IllegalArgumentException("CloudEvents §3.1.2: subject must be absent or non-empty");
         }
         if (datacontenttype != null && datacontenttype.isBlank()) {
-            throw new IllegalArgumentException(
-                    "CloudEvents §3.1.2: datacontenttype must be absent or non-empty");
+            throw new IllegalArgumentException("CloudEvents §3.1.2: datacontenttype must be absent or non-empty");
         }
         extensions = validated(extensions);
         data = data == null ? Map.of() : Map.copyOf(data);
@@ -137,9 +134,8 @@ public record CloudEvent(
                         "CloudEvents §4.1: extension names are lowercase a-z and 0-9 only, was " + name);
             }
             if (name.length() > MAX_ATTRIBUTE_NAME) {
-                throw new IllegalArgumentException(
-                        "CloudEvents §4.1: extension names should not exceed " + MAX_ATTRIBUTE_NAME
-                                + " characters, was " + name);
+                throw new IllegalArgumentException("CloudEvents §4.1: extension names should not exceed "
+                        + MAX_ATTRIBUTE_NAME + " characters, was " + name);
             }
             if (RESERVED.contains(name)) {
                 throw new IllegalArgumentException(
@@ -152,8 +148,7 @@ public record CloudEvent(
 
     private static void require(String value, String attribute) {
         if (value == null || value.isBlank()) {
-            throw new IllegalArgumentException(
-                    "CloudEvents §3.1.1: " + attribute + " is required and non-empty");
+            throw new IllegalArgumentException("CloudEvents §3.1.1: " + attribute + " is required and non-empty");
         }
     }
 
@@ -202,8 +197,7 @@ public record CloudEvent(
     public CloudEvent with(String name, String value) {
         Map<String, String> next = new LinkedHashMap<>(extensions);
         next.put(name, value);
-        return new CloudEvent(id, source, specversion, type, datacontenttype, dataschema,
-                subject, time, next, data);
+        return new CloudEvent(id, source, specversion, type, datacontenttype, dataschema, subject, time, next, data);
     }
 
     // ── reading one ────────────────────────────────────────────────────────────────────────────

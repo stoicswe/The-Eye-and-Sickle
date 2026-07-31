@@ -152,7 +152,9 @@ public final class FolderRules {
         if (node == null || node.folderId.isBlank()) {
             return Optional.empty();
         }
-        return tree(save).stream().filter(f -> f.folderId().equals(node.folderId)).findFirst();
+        return tree(save).stream()
+                .filter(f -> f.folderId().equals(node.folderId))
+                .findFirst();
     }
 
     // ================================================================== the intents
@@ -177,8 +179,7 @@ public final class FolderRules {
             return Result.refused("no such folder");
         }
         if (depthOf(save, parent) + 1 > MAX_DEPTH) {
-            return Result.refused(
-                    "folders nest " + (MAX_DEPTH + 1) + " deep at most; this would be one level further");
+            return Result.refused("folders nest " + (MAX_DEPTH + 1) + " deep at most; this would be one level further");
         }
         if (siblingNamed(save, parent, wanted, "") != null) {
             return Result.refused("a folder called '" + wanted + "' is already there");

@@ -68,10 +68,7 @@ public final class Vitals {
      *     userland process; {@code 0.1} is a daemon that mostly sleeps
      */
     public static double gauge(long seed, long interval, double resting, double swing) {
-        double smoothed = (unit(seed, interval)
-                        + unit(seed, interval - 1)
-                        + unit(seed, interval - 2))
-                / 3.0d;
+        double smoothed = (unit(seed, interval) + unit(seed, interval - 1) + unit(seed, interval - 2)) / 3.0d;
         // Centred on zero so the wander is symmetric: a figure that only ever drifted upward would
         // creep away from its resting level over a long session.
         return Math.max(0.0d, resting * (1.0d + swing * (smoothed * 2.0d - 1.0d)));
@@ -141,8 +138,7 @@ public final class Vitals {
      * share, not whatever it happened to be doing in the last five seconds.
      */
     public static Duration cpuTime(long seed, long intervals, double restingPercent) {
-        long millisPerInterval =
-                Math.max(1L, Math.round(INTERVAL_SECONDS * 1_000L * restingPercent / 100.0d));
+        long millisPerInterval = Math.max(1L, Math.round(INTERVAL_SECONDS * 1_000L * restingPercent / 100.0d));
         return Duration.ofMillis(counter(seed, intervals, millisPerInterval));
     }
 

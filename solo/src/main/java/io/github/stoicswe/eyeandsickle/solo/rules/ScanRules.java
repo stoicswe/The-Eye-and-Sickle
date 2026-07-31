@@ -76,17 +76,19 @@ public final class ScanRules {
      * false-negative rate. Multiplying preserves the tier ordering and can never reach certainty.
      */
     public static double falsePositiveRate(String tier, int arrayTier) {
-        double base = switch (normalise(tier)) {
-            case "QUICK" -> Balance.SCAN_FALSE_POSITIVE_QUICK;
-            case "THOROUGH" -> Balance.SCAN_FALSE_POSITIVE_THOROUGH;
-            default -> Balance.SCAN_FALSE_POSITIVE_FULL;
-        };
-        double precision = switch (Math.max(0, Math.min(3, arrayTier))) {
-            case 1 -> Balance.DETECTION_ARRAY_PRECISION_T1;
-            case 2 -> Balance.DETECTION_ARRAY_PRECISION_T2;
-            case 3 -> Balance.DETECTION_ARRAY_PRECISION_T3;
-            default -> 1.0d;
-        };
+        double base =
+                switch (normalise(tier)) {
+                    case "QUICK" -> Balance.SCAN_FALSE_POSITIVE_QUICK;
+                    case "THOROUGH" -> Balance.SCAN_FALSE_POSITIVE_THOROUGH;
+                    default -> Balance.SCAN_FALSE_POSITIVE_FULL;
+                };
+        double precision =
+                switch (Math.max(0, Math.min(3, arrayTier))) {
+                    case 1 -> Balance.DETECTION_ARRAY_PRECISION_T1;
+                    case 2 -> Balance.DETECTION_ARRAY_PRECISION_T2;
+                    case 3 -> Balance.DETECTION_ARRAY_PRECISION_T3;
+                    default -> 1.0d;
+                };
         return base * precision;
     }
 
@@ -151,9 +153,7 @@ public final class ScanRules {
         if (falsePositive && !innocent.isEmpty()) {
             // Named, not hinted. §3.2a wants a lead the player can corroborate against the compute
             // ledger — which requires the lead to point at something the ledger actually lists.
-            line.append(" Also flagged: ")
-                    .append(innocent)
-                    .append(". Corroborate before you act on it.");
+            line.append(" Also flagged: ").append(innocent).append(". Corroborate before you act on it.");
         }
         if (hits.isEmpty() && !falsePositive) {
             line.append(" Manual audit still sees things a scan does not.");
@@ -254,8 +254,10 @@ public final class ScanRules {
             line.append("Stopped before it named anything.");
         } else {
             line.append(kept.size())
-                    .append(kept.size() == 1 ? " foreign miner found before it stopped."
-                            : " foreign miners found before it stopped.");
+                    .append(
+                            kept.size() == 1
+                                    ? " foreign miner found before it stopped."
+                                    : " foreign miners found before it stopped.");
         }
         // Said plainly, because the difference between "clean" and "unfinished" is the whole value
         // of the result. A partial audit reporting a clean bill of health is a lie the player would

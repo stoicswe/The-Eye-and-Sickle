@@ -149,8 +149,7 @@ public final class AttentionMeter extends VBox {
         // transition from "clean" to "not clean" is the one the player most needs to see.
         int spentCells = Math.min(cellCount, (int) Math.ceil(budget.spent() / (double) scale));
         int lostCells = Math.min(spentCells, (int) Math.ceil(strikeCost / (double) scale));
-        int costCells = Math.min(cellCount - spentCells,
-                (int) Math.ceil(previewCost / (double) scale));
+        int costCells = Math.min(cellCount - spentCells, (int) Math.ceil(previewCost / (double) scale));
 
         HBox row = newRow();
         for (int i = 0; i < cellCount; i++) {
@@ -168,8 +167,8 @@ public final class AttentionMeter extends VBox {
             } else {
                 style = "es-attn-cell";
             }
-            Region cell = Ui.block(
-                    UiTokens.ATTENTION_CELL_WIDTH, UiTokens.ATTENTION_CELL_HEIGHT, "es-attn-cell-base", style);
+            Region cell =
+                    Ui.block(UiTokens.ATTENTION_CELL_WIDTH, UiTokens.ATTENTION_CELL_HEIGHT, "es-attn-cell-base", style);
             if ("es-attn-cell-cost".equals(style)) {
                 previewCells.add(cell);
             }
@@ -180,8 +179,13 @@ public final class AttentionMeter extends VBox {
         applyBlink();
 
         StringBuilder line = new StringBuilder()
-                .append(budget.spent()).append(" SPENT ").append(BULLET).append(' ')
-                .append(budget.remaining()).append(" LEFT OF ").append(budget.budget());
+                .append(budget.spent())
+                .append(" SPENT ")
+                .append(BULLET)
+                .append(' ')
+                .append(budget.remaining())
+                .append(" LEFT OF ")
+                .append(budget.budget());
         if (strikeCost > 0) {
             line.append(' ').append(BULLET).append(' ').append(strikeCost).append(" TO ALARMS");
         }
@@ -189,9 +193,7 @@ public final class AttentionMeter extends VBox {
             line.append(' ').append(BULLET).append(" 1 CELL = ").append(scale);
         }
         caption.setText(line.toString());
-        previewLabel.setText(previewCost > 0
-                ? Ui.upper("next: " + previewName + " " + MINUS + previewCost)
-                : "");
+        previewLabel.setText(previewCost > 0 ? Ui.upper("next: " + previewName + " " + MINUS + previewCost) : "");
 
         // The cells are colour and count; neither reaches a screen reader. docs/client/07 §5.2 does
         // not let meaning rest on appearance, so the same figures go down the second path.

@@ -1,9 +1,9 @@
 package io.github.stoicswe.eyeandsickle.client.profile;
 
-import io.github.stoicswe.eyeandsickle.solo.Balance;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeId;
+import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.SoloGame;
 import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import java.io.IOException;
@@ -142,9 +142,10 @@ class CharacterSlotsTest {
                     .as("the component sheet")
                     .isNotNull();
             for (ThemeId id : ThemeId.selectable()) {
-                id.overlayStylesheet().ifPresent(sheet -> assertThat(ThemeId.class.getResource(sheet))
-                        .as("overlay for %s", id.id())
-                        .isNotNull());
+                id.overlayStylesheet()
+                        .ifPresent(sheet -> assertThat(ThemeId.class.getResource(sheet))
+                                .as("overlay for %s", id.id())
+                                .isNotNull());
             }
         }
 
@@ -179,8 +180,13 @@ class CharacterSlotsTest {
                 }
                 String body = css.replaceAll("(?s)/\\*.*?\\*/", "");
                 for (String banned : java.util.List.of(
-                        "-fx-padding", "-fx-font-size", "-fx-font-family", "-fx-border-width",
-                        "-fx-background-radius", "-fx-border-radius", "-fx-effect")) {
+                        "-fx-padding",
+                        "-fx-font-size",
+                        "-fx-font-family",
+                        "-fx-border-width",
+                        "-fx-background-radius",
+                        "-fx-border-radius",
+                        "-fx-effect")) {
                     assertThat(body)
                             .as("%s must not set %s — overlays are palettes", id.id(), banned)
                             .doesNotContain(banned);

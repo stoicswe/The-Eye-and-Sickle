@@ -56,7 +56,10 @@ class NodeCommandsTest {
                 assertThat(NodeCommands.find(command.name()))
                         .as("%s is offerable but not runnable", command.name())
                         .isPresent();
-                assertThat(String.join("\n", NodeCommands.run(session, "", "/", command.name()).lines()))
+                assertThat(String.join(
+                                "\n",
+                                NodeCommands.run(session, "", "/", command.name())
+                                        .lines()))
                         .as("%s reports itself as unknown", command.name())
                         .doesNotContain("command not found");
             }
@@ -82,7 +85,9 @@ class NodeCommandsTest {
                 assertThat(command.group()).as("%s", command.name()).isNotBlank();
                 assertThat(command.synopsis()).as("%s", command.name()).isNotBlank();
             }
-            assertThat(NodeCommands.byGroup().values().stream().mapToInt(List::size).sum())
+            assertThat(NodeCommands.byGroup().values().stream()
+                            .mapToInt(List::size)
+                            .sum())
                     .isEqualTo(NodeCommands.catalogue().size());
         }
 
@@ -96,7 +101,9 @@ class NodeCommandsTest {
                                 .as("%s %s offers no values", command.name(), option.name())
                                 .isNotEmpty();
                     }
-                    assertThat(option.help()).as("%s %s", command.name(), option.name()).isNotBlank();
+                    assertThat(option.help())
+                            .as("%s %s", command.name(), option.name())
+                            .isNotBlank();
                 }
             }
         }
@@ -115,8 +122,10 @@ class NodeCommandsTest {
             // describes them.
             String listing = output(session(dir), "ls");
             assertThat(listing)
-                    .contains("Applications/").contains("Library/")
-                    .contains("System/").contains("Users/");
+                    .contains("Applications/")
+                    .contains("Library/")
+                    .contains("System/")
+                    .contains("Users/");
             assertThat(listing).doesNotContain("etc/").doesNotContain("home/");
         }
 
@@ -125,7 +134,10 @@ class NodeCommandsTest {
         void systemIsFreeBsdShapedAndClosed(@TempDir Path dir) {
             GameSession session = session(dir);
             assertThat(output(session, "ls /System"))
-                    .contains("bin/").contains("etc/").contains("rescue/").contains("usr/");
+                    .contains("bin/")
+                    .contains("etc/")
+                    .contains("rescue/")
+                    .contains("usr/");
             // ⚠ /usr/local is the FreeBSD/Linux difference in one directory, and it is listed.
             assertThat(output(session, "ls /System/usr")).contains("local/");
         }
@@ -136,8 +148,7 @@ class NodeCommandsTest {
             // The regression this pins: /System entries were hard-coded unreadable, so the file
             // manager told players to "breach it first" about their own rig. The base system is not
             // yours to EDIT (every mode in it is r-xr-xr-x); it was never meant to be unopenable.
-            GameSession session = session(java.nio.file.Path.of(
-                    System.getProperty("java.io.tmpdir"), "es-own-system"));
+            GameSession session = session(java.nio.file.Path.of(System.getProperty("java.io.tmpdir"), "es-own-system"));
             String rc = output(session, "cat /System/etc/rc.conf");
             assertThat(rc).contains("sshd_enable").contains("hostname=");
             assertThat(rc).doesNotContain("breach it first");
@@ -173,7 +184,8 @@ class NodeCommandsTest {
             // and a file printing made-up contents would teach something false. `file`'s answer,
             // not `cat`'s screenful of noise.
             assertThat(output(session(dir), "cat /System/boot/kernel/kernel"))
-                    .contains("ELF").contains("nothing here a person reads");
+                    .contains("ELF")
+                    .contains("nothing here a person reads");
         }
 
         @Test
@@ -185,7 +197,8 @@ class NodeCommandsTest {
             assertThat(out).contains("Permission denied").contains("0600");
             // And the file that IS readable explains the split.
             assertThat(output(session(dir), "cat /System/etc/passwd"))
-                    .contains("*").contains("master.passwd");
+                    .contains("*")
+                    .contains("master.passwd");
         }
 
         @Test
@@ -208,9 +221,11 @@ class NodeCommandsTest {
             assertThat(output(session, "ls /mnt")).doesNotContain("vault");
             // And it is hidden, so it does not lead an idle browse straight to itself either.
             String home = "/Users/" + session.handle();
-            assertThat(String.join("\n", NodeCommands.run(session, "", home, "ls").lines()))
+            assertThat(String.join(
+                            "\n", NodeCommands.run(session, "", home, "ls").lines()))
                     .doesNotContain("VaultStore");
-            assertThat(String.join("\n", NodeCommands.run(session, "", home, "ls -a").lines()))
+            assertThat(String.join(
+                            "\n", NodeCommands.run(session, "", home, "ls -a").lines()))
                     .contains(".VaultStore");
         }
 
@@ -219,14 +234,18 @@ class NodeCommandsTest {
         void applicationsAreBundles(@TempDir Path dir) {
             GameSession session = session(dir);
             String apps = "/Applications";
-            assertThat(String.join("\n", NodeCommands.run(session, "", apps, "ls").lines()))
+            assertThat(String.join(
+                            "\n", NodeCommands.run(session, "", apps, "ls").lines()))
                     .contains("Network.app/")
                     .contains("Breach.app/");
             // ⚠ /Applications at the ROOT, as on macOS — not in the home.
             // The real bundle layout, all the way down to the executable.
-            assertThat(String.join("\n",
-                            NodeCommands.run(session, "", apps + "/Network.app/Contents", "ls").lines()))
-                    .contains("Info.plist").contains("Upgrades/")
+            assertThat(String.join(
+                            "\n",
+                            NodeCommands.run(session, "", apps + "/Network.app/Contents", "ls")
+                                    .lines()))
+                    .contains("Info.plist")
+                    .contains("Upgrades/")
                     // ⚠ uOS, not MacOS. A real bundle names that directory after the operating
                     // system, and these machines do not run macOS — a folder claiming otherwise
                     // would be the one dishonest thing in an otherwise real layout.
@@ -242,13 +261,17 @@ class NodeCommandsTest {
             // it can read what the owner has been doing.
             GameSession session = session(dir);
             String home = "/Users/" + session.handle();
-            assertThat(String.join("\n",
-                            NodeCommands.run(session, "", home + "/.local/share", "ls").lines()))
+            assertThat(String.join(
+                            "\n",
+                            NodeCommands.run(session, "", home + "/.local/share", "ls")
+                                    .lines()))
                     .contains("recently-used/");
 
             session.noteAccess("", home + "/Documents");
-            assertThat(String.join("\n", NodeCommands.run(
-                            session, "", home + "/.local/share/recently-used", "ls").lines()))
+            assertThat(String.join(
+                            "\n",
+                            NodeCommands.run(session, "", home + "/.local/share/recently-used", "ls")
+                                    .lines()))
                     .contains("Documents");
         }
 
@@ -258,8 +281,10 @@ class NodeCommandsTest {
             GameSession session = session(dir);
             String home = "/Users/" + session.handle();
             session.noteAccess("", home + "/.local/share/recently-used");
-            assertThat(String.join("\n", NodeCommands.run(
-                            session, "", home + "/.local/share/recently-used", "ls").lines()))
+            assertThat(String.join(
+                            "\n",
+                            NodeCommands.run(session, "", home + "/.local/share/recently-used", "ls")
+                                    .lines()))
                     .doesNotContain("recently-used");
         }
 
@@ -272,8 +297,10 @@ class NodeCommandsTest {
             session.noteAccess("", home + "/Music");
             session.noteAccess("", home + "/Documents");
 
-            String listing = String.join("\n", NodeCommands.run(
-                    session, "", home + "/.local/share/recently-used", "ls").lines());
+            String listing = String.join(
+                    "\n",
+                    NodeCommands.run(session, "", home + "/.local/share/recently-used", "ls")
+                            .lines());
             assertThat(listing.split("Documents", -1)).hasSize(2);
         }
 
@@ -303,9 +330,11 @@ class NodeCommandsTest {
         void dotfiles(@TempDir Path dir) {
             GameSession session = session(dir);
             String home = "/Users/" + session.handle();
-            assertThat(String.join("\n", NodeCommands.run(session, "", home, "ls").lines()))
+            assertThat(String.join(
+                            "\n", NodeCommands.run(session, "", home, "ls").lines()))
                     .doesNotContain(".bash_history");
-            assertThat(String.join("\n", NodeCommands.run(session, "", home, "ls -a").lines()))
+            assertThat(String.join(
+                            "\n", NodeCommands.run(session, "", home, "ls -a").lines()))
                     .contains(".bash_history");
         }
     }
@@ -348,8 +377,7 @@ class NodeCommandsTest {
         void missingFile(@TempDir Path dir) {
             // The message a player will meet again on any Unix. A refusal that reads like the real
             // one teaches the real one, which is the cheapest teaching in this client.
-            assertThat(output(session(dir), "cat /Users/nothing"))
-                    .contains("No such file or directory");
+            assertThat(output(session(dir), "cat /Users/nothing")).contains("No such file or directory");
         }
 
         @Test
@@ -378,7 +406,8 @@ class NodeCommandsTest {
         @DisplayName("it reports closeSession, and nothing else does")
         void onlyExitCloses(@TempDir Path dir) {
             GameSession session = session(dir);
-            assertThat(NodeCommands.run(session, "", "/", "exit").closeSession()).isTrue();
+            assertThat(NodeCommands.run(session, "", "/", "exit").closeSession())
+                    .isTrue();
             for (String other : List.of("ls", "pwd", "help", "df", "whoami")) {
                 assertThat(NodeCommands.run(session, "", "/", other).closeSession())
                         .as("%s must not end the session", other)

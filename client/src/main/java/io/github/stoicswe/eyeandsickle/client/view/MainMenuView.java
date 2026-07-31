@@ -10,10 +10,10 @@ import javafx.geometry.Pos;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
 import javafx.scene.control.ButtonType;
-import javafx.scene.control.Tooltip;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextField;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -106,8 +106,7 @@ public final class MainMenuView {
      * which is what makes them worth showing. Three characters called {@code kyy}, {@code kyyr} and
      * {@code kyyrell} are indistinguishable in a list and instantly different as faces.
      */
-    public static Region create(
-            ClientProfile profile, ThemeManager themes, CharacterSlots slots, Actions actions) {
+    public static Region create(ClientProfile profile, ThemeManager themes, CharacterSlots slots, Actions actions) {
 
         BorderPane root = new BorderPane();
         root.getStyleClass().add("es-splash");
@@ -154,8 +153,7 @@ public final class MainMenuView {
             slots.soloSlots().stream()
                     .filter(candidate -> candidate.index() == chosen[0])
                     .findFirst()
-                    .ifPresent(slot -> detail.getChildren().add(
-                            signIn(slots, slot, actions, rebuildFaces[0])));
+                    .ifPresent(slot -> detail.getChildren().add(signIn(slots, slot, actions, rebuildFaces[0])));
         };
 
         // Only a deletion runs this: it changes what a face IS, not merely which one is lit, so the
@@ -236,14 +234,16 @@ public final class MainMenuView {
         }
         double[] grab = {0, 0};
         handle.setOnMousePressed(event -> {
-            javafx.stage.Window window = handle.getScene() == null ? null : handle.getScene().getWindow();
+            javafx.stage.Window window =
+                    handle.getScene() == null ? null : handle.getScene().getWindow();
             if (window != null) {
                 grab[0] = event.getScreenX() - window.getX();
                 grab[1] = event.getScreenY() - window.getY();
             }
         });
         handle.setOnMouseDragged(event -> {
-            javafx.stage.Window window = handle.getScene() == null ? null : handle.getScene().getWindow();
+            javafx.stage.Window window =
+                    handle.getScene() == null ? null : handle.getScene().getWindow();
             if (window instanceof javafx.stage.Stage stage && !stage.isMaximized()) {
                 stage.setX(event.getScreenX() - grab[0]);
                 stage.setY(event.getScreenY() - grab[1]);
@@ -257,7 +257,10 @@ public final class MainMenuView {
                 .filter(CharacterSlots.Slot::occupied)
                 .map(CharacterSlots.Slot::index)
                 .findFirst()
-                .orElse(slots.soloSlots().isEmpty() ? 1 : slots.soloSlots().getFirst().index());
+                .orElse(
+                        slots.soloSlots().isEmpty()
+                                ? 1
+                                : slots.soloSlots().getFirst().index());
     }
 
     /**
@@ -300,8 +303,7 @@ public final class MainMenuView {
         void setSelected(boolean on) {
             // ⚠ remove-then-add, never setAll. A Label carries "label" in its own style-class list,
             // and clearing it takes the control's Modena skin down with it.
-            ring.getStyleClass().removeAll(
-                    "es-face-ring", "es-face-ring-empty", "es-face-ring-bad", "es-face-ring-on");
+            ring.getStyleClass().removeAll("es-face-ring", "es-face-ring-empty", "es-face-ring-bad", "es-face-ring-on");
             ring.getStyleClass().add(on ? "es-face-ring-on" : restingRing);
             caption.getStyleClass().removeAll("es-face-name", "es-face-name-on");
             caption.getStyleClass().add(on ? "es-face-name-on" : "es-face-name");
@@ -349,8 +351,7 @@ public final class MainMenuView {
         javafx.scene.Node picture;
         if (slot.occupied()) {
             javafx.scene.image.ImageView view = new javafx.scene.image.ImageView(
-                    io.github.stoicswe.eyeandsickle.client.ui.Avatar.image(
-                            slot.avatarPng(), slot.handle()));
+                    io.github.stoicswe.eyeandsickle.client.ui.Avatar.image(slot.avatarPng(), slot.handle()));
             view.setFitWidth(FACE);
             view.setFitHeight(FACE);
             view.setClip(new javafx.scene.shape.Circle(FACE / 2, FACE / 2, FACE / 2));
@@ -368,15 +369,18 @@ public final class MainMenuView {
         // ⚠ A damaged save gets its own ring rather than the empty one. Otherwise the only thing
         // separating "nothing here" from "your character will not load" is one character of glyph,
         // and the difference matters most before the player has clicked anything.
-        Face plate = new Face(slot.index(), picture, name,
-                slot.occupied() ? "es-face-ring"
-                        : slot.unreadable() ? "es-face-ring-bad" : "es-face-ring-empty");
+        Face plate = new Face(
+                slot.index(),
+                picture,
+                name,
+                slot.occupied() ? "es-face-ring" : slot.unreadable() ? "es-face-ring-bad" : "es-face-ring-empty");
         plate.onPick(onPick, true);
-        plate.box.setAccessibleText(slot.occupied()
-                ? "Character " + slot.handle() + " in slot " + slot.index()
-                : slot.unreadable()
-                        ? "Slot " + slot.index() + ", damaged save"
-                        : "Empty character slot " + slot.index());
+        plate.box.setAccessibleText(
+                slot.occupied()
+                        ? "Character " + slot.handle() + " in slot " + slot.index()
+                        : slot.unreadable()
+                                ? "Slot " + slot.index() + ", damaged save"
+                                : "Empty character slot " + slot.index());
         return plate;
     }
 
@@ -408,8 +412,7 @@ public final class MainMenuView {
      * only control on the screen that <em>starts</em> anything, so it is the only one that needs to
      * be found. Everything above it answers "which"; this answers "go".
      */
-    private static Region signIn(
-            CharacterSlots slots, CharacterSlots.Slot slot, Actions actions, Runnable repaint) {
+    private static Region signIn(CharacterSlots slots, CharacterSlots.Slot slot, Actions actions, Runnable repaint) {
 
         VBox box = new VBox(10);
         box.setAlignment(Pos.CENTER);
@@ -451,15 +454,15 @@ public final class MainMenuView {
         // The field is a HEAD START, not the decision: whatever is typed here arrives pre-filled on
         // the assistant's first question, where it can still be changed. Leaving it blank is fine —
         // the assistant asks for a handle properly and will not continue without one.
-        Runnable start = () -> actions.setUpNewCharacter(slot.index(),
-                handle.getText() == null ? "" : handle.getText().trim());
+        Runnable start = () -> actions.setUpNewCharacter(
+                slot.index(), handle.getText() == null ? "" : handle.getText().trim());
         Button create = menuButton("New character", start::run);
         handle.setOnAction(event -> start.run());
         HBox row = new HBox(10, handle, create);
         row.setAlignment(Pos.CENTER);
 
-        Label note = new Label("A new operator on this machine. Set-up asks five short questions; "
-                + "nothing here needs a network.");
+        Label note = new Label(
+                "A new operator on this machine. Set-up asks five short questions; " + "nothing here needs a network.");
         note.getStyleClass().add("es-small");
         box.getChildren().addAll(row, note);
         return box;
@@ -476,26 +479,24 @@ public final class MainMenuView {
         javafx.stage.Popup popup = new javafx.stage.Popup();
         popup.setAutoHide(true);
 
-        TextField address = new TextField(profile.settings().knownServers.isEmpty()
-                ? "" : profile.settings().knownServers.getFirst());
+        TextField address = new TextField(
+                profile.settings().knownServers.isEmpty()
+                        ? ""
+                        : profile.settings().knownServers.getFirst());
         address.setPromptText("https://home.example");
         address.setPrefColumnCount(28);
 
         Button connect = menuButton("Connect", () -> actions.connectOnline(address.getText()));
-        Label note = new Label(
-                "Online play runs against a home server — someone's self-hosted machine, which owns "
-                        + "the game state. Losses there are real, and a solo character cannot be "
-                        + "carried across.\n\nNot available yet: the client has the session shape and "
-                        + "no transport behind it (CL-8). Connecting will tell you exactly that "
-                        + "rather than hanging.");
+        Label note = new Label("Online play runs against a home server — someone's self-hosted machine, which owns "
+                + "the game state. Losses there are real, and a solo character cannot be "
+                + "carried across.\n\nNot available yet: the client has the session shape and "
+                + "no transport behind it (CL-8). Connecting will tell you exactly that "
+                + "rather than hanging.");
         note.setWrapText(true);
         note.setMaxWidth(420);
         note.getStyleClass().add("es-small");
 
-        VBox panel = new VBox(10,
-                sectionLabel("HOME SERVER"),
-                new HBox(10, address, connect),
-                note);
+        VBox panel = new VBox(10, sectionLabel("HOME SERVER"), new HBox(10, address, connect), note);
         panel.getStyleClass().addAll("es-files", "es-body-pad", "es-files-dialog");
         popup.getContent().add(panel);
         if (anchor.getScene() != null && anchor.getScene().getWindow() != null) {
@@ -541,12 +542,11 @@ public final class MainMenuView {
         Alert ask = new Alert(Alert.AlertType.NONE);
         ask.setTitle("One question");
         ask.setHeaderText("How much should this explain?");
-        ask.setContentText(
-                "This game uses real command names and teaches what they actually do.\n\n"
-                        + "  Explain as I go   a plain-language line the first time each term appears\n"
-                        + "  I know Unix       just the terms, no explanations\n\n"
-                        + "Either way the manual stays: `man <term>` works at any setting, and `teach`\n"
-                        + "changes this whenever you like.");
+        ask.setContentText("This game uses real command names and teaches what they actually do.\n\n"
+                + "  Explain as I go   a plain-language line the first time each term appears\n"
+                + "  I know Unix       just the terms, no explanations\n\n"
+                + "Either way the manual stays: `man <term>` works at any setting, and `teach`\n"
+                + "changes this whenever you like.");
         ask.getButtonTypes().setAll(newToThis, knowUnix);
         ask.showAndWait().ifPresent(choice -> {
             profile.settings().teachingLevel = choice == knowUnix ? "terms" : "explain";

@@ -70,9 +70,14 @@ public final class ThermoMeter extends VBox {
      * horizontal one it is the width. Naming them by orientation rather than by axis is what stops
      * the next person swapping them back by reading the identifiers literally.
      */
-    private static final double CELL_LONG = 6;
+    /**
+     * ⚠ Widened on 2026-07-30. The meter was 6×3 — a hairline — so the band colour it exists to
+     * show had almost no area to appear in, and at low heat one or two lit cells were three pixels
+     * of tint on a dark row. A meter whose whole job is a colour needs somewhere to put it.
+     */
+    private static final double CELL_LONG = 8;
 
-    private static final double CELL_THICK = 3;
+    private static final double CELL_THICK = 11;
 
     private static final double TICK_THICK = 3;
 
@@ -166,13 +171,13 @@ public final class ThermoMeter extends VBox {
         // docs/client/07 §5.2 does not let meaning rest on appearance. Same two-path fix as CL-10's
         // gloss bar. The number goes with it: a screen reader has no bulb to read.
         setFocusTraversable(false);
-        setAccessibleText(Ui.upper("personal heat " + personalHeat + " of 100, " + band.label())
-                + ". " + band.consequence());
+        setAccessibleText(
+                Ui.upper("personal heat " + personalHeat + " of 100, " + band.label()) + ". " + band.consequence());
 
         // The tooltip is the consequence, not the number: a band name alone is trivia, and
         // docs/client/01 §2.2.4's whole point is that the player's decision is about sweep odds.
-        javafx.scene.control.Tooltip tip = new javafx.scene.control.Tooltip(
-                Ui.upper("personal heat · " + band.label()) + "\n" + band.consequence()
+        javafx.scene.control.Tooltip tip =
+                new javafx.scene.control.Tooltip(Ui.upper("personal heat · " + band.label()) + "\n" + band.consequence()
                         + "\n\nHeat comes from acting outward. Self-mining, defending your own rig "
                         + "and scanning it are all free.");
         tip.setWrapText(true);

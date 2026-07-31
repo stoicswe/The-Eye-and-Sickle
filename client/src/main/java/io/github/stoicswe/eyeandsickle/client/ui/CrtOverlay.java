@@ -173,6 +173,7 @@ public final class CrtOverlay extends Pane {
 
     /** 0–1. Scales both the aberration bands' reach and their strength. */
     private double curvature;
+
     private final Pane glitch = new Pane();
     private final Random random = new Random();
 

@@ -72,12 +72,13 @@ public final class Motion {
         double step = UiTokens.REVEAL_MS / UiTokens.REVEAL_STEPS;
         for (int i = 1; i <= UiTokens.REVEAL_STEPS; i++) {
             double fraction = i / (double) UiTokens.REVEAL_STEPS;
-            timeline.getKeyFrames().add(new KeyFrame(
-                    Duration.millis(delayMs + step * i),
-                    // DISCRETE holds the previous value for the whole interval and jumps at the end
-                    // of it. Nine of these is a nine-step wipe; one of them across the full duration
-                    // would be a single jump, which is the mistake to avoid here.
-                    new KeyValue(clip.widthProperty(), 4000 * fraction, Interpolator.DISCRETE)));
+            timeline.getKeyFrames()
+                    .add(new KeyFrame(
+                            Duration.millis(delayMs + step * i),
+                            // DISCRETE holds the previous value for the whole interval and jumps at the end
+                            // of it. Nine of these is a nine-step wipe; one of them across the full duration
+                            // would be a single jump, which is the mistake to avoid here.
+                            new KeyValue(clip.widthProperty(), 4000 * fraction, Interpolator.DISCRETE)));
         }
         timeline.setOnFinished(e -> node.setClip(null));
         timeline.play();
@@ -112,9 +113,10 @@ public final class Motion {
         double step = totalMs / UiTokens.REVEAL_STEPS;
         for (int i = 1; i <= UiTokens.REVEAL_STEPS; i++) {
             double fraction = i / (double) UiTokens.REVEAL_STEPS;
-            timeline.getKeyFrames().add(new KeyFrame(
-                    Duration.millis(step * i),
-                    new KeyValue(node.opacityProperty(), fraction, Interpolator.DISCRETE)));
+            timeline.getKeyFrames()
+                    .add(new KeyFrame(
+                            Duration.millis(step * i),
+                            new KeyValue(node.opacityProperty(), fraction, Interpolator.DISCRETE)));
         }
         // ⚠ Pinned to exactly 1 at the end rather than left on the last computed fraction. Nine
         // steps of 1/9 sums to 0.9999999999999999 in double arithmetic, and a deck sitting at

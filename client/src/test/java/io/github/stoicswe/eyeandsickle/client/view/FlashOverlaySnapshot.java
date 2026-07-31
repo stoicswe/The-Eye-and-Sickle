@@ -104,9 +104,15 @@ public final class FlashOverlaySnapshot {
         SoloGame game = SoloGame.open(new SaveStore(profileDir.resolve("save.json")), "halflight", clock);
         game.state().schematics.add(Catalogue.FIRMWARE_IMPLANT_SCHEMATIC);
         game.state().rig.selfMiningCycles = 0L;
-        StoredFileState image = Repac.arrive(game.state(), "/Users/halflight/Downloads",
-                "mining-firmware.pkg", "10.0.0.9", 142_000_000L, "firmware-implant",
-                new UpgradeVersion(4, 2), T0);
+        StoredFileState image = Repac.arrive(
+                game.state(),
+                "/Users/halflight/Downloads",
+                "mining-firmware.pkg",
+                "10.0.0.9",
+                142_000_000L,
+                "firmware-implant",
+                new UpgradeVersion(4, 2),
+                T0);
         Repac.repack(game.state(), image, T0);
         LocalGameSession session = new LocalGameSession(game);
         Repac.install(game.state(), image.path(), T0);
@@ -116,13 +122,15 @@ public final class FlashOverlaySnapshot {
         clock.advance(Duration.ofSeconds(38));
 
         Region panel = PackageView.create(
-                session, Repac.manifest(game.state(), image.path()).orElseThrow(),
-                PackageView.Mode.INSTALL, () -> {}, message -> {});
+                session,
+                Repac.manifest(game.state(), image.path()).orElseThrow(),
+                PackageView.Mode.INSTALL,
+                () -> {},
+                message -> {});
         shoot(themes, panel, out.resolve("firmware-flashing.png"), 700, 720);
     }
 
-    private static void shoot(ThemeManager themes, Region panel, Path to, int w, int h)
-            throws Exception {
+    private static void shoot(ThemeManager themes, Region panel, Path to, int w, int h) throws Exception {
         StackPane host = new StackPane(panel);
         host.getStyleClass().add("es-scene-ground");
         Scene scene = new Scene(host, w, h);

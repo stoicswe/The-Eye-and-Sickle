@@ -3,14 +3,14 @@ package io.github.stoicswe.eyeandsickle.client.session;
 import io.github.stoicswe.eyeandsickle.protocol.game.BlockContribution;
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainBlock;
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainMempool;
-import io.github.stoicswe.eyeandsickle.protocol.game.FeeTier;
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainSync;
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainTransaction;
+import io.github.stoicswe.eyeandsickle.protocol.game.ComputeBudget;
+import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
+import io.github.stoicswe.eyeandsickle.protocol.game.FeeTier;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningPool;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningSnapshot;
-import io.github.stoicswe.eyeandsickle.protocol.game.ComputeBudget;
-import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
 import java.util.List;
 import java.util.function.Consumer;
@@ -312,8 +312,7 @@ public interface GameSession extends AutoCloseable {
      * <p>Backs the installer panel: publisher, contents, size, both digests, and whether a payment is
      * still holding it. Empty for a path that is not a package this rig holds.
      */
-    java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.PackageManifest> packageAt(
-            String path);
+    java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.PackageManifest> packageAt(String path);
 
     /**
      * Commissions a port scan against a machine a sweep has found.
@@ -325,8 +324,7 @@ public interface GameSession extends AutoCloseable {
     Outcome portScan(String address, io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget target);
 
     /** The last report for this machine, if one was taken this session. */
-    java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.PortScanReport> portScanReport(
-            String address);
+    java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.PortScanReport> portScanReport(String address);
 
     /**
      * The intelligence file on one machine — everything ever learned about it, and when.
@@ -335,8 +333,7 @@ public interface GameSession extends AutoCloseable {
      * This is the accumulated file: it survives a restart, merges findings across scans of different
      * depths, and dates each one individually so a week-old vault estimate does not read as fresh.
      */
-    java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.NodeReport> nodeReport(
-            String address);
+    java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.NodeReport> nodeReport(String address);
 
     /** Every file on record, most recently updated first. What RECON lists. */
     List<io.github.stoicswe.eyeandsickle.protocol.game.NodeReport> nodeReports();
@@ -354,8 +351,7 @@ public interface GameSession extends AutoCloseable {
     Outcome tagNode(String address, List<String> tags);
 
     /** What a scan of this depth would cost against this machine, before committing to it. */
-    PortScanQuote portScanQuote(
-            String address, io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget target);
+    PortScanQuote portScanQuote(String address, io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget target);
 
     /**
      * The price of a scan, in all three currencies it is paid in.
@@ -634,10 +630,7 @@ public interface GameSession extends AutoCloseable {
      * runs as a {@link RunningTask}, so it appears in the rig monitor's activity list and survives
      * the file manager being closed.
      */
-    Outcome download(
-            String address,
-            io.github.stoicswe.eyeandsickle.protocol.game.FsEntry entry,
-            String destination);
+    Outcome download(String address, io.github.stoicswe.eyeandsickle.protocol.game.FsEntry entry, String destination);
 
     /** Where a download may be put — the folders a "Save as" menu should offer. */
     List<String> downloadDestinations();
@@ -873,10 +866,13 @@ public interface GameSession extends AutoCloseable {
             String entryId,
             java.time.Instant at,
             java.math.BigInteger deltaWei,
-            java.math.BigInteger balanceAfterWei, String type, String description) {}
+            java.math.BigInteger balanceAfterWei,
+            String type,
+            String description) {}
 
     /** One discovered machine. Undiscovered nodes are never in this list — recon is a paid service. */
-    record KnownNode(String address, String label, int reconLevel, int tier, int deployedMiners, boolean hostsForeignMiner) {}
+    record KnownNode(
+            String address, String label, int reconLevel, int tier, int deployedMiners, boolean hostsForeignMiner) {}
 
     /** One armed defence and what it is holding. */
     record ArmedDefense(String kind, int tier, long reservedCycles, boolean triggered) {}
@@ -900,8 +896,10 @@ public interface GameSession extends AutoCloseable {
      * @param deployedMiners how many are live
      */
     record MiningSummary(
-            long selfMiningCycles, java.math.BigInteger bufferedWei,
-            java.math.BigInteger bufferCapWei, int deployedMiners) {
+            long selfMiningCycles,
+            java.math.BigInteger bufferedWei,
+            java.math.BigInteger bufferCapWei,
+            int deployedMiners) {
 
         /** True once every buffer is full, which is when being away stops paying at all. */
         public boolean buffersFull() {

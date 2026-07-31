@@ -65,7 +65,8 @@ class GateEvaluatorTest {
                 character.accountDid(),
                 character.slot(),
                 Ethecoin.ofWei(java.math.BigInteger.valueOf(balanceMinor)
-                        .multiply(Ethecoin.WEI_PER_ETHECOIN).divide(java.math.BigInteger.valueOf(100))),
+                        .multiply(Ethecoin.WEI_PER_ETHECOIN)
+                        .divide(java.math.BigInteger.valueOf(100))),
                 new BigDecimal(heat),
                 0L);
     }

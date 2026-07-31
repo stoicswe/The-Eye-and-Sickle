@@ -10,19 +10,19 @@ import io.github.stoicswe.eyeandsickle.client.shell.Shell;
 import io.github.stoicswe.eyeandsickle.client.teaching.ManCommands;
 import io.github.stoicswe.eyeandsickle.client.teaching.TermDatabase;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeManager;
+import io.github.stoicswe.eyeandsickle.client.view.BreachView;
 import io.github.stoicswe.eyeandsickle.client.view.CalcView;
 import io.github.stoicswe.eyeandsickle.client.view.CommandPalette;
 import io.github.stoicswe.eyeandsickle.client.view.FileManagerView;
-import io.github.stoicswe.eyeandsickle.client.view.PortScanView;
-import io.github.stoicswe.eyeandsickle.client.view.MainMenuView;
-import io.github.stoicswe.eyeandsickle.client.view.SetupWizardView;
-import io.github.stoicswe.eyeandsickle.client.view.BreachView;
 import io.github.stoicswe.eyeandsickle.client.view.LogView;
-import io.github.stoicswe.eyeandsickle.client.view.NetMapView;
-import io.github.stoicswe.eyeandsickle.client.view.NodeShellView;
+import io.github.stoicswe.eyeandsickle.client.view.MainMenuView;
 import io.github.stoicswe.eyeandsickle.client.view.ManView;
 import io.github.stoicswe.eyeandsickle.client.view.MoreViews;
+import io.github.stoicswe.eyeandsickle.client.view.NetMapView;
+import io.github.stoicswe.eyeandsickle.client.view.NodeShellView;
+import io.github.stoicswe.eyeandsickle.client.view.PortScanView;
 import io.github.stoicswe.eyeandsickle.client.view.RigMonitorView;
+import io.github.stoicswe.eyeandsickle.client.view.SetupWizardView;
 import io.github.stoicswe.eyeandsickle.client.view.TerminalView;
 import io.github.stoicswe.eyeandsickle.client.view.Views;
 import io.github.stoicswe.eyeandsickle.client.window.GlobalShortcuts;
@@ -31,7 +31,6 @@ import io.github.stoicswe.eyeandsickle.client.window.WindowSpec;
 import io.github.stoicswe.eyeandsickle.solo.SoloGame;
 import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import java.time.Clock;
-import java.util.Optional;
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
@@ -141,9 +140,10 @@ public class EyeAndSickleClient extends Application {
         // TRANSPARENT cannot both be true of one window. The rounded-corners setting could dodge
         // this by always being TRANSPARENT; this one has no such escape, and the Settings text says
         // so rather than leaving the player to discover it.
-        primaryStage.initStyle(profile.settings().nativeWindowBorder
-                ? javafx.stage.StageStyle.DECORATED
-                : javafx.stage.StageStyle.TRANSPARENT);
+        primaryStage.initStyle(
+                profile.settings().nativeWindowBorder
+                        ? javafx.stage.StageStyle.DECORATED
+                        : javafx.stage.StageStyle.TRANSPARENT);
         // ⚠ The APPLICATION name, not the game's — and deliberately so. This deck is undecorated
         // (§0), so the title is invisible inside the game and the only thing that ever reads it is
         // the OS window list. On Windows it is the ONLY lever there is: the taskbar labels a window
@@ -153,9 +153,7 @@ public class EyeAndSickleClient extends Application {
         // in-game and its only reader is the OS window list, so the application name is worth more
         // there (it is the only lever Windows gives). With a native frame the title bar is on
         // screen and is the game's own furniture, so it says the game's name.
-        primaryStage.setTitle(profile.settings().nativeWindowBorder
-                ? "The Eye and Sickle"
-                : Launcher.APP_NAME);
+        primaryStage.setTitle(profile.settings().nativeWindowBorder ? "The Eye and Sickle" : Launcher.APP_NAME);
         primaryStage.setOnCloseRequest(e -> shutdown());
 
         // ⚠ Both of these must be set before the Stage is ever shown full screen, and neither can be
@@ -177,11 +175,9 @@ public class EyeAndSickleClient extends Application {
     }
 
     /** The narrowest the deck is supported at. See {@code ui/WindowSize.MIN_DECK_WIDTH}. */
-    private static final double UI_MIN_WIDTH =
-            io.github.stoicswe.eyeandsickle.client.ui.WindowSize.MIN_DECK_WIDTH;
+    private static final double UI_MIN_WIDTH = io.github.stoicswe.eyeandsickle.client.ui.WindowSize.MIN_DECK_WIDTH;
 
-    private static final double UI_MIN_HEIGHT =
-            io.github.stoicswe.eyeandsickle.client.ui.WindowSize.MIN_DECK_HEIGHT;
+    private static final double UI_MIN_HEIGHT = io.github.stoicswe.eyeandsickle.client.ui.WindowSize.MIN_DECK_HEIGHT;
 
     /** The live scaler for whichever Scene is showing, so a settings change reaches it. */
     private io.github.stoicswe.eyeandsickle.client.ui.UiScale uiScale;
@@ -206,8 +202,7 @@ public class EyeAndSickleClient extends Application {
         if (stage == null) {
             return;
         }
-        int percent = io.github.stoicswe.eyeandsickle.client.ui.UiScale
-                .sanitise(profile.settings().uiScalePercent);
+        int percent = io.github.stoicswe.eyeandsickle.client.ui.UiScale.sanitise(profile.settings().uiScalePercent);
         if (uiScale != null) {
             uiScale.setPercent(percent);
         }
@@ -219,8 +214,7 @@ public class EyeAndSickleClient extends Application {
         // from the resolution, so a 20px casing turned a 1920-wide choice into an 1880-wide deck and
         // the number in Settings described something the player never got.
         io.github.stoicswe.eyeandsickle.client.ui.BezelStyle casing =
-                io.github.stoicswe.eyeandsickle.client.ui.BezelStyle
-                        .byId(profile.appearance().bezel)
+                io.github.stoicswe.eyeandsickle.client.ui.BezelStyle.byId(profile.appearance().bezel)
                         .orElse(io.github.stoicswe.eyeandsickle.client.ui.BezelStyle.OFF);
         // Both sides, and scaled with everything else — the casing is drawn inside the scaled deck,
         // so a bezel that ignored the factor would shrink as the interface grew.
@@ -231,15 +225,12 @@ public class EyeAndSickleClient extends Application {
 
         javafx.geometry.Rectangle2D usable = javafx.stage.Screen.getPrimary().getVisualBounds();
         io.github.stoicswe.eyeandsickle.client.ui.WindowSize size =
-                io.github.stoicswe.eyeandsickle.client.ui.WindowSize
-                        .byId(profile.settings().windowSize)
+                io.github.stoicswe.eyeandsickle.client.ui.WindowSize.byId(profile.settings().windowSize)
                         .orElse(io.github.stoicswe.eyeandsickle.client.ui.WindowSize.HD_1280);
 
         if (!stage.isFullScreen() && !stage.isMaximized()) {
-            double width = Math.max(stage.getMinWidth(),
-                    Math.min(size.width() + chrome, usable.getWidth()));
-            double height = Math.max(stage.getMinHeight(),
-                    Math.min(size.height() + chrome, usable.getHeight()));
+            double width = Math.max(stage.getMinWidth(), Math.min(size.width() + chrome, usable.getWidth()));
+            double height = Math.max(stage.getMinHeight(), Math.min(size.height() + chrome, usable.getHeight()));
             stage.setWidth(width);
             stage.setHeight(height);
             // Re-centred, because a window that grew from its top-left corner can end up mostly off
@@ -278,8 +269,8 @@ public class EyeAndSickleClient extends Application {
         // than calling scene.setFill keeps the colour in the stylesheet, where §10 criterion 2
         // requires every colour in this client to live.
         uiScale.root().getStyleClass().add("es-scene-ground");
-        uiScale.setPercent(io.github.stoicswe.eyeandsickle.client.ui.UiScale
-                .sanitise(profile.settings().uiScalePercent));
+        uiScale.setPercent(
+                io.github.stoicswe.eyeandsickle.client.ui.UiScale.sanitise(profile.settings().uiScalePercent));
         Scene scene = new Scene(uiScale.root(), width, height);
         // ⚠ A transparent FILL with an opaque ground holder on top of it. The holder covers the
         // window edge to edge, so nothing is see-through until the clip takes a corner away — which
@@ -411,8 +402,7 @@ public class EyeAndSickleClient extends Application {
         // the appearance of a character that does not exist, so its edits must not reach the menu's
         // — that is what makes Cancel free rather than something that has to be unwound, and it is
         // why cancelling out of pane four cannot re-theme the character the player was playing.
-        io.github.stoicswe.eyeandsickle.client.profile.VisualSettings pending =
-                settings.appearance.copy();
+        io.github.stoicswe.eyeandsickle.client.profile.VisualSettings pending = settings.appearance.copy();
         profile.usePendingAppearance(pending);
         themes.reloadAppearance();
 
@@ -452,8 +442,7 @@ public class EyeAndSickleClient extends Application {
             }
         };
 
-        Scene scene = scaled(
-                SetupWizardView.create(profile, themes, slot, suggestedHandle, actions), 980, 760);
+        Scene scene = scaled(SetupWizardView.create(profile, themes, slot, suggestedHandle, actions), 980, 760);
         stage.setScene(scene);
         themes.adopt(scene);
         themes.applyAll();
@@ -468,8 +457,8 @@ public class EyeAndSickleClient extends Application {
         dialog.initStyle(javafx.stage.StageStyle.UNDECORATED);
         dialog.setTitle("Settings");
         dialog.setHeaderText("Settings");
-        dialog.getDialogPane().setContent(
-                Views.settings(profile, themes, this::applyDeskSettings, null, this::applyWindowSettings));
+        dialog.getDialogPane()
+                .setContent(Views.settings(profile, themes, this::applyDeskSettings, null, this::applyWindowSettings));
         dialog.getDialogPane().getButtonTypes().add(javafx.scene.control.ButtonType.CLOSE);
         themes.adopt(dialog.getDialogPane().getScene());
         dialog.showAndWait();
@@ -586,9 +575,9 @@ public class EyeAndSickleClient extends Application {
                     java.net.URI.create(address), profile.settings().soloHandle);
             var outcome = remote.allocateSelfMining(0);
             remote.close();
-            alert(javafx.scene.control.Alert.AlertType.INFORMATION,
-                    outcome.message()
-                            + "\n\nThe address is remembered. Solo play needs none of this and works now.");
+            alert(
+                    javafx.scene.control.Alert.AlertType.INFORMATION,
+                    outcome.message() + "\n\nThe address is remembered. Solo play needs none of this and works now.");
         } catch (IllegalArgumentException badUri) {
             alert(javafx.scene.control.Alert.AlertType.WARNING, "That is not a valid address: " + address);
         }
@@ -619,8 +608,13 @@ public class EyeAndSickleClient extends Application {
         Shell.CommandRegistry commands = BuiltinCommands.registry();
         shell = new Shell(session, commands);
         ClientCommands.register(
-                commands, registry, themes, profile, () -> shell.history(),
-                this::showMainMenu, this::applyDeskSettings);
+                commands,
+                registry,
+                themes,
+                profile,
+                () -> shell.history(),
+                this::showMainMenu,
+                this::applyDeskSettings);
         ManCommands.register(commands, terms);
         // Pillar C1: everything the breach window can do, the terminal can do. Both go through the
         // same GameSession port, so the two cannot disagree about what a move costs or whether it
@@ -657,8 +651,8 @@ public class EyeAndSickleClient extends Application {
         root.getChildren().addAll(boot, boot.hint());
         javafx.scene.layout.StackPane.setAlignment(boot.hint(), javafx.geometry.Pos.BOTTOM_CENTER);
 
-        Scene scene = scaled(root, stage.getWidth() > 0 ? stage.getWidth() : 1280,
-                stage.getHeight() > 0 ? stage.getHeight() : 800);
+        Scene scene = scaled(
+                root, stage.getWidth() > 0 ? stage.getWidth() : 1280, stage.getHeight() > 0 ? stage.getHeight() : 800);
         stage.setScene(scene);
         themes.adopt(scene);
         themes.applyAll();
@@ -692,11 +686,12 @@ public class EyeAndSickleClient extends Application {
 
             @Override
             public void cycleTeaching() {
-                String level = switch (profile.settings().teachingLevel) {
-                    case "explain" -> "terms";
-                    case "terms" -> "off";
-                    default -> "explain";
-                };
+                String level =
+                        switch (profile.settings().teachingLevel) {
+                            case "explain" -> "terms";
+                            case "terms" -> "off";
+                            default -> "explain";
+                        };
                 profile.settings().teachingLevel = level;
                 profile.save();
             }
@@ -775,8 +770,8 @@ public class EyeAndSickleClient extends Application {
      * structural rather than maintained by hand.
      */
     private void startDeck(Stage stage) {
-        java.util.Map<WindowSpec, java.util.function.Function<WindowSpec, javafx.scene.layout.Region>>
-                factories = new java.util.EnumMap<>(WindowSpec.class);
+        java.util.Map<WindowSpec, java.util.function.Function<WindowSpec, javafx.scene.layout.Region>> factories =
+                new java.util.EnumMap<>(WindowSpec.class);
         for (WindowSpec spec : WindowSpec.values()) {
             factories.put(spec, s -> (javafx.scene.layout.Region) contentFor(s));
         }
@@ -829,8 +824,8 @@ public class EyeAndSickleClient extends Application {
         return new NetMapView.NodeActions() {
             @Override
             public void openShell(String address) {
-                boolean already = session.sessions().stream()
-                        .anyMatch(s -> s.address().equals(address));
+                boolean already =
+                        session.sessions().stream().anyMatch(s -> s.address().equals(address));
                 if (!already) {
                     GameSession.Outcome outcome = session.openSession(address);
                     if (!outcome.succeeded()) {
@@ -898,8 +893,7 @@ public class EyeAndSickleClient extends Application {
                 deck.showShell(
                         key,
                         "Report - " + address,
-                        io.github.stoicswe.eyeandsickle.client.view.NodeReportView.create(
-                                session, address),
+                        io.github.stoicswe.eyeandsickle.client.view.NodeReportView.create(session, address),
                         // ⚠ Nothing to release. A scanner or a report is a VIEW onto state that exists
                         // whether or not it is on screen — unlike a shell, which is an
                         // instance holding cycles for as long as it lives.
@@ -968,9 +962,14 @@ public class EyeAndSickleClient extends Application {
             case DEFENSE -> Views.defense(session);
             case IDENTITY -> Views.identity(session);
             case SWITCHER -> Views.switcher(registry);
-            case SETTINGS -> Views.settings(
-                    profile, themes, this::applyDeskSettings, this::renameOperator,
-                    this::applyWindowSettings, session);
+            case SETTINGS ->
+                Views.settings(
+                        profile,
+                        themes,
+                        this::applyDeskSettings,
+                        this::renameOperator,
+                        this::applyWindowSettings,
+                        session);
             case CALC -> CalcView.create();
             case FILES -> FileManagerView.create(session);
             case MAN -> ManView.create(terms);
@@ -979,8 +978,9 @@ public class EyeAndSickleClient extends Application {
             // ⚠ RECON is the reports now, not the page about them. The cost model and what a scan
             // is a model of moved to `man port-scan` — reference a player reads once, in the place
             // they can find it deliberately, rather than above the data every single time.
-            case RECON -> io.github.stoicswe.eyeandsickle.client.view.ReconView.create(
-                    session, address -> nodeActions().info(address));
+            case RECON ->
+                io.github.stoicswe.eyeandsickle.client.view.ReconView.create(
+                        session, address -> nodeActions().info(address));
             case BOTNET -> MoreViews.botnet(session);
             case COMMS -> MoreViews.comms(session);
         };

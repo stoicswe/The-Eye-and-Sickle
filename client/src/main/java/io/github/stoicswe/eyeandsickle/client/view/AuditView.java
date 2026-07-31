@@ -141,8 +141,7 @@ public final class AuditView {
             button.setTooltip(new javafx.scene.control.Tooltip(
                     "scan --" + t.flag() + "\n\nWhat a more expensive tier buys is signal strength, "
                             + "not certainty. The cycles come back on the Thermal Budget curve."));
-            button.setAccessibleText(
-                    "Run a " + t.label() + " scan, costing " + t.cycles() + " cycles");
+            button.setAccessibleText("Run a " + t.label() + " scan, costing " + t.cycles() + " cycles");
             button.setOnAction(e -> {
                 GameSession.Outcome outcome = session.scan(t.flag());
                 result.setText(outcome.message());
@@ -198,8 +197,7 @@ public final class AuditView {
         StackPane bar = new StackPane(track, fill);
         StackPane.setAlignment(fill, Pos.CENTER_LEFT);
 
-        javafx.beans.property.SimpleDoubleProperty progress =
-                new javafx.beans.property.SimpleDoubleProperty(0);
+        javafx.beans.property.SimpleDoubleProperty progress = new javafx.beans.property.SimpleDoubleProperty(0);
         // ⚠ BOUND to the track's live width. Setting a pref width from `track.getWidth()` reads 0
         // before the first layout pass, so the bar is empty on the frame the panel opens — the same
         // defect a render caught on the firmware overlay.
@@ -229,10 +227,15 @@ public final class AuditView {
 
             List<String> paths = session.auditPaths();
             int reached = (int) Math.round(paths.size() * done);
-            caption.setText(String.format(java.util.Locale.ROOT,
+            caption.setText(String.format(
+                    java.util.Locale.ROOT,
                     "%s · %s / %s · %d%% · %d of %d files",
-                    task.label(), Ui.clock(elapsed(task)), Ui.clock(total(task)),
-                    Math.round(done * 100), reached, paths.size()));
+                    task.label(),
+                    Ui.clock(elapsed(task)),
+                    Ui.clock(total(task)),
+                    Math.round(done * 100),
+                    reached,
+                    paths.size()));
 
             // ⚠ Rebuilt only when the COUNT changes. Clearing and refilling a hundred labels every
             // second would fight the player's scroll position on the one panel they are watching.
@@ -270,13 +273,19 @@ public final class AuditView {
     private static long elapsed(GameSession.RunningTask task) {
         return task.startedAt() == null
                 ? 0L
-                : Math.max(0L, java.time.Duration.between(task.startedAt(), task.asOf()).toSeconds());
+                : Math.max(
+                        0L,
+                        java.time.Duration.between(task.startedAt(), task.asOf())
+                                .toSeconds());
     }
 
     private static long total(GameSession.RunningTask task) {
         return task.startedAt() == null
                 ? 0L
-                : Math.max(0L, java.time.Duration.between(task.startedAt(), task.endsAt()).toSeconds());
+                : Math.max(
+                        0L,
+                        java.time.Duration.between(task.startedAt(), task.endsAt())
+                                .toSeconds());
     }
 
     // ------------------------------------------------------------------ status
@@ -291,10 +300,9 @@ public final class AuditView {
     private static Region status(GameSession session, Shell shell) {
         VBox box = new VBox(UiTokens.SPACE_3);
 
-        Label hint = Views.wrapped(
-                "Three views of your own rig. They should agree. When they do not, something is "
-                        + "hiding — a connection with no owning process, or storage that grew while "
-                        + "nothing was running. That discrepancy is the game.");
+        Label hint = Views.wrapped("Three views of your own rig. They should agree. When they do not, something is "
+                + "hiding — a connection with no owning process, or storage that grew while "
+                + "nothing was running. That discrepancy is the game.");
 
         VBox output = new VBox(2);
         ScrollPane scroll = new ScrollPane(output);
@@ -351,8 +359,7 @@ public final class AuditView {
         box.getChildren().add(columns);
 
         for (ScanReport report : reports) {
-            Label row = new Label(
-                    pad(report.tierLabel(), 12) + pad(report.duration(), 8) + report.summary());
+            Label row = new Label(pad(report.tierLabel(), 12) + pad(report.duration(), 8) + report.summary());
             row.getStyleClass().addAll("es-mono", report.clean() ? "es-audit-clean" : "es-audit-hit");
             row.setWrapText(true);
             box.getChildren().add(row);

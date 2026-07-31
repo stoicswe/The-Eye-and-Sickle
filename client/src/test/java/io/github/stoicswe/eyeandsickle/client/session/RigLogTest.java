@@ -2,13 +2,13 @@ package io.github.stoicswe.eyeandsickle.client.session;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
 import io.github.stoicswe.eyeandsickle.solo.SoloGame;
 import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import io.github.stoicswe.eyeandsickle.solo.state.MinerState;
 import io.github.stoicswe.eyeandsickle.solo.state.NodeState;
 import io.github.stoicswe.eyeandsickle.solo.state.RigEvent;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
-import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
@@ -102,8 +102,7 @@ class RigLogTest {
             s.arm("canary", 1);
             s.scan("quick");
 
-            assertThat(s.log(7, 100)).extracting(GameSession.LogLine::facility)
-                    .contains("mining", "defense", "scan");
+            assertThat(s.log(7, 100)).extracting(GameSession.LogLine::facility).contains("mining", "defense", "scan");
         }
 
         /**
@@ -136,9 +135,9 @@ class RigLogTest {
             LocalGameSession later = new LocalGameSession(SoloGame.open(
                     new SaveStore(file), "op", Clock.fixed(T0.plus(Duration.ofHours(6)), ZoneOffset.UTC)));
 
-            String text = String.join(" ", later.log(7, 100).stream()
-                    .map(GameSession.LogLine::message)
-                    .toList());
+            String text = String.join(
+                    " ",
+                    later.log(7, 100).stream().map(GameSession.LogLine::message).toList());
             assertThat(text).contains("Resumed after");
             assertThat(text).contains("buffered");
             // The chain ran without the client, and says so — a height that moved 26 blocks with no
@@ -161,13 +160,13 @@ class RigLogTest {
             s.game().state().items.add(item);
 
             s.moveItem(item.itemId, StorageTier.HIGH_HACKABLE_ZONE);
-            assertThat(s.log(4, 100)).anyMatch(l ->
-                    l.facility().equals("storage") && l.message().contains("more exposed"));
+            assertThat(s.log(4, 100))
+                    .anyMatch(l -> l.facility().equals("storage") && l.message().contains("more exposed"));
 
             s.moveItem(item.itemId, StorageTier.VAULT);
             // Moving back to safety is ordinary, not a warning.
-            assertThat(s.log(7, 100)).anyMatch(l ->
-                    l.severity() == 6 && l.message().contains("vault"));
+            assertThat(s.log(7, 100))
+                    .anyMatch(l -> l.severity() == 6 && l.message().contains("vault"));
         }
     }
 
@@ -181,8 +180,7 @@ class RigLogTest {
             // A line every second saying "earned 0.011 EC" would bury the one line that mattered.
             // That is alert-fatigue(7), which is a page in this game's own manual.
             var clock = new MutableClock(T0);
-            LocalGameSession s = new LocalGameSession(
-                    SoloGame.open(new SaveStore(dir.resolve("s.json")), "op", clock));
+            LocalGameSession s = new LocalGameSession(SoloGame.open(new SaveStore(dir.resolve("s.json")), "op", clock));
             s.allocateSelfMining(100);
             int afterAllocate = s.log(7, 500).size();
 

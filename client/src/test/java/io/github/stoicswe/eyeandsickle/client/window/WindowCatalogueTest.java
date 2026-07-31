@@ -21,7 +21,8 @@ import org.junit.jupiter.api.Test;
 class WindowCatalogueTest {
 
     @Test
-    @DisplayName("the catalogue is 05 §2.1's fifteen, less `map`, plus `man`, `log`, `breach`, `netmap`, `calc`, `files`")
+    @DisplayName(
+            "the catalogue is 05 §2.1's fifteen, less `map`, plus `man`, `log`, `breach`, `netmap`, `calc`, `files`")
     void catalogueMatchesTheDocuments() {
         // ⚠ The two documents disagree about the size of a table both call closed: docs/client/05
         // §2.1 lists fifteen and never absorbed the `man` window that docs/client/04 §4.6 adds and
@@ -51,11 +52,30 @@ class WindowCatalogueTest {
         // swept elsewhere, and it carried a stale note reading "Breach targeting is not built".
         // `netmap` has had a LIST view on a chip the whole time, so nothing was lost with it.
         assertThat(WindowSpec.values()).hasSize(20);
-        assertThat(java.util.Arrays.stream(WindowSpec.values()).map(WindowSpec::id).toList())
+        assertThat(java.util.Arrays.stream(WindowSpec.values())
+                        .map(WindowSpec::id)
+                        .toList())
                 .containsExactlyInAnyOrder(
-                        "rig-monitor", "terminal", "recon", "audit", "mining", "storage",
-                        "ledger", "botnet", "defense", "market", "identity", "comms", "settings",
-                        "switcher", "man", "log", "breach", "netmap", "calc", "files");
+                        "rig-monitor",
+                        "terminal",
+                        "recon",
+                        "audit",
+                        "mining",
+                        "storage",
+                        "ledger",
+                        "botnet",
+                        "defense",
+                        "market",
+                        "identity",
+                        "comms",
+                        "settings",
+                        "switcher",
+                        "man",
+                        "log",
+                        "breach",
+                        "netmap",
+                        "calc",
+                        "files");
     }
 
     @Test
@@ -67,7 +87,8 @@ class WindowCatalogueTest {
         assertThat(WindowSpec.byId("map")).isEmpty();
         assertThat(WindowSpec.byId("netmap")).isPresent();
         assertThat(java.util.Arrays.stream(WindowSpec.values())
-                        .filter(w -> w.title().toLowerCase(java.util.Locale.ROOT).contains("network"))
+                        .filter(w ->
+                                w.title().toLowerCase(java.util.Locale.ROOT).contains("network"))
                         .toList())
                 .containsExactly(WindowSpec.NETMAP);
     }

@@ -111,8 +111,7 @@ public final class SessionRules {
         session.cycles = Balance.SESSION_CYCLES;
         // Sessions land in the machine's own operator home rather than at `/`, because that is where
         // a real login puts you and because it is where anything worth finding on a host actually is.
-        session.cwd = VirtualFs.home(
-                isOwnRig(save, wanted) ? save.handle : VirtualFs.hostUser(host(save, wanted)));
+        session.cwd = VirtualFs.home(isOwnRig(save, wanted) ? save.handle : VirtualFs.hostUser(host(save, wanted)));
         save.sessions.add(session);
         return new Opened(session, null);
     }
@@ -180,9 +179,17 @@ public final class SessionRules {
         // entered, with the message "No such file or directory".
         boolean ok = isOwnRig(save, address)
                 ? target.equals("/")
-                        || !VirtualFs.listRig(target, save.handle, installed(save), 0, List.of(), List.of(), now).isEmpty()
-                        || VirtualFs.listRig(VirtualFs.parentOf(target), save.handle,
-                                        installed(save), 0, List.of(), List.of(), now).stream()
+                        || !VirtualFs.listRig(target, save.handle, installed(save), 0, List.of(), List.of(), now)
+                                .isEmpty()
+                        || VirtualFs.listRig(
+                                        VirtualFs.parentOf(target),
+                                        save.handle,
+                                        installed(save),
+                                        0,
+                                        List.of(),
+                                        List.of(),
+                                        now)
+                                .stream()
                                 .anyMatch(e -> e.path().equals(target) && e.directory())
                 : VirtualFs.isDirectory(host(save, address), target, now);
         if (!ok) {
@@ -203,7 +210,9 @@ public final class SessionRules {
         if (save == null || address == null) {
             return Optional.empty();
         }
-        return save.sessions.stream().filter(s -> s.address.equals(address.trim())).findFirst();
+        return save.sessions.stream()
+                .filter(s -> s.address.equals(address.trim()))
+                .findFirst();
     }
 
     public static List<SessionState> all(SoloSave save) {

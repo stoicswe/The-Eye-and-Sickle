@@ -1,6 +1,5 @@
 package io.github.stoicswe.eyeandsickle.solo;
 
-import java.math.BigInteger;
 import static io.github.stoicswe.eyeandsickle.solo.support.Money.ec;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -8,20 +7,20 @@ import static org.assertj.core.api.Assertions.withinPercentage;
 
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeBudget;
 import io.github.stoicswe.eyeandsickle.protocol.game.Cycles;
+import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
 import io.github.stoicswe.eyeandsickle.solo.rules.ComputeRules;
 import io.github.stoicswe.eyeandsickle.solo.rules.MiningRules;
-import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
-import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import io.github.stoicswe.eyeandsickle.solo.state.MinerState;
 import io.github.stoicswe.eyeandsickle.solo.state.NodeState;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -228,8 +227,7 @@ class SoloGameTest {
             // ⚠ To double precision. The rate is derived through the network hashrate, which is a
             // double, so it is exact to ~16 significant figures and no further — at 18 decimals that
             // is a residue of ~2000 wei in 4e19. See MiningChainTest.defaultPoolIsTheAnchor.
-            assertThat(ec(game.mining().expectedWeiPerHour()))
-                    .isCloseTo(40.0d, withinPercentage(1e-10d));
+            assertThat(ec(game.mining().expectedWeiPerHour())).isCloseTo(40.0d, withinPercentage(1e-10d));
 
             for (int hour = 0; hour < 24; hour++) {
                 clock.advance(Duration.ofHours(1));
@@ -347,8 +345,7 @@ class SoloGameTest {
                 // ⚠ False at exactly the window, and correctly so — nothing has been withheld from a
                 // player who came back the moment the rig stopped. capped() answers "did the cap
                 // bite", which is a different question from "was the window applied".
-                assertThat(game.chainSync().capped())
-                        .isEqualTo(away.getSeconds() > Balance.offlineMiningSeconds());
+                assertThat(game.chainSync().capped()).isEqualTo(away.getSeconds() > Balance.offlineMiningSeconds());
 
                 if (atCap == 0.0d) {
                     atCap = ec(game.balance().wei());
@@ -400,8 +397,8 @@ class SoloGameTest {
             assertThat(sync.uncontestedBlocks()).isGreaterThan(200);
             // Every contributor row the fill produced is inside the window, by construction.
             assertThat(later.contributions(64))
-                    .allSatisfy(row -> assertThat(row.height())
-                            .isLessThanOrEqualTo(sync.fromHeight() + sync.competedBlocks()));
+                    .allSatisfy(row ->
+                            assertThat(row.height()).isLessThanOrEqualTo(sync.fromHeight() + sync.competedBlocks()));
         }
 
         @Test
@@ -420,17 +417,18 @@ class SoloGameTest {
             game.state().knownNodes.add(node);
             game.persist();
 
-            SoloGame later =
-                    bare(new SaveStore(file), new TestClock(T0.plus(Duration.ofDays(7))));
-            MinerState after = later.state().knownNodes.getFirst().deployedMiners.getFirst();
+            SoloGame later = bare(new SaveStore(file), new TestClock(T0.plus(Duration.ofDays(7))));
+            MinerState after =
+                    later.state().knownNodes.getFirst().deployedMiners.getFirst();
 
             BigInteger cap = MiningRules.bufferCap(after);
             assertThat(after.bufferedWei).isEqualTo(cap);
             // A week away yields four hours, not a week: 10 cycles × 0.4 EC × 4 hr = 16 EC.
             // 10 host cycles × 0.4 EC/cycle-hour × the buffer window. Written from the rate rather
             // than from a literal so a re-tune of either moves this with it.
-            assertThat(cap).isEqualTo(Balance.SELF_MINING_WEI_PER_CYCLE_HOUR
-                    .multiply(java.math.BigInteger.valueOf(10L * Balance.YIELD_BUFFER_HOURS)));
+            assertThat(cap)
+                    .isEqualTo(Balance.SELF_MINING_WEI_PER_CYCLE_HOUR.multiply(
+                            java.math.BigInteger.valueOf(10L * Balance.YIELD_BUFFER_HOURS)));
         }
 
         @Test
@@ -529,8 +527,7 @@ class SoloGameTest {
             Path file = dir.resolve("save.json");
             Files.writeString(file, "{ this is not json");
 
-            assertThatThrownBy(() -> new SaveStore(file).load())
-                    .isInstanceOf(SaveStore.UnreadableSaveException.class);
+            assertThatThrownBy(() -> new SaveStore(file).load()).isInstanceOf(SaveStore.UnreadableSaveException.class);
         }
 
         @Test
@@ -540,8 +537,7 @@ class SoloGameTest {
             bare(new SaveStore(file), new TestClock(T0)).persist();
 
             try (var entries = Files.list(dir)) {
-                assertThat(entries.map(p -> p.getFileName().toString()))
-                        .containsExactly("save.json");
+                assertThat(entries.map(p -> p.getFileName().toString())).containsExactly("save.json");
             }
         }
 
@@ -595,8 +591,7 @@ class SoloGameTest {
             // breach system, and without one planted here the core loop is unreachable on a fresh
             // save. It also makes §3.1's audit mechanic true on day one — the ledger no longer adds
             // up, so there is finally a discrepancy to notice.
-            SoloGame game = SoloGame.open(
-                    new SaveStore(dir.resolve("save.json")), "operator", new TestClock(T0));
+            SoloGame game = SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", new TestClock(T0));
 
             assertThat(game.state().rig.foreignMiners).hasSize(1);
             assertThat(game.computeBudget().total()).isEqualTo(Cycles.of(Balance.STARTING_CYCLES));
@@ -618,8 +613,7 @@ class SoloGameTest {
             assertThat(game.computeBudget().reconciles())
                     .as("an unaudited parasite is unattributed, so the ledger is short by its appetite")
                     .isFalse();
-            assertThat(game.computeBudget().unaccountedFor())
-                    .isEqualTo(Cycles.of(Balance.TUTORIAL_MINER_HOST_CYCLES));
+            assertThat(game.computeBudget().unaccountedFor()).isEqualTo(Cycles.of(Balance.TUTORIAL_MINER_HOST_CYCLES));
         }
 
         @Test

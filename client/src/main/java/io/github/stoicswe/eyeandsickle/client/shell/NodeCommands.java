@@ -90,11 +90,7 @@ public final class NodeCommands {
 
     /** One command: how it is described, what it accepts, and what it does. */
     public record NodeCommand(
-            String name,
-            String group,
-            String synopsis,
-            List<CommandOption> options,
-            List<CommandArgument> arguments) {
+            String name, String group, String synopsis, List<CommandOption> options, List<CommandArgument> arguments) {
 
         /** {@code ls [-l] [-a] [path]} — built from the data, so it cannot describe a flag that is gone. */
         public String usage() {
@@ -102,13 +98,15 @@ public final class NodeCommands {
             for (CommandOption option : options) {
                 out.append(" [").append(option.name());
                 if (option.kind() != OptionKind.FLAG) {
-                    out.append("=<").append(option.kind() == OptionKind.CHOICE
-                            ? String.join("|", option.choices()) : "value").append('>');
+                    out.append("=<")
+                            .append(option.kind() == OptionKind.CHOICE ? String.join("|", option.choices()) : "value")
+                            .append('>');
                 }
                 out.append(']');
             }
             for (CommandArgument argument : arguments) {
-                out.append(argument.required() ? " <" : " [").append(argument.name())
+                out.append(argument.required() ? " <" : " [")
+                        .append(argument.name())
                         .append(argument.required() ? '>' : ']');
             }
             return out.toString();
@@ -140,67 +138,76 @@ public final class NodeCommands {
      * list you read; a menu in four groups of four is a list you use.
      */
     private static final List<NodeCommand> CATALOGUE = List.of(
-            new NodeCommand("ls", "Look around",
+            new NodeCommand(
+                    "ls",
+                    "Look around",
                     "List what is in a directory.",
                     List.of(
                             CommandOption.flag("-l", "Long form: mode, owner, size and date."),
                             CommandOption.flag("-a", "Include entries whose name starts with a dot."),
                             CommandOption.flag("-h", "Sizes in K/M rather than bytes.")),
                     List.of(new CommandArgument("path", "Where to list. Default is here.", false, true))),
-            new NodeCommand("cd", "Look around",
+            new NodeCommand(
+                    "cd",
+                    "Look around",
                     "Change directory.",
                     List.of(),
                     List.of(new CommandArgument("path", "Where to go. `..` goes up.", true, true))),
-            new NodeCommand("pwd", "Look around",
-                    "Print the working directory.", List.of(), List.of()),
-            new NodeCommand("find", "Look around",
+            new NodeCommand("pwd", "Look around", "Print the working directory.", List.of(), List.of()),
+            new NodeCommand(
+                    "find",
+                    "Look around",
                     "Search this directory and below for a name.",
                     List.of(CommandOption.choice("-type", "Restrict to one kind.", "f", "d")),
                     List.of(new CommandArgument("name", "Text the name must contain.", true, false))),
-
-            new NodeCommand("cat", "Read",
+            new NodeCommand(
+                    "cat",
+                    "Read",
                     "Print a file.",
                     List.of(),
                     List.of(new CommandArgument("file", "Which file.", true, true))),
-            new NodeCommand("stat", "Read",
+            new NodeCommand(
+                    "stat",
+                    "Read",
                     "Everything known about one entry.",
                     List.of(),
                     List.of(new CommandArgument("file", "Which entry.", true, true))),
-            new NodeCommand("head", "Read",
+            new NodeCommand(
+                    "head",
+                    "Read",
                     "The first lines of a file.",
                     List.of(CommandOption.choice("-n", "How many lines.", "10", "5", "20", "40")),
                     List.of(new CommandArgument("file", "Which file.", true, true))),
-
-            new NodeCommand("whoami", "The machine",
-                    "Which account this session is running as.", List.of(), List.of()),
-            new NodeCommand("hostname", "The machine",
-                    "This machine's name.", List.of(), List.of()),
-            new NodeCommand("uname", "The machine",
+            new NodeCommand("whoami", "The machine", "Which account this session is running as.", List.of(), List.of()),
+            new NodeCommand("hostname", "The machine", "This machine's name.", List.of(), List.of()),
+            new NodeCommand(
+                    "uname",
+                    "The machine",
                     "What this machine is running.",
                     List.of(CommandOption.flag("-a", "Everything, on one line.")),
                     List.of()),
-            new NodeCommand("df", "The machine",
+            new NodeCommand(
+                    "df",
+                    "The machine",
                     "Mounted filesystems and what is on them.",
                     List.of(CommandOption.flag("-h", "Human-readable sizes.")),
                     List.of()),
-
-            new NodeCommand("get", "Take",
+            new NodeCommand(
+                    "get",
+                    "Take",
                     "Copy a file to your own rig. Upgrades arrive as packages Repac makes installable.",
                     List.of(),
                     List.of(
                             new CommandArgument("file", "Which file.", true, true),
-                            new CommandArgument("into",
-                                    "Where to put it. Default is ~/Downloads.", false, false))),
-
-            new NodeCommand("rm", "Take",
+                            new CommandArgument("into", "Where to put it. Default is ~/Downloads.", false, false))),
+            new NodeCommand(
+                    "rm",
+                    "Take",
                     "Delete a file from your own rig. Not undoable, and it does not ask.",
                     List.of(),
                     List.of(new CommandArgument("file", "Which file.", true, true))),
-
-            new NodeCommand("help", "Session",
-                    "List these commands.", List.of(), List.of()),
-            new NodeCommand("exit", "Session",
-                    "Close this shell and hand its cycles back.", List.of(), List.of()));
+            new NodeCommand("help", "Session", "List these commands.", List.of(), List.of()),
+            new NodeCommand("exit", "Session", "Close this shell and hand its cycles back.", List.of(), List.of()));
 
     public static List<NodeCommand> catalogue() {
         return CATALOGUE;
@@ -276,7 +283,8 @@ public final class NodeCommands {
         List<FsEntry> entries = session.list(address, path);
         boolean all = stage.hasFlag("a");
         boolean human = stage.hasFlag("h");
-        List<FsEntry> shown = entries.stream().filter(e -> all || !e.name().startsWith(".")).toList();
+        List<FsEntry> shown =
+                entries.stream().filter(e -> all || !e.name().startsWith(".")).toList();
         if (shown.isEmpty()) {
             return Result.of(List.of());
         }
@@ -284,9 +292,15 @@ public final class NodeCommands {
         if (stage.hasFlag("l")) {
             out.add("total " + shown.size());
             for (FsEntry entry : shown) {
-                out.add(String.format(Locale.ROOT, "%-11s %-10s %-10s %8s %s %s",
-                        entry.mode(), entry.owner(), entry.group(),
-                        size(entry, human), STAMP.format(entry.modifiedAt()), decorate(entry)));
+                out.add(String.format(
+                        Locale.ROOT,
+                        "%-11s %-10s %-10s %8s %s %s",
+                        entry.mode(),
+                        entry.owner(),
+                        entry.group(),
+                        size(entry, human),
+                        STAMP.format(entry.modifiedAt()),
+                        decorate(entry)));
             }
             return Result.of(out);
         }
@@ -350,8 +364,14 @@ public final class NodeCommands {
     }
 
     private static void walk(
-            GameSession session, String address, String path, List<String> hits,
-            String needle, String type, java.util.Set<String> seen, int budget) {
+            GameSession session,
+            String address,
+            String path,
+            List<String> hits,
+            String needle,
+            String type,
+            java.util.Set<String> seen,
+            int budget) {
         if (hits.size() >= budget || !seen.add(path)) {
             return;
         }
@@ -402,16 +422,19 @@ public final class NodeCommands {
         // plausible-looking log of its own invention would be lying on the one surface where a lie
         // does real damage.
         return switch (file.kind()) {
-            case DOCUMENT -> Result.of(
-                    "[ recovered fragment — " + file.sizeBytes() + " bytes ]",
-                    "Use `get " + file.name() + "` to pull it back to your rig and read it in `recon`.");
-            case LOOT -> Result.of(
-                    "[ wallet — " + file.sizeBytes() + " minor units ]",
-                    "Use `get " + file.name() + "` to take it.");
-            default -> Result.of(
-                    "[ " + file.sizeBytes() + " bytes, " + file.mode() + " ]",
-                    "Nothing in this file is modelled. The two that are — recovered fragments and",
-                    "wallets — say so when you `cat` them.");
+            case DOCUMENT ->
+                Result.of(
+                        "[ recovered fragment — " + file.sizeBytes() + " bytes ]",
+                        "Use `get " + file.name() + "` to pull it back to your rig and read it in `recon`.");
+            case LOOT ->
+                Result.of(
+                        "[ wallet — " + file.sizeBytes() + " minor units ]",
+                        "Use `get " + file.name() + "` to take it.");
+            default ->
+                Result.of(
+                        "[ " + file.sizeBytes() + " bytes, " + file.mode() + " ]",
+                        "Nothing in this file is modelled. The two that are — recovered fragments and",
+                        "wallets — say so when you `cat` them.");
         };
     }
 
@@ -451,8 +474,7 @@ public final class NodeCommands {
      * <p>The refusal for somebody else's machine comes from the rules, not from here, so the terminal
      * and the file manager give the same answer for the same reason.
      */
-    private static Result rm(
-            GameSession session, String address, String cwd, CommandLine.Stage stage) {
+    private static Result rm(GameSession session, String address, String cwd, CommandLine.Stage stage) {
         String named = stage.argument(0).orElse("");
         if (named.isBlank()) {
             // Real `rm`'s own wording. ⚠ This is also what `rm -rf /` reaches: the shell does not
@@ -486,9 +508,7 @@ public final class NodeCommands {
     private static Result uname(CommandLine.Stage stage) {
         // uOS is the game's own system (docs/client/03), and the kernel line is Linux's shape because
         // that is what the fiction says it is. It is NOT a claim to be Ubuntu.
-        return stage.hasFlag("a")
-                ? Result.of("uOS 4.2.0-19-generic #19-uOS SMP x86_64 GNU/Linux")
-                : Result.of("uOS");
+        return stage.hasFlag("a") ? Result.of("uOS 4.2.0-19-generic #19-uOS SMP x86_64 GNU/Linux") : Result.of("uOS");
     }
 
     private static Result df(GameSession session, String address, CommandLine.Stage stage) {
@@ -501,8 +521,7 @@ public final class NodeCommands {
         String store = vaultStore(session, address);
         for (FsEntry tier : session.list(address, store)) {
             long count = session.list(address, tier.path()).size();
-            out.add(String.format(Locale.ROOT, "%-34s %-10d %s",
-                    tier.path(), count, exposure(tier.name())));
+            out.add(String.format(Locale.ROOT, "%-34s %-10d %s", tier.path(), count, exposure(tier.name())));
         }
         for (FsEntry mount : session.list(address, "/mnt")) {
             long count = session.list(address, mount.path()).size();
@@ -571,8 +590,7 @@ public final class NodeCommands {
 
     // ── helpers ───────────────────────────────────────────────────────────────────────────────
 
-    private static Optional<FsEntry> entry(
-            GameSession session, String address, String cwd, String name) {
+    private static Optional<FsEntry> entry(GameSession session, String address, String cwd, String name) {
         if (name == null || name.isBlank()) {
             return Optional.empty();
         }

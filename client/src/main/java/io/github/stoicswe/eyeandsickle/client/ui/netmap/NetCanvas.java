@@ -186,7 +186,9 @@ public final class NetCanvas {
      */
     private static String serverStrip(NetMap map) {
         String name = map.currentServer().name().isEmpty()
-                ? (map.currentServer().serverId().isEmpty() ? UNTYPED : map.currentServer().serverId())
+                ? (map.currentServer().serverId().isEmpty()
+                        ? UNTYPED
+                        : map.currentServer().serverId())
                 : map.currentServer().name();
         int ceiling = Math.max(1, map.hopCeiling());
         return "SERVER"
@@ -288,7 +290,8 @@ public final class NetCanvas {
             }
             for (NetLayout.Placed placed : layout.placed()) {
                 Sighting sighting = placed.sighting();
-                if (sighting.kind() != HostKind.BRIDGE || sighting.bridgePeerServerName().isEmpty()) {
+                if (sighting.kind() != HostKind.BRIDGE
+                        || sighting.bridgePeerServerName().isEmpty()) {
                     continue;
                 }
                 int target = placed.layer() + 1;
@@ -678,8 +681,12 @@ public final class NetCanvas {
         String rule = String.valueOf(horizontal).repeat(UiTokens.NET_NODE_COLS - 2);
         // ⚠ The widths here sum to NET_NODE_COLS - 2 exactly. Anything that does not shears every
         // column to its right, which is the failure NET_NODE_COLS exists to make impossible.
-        String interior = blank(1) + glyphFor(sighting, vantage) + blank(1)
-                + padRight(kindOf(sighting), KIND_COLS) + blank(1) + lockFor(sighting, vantage);
+        String interior = blank(1)
+                + glyphFor(sighting, vantage)
+                + blank(1)
+                + padRight(kindOf(sighting), KIND_COLS)
+                + blank(1)
+                + lockFor(sighting, vantage);
         // ⚠ The bar takes the address line's existing leading blank rather than being prepended.
         // Prepending would push the line one column wide and shear everything to its right — the
         // failure NET_NODE_COLS exists to make impossible, arriving through the one line nobody

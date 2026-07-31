@@ -74,8 +74,8 @@ class ProcessTableTest {
             // thing that makes "which of these are the kernel's" answerable at a glance.
             assertThat(table).anySatisfy(p -> assertThat(p.name()).isEqualTo("[pagedaemon]"));
             assertThat(table).anySatisfy(p -> assertThat(p.name()).isEqualTo("[g_up]"));
-            assertThat(table).anySatisfy(p ->
-                    assertThat(p.name()).isEqualTo("init").isNotNull());
+            assertThat(table)
+                    .anySatisfy(p -> assertThat(p.name()).isEqualTo("init").isNotNull());
             // Real service accounts, and each of them on more than one row or clearly a system one.
             assertThat(table).anySatisfy(p -> assertThat(p.user()).isEqualTo("unbound"));
             assertThat(table).anySatisfy(p -> assertThat(p.user()).isEqualTo("_dhcp"));
@@ -141,8 +141,10 @@ class ProcessTableTest {
             // And it stays in a band. White noise would be uniformly spread across the range every
             // tick, which reads as a slot machine rather than as a computer; a smoothed walk keeps a
             // resting level and strays from it.
-            double lowest = readings.stream().mapToDouble(Double::doubleValue).min().orElseThrow();
-            double highest = readings.stream().mapToDouble(Double::doubleValue).max().orElseThrow();
+            double lowest =
+                    readings.stream().mapToDouble(Double::doubleValue).min().orElseThrow();
+            double highest =
+                    readings.stream().mapToDouble(Double::doubleValue).max().orElseThrow();
             assertThat(highest).isLessThan(lowest * 4.0d + 1.0d);
         }
 
@@ -189,18 +191,19 @@ class ProcessTableTest {
         @DisplayName("sorting by a moving column genuinely re-orders as the figures change")
         void rowsMoveWhenSorted() {
             SoloSave save = character();
-            java.util.function.Function<Instant, List<String>> byCpu = at ->
-                    ProcessTable.of(save, at).stream()
-                            .sorted(java.util.Comparator.comparingDouble(RigProcess::cpuPercent).reversed()
-                                    .thenComparingInt(RigProcess::pid))
-                            .map(RigProcess::name)
-                            .toList();
+            java.util.function.Function<Instant, List<String>> byCpu = at -> ProcessTable.of(save, at).stream()
+                    .sorted(java.util.Comparator.comparingDouble(RigProcess::cpuPercent)
+                            .reversed()
+                            .thenComparingInt(RigProcess::pid))
+                    .map(RigProcess::name)
+                    .toList();
             // What the player asked for: rows jump. Over a couple of minutes a %CPU ordering has to
             // actually change, or the wander is too small to be worth drawing.
             List<String> first = byCpu.apply(T0);
             boolean moved = false;
             for (int i = 1; i <= 24 && !moved; i++) {
-                moved = !byCpu.apply(T0.plusSeconds(i * Vitals.INTERVAL_SECONDS)).equals(first);
+                moved = !byCpu.apply(T0.plusSeconds(i * Vitals.INTERVAL_SECONDS))
+                        .equals(first);
             }
             assertThat(moved).isTrue();
         }
@@ -228,8 +231,10 @@ class ProcessTableTest {
             save.rig.allocations.clear();
             save.rig.foreignMiners.clear();
             var allocation = io.github.stoicswe.eyeandsickle.solo.rules.ComputeRules.reserve(
-                    save.rig, io.github.stoicswe.eyeandsickle.protocol.game.ComputeConsumer.ACTIVE_TOOL,
-                    "scan --full", 15L);
+                    save.rig,
+                    io.github.stoicswe.eyeandsickle.protocol.game.ComputeConsumer.ACTIVE_TOOL,
+                    "scan --full",
+                    15L);
             var task = new io.github.stoicswe.eyeandsickle.solo.state.TaskState(
                     "scan", "scan --full", allocation.allocationId, 15L, T0, T0.plusSeconds(120));
             save.tasks.add(task);
@@ -271,7 +276,8 @@ class ProcessTableTest {
 
             // The grid comes up short and says nothing (ComputeRules.snapshot omits it). This table
             // is the one place an unaudited parasite is visible at all — in costume.
-            assertThat(io.github.stoicswe.eyeandsickle.solo.rules.ComputeRules.snapshot(save).reconciles())
+            assertThat(io.github.stoicswe.eyeandsickle.solo.rules.ComputeRules.snapshot(save)
+                            .reconciles())
                     .isFalse();
             assertThat(parasiteRow(save, T0)).isNotNull();
         }
@@ -301,25 +307,25 @@ class ProcessTableTest {
 
                 switch (disguise) {
                     case SYSTEM_MIMIC ->
-                            // The tell: the account appears exactly once in the whole table, while
-                            // every real service account appears on more than one row.
-                            assertThat(table).filteredOn(p -> p.user().equals(row.user())).hasSize(1);
+                        // The tell: the account appears exactly once in the whole table, while
+                        // every real service account appears on more than one row.
+                        assertThat(table)
+                                .filteredOn(p -> p.user().equals(row.user()))
+                                .hasSize(1);
                     case TYPOSQUAT ->
-                            // The tell: the daemon it is imitating is in the same table, so sorting
-                            // by name puts the two next to each other.
-                            assertThat(table).anySatisfy(p ->
-                                    assertThat(p.name()).isEqualTo("syspolicyd"));
+                        // The tell: the daemon it is imitating is in the same table, so sorting
+                        // by name puts the two next to each other.
+                        assertThat(table).anySatisfy(p -> assertThat(p.name()).isEqualTo("syspolicyd"));
                     case RESOURCE_HOG ->
-                            // The tell: nothing the player started accounts for it.
-                            assertThat(row.cpuPercent()).isGreaterThan(15.0d);
+                        // The tell: nothing the player started accounts for it.
+                        assertThat(row.cpuPercent()).isGreaterThan(15.0d);
                     case STOPPED_CLOCK -> {
                         // The tell: a fifth of the machine, and seconds of accumulated time to show
                         // for it. Ten minutes of wall clock have passed in this fixture.
                         assertThat(row.cpuPercent()).isGreaterThan(15.0d);
                         assertThat(row.cpuTime()).isLessThan(Duration.ofSeconds(10));
                     }
-                    case TOOL_TWIN ->
-                            assertThat(row.name()).isEqualTo("scan --full");
+                    case TOOL_TWIN -> assertThat(row.name()).isEqualTo("scan --full");
                 }
             }
         }
@@ -411,8 +417,8 @@ class ProcessTableTest {
                 String victim = SystemProcesses.squattableName(seed);
                 // Squatting a daemon the rig does not run would be an unfalsifiable name, which is
                 // not a disguise — it is a riddle.
-                assertThat(SystemProcesses.all()).anySatisfy(d ->
-                        assertThat(d.name()).isEqualTo(victim));
+                assertThat(SystemProcesses.all())
+                        .anySatisfy(d -> assertThat(d.name()).isEqualTo(victim));
             }
         }
     }

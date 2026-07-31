@@ -1,31 +1,29 @@
 package io.github.stoicswe.eyeandsickle.client.view;
 
-import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.client.profile.ClientProfile;
 import io.github.stoicswe.eyeandsickle.client.session.GameSession;
-import io.github.stoicswe.eyeandsickle.client.shell.BuiltinCommands;
-import io.github.stoicswe.eyeandsickle.client.shell.Command;
 import io.github.stoicswe.eyeandsickle.client.shell.Shell;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeId;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeManager;
-import io.github.stoicswe.eyeandsickle.client.window.WindowRegistry;
-import io.github.stoicswe.eyeandsickle.client.window.WindowSpec;
 import io.github.stoicswe.eyeandsickle.client.ui.Pulse;
 import io.github.stoicswe.eyeandsickle.client.ui.Ui;
-import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
 import io.github.stoicswe.eyeandsickle.client.ui.cursors.Cursors;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.KeyValue;
+import io.github.stoicswe.eyeandsickle.client.window.WindowRegistry;
+import io.github.stoicswe.eyeandsickle.client.window.WindowSpec;
 import io.github.stoicswe.eyeandsickle.protocol.game.BlockContribution;
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainBlock;
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainMempool;
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainTransaction;
+import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.protocol.game.FeeTier;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningPool;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningSnapshot;
 import io.github.stoicswe.eyeandsickle.protocol.game.PoolScheme;
 import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
+import io.github.stoicswe.eyeandsickle.solo.Balance;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -34,14 +32,13 @@ import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Label;
-import javafx.scene.control.ListView;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Separator;
 import javafx.scene.control.Slider;
-import javafx.scene.control.TextField;
 import javafx.scene.control.TableCell;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
+import javafx.scene.control.TextField;
 import javafx.scene.control.ToggleButton;
 import javafx.scene.control.ToggleGroup;
 import javafx.scene.layout.FlowPane;
@@ -81,10 +78,9 @@ public final class Views {
      */
     public static Region audit(GameSession session, Shell shell) {
         VBox root = panel("AUDIT — ps · netstat · df");
-        Label hint = wrapped(
-                "Three views of your own rig. They should agree. When they do not, something is "
-                        + "hiding — a connection with no owning process, or storage that grew while "
-                        + "nothing was running. That discrepancy is the game.");
+        Label hint = wrapped("Three views of your own rig. They should agree. When they do not, something is "
+                + "hiding — a connection with no owning process, or storage that grew while "
+                + "nothing was running. That discrepancy is the game.");
         VBox output = new VBox(2);
         ScrollPane scroll = new ScrollPane(output);
         scroll.setFitToWidth(true);
@@ -237,9 +233,13 @@ public final class Views {
                 // different-looking renderings of one number destroy that.
                 current.setText(session.balance().toString());
 
-                chain.setText(String.format(Locale.ROOT,
+                chain.setText(String.format(
+                        Locale.ROOT,
                         "height %d   difficulty %.2f   retarget in %d blocks   network %s",
-                        m.height(), m.difficulty(), m.blocksUntilRetarget(), rate(m.networkHashrate())));
+                        m.height(),
+                        m.difficulty(),
+                        m.blocksUntilRetarget(),
+                        rate(m.networkHashrate())));
 
                 // ⚠ COMMITTED cycles drive every figure here; the slider only previews.
                 //
@@ -253,9 +253,11 @@ public final class Views {
                 if (m.cycles() <= 0) {
                     rigLine.setText("this rig is not mining");
                 } else {
-                    rigLine.setText(String.format(Locale.ROOT,
+                    rigLine.setText(String.format(
+                            Locale.ROOT,
                             "this rig %s from %d cycles — %.2f%% of the chain",
-                            rate(m.hashrate()), m.cycles(),
+                            rate(m.hashrate()),
+                            m.cycles(),
                             100.0d * m.hashrate() / Math.max(1L, m.networkHashrate())));
                 }
 
@@ -267,7 +269,8 @@ public final class Views {
                     // Labelled an expectation rather than a rate, because for solo it is one draw in
                     // four hours and calling that "40 EC/hr" would be the most misleading true
                     // sentence on the panel.
-                    projection.setText(String.format(Locale.ROOT,
+                    projection.setText(String.format(
+                            Locale.ROOT,
                             "%s per %s, about one every %s  →  %s/hr expected",
                             // ⚠ Both are EXPECTATIONS — a long-run payout and a long-run rate, both
                             // derived through the network hashrate, which is a double. Printed exact
@@ -277,19 +280,24 @@ public final class Views {
                             // The payout EVENT differs by scheme: a block, a share, or a cut of a
                             // block the pool found. One word for all three would undo the
                             // distinction mining-pool(7) exists to teach.
-                            isSolo ? "block"
-                                    : m.pool() != null && m.pool().scheme() == PoolScheme.PPS
-                                            ? "share"
-                                            : "payout",
+                            isSolo
+                                    ? "block"
+                                    : m.pool() != null && m.pool().scheme() == PoolScheme.PPS ? "share" : "payout",
                             humanSeconds(m.expectedPayoutSeconds()),
                             Ethecoin.formatApprox(m.expectedWeiPerHour(), 4)));
                     String pending = m.pendingWei().signum() > 0
-                            ? String.format(Locale.ROOT, "   %s held by the pool, paid in %ds",
-                                    Ethecoin.format(m.pendingWei()), m.secondsUntilSettle())
+                            ? String.format(
+                                    Locale.ROOT,
+                                    "   %s held by the pool, paid in %ds",
+                                    Ethecoin.format(m.pendingWei()),
+                                    m.secondsUntilSettle())
                             : "";
-                    odds.setText(String.format(Locale.ROOT,
+                    odds.setText(String.format(
+                            Locale.ROOT,
                             "%.0f%% chance of at least one in the next hour, %.0f%% in eight.%s",
-                            100 * m.chanceWithin(3600), 100 * m.chanceWithin(8 * 3600), pending));
+                            100 * m.chanceWithin(3600),
+                            100 * m.chanceWithin(8 * 3600),
+                            pending));
                 }
 
                 if (chosen == m.cycles()) {
@@ -299,12 +307,14 @@ public final class Views {
                 } else {
                     preview.setVisible(true);
                     preview.setManaged(true);
-                    preview.setText(chosen <= 0
-                            ? "Allocate would STOP mining."
-                            : String.format(Locale.ROOT,
-                                    "Allocate would commit %d cycles → %s/hr expected.",
-                                    chosen,
-                                    Ethecoin.formatApprox(session.miningRateFor(chosen), 4)));
+                    preview.setText(
+                            chosen <= 0
+                                    ? "Allocate would STOP mining."
+                                    : String.format(
+                                            Locale.ROOT,
+                                            "Allocate would commit %d cycles → %s/hr expected.",
+                                            chosen,
+                                            Ethecoin.formatApprox(session.miningRateFor(chosen), 4)));
                 }
 
                 if (isSolo) {
@@ -376,20 +386,32 @@ public final class Views {
         refresh.run();
         session.onChange(s -> refresh.run());
 
-        root.getChildren().addAll(
-                wrapped("Self-mining is the floor: safe, silent, generates no heat, and cannot be "
-                        + "seized — but it only earns while the client is open. Deployed miners are "
-                        + "the only offline income, and their buffer caps."),
-                new Separator(),
-                new Label("CHAIN"), chain, rigLine,
-                new Separator(),
-                new Label("BALANCE"), current,
-                new Label("SELF-MINING ALLOCATION"), allocation, projection, odds, preview,
-                new Separator(),
-                new Label("PAYOUT"), new HBox(8, pooled, solo), modeNote,
-                poolHeading, poolList,
-                new Separator(),
-                new HBox(8, apply, collect), result);
+        root.getChildren()
+                .addAll(
+                        wrapped("Self-mining is the floor: safe, silent, generates no heat, and cannot be "
+                                + "seized — but it only earns while the client is open. Deployed miners are "
+                                + "the only offline income, and their buffer caps."),
+                        new Separator(),
+                        new Label("CHAIN"),
+                        chain,
+                        rigLine,
+                        new Separator(),
+                        new Label("BALANCE"),
+                        current,
+                        new Label("SELF-MINING ALLOCATION"),
+                        allocation,
+                        projection,
+                        odds,
+                        preview,
+                        new Separator(),
+                        new Label("PAYOUT"),
+                        new HBox(8, pooled, solo),
+                        modeNote,
+                        poolHeading,
+                        poolList,
+                        new Separator(),
+                        new HBox(8, apply, collect),
+                        result);
         return scrollable(root);
     }
 
@@ -416,10 +438,11 @@ public final class Views {
 
         FlowPane facts = new FlowPane(UiTokens.SPACE_5, UiTokens.SPACE_2);
         facts.setAlignment(Pos.BASELINE_LEFT);
-        facts.getChildren().addAll(
-                KeyValue.of("Fee", pool.feeText()),
-                KeyValue.of("Chain", pool.shareText()),
-                KeyValue.of("Pays", "every " + humanSeconds(interval)));
+        facts.getChildren()
+                .addAll(
+                        KeyValue.of("Fee", pool.feeText()),
+                        KeyValue.of("Chain", pool.shareText()),
+                        KeyValue.of("Pays", "every " + humanSeconds(interval)));
 
         VBox box = new VBox(UiTokens.SPACE_2, title, facts, secondary(pool.blurb()));
         if (!pool.caution().isBlank()) {
@@ -522,8 +545,7 @@ public final class Views {
                     + "   ·   safe in vault " + safe);
 
             for (StorageTier tier : StorageTier.values()) {
-                tiers.getChildren().add(
-                        tierSection(session, tier, grid[0], selected, refresh[0], result));
+                tiers.getChildren().add(tierSection(session, tier, grid[0], selected, refresh[0], result));
             }
 
             moves.getChildren().clear();
@@ -539,10 +561,9 @@ public final class Views {
                     Button move = new Button(Ui.upper(shortTier(target)));
                     move.setMinHeight(26);
                     move.setTooltip(new javafx.scene.control.Tooltip(
-                            "mv \"" + picked.displayName() + "\" " + shortTier(target)
-                                    + "\n\n" + exposureOf(target)));
-                    move.setAccessibleText("Move " + picked.displayName() + " to "
-                            + shortTier(target) + ". " + exposureOf(target));
+                            "mv \"" + picked.displayName() + "\" " + shortTier(target) + "\n\n" + exposureOf(target)));
+                    move.setAccessibleText(
+                            "Move " + picked.displayName() + " to " + shortTier(target) + ". " + exposureOf(target));
                     move.setOnAction(e -> {
                         GameSession.Outcome outcome = session.moveItem(picked.itemId(), target);
                         result.setText(outcome.message());
@@ -584,16 +605,17 @@ public final class Views {
         ScrollPane scroll = new ScrollPane(tiers);
         scroll.setFitToWidth(true);
         VBox.setVgrow(scroll, Priority.ALWAYS);
-        root.getChildren().addAll(
-                atRisk,
-                new Separator(),
-                wrapped("Moving something changes what can happen to it. That risk change is the "
-                        + "decision — each mount says what it means, and `mv <item> <tier>` does the "
-                        + "same thing from the terminal."),
-                modes,
-                scroll,
-                moves,
-                result);
+        root.getChildren()
+                .addAll(
+                        atRisk,
+                        new Separator(),
+                        wrapped("Moving something changes what can happen to it. That risk change is the "
+                                + "decision — each mount says what it means, and `mv <item> <tier>` does the "
+                                + "same thing from the terminal."),
+                        modes,
+                        scroll,
+                        moves,
+                        result);
         return root;
     }
 
@@ -619,12 +641,7 @@ public final class Views {
      * nothing, so the grid is the better default here and the toggle keeps §7.2's case reachable.
      */
     private static Region tierSection(
-            GameSession session,
-            StorageTier tier,
-            boolean grid,
-            String[] selected,
-            Runnable refresh,
-            Label result) {
+            GameSession session, StorageTier tier, boolean grid, String[] selected, Runnable refresh, Label result) {
         var items = session.items(tier);
         int capacity = session.storageCapacity(tier);
 
@@ -709,8 +726,7 @@ public final class Views {
      */
     private static void draggableItem(Region node, GameSession.InventoryItem item) {
         node.setOnDragDetected(e -> {
-            javafx.scene.input.Dragboard board =
-                    node.startDragAndDrop(javafx.scene.input.TransferMode.MOVE);
+            javafx.scene.input.Dragboard board = node.startDragAndDrop(javafx.scene.input.TransferMode.MOVE);
             javafx.scene.input.ClipboardContent content = new javafx.scene.input.ClipboardContent();
             content.put(STORAGE_ITEM, item.itemId());
             board.setContent(content);
@@ -739,11 +755,7 @@ public final class Views {
      * like one.
      */
     private static void itemDropTarget(
-            Region node,
-            StorageTier tier,
-            GameSession session,
-            Label result,
-            Runnable refresh) {
+            Region node, StorageTier tier, GameSession session, Label result, Runnable refresh) {
         node.setPickOnBounds(true);
         node.setOnDragOver(e -> {
             if (acceptsDrop(e, tier, session)) {
@@ -782,18 +794,17 @@ public final class Views {
     }
 
     /** Whether this drag is an item that is not already in {@code tier}. */
-    private static boolean acceptsDrop(
-            javafx.scene.input.DragEvent e, StorageTier tier, GameSession session) {
+    private static boolean acceptsDrop(javafx.scene.input.DragEvent e, StorageTier tier, GameSession session) {
         if (!e.getDragboard().hasContent(STORAGE_ITEM)) {
             return false;
         }
-        GameSession.InventoryItem dragged = findItem(session, (String) e.getDragboard().getContent(STORAGE_ITEM));
+        GameSession.InventoryItem dragged =
+                findItem(session, (String) e.getDragboard().getContent(STORAGE_ITEM));
         return dragged != null && dragged.tier() != tier;
     }
 
     /** One slot. Filled slots carry a name and are selectable; empty ones are drawn and inert. */
-    private static Region slot(
-            GameSession.InventoryItem item, String[] selected, Runnable refresh) {
+    private static Region slot(GameSession.InventoryItem item, String[] selected, Runnable refresh) {
         VBox cell = new VBox(1);
         cell.getStyleClass().add("es-slot");
         cell.setMinSize(104, 46);
@@ -988,8 +999,10 @@ public final class Views {
         TableColumn<ChainTransaction, String> block = new TableColumn<>("Block");
         // ⚠ A dash, not a zero. A pool payout never touched the chain — the pool paid it out of its
         // own balance — and printing a block number would claim a miner mined it.
-        block.setCellValueFactory(c -> text(c.getValue().blockNumber() < 0
-                ? "—" : String.valueOf(c.getValue().blockNumber())));
+        block.setCellValueFactory(c -> text(
+                c.getValue().blockNumber() < 0
+                        ? "—"
+                        : String.valueOf(c.getValue().blockNumber())));
         block.setPrefWidth(80);
 
         TableColumn<ChainTransaction, String> when = new TableColumn<>("Age");
@@ -1001,14 +1014,20 @@ public final class Views {
         // the table. The address is still what is on the chain and the explorer still shows it — the
         // name is carried beside it, never instead of it, which is what keeps §3.1's audit possible.
         TableColumn<ChainTransaction, String> from = new TableColumn<>("From");
-        from.setCellValueFactory(c -> text(c.getValue().coinbase()
-                ? "coinbase" : party(c.getValue().from(), c.getValue().counterpartyLabel(),
-                        c.getValue().incoming())));
+        from.setCellValueFactory(c -> text(
+                c.getValue().coinbase()
+                        ? "coinbase"
+                        : party(
+                                c.getValue().from(),
+                                c.getValue().counterpartyLabel(),
+                                c.getValue().incoming())));
         from.setPrefWidth(150);
 
         TableColumn<ChainTransaction, String> to = new TableColumn<>("To");
-        to.setCellValueFactory(c -> text(party(c.getValue().to(),
-                c.getValue().counterpartyLabel(), !c.getValue().incoming())));
+        to.setCellValueFactory(c -> text(party(
+                c.getValue().to(),
+                c.getValue().counterpartyLabel(),
+                !c.getValue().incoming())));
         to.setPrefWidth(150);
 
         TableColumn<ChainTransaction, String> value = new TableColumn<>("Value");
@@ -1093,10 +1112,13 @@ public final class Views {
             MiningSnapshot m = session.miningChain();
             address.setText(session.chainAddress());
             balance.setText(session.balance().toString());
-            chainLine.setText(String.format(Locale.ROOT,
+            chainLine.setText(String.format(
+                    Locale.ROOT,
                     "height %d   difficulty %.2f   a block every ~%d min   retarget in %d",
-                    m.height(), m.difficulty(),
-                    Math.round(Balance.CHAIN_TARGET_BLOCK_SECONDS / 60.0d), m.blocksUntilRetarget()));
+                    m.height(),
+                    m.difficulty(),
+                    Math.round(Balance.CHAIN_TARGET_BLOCK_SECONDS / 60.0d),
+                    m.blocksUntilRetarget()));
 
             ChainMempool pool = session.mempool();
             upcoming.getChildren().clear();
@@ -1117,12 +1139,12 @@ public final class Views {
 
             blocks.getChildren().clear();
             for (ChainBlock b : session.chainBlocks()) {
-                blocks.getChildren().add(
-                        blockCard(session, b, detail, ticking, selectedBlock, markSelected[0]));
+                blocks.getChildren().add(blockCard(session, b, detail, ticking, selectedBlock, markSelected[0]));
             }
             if (blocks.getChildren().isEmpty()) {
-                blocks.getChildren().add(secondary("No blocks yet — the chain mints one every "
-                        + Math.round(Balance.CHAIN_TARGET_BLOCK_SECONDS / 60.0d) + " minutes."));
+                blocks.getChildren()
+                        .add(secondary("No blocks yet — the chain mints one every "
+                                + Math.round(Balance.CHAIN_TARGET_BLOCK_SECONDS / 60.0d) + " minutes."));
             }
             // ⚠ Re-marked after every rebuild. The row is torn down whenever the chain advances, so
             // a selection painted only on click vanishes on the next block while the detail panel
@@ -1144,29 +1166,41 @@ public final class Views {
         // carries the same facts, which is where history belongs.
         ChainSyncPanel.Built sync = ChainSyncPanel.build(session.takeChainSync(), refreshData);
 
-        chainPane.getChildren().addAll(
-                sync.node(),
-                new Label("CHAIN"), chainLine,
-                new Label("MEMPOOL — NEXT BLOCKS"), mempoolLine, upcoming,
-                queueHeading, queue,
-                new Label("RECENT BLOCKS"), blockStrip, detail);
+        chainPane
+                .getChildren()
+                .addAll(
+                        sync.node(),
+                        new Label("CHAIN"),
+                        chainLine,
+                        new Label("MEMPOOL — NEXT BLOCKS"),
+                        mempoolLine,
+                        upcoming,
+                        queueHeading,
+                        queue,
+                        new Label("RECENT BLOCKS"),
+                        blockStrip,
+                        detail);
 
-        ledgerPane.getChildren().addAll(
-                wrapped("Entries are added and never edited. Each row carries the balance after it, "
-                        + "so the log reconciles without replaying it. A dash in the block column "
-                        + "means the transaction never touched the chain."),
-                table);
+        ledgerPane
+                .getChildren()
+                .addAll(
+                        wrapped("Entries are added and never edited. Each row carries the balance after it, "
+                                + "so the log reconciles without replaying it. A dash in the block column "
+                                + "means the transaction never touched the chain."),
+                        table);
 
-        contributorPane.getChildren().addAll(
-                wrapped("Every block your rig put hashrate into — the ones you mined outright, and "
-                        + "the ones your pool found while you were contributing. SHARE is what "
-                        + "fraction of the whole chain you were at the time, which is exactly the "
-                        + "chance each of those blocks had of being yours. COINBASE is newly minted; "
-                        + "FEES were paid by the senders in the block. YOUR CUT is what reached you: "
-                        + "the whole reward when solo, a share of it under PPLNS, and nothing under "
-                        + "pay-per-share — which buys your shares instead and is not dividing the "
-                        + "block up at all."),
-                contributions);
+        contributorPane
+                .getChildren()
+                .addAll(
+                        wrapped("Every block your rig put hashrate into — the ones you mined outright, and "
+                                + "the ones your pool found while you were contributing. SHARE is what "
+                                + "fraction of the whole chain you were at the time, which is exactly the "
+                                + "chance each of those blocks had of being yours. COINBASE is newly minted; "
+                                + "FEES were paid by the senders in the block. YOUR CUT is what reached you: "
+                                + "the whole reward when solo, a share of it under PPLNS, and nothing under "
+                                + "pay-per-share — which buys your shares instead and is not dividing the "
+                                + "block up at all."),
+                        contributions);
 
         Runnable refreshClock = () -> {
             ChainMempool pool = session.mempool();
@@ -1177,7 +1211,8 @@ public final class Views {
             String next = pool.projected().isEmpty()
                     ? "—"
                     : etaPhrase(pool.projected().getFirst(), pool.expectedNextBlockSeconds());
-            mempoolLine.setText(String.format(Locale.ROOT,
+            mempoolLine.setText(String.format(
+                    Locale.ROOT,
                     "%d waiting from you · next block %s · a block every ~%d min on average · "
                             + "last one %s ago · cheapest slot going for %s",
                     pool.yoursPending(),
@@ -1186,8 +1221,7 @@ public final class Views {
                     // ⚠ Not humanSeconds() bare. It answers "never" at or below zero, which is right
                     // for an expected *wait* of infinity and nonsense for an elapsed time — a block
                     // found this very second printed "last one never ago". Caught by rendering it.
-                    pool.secondsSinceLastBlock() <= 0
-                            ? "0s" : humanSeconds(pool.secondsSinceLastBlock()),
+                    pool.secondsSinceLastBlock() <= 0 ? "0s" : humanSeconds(pool.secondsSinceLastBlock()),
                     Ethecoin.format(pool.lowFeeWei())));
             for (Runnable age : ticking) {
                 age.run();
@@ -1206,11 +1240,16 @@ public final class Views {
         AutoCloseable onSession = session.onChange(s -> refreshData.run());
         AutoCloseable clock = Pulse.shared().every(1_000, refreshClock);
 
-        root.getChildren().addAll(
-                new Label("YOUR ADDRESS"), address, balance,
-                new Separator(),
-                tabs,
-                chainPane, ledgerPane, contributorPane);
+        root.getChildren()
+                .addAll(
+                        new Label("YOUR ADDRESS"),
+                        address,
+                        balance,
+                        new Separator(),
+                        tabs,
+                        chainPane,
+                        ledgerPane,
+                        contributorPane);
         Region scrolled = scrollable(root);
         releaseOnDetach(root, onSession, clock, () -> sync.release().run());
         return scrolled;
@@ -1245,11 +1284,12 @@ public final class Views {
      */
     private static TableView<BlockContribution> contributionTable() {
         TableView<BlockContribution> table = new TableView<>();
-        table.setPlaceholder(new Label(
-                "No blocks yet. Commit cycles to mining and this fills as the chain finds them."));
+        table.setPlaceholder(
+                new Label("No blocks yet. Commit cycles to mining and this fills as the chain finds them."));
 
         TableColumn<BlockContribution, String> height = new TableColumn<>("Block");
-        height.setCellValueFactory(c -> text(String.format(Locale.ROOT, "%,d", c.getValue().height())));
+        height.setCellValueFactory(
+                c -> text(String.format(Locale.ROOT, "%,d", c.getValue().height())));
         height.setPrefWidth(90);
 
         TableColumn<BlockContribution, String> when = new TableColumn<>("Age");
@@ -1272,8 +1312,8 @@ public final class Views {
         rate.setPrefWidth(120);
 
         TableColumn<BlockContribution, String> share = new TableColumn<>("Share");
-        share.setCellValueFactory(c -> text(
-                String.format(Locale.ROOT, "%.2f%%", c.getValue().networkShare() * 100)));
+        share.setCellValueFactory(
+                c -> text(String.format(Locale.ROOT, "%.2f%%", c.getValue().networkShare() * 100)));
         share.setPrefWidth(80);
 
         TableColumn<BlockContribution, String> transactions = new TableColumn<>("TXNs");
@@ -1298,18 +1338,20 @@ public final class Views {
         // raises. ⚠ Keyed off the SCHEME and not off paid(): a PPLNS block whose cut rounded to zero
         // really did pay nothing out of a block that was being divided, and must still say 0.00.
         TableColumn<BlockContribution, String> cut = new TableColumn<>("Your cut");
-        cut.setCellValueFactory(c -> text("PPS".equals(c.getValue().scheme())
-                ? "per share"
-                : Ethecoin.format(c.getValue().creditedWei())));
+        cut.setCellValueFactory(c -> text(
+                "PPS".equals(c.getValue().scheme())
+                        ? "per share"
+                        : Ethecoin.format(c.getValue().creditedWei())));
         cut.setCellFactory(column -> new TableCell<>() {
             @Override
             protected void updateItem(String value, boolean empty) {
                 super.updateItem(value, empty);
                 setText(empty ? null : value);
                 getStyleClass().removeAll("es-contrib-paid", "es-contrib-unpaid");
-                BlockContribution row = empty || getIndex() >= getTableView().getItems().size()
-                        ? null
-                        : getTableView().getItems().get(getIndex());
+                BlockContribution row =
+                        empty || getIndex() >= getTableView().getItems().size()
+                                ? null
+                                : getTableView().getItems().get(getIndex());
                 if (row != null) {
                     getStyleClass().add(row.paid() ? "es-contrib-paid" : "es-contrib-unpaid");
                 }
@@ -1317,8 +1359,7 @@ public final class Views {
         });
         cut.setPrefWidth(120);
 
-        table.getColumns().addAll(List.of(
-                height, when, miner, scheme, rate, share, transactions, coinbase, fees, cut));
+        table.getColumns().addAll(List.of(height, when, miner, scheme, rate, share, transactions, coinbase, fees, cut));
         VBox.setVgrow(table, Priority.ALWAYS);
         table.setMinHeight(320);
         return table;
@@ -1367,8 +1408,7 @@ public final class Views {
      * @param onWindowChanged null when there is no Stage (the snapshot harness), in which case the
      *     whole section is omitted rather than shown saving values nothing applies
      */
-    private static VBox windowSection(
-            ClientProfile profile, Runnable onWindowChanged, Runnable[] publishRebuild) {
+    private static VBox windowSection(ClientProfile profile, Runnable onWindowChanged, Runnable[] publishRebuild) {
         VBox section = new VBox(UiTokens.SPACE_3);
         if (onWindowChanged == null) {
             section.setVisible(false);
@@ -1397,18 +1437,16 @@ public final class Views {
         // cannot give — and every preset then fails too, which is how the size list ended up
         // offering 1280 × 800 at a scale where 1280 × 800 is unusable. Removing the scale removes
         // the whole degenerate branch instead of papering over it downstream.
-        int casingMargin = io.github.stoicswe.eyeandsickle.client.ui.BezelStyle
-                .byId(profile.appearance().bezel)
+        int casingMargin = io.github.stoicswe.eyeandsickle.client.ui.BezelStyle.byId(profile.appearance().bezel)
                 .orElse(io.github.stoicswe.eyeandsickle.client.ui.BezelStyle.OFF)
                 .margin();
         for (int percent : io.github.stoicswe.eyeandsickle.client.ui.UiScale.PERCENTAGES) {
             double factor = percent / 100.0d;
             // Offerable if the SMALLEST viewport, plus its casing, still fits the display at this
             // scale. Anything stricter would hide a scale that some preset could have used.
-            boolean roomOnScreen = io.github.stoicswe.eyeandsickle.client.ui.WindowSize.HD_1280
-                    .fitsOnScreen(usable.getWidth(), usable.getHeight(), factor, casingMargin);
-            if (roomOnScreen
-                    || percent == io.github.stoicswe.eyeandsickle.client.ui.UiScale.DEFAULT_PERCENT) {
+            boolean roomOnScreen = io.github.stoicswe.eyeandsickle.client.ui.WindowSize.HD_1280.fitsOnScreen(
+                    usable.getWidth(), usable.getHeight(), factor, casingMargin);
+            if (roomOnScreen || percent == io.github.stoicswe.eyeandsickle.client.ui.UiScale.DEFAULT_PERCENT) {
                 // 100% is always offered. A display too small for even that is below the supported
                 // floor outright, and an empty control would leave the player nothing to change.
                 scale.getItems().add(percent);
@@ -1422,7 +1460,8 @@ public final class Views {
                 }
                 return percent + "%"
                         + (percent == io.github.stoicswe.eyeandsickle.client.ui.UiScale.DEFAULT_PERCENT
-                                ? "  (default)" : "");
+                                ? "  (default)"
+                                : "");
             }
 
             @Override
@@ -1430,14 +1469,15 @@ public final class Views {
                 return io.github.stoicswe.eyeandsickle.client.ui.UiScale.DEFAULT_PERCENT;
             }
         });
-        int wantedScale = io.github.stoicswe.eyeandsickle.client.ui.UiScale
-                .sanitise(profile.settings().uiScalePercent);
+        int wantedScale = io.github.stoicswe.eyeandsickle.client.ui.UiScale.sanitise(profile.settings().uiScalePercent);
         // A profile carried over from a larger display can name a scale this screen cannot hold.
-        scale.setValue(scale.getItems().contains(wantedScale)
-                ? wantedScale
-                : io.github.stoicswe.eyeandsickle.client.ui.UiScale.DEFAULT_PERCENT);
+        scale.setValue(
+                scale.getItems().contains(wantedScale)
+                        ? wantedScale
+                        : io.github.stoicswe.eyeandsickle.client.ui.UiScale.DEFAULT_PERCENT);
 
-        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch fullScreen = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Full screen");
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch fullScreen =
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Full screen");
         fullScreen.setSelected(profile.settings().fullScreen);
 
         Label note = new Label();
@@ -1459,16 +1499,14 @@ public final class Views {
                 var fitsScreen = new ArrayList<io.github.stoicswe.eyeandsickle.client.ui.WindowSize>();
                 var tooBig = new ArrayList<String>();
                 var tooScaled = new ArrayList<String>();
-                int margin = io.github.stoicswe.eyeandsickle.client.ui.BezelStyle
-                        .byId(profile.appearance().bezel)
+                int margin = io.github.stoicswe.eyeandsickle.client.ui.BezelStyle.byId(profile.appearance().bezel)
                         .orElse(io.github.stoicswe.eyeandsickle.client.ui.BezelStyle.OFF)
                         .margin();
                 for (var candidate : io.github.stoicswe.eyeandsickle.client.ui.WindowSize.selectable()) {
                     // ⚠ One rule now, where there were two. The viewport always gets the full
                     // resolution in layout units, so nothing is "too small once divided" any more —
                     // the only question is whether viewport + casing, scaled, fits the display.
-                    if (!candidate.fitsOnScreen(
-                            usable.getWidth(), usable.getHeight(), factor, margin)) {
+                    if (!candidate.fitsOnScreen(usable.getWidth(), usable.getHeight(), factor, margin)) {
                         if (candidate.fitsOnScreen(usable.getWidth(), usable.getHeight(), 1.0d, 0)) {
                             tooScaled.add(candidate.label());
                         } else {
@@ -1484,13 +1522,13 @@ public final class Views {
                 // Stage clamps a too-small window up to `floor × factor` anyway; offering the
                 // largest thing the screen holds is the closest the machine can actually get.
                 if (offered.isEmpty()) {
-                    offered.addAll(fitsScreen.isEmpty()
-                            ? java.util.List.of(io.github.stoicswe.eyeandsickle.client.ui.WindowSize.HD_1280)
-                            : java.util.List.of(fitsScreen.getLast()));
+                    offered.addAll(
+                            fitsScreen.isEmpty()
+                                    ? java.util.List.of(io.github.stoicswe.eyeandsickle.client.ui.WindowSize.HD_1280)
+                                    : java.util.List.of(fitsScreen.getLast()));
                 }
 
-                var wanted = io.github.stoicswe.eyeandsickle.client.ui.WindowSize
-                        .byId(profile.settings().windowSize)
+                var wanted = io.github.stoicswe.eyeandsickle.client.ui.WindowSize.byId(profile.settings().windowSize)
                         .filter(offered::contains)
                         .orElse(offered.getLast());
                 size.getItems().setAll(offered);
@@ -1498,7 +1536,8 @@ public final class Views {
                 profile.settings().windowSize = wanted.id();
 
                 StringBuilder text = new StringBuilder();
-                text.append("The viewport is ").append(wanted.label())
+                text.append("The viewport is ")
+                        .append(wanted.label())
                         .append("; the window it needs is ")
                         .append(Math.round((wanted.width() + 2 * margin) * factor))
                         .append(" × ")
@@ -1506,11 +1545,13 @@ public final class Views {
                         .append(margin > 0 ? " with the casing." : ".");
                 if (!tooScaled.isEmpty()) {
                     text.append("  Hidden at this scale and casing, the window would not fit: ")
-                            .append(String.join(", ", tooScaled)).append('.');
+                            .append(String.join(", ", tooScaled))
+                            .append('.');
                 }
                 if (!tooBig.isEmpty()) {
                     text.append("  Larger than your screen: ")
-                            .append(String.join(", ", tooBig)).append('.');
+                            .append(String.join(", ", tooBig))
+                            .append('.');
                 }
                 note.setText(text.toString());
             } finally {
@@ -1558,27 +1599,28 @@ public final class Views {
             onWindowChanged.run();
         };
 
-        section.getChildren().addAll(
-                new Label("WINDOW"),
-                size,
-                wrapped("The deck draws its own window chrome, so your desktop gives it no resize "
-                        + "handle — this is where the size lives. Dragging the top strip still moves "
-                        + "it, double-clicking the strip still maximises it, and neither is affected "
-                        + "by what is set here."),
-                new Label("UI SCALE"),
-                scale,
-                note,
-                wrapped("Scales the whole interface, not the font: every hairline, cell meter and "
-                            + "character grid keeps its exact proportions, because the deck is drawn "
-                            + "through one transform rather than restyled. Larger scale means less "
-                            + "room, so sizes that would take the layout under its supported minimum "
-                            + "stop being offered."),
-                fullScreen,
-                wrapped("Off by default. Escape still opens the pause menu in full screen — the "
-                        + "usual \"press Escape to leave full screen\" behaviour is turned off here, "
-                        + "because it would swallow the key the game already uses. Turn this off "
-                        + "again to get the window back."),
-                new Separator());
+        section.getChildren()
+                .addAll(
+                        new Label("WINDOW"),
+                        size,
+                        wrapped("The deck draws its own window chrome, so your desktop gives it no resize "
+                                + "handle — this is where the size lives. Dragging the top strip still moves "
+                                + "it, double-clicking the strip still maximises it, and neither is affected "
+                                + "by what is set here."),
+                        new Label("UI SCALE"),
+                        scale,
+                        note,
+                        wrapped("Scales the whole interface, not the font: every hairline, cell meter and "
+                                + "character grid keeps its exact proportions, because the deck is drawn "
+                                + "through one transform rather than restyled. Larger scale means less "
+                                + "room, so sizes that would take the layout under its supported minimum "
+                                + "stop being offered."),
+                        fullScreen,
+                        wrapped("Off by default. Escape still opens the pause menu in full screen — the "
+                                + "usual \"press Escape to leave full screen\" behaviour is turned off here, "
+                                + "because it would swallow the key the game already uses. Turn this off "
+                                + "again to get the window back."),
+                        new Separator());
         return section;
     }
 
@@ -1631,8 +1673,7 @@ public final class Views {
      * the distribution the wait has got instead of claiming the block is overdue. See
      * {@link #etaPhrase} and {@code ChainMempool}'s type comment.
      */
-    private static Region projectedCard(
-            ChainMempool.ProjectedBlock p, ChainMempool pool, List<Runnable> ticking) {
+    private static Region projectedCard(ChainMempool.ProjectedBlock p, ChainMempool pool, List<Runnable> ticking) {
         Label head = Ui.value(p.index() == 0 ? "next" : "+" + (p.index() + 1));
         Label fill = new Label(cells(p.fullness(), 10));
         fill.getStyleClass().add("es-block-fill");
@@ -1640,7 +1681,8 @@ public final class Views {
         Label eta = Ui.micro("");
         double mean = pool.expectedNextBlockSeconds();
 
-        VBox card = new VBox(UiTokens.SPACE_1,
+        VBox card = new VBox(
+                UiTokens.SPACE_1,
                 head,
                 Ui.small(p.transactions() + " txs"),
                 fill,
@@ -1691,11 +1733,13 @@ public final class Views {
         // ⚠ Named against the projection depth rather than a literal "+3". The strip projects 3–5
         // blocks now, so a hard-coded three said "past +3" while a fourth and fifth card sat
         // visibly beside it.
-        Label where = Ui.micro(q.beyondProjection()
-                ? "past +" + Math.max(1, pool.projected().size())
-                : q.projectedIndex() == 0 ? "next block" : "block +" + (q.projectedIndex() + 1));
+        Label where = Ui.micro(
+                q.beyondProjection()
+                        ? "past +" + Math.max(1, pool.projected().size())
+                        : q.projectedIndex() == 0 ? "next block" : "block +" + (q.projectedIndex() + 1));
 
-        HBox row = Ui.row(UiTokens.SPACE_3,
+        HBox row = Ui.row(
+                UiTokens.SPACE_3,
                 Ui.small(q.tx().shortHash()),
                 Ui.small(Ethecoin.format(q.tx().valueWei())),
                 where,
@@ -1708,8 +1752,8 @@ public final class Views {
         Runnable retime = () -> {
             if (q.beyondProjection()) {
                 eta.setText("no estimate — outbid by the queue");
-                row.setAccessibleText("Transaction " + q.tx().shortHash() + ", " + Ethecoin.format(q.tx()
-                        .valueWei()) + ", waiting further out than the projections reach. "
+                row.setAccessibleText("Transaction " + q.tx().shortHash() + ", " + Ethecoin.format(q.tx().valueWei())
+                        + ", waiting further out than the projections reach. "
                         + "It is being outbid; it will confirm, but not in the next three blocks.");
                 return;
             }
@@ -1724,8 +1768,7 @@ public final class Views {
             ChainMempool.ProjectedBlock into = pool.projected().get(q.projectedIndex());
             row.setAccessibleText("Transaction " + q.tx().shortHash() + ", "
                     + Ethecoin.format(q.tx().valueWei()) + ", projected into "
-                    + (q.projectedIndex() == 0 ? "the next block" : "block plus "
-                            + (q.projectedIndex() + 1))
+                    + (q.projectedIndex() == 0 ? "the next block" : "block plus " + (q.projectedIndex() + 1))
                     + ", " + etaPhrase(into, mean) + ".");
         };
         retime.run();
@@ -1758,8 +1801,7 @@ public final class Views {
         java.math.BigInteger paying = q.tx().feeWei();
         for (FeeTier tier : FeeTier.values()) {
             java.math.BigInteger cost = Balance.feeFor(tier);
-            if (cost.compareTo(paying) > 0
-                    && (next == null || cost.compareTo(Balance.feeFor(next)) < 0)) {
+            if (cost.compareTo(paying) > 0 && (next == null || cost.compareTo(Balance.feeFor(next)) < 0)) {
                 next = tier;
             }
         }
@@ -1768,8 +1810,7 @@ public final class Views {
         }
         FeeTier target = next;
         java.math.BigInteger difference = Balance.feeFor(target).subtract(paying);
-        BreachView.Chip chip = new BreachView.Chip(
-                "boost +" + Ethecoin.format(difference), "es-breach-chip-quiet");
+        BreachView.Chip chip = new BreachView.Chip("boost +" + Ethecoin.format(difference), "es-breach-chip-quiet");
         chip.setAccessibleText("Raise this transaction's fee to " + target.label()
                 + " for " + Ethecoin.format(difference) + " more. Miners sort by fee rate, so it moves up the "
                 + "queue: " + target.promise() + ". This is replace-by-fee.");
@@ -1787,7 +1828,9 @@ public final class Views {
 
     /** Whole seconds from now until {@code at}; zero or negative once the estimate is overtaken. */
     private static long remaining(java.time.Instant at) {
-        return at == null ? 0L : java.time.Duration.between(java.time.Instant.now(), at).toSeconds();
+        return at == null
+                ? 0L
+                : java.time.Duration.between(java.time.Instant.now(), at).toSeconds();
     }
 
     /**
@@ -1872,7 +1915,8 @@ public final class Views {
         Label when = Ui.micro(age(b.timestamp()) + " ago");
         ticking.add(() -> when.setText(age(b.timestamp()) + " ago"));
 
-        VBox card = new VBox(UiTokens.SPACE_1,
+        VBox card = new VBox(
+                UiTokens.SPACE_1,
                 height,
                 Ui.small(b.transactions() + " txs"),
                 fill,
@@ -1964,8 +2008,8 @@ public final class Views {
                 "gasUsed       " + b.gasUsed() + " / " + b.gasLimit()
                         + String.format(Locale.ROOT, "  (%.1f%%)", b.fullness() * 100),
                 "size          " + b.sizeBytes() + " bytes",
-                "reward        " + Ethecoin.format(b.rewardWei()) + " subsidy + "
-                        + Ethecoin.format(b.feesWei()) + " fees = " + Ethecoin.format(b.minerTakeWei()))) {
+                "reward        " + Ethecoin.format(b.rewardWei()) + " subsidy + " + Ethecoin.format(b.feesWei())
+                        + " fees = " + Ethecoin.format(b.minerTakeWei()))) {
             into.getChildren().add(detailLine(line, false));
         }
 
@@ -1976,15 +2020,18 @@ public final class Views {
             }
         }
         into.getChildren().add(detailLine("", false));
-        into.getChildren().add(detailLine(
-                mine == 0
-                        ? "  nothing of yours is in this block"
-                        : "  " + mine + (mine == 1 ? " row here is yours" : " rows here are yours")
-                                + " — marked YOU below",
-                mine > 0));
-        into.getChildren().add(detailLine(
-                "  " + pad("#", 4) + pad("who", 5) + pad("hash", 16) + pad("from", 16)
-                        + pad("to", 16) + pad("value", 13) + pad("fee", 9) + "gas price", false));
+        into.getChildren()
+                .add(detailLine(
+                        mine == 0
+                                ? "  nothing of yours is in this block"
+                                : "  " + mine + (mine == 1 ? " row here is yours" : " rows here are yours")
+                                        + " — marked YOU below",
+                        mine > 0));
+        into.getChildren()
+                .add(detailLine(
+                        "  " + pad("#", 4) + pad("who", 5) + pad("hash", 16) + pad("from", 16) + pad("to", 16)
+                                + pad("value", 13) + pad("fee", 9) + "gas price",
+                        false));
 
         int index = 0;
         for (ChainTransaction tx : b.body()) {
@@ -2083,10 +2130,9 @@ public final class Views {
     /** Arming defences, and the compute budget that forces a choice between them. */
     public static Region defense(GameSession session) {
         VBox root = panel("DEFENSE");
-        Label note = wrapped(
-                "Every armed defence holds compute for as long as it stays armed. A fully paranoid "
-                        + "loadout costs more than a starting rig has — that is the decision, not a "
-                        + "shortfall. Defending your own rig never generates heat.");
+        Label note = wrapped("Every armed defence holds compute for as long as it stays armed. A fully paranoid "
+                + "loadout costs more than a starting rig has — that is the decision, not a "
+                + "shortfall. Defending your own rig never generates heat.");
 
         VBox buttons = new VBox(6);
         Label result = new Label();
@@ -2114,10 +2160,9 @@ public final class Views {
             buttons.getChildren().add(b);
         }
 
-        Label legalNote = wrapped(
-                "Note on the Auto-Counter Daemon: in this fiction it fires back. In the real world "
-                        + "that is a crime in most jurisdictions, and being attacked first does not "
-                        + "change that. See hack-back(7).");
+        Label legalNote = wrapped("Note on the Auto-Counter Daemon: in this fiction it fires back. In the real world "
+                + "that is a crime in most jurisdictions, and being attacked first does not "
+                + "change that. See hack-back(7).");
         legalNote.getStyleClass().add("es-state-unreachable");
 
         root.getChildren().addAll(note, new Separator(), buttons, result, new Separator(), legalNote);
@@ -2133,19 +2178,19 @@ public final class Views {
 
         Runnable refresh = () -> {
             body.getChildren().clear();
-            body.getChildren().addAll(
-                    field("handle", session.handle()),
-                    field("mode", session.mode().label()),
-                    field("heat", String.valueOf(session.personalHeat())),
-                    field("balance", session.balance().toString()));
+            body.getChildren()
+                    .addAll(
+                            field("handle", session.handle()),
+                            field("mode", session.mode().label()),
+                            field("heat", String.valueOf(session.personalHeat())),
+                            field("balance", session.balance().toString()));
             Label explanation = wrapped(session.mode().explanation());
             body.getChildren().add(explanation);
             if (session.mode() == io.github.stoicswe.eyeandsickle.client.session.SessionMode.SOLO) {
-                Label solo = wrapped(
-                        "This character is local to this machine. It has no DID and no cryptographic "
-                                + "identity, and it cannot be carried into a federated server — going "
-                                + "online means creating a character there. That boundary is what keeps "
-                                + "a file you can edit from ever becoming someone else's problem.");
+                Label solo = wrapped("This character is local to this machine. It has no DID and no cryptographic "
+                        + "identity, and it cannot be carried into a federated server — going "
+                        + "online means creating a character there. That boundary is what keeps "
+                        + "a file you can edit from ever becoming someone else's problem.");
                 solo.getStyleClass().add("es-text-secondary");
                 body.getChildren().add(solo);
             }
@@ -2277,8 +2322,7 @@ public final class Views {
         // halves of the same string — the prompt reads `handle@hostname.local:~$` — and separating
         // them into different sections would make the pairing something a player has to discover.
         TextField hostname = new TextField(
-                io.github.stoicswe.eyeandsickle.client.profile.Hostname
-                        .sanitise(profile.settings().rigHostname));
+                io.github.stoicswe.eyeandsickle.client.profile.Hostname.sanitise(profile.settings().rigHostname));
         hostname.setPromptText(io.github.stoicswe.eyeandsickle.client.profile.Hostname.DEFAULT);
         Label hostnameResult = new Label();
         hostnameResult.setWrapText(true);
@@ -2291,16 +2335,15 @@ public final class Views {
                 styleByOutcome(hostnameResult, GameSession.Outcome.refused(problem));
                 return;
             }
-            String normalised =
-                    io.github.stoicswe.eyeandsickle.client.profile.Hostname.sanitise(wanted);
+            String normalised = io.github.stoicswe.eyeandsickle.client.profile.Hostname.sanitise(wanted);
             profile.settings().rigHostname = normalised;
             profile.save();
             // Written back into the field, so a player who typed `RIG.local` sees what was actually
             // stored rather than being left to assume their capitals survived.
             hostname.setText(normalised);
             hostnameResult.setText("The prompt now reads "
-                    + io.github.stoicswe.eyeandsickle.client.profile.Hostname
-                            .prompt(profile.settings().soloHandle, normalised));
+                    + io.github.stoicswe.eyeandsickle.client.profile.Hostname.prompt(
+                            profile.settings().soloHandle, normalised));
             styleByOutcome(hostnameResult, GameSession.Outcome.ok());
             if (onDeskSettingsChanged != null) {
                 onDeskSettingsChanged.run();
@@ -2347,7 +2390,8 @@ public final class Views {
         // never seeing their own operating system", and this hands the OS its frame back. Offered
         // for the same reason §9.1 and §9.3 are: it is the player's machine. Off by default, so the
         // shipped game still looks like the game.
-        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch nativeBorder = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Use the system window border");
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch nativeBorder =
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Use the system window border");
         nativeBorder.setSelected(profile.settings().nativeWindowBorder);
         nativeBorder.selectedProperty().addListener((o, was, now) -> {
             profile.settings().nativeWindowBorder = now;
@@ -2358,12 +2402,10 @@ public final class Views {
         // following the host OS: it sits beside the player's real windows and is judged against
         // them, and letting somebody put close where their OS puts zoom is the one arrangement
         // guaranteed to cost a session.
-        ChoiceBox<io.github.stoicswe.eyeandsickle.client.ui.chrome.ControlOrder> controlOrder =
-                new ChoiceBox<>();
-        controlOrder.getItems().addAll(
-                io.github.stoicswe.eyeandsickle.client.ui.chrome.ControlOrder.selectable());
-        controlOrder.setValue(io.github.stoicswe.eyeandsickle.client.ui.chrome.ControlOrder
-                .resolve(profile.appearance().subwindowControlOrder));
+        ChoiceBox<io.github.stoicswe.eyeandsickle.client.ui.chrome.ControlOrder> controlOrder = new ChoiceBox<>();
+        controlOrder.getItems().addAll(io.github.stoicswe.eyeandsickle.client.ui.chrome.ControlOrder.selectable());
+        controlOrder.setValue(io.github.stoicswe.eyeandsickle.client.ui.chrome.ControlOrder.resolve(
+                profile.appearance().subwindowControlOrder));
         controlOrder.setConverter(new javafx.util.StringConverter<>() {
             @Override
             public String toString(io.github.stoicswe.eyeandsickle.client.ui.chrome.ControlOrder o) {
@@ -2385,7 +2427,8 @@ public final class Views {
             }
         });
 
-        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch rounded = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Rounded window corners");
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch rounded =
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Rounded window corners");
         rounded.setSelected(profile.appearance().roundedWindows);
         rounded.selectedProperty().addListener((o, was, now) -> {
             profile.appearance().roundedWindows = now;
@@ -2400,7 +2443,8 @@ public final class Views {
         // The deck already marks focus by lightening the strip and accenting the title, quietly on
         // purpose. This is for players for whom that is not enough — a low-contrast strip change is
         // exactly the cue that vanishes on a dim screen. Off by default; see ui/chrome/FocusRing.
-        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch focusRing = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Outline the focused window");
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch focusRing =
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Outline the focused window");
         focusRing.setSelected(profile.appearance().focusRing);
 
         HBox swatches = new HBox(UiTokens.SPACE_2);
@@ -2414,8 +2458,7 @@ public final class Views {
             // content, so the label has to reach a screen reader and a tooltip — §4.4 and
             // docs/client/07 §5.2 both.
             chip.setAccessibleText(ring.label());
-            javafx.scene.control.Tooltip.install(
-                    chip, new javafx.scene.control.Tooltip(ring.label()));
+            javafx.scene.control.Tooltip.install(chip, new javafx.scene.control.Tooltip(ring.label()));
             io.github.stoicswe.eyeandsickle.client.ui.cursors.Cursors.shared().clickable(chip);
             chip.setOnMouseClicked(e -> {
                 profile.appearance().focusRingColor = ring.id();
@@ -2429,8 +2472,8 @@ public final class Views {
             swatches.getChildren().add(chip);
         }
         markSelected[0] = () -> {
-            var chosen = io.github.stoicswe.eyeandsickle.client.ui.chrome.FocusRing
-                    .byId(profile.appearance().focusRingColor);
+            var chosen = io.github.stoicswe.eyeandsickle.client.ui.chrome.FocusRing.byId(
+                    profile.appearance().focusRingColor);
             var all = io.github.stoicswe.eyeandsickle.client.ui.chrome.FocusRing.selectable();
             for (int i = 0; i < chips.size(); i++) {
                 chips.get(i).getStyleClass().remove("es-swatch-on");
@@ -2451,12 +2494,13 @@ public final class Views {
         // ⚠ The swatches stay ENABLED with the ring off. Greying them would make choosing a colour
         // impossible until the feature is already on, which is backwards: a player deciding whether
         // they want this wants to see what it would look like first.
-        Label swatchNote = secondary("The first is your palette's own accent, so it follows the "
-                + "theme. The rest are fixed.");
+        Label swatchNote =
+                secondary("The first is your palette's own accent, so it follows the " + "theme. The rest are fixed.");
         swatchNote.setWrapText(true);
 
         // §11 question 1, shipped as a choice rather than settled by fiat. See DeskManager.
-        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch freeDrag = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Drag windows freely");
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch freeDrag =
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Drag windows freely");
         freeDrag.setSelected(profile.settings().freeDragWindows);
         freeDrag.selectedProperty().addListener((o, was, now) -> {
             profile.settings().freeDragWindows = now;
@@ -2464,7 +2508,9 @@ public final class Views {
             onDeskSettingsChanged.run();
         });
 
-        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch bandwidthCap = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Bandwidth limits open windows  [PROPOSAL]");
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch bandwidthCap =
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch(
+                        "Bandwidth limits open windows  [PROPOSAL]");
         bandwidthCap.setSelected(profile.settings().bandwidthCapsWindows);
         bandwidthCap.selectedProperty().addListener((o, was, now) -> {
             profile.settings().bandwidthCapsWindows = now;
@@ -2474,12 +2520,9 @@ public final class Views {
 
         // The desk wallpaper. Three states rather than a checkbox, because "I want the texture but
         // not the movement" is a real preference and WCAG 2.2.2 requires the pause to exist at all.
-        ChoiceBox<io.github.stoicswe.eyeandsickle.client.ui.WallpaperMode> wallpaper =
-                new ChoiceBox<>();
-        wallpaper.getItems()
-                .addAll(io.github.stoicswe.eyeandsickle.client.ui.WallpaperMode.selectable());
-        wallpaper.setValue(io.github.stoicswe.eyeandsickle.client.ui.WallpaperMode
-                .byId(profile.appearance().wallpaper)
+        ChoiceBox<io.github.stoicswe.eyeandsickle.client.ui.WallpaperMode> wallpaper = new ChoiceBox<>();
+        wallpaper.getItems().addAll(io.github.stoicswe.eyeandsickle.client.ui.WallpaperMode.selectable());
+        wallpaper.setValue(io.github.stoicswe.eyeandsickle.client.ui.WallpaperMode.byId(profile.appearance().wallpaper)
                 .orElse(io.github.stoicswe.eyeandsickle.client.ui.WallpaperMode.DRIFT));
         wallpaper.setConverter(new javafx.util.StringConverter<>() {
             @Override
@@ -2509,8 +2552,7 @@ public final class Views {
         // "off by default, switchable off permanently" is the first of them.
         ChoiceBox<io.github.stoicswe.eyeandsickle.client.ui.BezelStyle> bezel = new ChoiceBox<>();
         bezel.getItems().addAll(io.github.stoicswe.eyeandsickle.client.ui.BezelStyle.selectable());
-        bezel.setValue(io.github.stoicswe.eyeandsickle.client.ui.BezelStyle
-                .byId(profile.appearance().bezel)
+        bezel.setValue(io.github.stoicswe.eyeandsickle.client.ui.BezelStyle.byId(profile.appearance().bezel)
                 .orElse(io.github.stoicswe.eyeandsickle.client.ui.BezelStyle.OFF));
         Label bezelNote = wrapped(bezel.getValue().note());
         bezelNote.getStyleClass().add("es-text-secondary");
@@ -2540,7 +2582,8 @@ public final class Views {
             }
         });
 
-        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch scanlines = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("CRT scanlines");
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch scanlines =
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("CRT scanlines");
         scanlines.setSelected(profile.appearance().crtScanlines);
         scanlines.selectedProperty().addListener((o, was, now) -> {
             profile.appearance().crtScanlines = now;
@@ -2548,7 +2591,8 @@ public final class Views {
             onDeskSettingsChanged.run();
         });
 
-        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch aberration = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Chromatic aberration");
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch aberration =
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Chromatic aberration");
         aberration.setSelected(profile.appearance().crtAberration);
         aberration.selectedProperty().addListener((o, was, now) -> {
             profile.appearance().crtAberration = now;
@@ -2563,8 +2607,8 @@ public final class Views {
         curvature.setShowTickMarks(true);
         curvature.setMajorTickUnit(25);
         curvature.setBlockIncrement(5);
-        Label curvatureValue = io.github.stoicswe.eyeandsickle.client.ui.Ui.micro(
-                profile.appearance().crtCurvature + "%");
+        Label curvatureValue =
+                io.github.stoicswe.eyeandsickle.client.ui.Ui.micro(profile.appearance().crtCurvature + "%");
         curvature.valueProperty().addListener((o, was, now) -> {
             profile.appearance().crtCurvature = (int) Math.round(now.doubleValue());
             curvatureValue.setText(profile.appearance().crtCurvature + "%");
@@ -2572,7 +2616,8 @@ public final class Views {
             onDeskSettingsChanged.run();
         });
 
-        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch glitch = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Signal glitch");
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch glitch =
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Signal glitch");
         glitch.setSelected(profile.appearance().crtGlitch);
         glitch.selectedProperty().addListener((o, was, now) -> {
             profile.appearance().crtGlitch = now;
@@ -2582,9 +2627,9 @@ public final class Views {
 
         ChoiceBox<io.github.stoicswe.eyeandsickle.client.ui.cursors.CursorSkin> cursor = new ChoiceBox<>();
         cursor.getItems().addAll(io.github.stoicswe.eyeandsickle.client.ui.cursors.CursorSkin.selectable());
-        cursor.setValue(io.github.stoicswe.eyeandsickle.client.ui.cursors.CursorSkin
-                .byId(profile.appearance().cursorSkin)
-                .orElse(io.github.stoicswe.eyeandsickle.client.ui.cursors.CursorSkin.SYSTEM));
+        cursor.setValue(
+                io.github.stoicswe.eyeandsickle.client.ui.cursors.CursorSkin.byId(profile.appearance().cursorSkin)
+                        .orElse(io.github.stoicswe.eyeandsickle.client.ui.cursors.CursorSkin.SYSTEM));
         cursor.setConverter(new javafx.util.StringConverter<>() {
             @Override
             public String toString(io.github.stoicswe.eyeandsickle.client.ui.cursors.CursorSkin skin) {
@@ -2606,7 +2651,8 @@ public final class Views {
             }
         });
 
-        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch notify = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Show slide-in notices");
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch notify =
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Show slide-in notices");
         notify.setSelected(profile.settings().notificationsEnabled);
         notify.selectedProperty().addListener((o, was, now) -> {
             profile.settings().notificationsEnabled = now;
@@ -2648,7 +2694,8 @@ public final class Views {
 
         VBox facilities = new VBox(2);
         for (String facility : List.of("mining", "defense", "scan", "compute", "storage", "rig", "desk")) {
-            io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch box = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch(facility);
+            io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch box =
+                    new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch(facility);
             box.setSelected(!profile.settings().mutedFacilities.contains(facility));
             box.selectedProperty().addListener((o, was, now) -> {
                 if (now) {
@@ -2661,7 +2708,8 @@ public final class Views {
             facilities.getChildren().add(box);
         }
 
-        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch reducedMotion = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Reduce motion");
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch reducedMotion =
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Reduce motion");
         reducedMotion.setSelected(themes.reducedMotion());
         reducedMotion.selectedProperty().addListener((o, was, now) -> {
             themes.setReducedMotionOverride(now);
@@ -2693,10 +2741,12 @@ public final class Views {
         BreachView.Chip pickPicture = new BreachView.Chip("Choose picture", "es-files-action");
         BreachView.Chip clearPicture = new BreachView.Chip("Use default", "es-files-action");
         refreshAvatar[0] = () -> {
-            avatarBox.getChildren().setAll(AvatarChooser.row(
-                    session == null ? "" : session.avatar(),
-                    session == null ? profile.settings().soloHandle : session.handle(),
-                    52));
+            avatarBox
+                    .getChildren()
+                    .setAll(AvatarChooser.row(
+                            session == null ? "" : session.avatar(),
+                            session == null ? profile.settings().soloHandle : session.handle(),
+                            52));
         };
         refreshAvatar[0].run();
         pickPicture.onInvoke(() -> {
@@ -2718,199 +2768,219 @@ public final class Views {
             }
         });
 
-        pages.put("Operator", settingsPage(
-                avatarBox,
-                Ui.row(8, pickPicture, clearPicture),
-                wrapped(session == null
-                        ? "A picture can be set once a character is loaded."
-                        : "Opens your system's own file dialog, then lets you crop and zoom. The "
-                                + "picture is stored with the character, not as a link to the file "
-                                + "you picked \u2014 so it travels with the save, and the game never "
-                                + "reads that location again. With none set you get a silhouette "
-                                + "generated from your handle, breaking up under static."),
-                new Separator(),
-                new HBox(8, handle, applyHandle),
-                wrapped(onRename != null
-                        ? "Your handle, shown on the strip with its bytes underneath. Solo "
-                                + "only: online, a handle is not yours to choose — identity "
-                                + "comes from an AT Proto DID and the server owns it."
-                        : "Sets the handle for the next character you start. Renaming a "
-                                + "character you are already playing is done from inside "
-                                + "the game."),
-                handleResult,
-                new Separator(),
-                new HBox(8, hostname, applyHostname),
-                wrapped("What the rig calls itself. The prompt reads "
-                        + "`handle@hostname.local:~$` — who you are, then where you are, "
-                        + "which is the order every terminal and every SSH session uses. "
-                        + "`.local` is mDNS: the name a machine answers to on the network "
-                        + "it is plugged into with nobody having configured DNS, and your "
-                        + "own machine has one. Letters, digits and hyphens only, 63 "
-                        + "characters at most — DNS's rules, not this game's."),
-                hostnameResult));
+        pages.put(
+                "Operator",
+                settingsPage(
+                        avatarBox,
+                        Ui.row(8, pickPicture, clearPicture),
+                        wrapped(
+                                session == null
+                                        ? "A picture can be set once a character is loaded."
+                                        : "Opens your system's own file dialog, then lets you crop and zoom. The "
+                                                + "picture is stored with the character, not as a link to the file "
+                                                + "you picked \u2014 so it travels with the save, and the game never "
+                                                + "reads that location again. With none set you get a silhouette "
+                                                + "generated from your handle, breaking up under static."),
+                        new Separator(),
+                        new HBox(8, handle, applyHandle),
+                        wrapped(
+                                onRename != null
+                                        ? "Your handle, shown on the strip with its bytes underneath. Solo "
+                                                + "only: online, a handle is not yours to choose — identity "
+                                                + "comes from an AT Proto DID and the server owns it."
+                                        : "Sets the handle for the next character you start. Renaming a "
+                                                + "character you are already playing is done from inside "
+                                                + "the game."),
+                        handleResult,
+                        new Separator(),
+                        new HBox(8, hostname, applyHostname),
+                        wrapped("What the rig calls itself. The prompt reads "
+                                + "`handle@hostname.local:~$` — who you are, then where you are, "
+                                + "which is the order every terminal and every SSH session uses. "
+                                + "`.local` is mDNS: the name a machine answers to on the network "
+                                + "it is plugged into with nobody having configured DNS, and your "
+                                + "own machine has one. Letters, digits and hyphens only, 63 "
+                                + "characters at most — DNS's rules, not this game's."),
+                        hostnameResult));
 
-        pages.put("Appearance", settingsPage(
-                scopeNote(session),
-                theme,
-                wrapped("Every theme is the same deck with a different palette — one stylesheet "
-                        + "owns the layout, the hairlines and the motion, so no skin can hide or "
-                        + "soften a number. \"Deck — high visibility\" raises body text to WCAG "
-                        + "AAA and makes every hairline visible; it is an accessibility floor "
-                        + "rather than a style, and nothing else about the client changes.")));
+        pages.put(
+                "Appearance",
+                settingsPage(
+                        scopeNote(session),
+                        theme,
+                        wrapped("Every theme is the same deck with a different palette — one stylesheet "
+                                + "owns the layout, the hairlines and the motion, so no skin can hide or "
+                                + "soften a number. \"Deck — high visibility\" raises body text to WCAG "
+                                + "AAA and makes every hairline visible; it is an accessibility floor "
+                                + "rather than a style, and nothing else about the client changes.")));
 
-        pages.put("Windows", settingsPage(
-                scopeNote(session),
-                nativeBorder,
-                wrapped("Gives the game window your system's own title bar and buttons "
-                        + "instead of the ones it draws itself. Takes effect the next time "
-                        + "you start the game — a window's frame is fixed before it first "
-                        + "appears and cannot be swapped while it is open. With it on, the "
-                        + "game stops drawing its own window buttons and the top strip stops "
-                        + "acting as a drag handle, because your title bar already does both."),
-                new Separator(),
-                rounded,
-                wrapped("Off by default, and deliberately: this deck is drawn in hard edges "
-                        + "and hairlines, and softening them is the first step toward looking "
-                        + "like an ordinary dark-mode developer tool. It rounds windows only "
-                        + "— never a meter cell or the cycle grid, because a cell with a soft "
-                        + "corner reads as a smaller cell and those are meant to be counted."),
-                wrapped("Applies to everything at once — the game window and every window "
-                        + "on the desk — and takes effect immediately. On Linux without a "
-                        + "compositing window manager the corners may come out black rather "
-                        + "than transparent; that is the one place this depends on your "
-                        + "desktop rather than on the game."),
-                new Separator(),
-                Ui.label("Window buttons, inside the game"),
-                controlOrder,
-                wrapped("Which order the buttons on a tool window sit in. It does not move them to "
-                        + "the other side — that follows your system and stays there — and it does "
-                        + "not touch the game's own window, which sits next to your real ones and "
-                        + "should behave like them. Takes effect immediately, on windows that are "
-                        + "already open."),
-                new Separator(),
-                window));
+        pages.put(
+                "Windows",
+                settingsPage(
+                        scopeNote(session),
+                        nativeBorder,
+                        wrapped("Gives the game window your system's own title bar and buttons "
+                                + "instead of the ones it draws itself. Takes effect the next time "
+                                + "you start the game — a window's frame is fixed before it first "
+                                + "appears and cannot be swapped while it is open. With it on, the "
+                                + "game stops drawing its own window buttons and the top strip stops "
+                                + "acting as a drag handle, because your title bar already does both."),
+                        new Separator(),
+                        rounded,
+                        wrapped("Off by default, and deliberately: this deck is drawn in hard edges "
+                                + "and hairlines, and softening them is the first step toward looking "
+                                + "like an ordinary dark-mode developer tool. It rounds windows only "
+                                + "— never a meter cell or the cycle grid, because a cell with a soft "
+                                + "corner reads as a smaller cell and those are meant to be counted."),
+                        wrapped("Applies to everything at once — the game window and every window "
+                                + "on the desk — and takes effect immediately. On Linux without a "
+                                + "compositing window manager the corners may come out black rather "
+                                + "than transparent; that is the one place this depends on your "
+                                + "desktop rather than on the game."),
+                        new Separator(),
+                        Ui.label("Window buttons, inside the game"),
+                        controlOrder,
+                        wrapped("Which order the buttons on a tool window sit in. It does not move them to "
+                                + "the other side — that follows your system and stays there — and it does "
+                                + "not touch the game's own window, which sits next to your real ones and "
+                                + "should behave like them. Takes effect immediately, on windows that are "
+                                + "already open."),
+                        new Separator(),
+                        window));
 
-        pages.put("Desk", settingsPage(
-                focusRing,
-                wrapped("The deck already marks the focused window by lightening its strip and "
-                        + "accenting its title. This adds an outline as well, for when that is not "
-                        + "enough to find at a glance. Off by default; takes effect immediately, on "
-                        + "windows that are already open."),
-                swatches,
-                swatchNote,
-                new Separator(),
-                freeDrag,
-                wrapped("Off: windows snap to a grid, and tile when dragged against an edge of "
-                        + "the desk — a side fills that half, a corner that quarter. On: they go "
-                        + "exactly where you put them."),
-                new Separator(),
-                bandwidthCap,
-                wrapped("Off by default, and this one is not calibrated. The idea is that screen "
-                        + "space is attention: Bandwidth caps how many engagements run at once, so "
-                        + "it should cap how many tools you can have open. A starting rig has 1 "
-                        + "Bandwidth, so the budget below adds six always-free windows — the "
-                        + "monitor, terminal, log, manual, settings and switcher — to it. That "
-                        + "arithmetic is invented, which is why this is opt-in.")));
+        pages.put(
+                "Desk",
+                settingsPage(
+                        focusRing,
+                        wrapped("The deck already marks the focused window by lightening its strip and "
+                                + "accenting its title. This adds an outline as well, for when that is not "
+                                + "enough to find at a glance. Off by default; takes effect immediately, on "
+                                + "windows that are already open."),
+                        swatches,
+                        swatchNote,
+                        new Separator(),
+                        freeDrag,
+                        wrapped("Off: windows snap to a grid, and tile when dragged against an edge of "
+                                + "the desk — a side fills that half, a corner that quarter. On: they go "
+                                + "exactly where you put them."),
+                        new Separator(),
+                        bandwidthCap,
+                        wrapped("Off by default, and this one is not calibrated. The idea is that screen "
+                                + "space is attention: Bandwidth caps how many engagements run at once, so "
+                                + "it should cap how many tools you can have open. A starting rig has 1 "
+                                + "Bandwidth, so the budget below adds six always-free windows — the "
+                                + "monitor, terminal, log, manual, settings and switcher — to it. That "
+                                + "arithmetic is invented, which is why this is opt-in.")));
 
-        pages.put("Screen", settingsPage(
-                scopeNote(session),
-                Ui.label("Casing"),
-                bezel,
-                bezelNote,
-                wrapped("The machine around the screen. Off by default. It is drawn "
-                        + "OUTSIDE the viewport \u2014 the resolution you pick under Windows "
-                        + "is the screen's, and the casing is added beyond it, so the "
-                        + "window grows rather than the deck shrinking. It never covers "
-                        + "anything you have to read, and nothing about it moves, so it "
-                        + "costs no frames and is unaffected by Reduce motion. Pairs with "
-                        + "the Cyberdeck palette, but every theme draws it."),
-                new Separator(),
-                Ui.label("Wallpaper"),
-                wallpaper,
-                wrapped("Machine texture behind every window — the same alphabet as the greeble "
-                        + "strips, drawn far dimmer and never in amber. \"Still\" keeps the "
-                        + "texture and stops the movement. Turning on Reduce motion under "
-                        + "Accessibility stops it too, without changing this setting."),
-                new Separator(),
-                Ui.label("Artefacts"),
-                scanlines,
-                aberration,
-                glitch,
-                new HBox(8, curvature, curvatureValue),
-                wrapped("Screen artefacts, all three off by default. Scanlines lay a dark band "
-                        + "across every other row of pixels and drift slowly, with a refresh bar "
-                        + "rolling down the screen — that is what makes them read as a tube "
-                        + "rather than as a texture. They cost real contrast on body text, which "
-                        + "is a trade to make deliberately rather than one the client makes for "
-                        + "you. Aberration separates the wallpaper into red and cyan a pixel "
-                        + "either side; it is not applied to the whole screen, which would cost "
-                        + "more per frame than the effect is worth. Signal glitch tears short "
-                        + "fragments off the edges of windows and the elements inside them, so a "
-                        + "busy desk breaks up more than an empty one. Reduce motion stops every "
-                        + "moving part and leaves the still ones drawn."),
-                wrapped("Edge curvature raises the red/cyan separation towards the rim and the "
-                        + "corners, the way curved glass does — zero in the middle, worst at the "
-                        + "corners. It does NOT bend the interface: warping the picture would "
-                        + "need a shader we do not have, and faking it would put every click "
-                        + "somewhere other than where you see the control. Text stays straight.")));
+        pages.put(
+                "Screen",
+                settingsPage(
+                        scopeNote(session),
+                        Ui.label("Casing"),
+                        bezel,
+                        bezelNote,
+                        wrapped("The machine around the screen. Off by default. It is drawn "
+                                + "OUTSIDE the viewport \u2014 the resolution you pick under Windows "
+                                + "is the screen's, and the casing is added beyond it, so the "
+                                + "window grows rather than the deck shrinking. It never covers "
+                                + "anything you have to read, and nothing about it moves, so it "
+                                + "costs no frames and is unaffected by Reduce motion. Pairs with "
+                                + "the Cyberdeck palette, but every theme draws it."),
+                        new Separator(),
+                        Ui.label("Wallpaper"),
+                        wallpaper,
+                        wrapped("Machine texture behind every window — the same alphabet as the greeble "
+                                + "strips, drawn far dimmer and never in amber. \"Still\" keeps the "
+                                + "texture and stops the movement. Turning on Reduce motion under "
+                                + "Accessibility stops it too, without changing this setting."),
+                        new Separator(),
+                        Ui.label("Artefacts"),
+                        scanlines,
+                        aberration,
+                        glitch,
+                        new HBox(8, curvature, curvatureValue),
+                        wrapped("Screen artefacts, all three off by default. Scanlines lay a dark band "
+                                + "across every other row of pixels and drift slowly, with a refresh bar "
+                                + "rolling down the screen — that is what makes them read as a tube "
+                                + "rather than as a texture. They cost real contrast on body text, which "
+                                + "is a trade to make deliberately rather than one the client makes for "
+                                + "you. Aberration separates the wallpaper into red and cyan a pixel "
+                                + "either side; it is not applied to the whole screen, which would cost "
+                                + "more per frame than the effect is worth. Signal glitch tears short "
+                                + "fragments off the edges of windows and the elements inside them, so a "
+                                + "busy desk breaks up more than an empty one. Reduce motion stops every "
+                                + "moving part and leaves the still ones drawn."),
+                        wrapped("Edge curvature raises the red/cyan separation towards the rim and the "
+                                + "corners, the way curved glass does — zero in the middle, worst at the "
+                                + "corners. It does NOT bend the interface: warping the picture would "
+                                + "need a shader we do not have, and faking it would put every click "
+                                + "somewhere other than where you see the control. Text stays straight.")));
 
-        pages.put("Notices", settingsPage(
-                notify,
-                wrapped("A notice repeats something the rig already logged — nothing here is "
-                        + "the only place a message exists, and the log window keeps all of "
-                        + "it. Ignoring every notice costs you nothing."),
-                new Separator(),
-                Ui.label("Severity floor"),
-                severity,
-                wrapped("These are RFC 5424 levels, and the numbering runs backwards on "
-                        + "purpose: 0 is Emergency and 7 is Debug, so a LOWER number is a "
-                        + "stricter filter. It is the same number `log -p` takes — set 4 "
-                        + "here, type `log -p 4`, and you will see the same set. That habit "
-                        + "works on any Linux machine you ever touch."),
-                new Separator(),
-                Ui.label("Subsystems"),
-                facilities,
-                wrapped("Unchecked subsystems stay silent. These are the rig's own facility "
-                        + "names, so anything you mute here is still findable with "
-                        + "`log | grep <name>`.")));
+        pages.put(
+                "Notices",
+                settingsPage(
+                        notify,
+                        wrapped("A notice repeats something the rig already logged — nothing here is "
+                                + "the only place a message exists, and the log window keeps all of "
+                                + "it. Ignoring every notice costs you nothing."),
+                        new Separator(),
+                        Ui.label("Severity floor"),
+                        severity,
+                        wrapped("These are RFC 5424 levels, and the numbering runs backwards on "
+                                + "purpose: 0 is Emergency and 7 is Debug, so a LOWER number is a "
+                                + "stricter filter. It is the same number `log -p` takes — set 4 "
+                                + "here, type `log -p 4`, and you will see the same set. That habit "
+                                + "works on any Linux machine you ever touch."),
+                        new Separator(),
+                        Ui.label("Subsystems"),
+                        facilities,
+                        wrapped("Unchecked subsystems stay silent. These are the rig's own facility "
+                                + "names, so anything you mute here is still findable with "
+                                + "`log | grep <name>`.")));
 
-        pages.put("Teaching", settingsPage(
-                teaching,
-                wrapped("`explain` shows a plain-language line with each term; `terms` shows the "
-                        + "term only; `off` shows neither. The manual stays available at any "
-                        + "level — try `man compute`.")));
+        pages.put(
+                "Teaching",
+                settingsPage(
+                        teaching,
+                        wrapped("`explain` shows a plain-language line with each term; `terms` shows the "
+                                + "term only; `off` shows neither. The manual stays available at any "
+                                + "level — try `man compute`.")));
 
         // ⚠ Pointer and Motion live together under Accessibility, which is where macOS puts them
         // and where a player looking for either will look. Both are also genuine accessibility
         // controls rather than decoration: the system pointer default is a floor (docs/client/07),
         // and Reduce motion follows the OS preference unless overridden.
-        pages.put("Accessibility", settingsPage(
-                Ui.label("Pointer"),
-                cursor,
-                scopeNote(session),
-                wrapped("The pointer is the last piece of your operating system left on "
-                        + "screen, so the deck can draw its own — in whatever colour the "
-                        + "current theme means by \"live\". \"System pointer\" leaves yours "
-                        + "alone, and that is the default on purpose: your OS has already "
-                        + "tuned it for your display and your eyesight. The text I-beam is "
-                        + "never replaced under any skin, because its shape tells you which "
-                        + "two characters the caret will land between."),
-                new Separator(),
-                Ui.label("Motion"),
-                reducedMotion,
-                wrapped("Follows your system setting unless you change it here. Suppresses the "
-                        + "panel wipe, the caret blink, the greeble and the sweep bar; readouts "
-                        + "keep updating, because that is information, not animation.")));
+        pages.put(
+                "Accessibility",
+                settingsPage(
+                        Ui.label("Pointer"),
+                        cursor,
+                        scopeNote(session),
+                        wrapped("The pointer is the last piece of your operating system left on "
+                                + "screen, so the deck can draw its own — in whatever colour the "
+                                + "current theme means by \"live\". \"System pointer\" leaves yours "
+                                + "alone, and that is the default on purpose: your OS has already "
+                                + "tuned it for your display and your eyesight. The text I-beam is "
+                                + "never replaced under any skin, because its shape tells you which "
+                                + "two characters the caret will land between."),
+                        new Separator(),
+                        Ui.label("Motion"),
+                        reducedMotion,
+                        wrapped("Follows your system setting unless you change it here. Suppresses the "
+                                + "panel wipe, the caret blink, the greeble and the sweep bar; readouts "
+                                + "keep updating, because that is information, not animation.")));
 
         pages.put("About", settingsPage(about(profile, session)));
 
         // Beneath About, and out of the fiction entirely — see Credits' class comment for why the
         // real people are not a section of the spec sheet.
-        pages.put("Credits", settingsPage(
-                Credits.page(),
-                new Separator(),
-                wrapped("Handles are printed rather than linked: opening a browser would throw you "
-                        + "out of the game, and this client has never opened one.")));
+        pages.put(
+                "Credits",
+                settingsPage(
+                        Credits.page(),
+                        new Separator(),
+                        wrapped("Handles are printed rather than linked: opening a browser would throw you "
+                                + "out of the game, and this client has never opened one.")));
 
         root.getChildren().add(settingsBody(pages));
         // ⚠ FILLING, not plain scrollable, and this was a real bug rather than a refinement. A
@@ -3027,43 +3097,51 @@ public final class Views {
         long total = session.computeBudget().total().cycles();
         long uptime = session.uptimeSeconds();
 
-        box.getChildren().addAll(
-                Ui.label("uOS"),
-                spec("System", "uOS 15.0-RELEASE"),
-                spec("Kernel", "FreeBSD-derived, GENERIC"),
-                spec("Hostname", io.github.stoicswe.eyeandsickle.client.profile.Hostname
-                        .qualified(profile.settings().rigHostname)),
-                spec("Operator", session.handle()),
-                spec("Mode", session.mode().label()),
-                new Separator(),
-                Ui.label("Hardware"),
-                // Cycles, never gigahertz. See the class comment.
-                spec("Compute", total + " cycles"),
-                spec("Memory buffer", capacity.memoryBuffer() + " units"),
-                spec("Bandwidth", capacity.bandwidth() + " concurrent"),
-                spec("Thermal budget", capacity.thermalBudget() + " units"),
-                new Separator(),
-                Ui.label("Storage"),
-                spec("Vault", tier(session,
-                        io.github.stoicswe.eyeandsickle.protocol.game.StorageTier.VAULT)),
-                spec("Standard", tier(session,
-                        io.github.stoicswe.eyeandsickle.protocol.game.StorageTier.STANDARD_STORAGE)),
-                spec("Hot zone", tier(session,
-                        io.github.stoicswe.eyeandsickle.protocol.game.StorageTier.HIGH_HACKABLE_ZONE)),
-                new Separator(),
-                Ui.label("This character"),
-                spec("Uptime", Ui.clock(uptime)),
-                // The local Ethecoin.format() formatter, which is now the same string Ethecoin's own toString
-                // produces. This used to carry a warning that the record's generated toString leaked
-                // "Ethecoin[wei=0]" onto the screen — true at the time, and the reason the
-                // type now renders itself. See Ethecoin#toString for what it cost to find out.
-                spec("Balance", Ethecoin.format(session.balance().wei())),
-                new Separator(),
-                wrapped("Profile directory: " + profile.directory()),
-                wrapped("Everything this client writes lives in that one directory — settings, "
-                        + "window positions and the save. It is the only place on your machine the "
-                        + "game touches, which is what lets the terminal look like a shell without "
-                        + "being one."));
+        box.getChildren()
+                .addAll(
+                        Ui.label("uOS"),
+                        spec("System", "uOS 15.0-RELEASE"),
+                        spec("Kernel", "FreeBSD-derived, GENERIC"),
+                        spec(
+                                "Hostname",
+                                io.github.stoicswe.eyeandsickle.client.profile.Hostname.qualified(
+                                        profile.settings().rigHostname)),
+                        spec("Operator", session.handle()),
+                        spec("Mode", session.mode().label()),
+                        new Separator(),
+                        Ui.label("Hardware"),
+                        // Cycles, never gigahertz. See the class comment.
+                        spec("Compute", total + " cycles"),
+                        spec("Memory buffer", capacity.memoryBuffer() + " units"),
+                        spec("Bandwidth", capacity.bandwidth() + " concurrent"),
+                        spec("Thermal budget", capacity.thermalBudget() + " units"),
+                        new Separator(),
+                        Ui.label("Storage"),
+                        spec("Vault", tier(session, io.github.stoicswe.eyeandsickle.protocol.game.StorageTier.VAULT)),
+                        spec(
+                                "Standard",
+                                tier(
+                                        session,
+                                        io.github.stoicswe.eyeandsickle.protocol.game.StorageTier.STANDARD_STORAGE)),
+                        spec(
+                                "Hot zone",
+                                tier(
+                                        session,
+                                        io.github.stoicswe.eyeandsickle.protocol.game.StorageTier.HIGH_HACKABLE_ZONE)),
+                        new Separator(),
+                        Ui.label("This character"),
+                        spec("Uptime", Ui.clock(uptime)),
+                        // The local Ethecoin.format() formatter, which is now the same string Ethecoin's own toString
+                        // produces. This used to carry a warning that the record's generated toString leaked
+                        // "Ethecoin[wei=0]" onto the screen — true at the time, and the reason the
+                        // type now renders itself. See Ethecoin#toString for what it cost to find out.
+                        spec("Balance", Ethecoin.format(session.balance().wei())),
+                        new Separator(),
+                        wrapped("Profile directory: " + profile.directory()),
+                        wrapped("Everything this client writes lives in that one directory — settings, "
+                                + "window positions and the save. It is the only place on your machine the "
+                                + "game touches, which is what lets the terminal look like a shell without "
+                                + "being one."));
         return box;
     }
 
@@ -3076,8 +3154,7 @@ public final class Views {
         return row;
     }
 
-    private static String tier(
-            GameSession session, io.github.stoicswe.eyeandsickle.protocol.game.StorageTier t) {
+    private static String tier(GameSession session, io.github.stoicswe.eyeandsickle.protocol.game.StorageTier t) {
         return session.items(t).size() + " of " + session.storageCapacity(t) + " slots";
     }
 
@@ -3148,8 +3225,8 @@ public final class Views {
         Runnable[] rebuild = new Runnable[1];
 
         rebuild[0] = () -> {
-            String needle = search.getText() == null
-                    ? "" : search.getText().trim().toLowerCase(Locale.ROOT);
+            String needle =
+                    search.getText() == null ? "" : search.getText().trim().toLowerCase(Locale.ROOT);
             sidebar.getChildren().clear();
             sidebar.getChildren().add(search);
             for (String name : pages.keySet()) {
@@ -3157,10 +3234,10 @@ public final class Views {
                     continue;
                 }
                 Label row = new Label(name);
-                row.getStyleClass().add(name.equals(selected[0])
-                        ? "es-settings-row-on" : "es-settings-row");
+                row.getStyleClass().add(name.equals(selected[0]) ? "es-settings-row-on" : "es-settings-row");
                 row.setMaxWidth(Double.MAX_VALUE);
-                io.github.stoicswe.eyeandsickle.client.ui.cursors.Cursors.shared().clickable(row);
+                io.github.stoicswe.eyeandsickle.client.ui.cursors.Cursors.shared()
+                        .clickable(row);
                 row.setOnMouseClicked(event -> {
                     selected[0] = name;
                     rebuild[0].run();
@@ -3199,12 +3276,13 @@ public final class Views {
      * line is deliberately about the ones that moved.
      */
     private static Label scopeNote(GameSession session) {
-        Label note = wrapped(session == null
-                ? "These settings belong to this machine — the menu, and the next character you "
-                        + "create starts from them. Load a character and this page edits that "
-                        + "character's look instead."
-                : "These settings belong to " + session.handle() + ". Each character keeps its own "
-                        + "look, so changing them here leaves your other characters alone.");
+        Label note = wrapped(
+                session == null
+                        ? "These settings belong to this machine — the menu, and the next character you "
+                                + "create starts from them. Load a character and this page edits that "
+                                + "character's look instead."
+                        : "These settings belong to " + session.handle() + ". Each character keeps its own "
+                                + "look, so changing them here leaves your other characters alone.");
         note.getStyleClass().add("es-settings-scope");
         return note;
     }
@@ -3262,12 +3340,10 @@ public final class Views {
 
     static void styleByOutcome(Label label, GameSession.Outcome outcome) {
         label.getStyleClass().removeAll("es-state-refused", "es-state-unreachable");
-        if (outcome.status() == GameSession.Outcome.UNAVAILABLE
-                || outcome.status() == GameSession.Outcome.TEMPFAIL) {
+        if (outcome.status() == GameSession.Outcome.UNAVAILABLE || outcome.status() == GameSession.Outcome.TEMPFAIL) {
             label.getStyleClass().add("es-state-unreachable");
         } else if (!outcome.succeeded()) {
             label.getStyleClass().add("es-state-refused");
         }
     }
-
 }

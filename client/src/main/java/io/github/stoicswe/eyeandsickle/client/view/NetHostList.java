@@ -60,6 +60,7 @@ public final class NetHostList extends VBox {
     /** Right-click on a row. Separate from {@link #onNode} — see {@code NetGraph} for why. */
     private java.util.function.BiConsumer<String, javafx.scene.input.ContextMenuEvent> onNodeMenu =
             (address, event) -> {};
+
     private boolean verbose;
     private String selected = "";
     private String paintedFor = "";
@@ -114,8 +115,7 @@ public final class NetHostList extends VBox {
     }
 
     /** Called with a row's address when it is clicked or activated from the keyboard. */
-    public void setOnNodeMenu(
-            java.util.function.BiConsumer<String, javafx.scene.input.ContextMenuEvent> handler) {
+    public void setOnNodeMenu(java.util.function.BiConsumer<String, javafx.scene.input.ContextMenuEvent> handler) {
         this.onNodeMenu = handler == null ? (address, event) -> {} : handler;
     }
 
@@ -147,7 +147,9 @@ public final class NetHostList extends VBox {
         List<String> lines = NetText.rows(map, verbose);
         // The selection joins the comparison key. It is a visible change the lines alone do not
         // carry, so leaving it out would mean clicking a row repainted nothing until the next sweep.
-        if (lines.equals(rendered) && selected.equals(paintedFor) && !rows.getChildren().isEmpty()) {
+        if (lines.equals(rendered)
+                && selected.equals(paintedFor)
+                && !rows.getChildren().isEmpty()) {
             return;
         }
         rendered = List.copyOf(lines);
@@ -228,9 +230,10 @@ public final class NetHostList extends VBox {
         out.append(", ")
                 .append(sighting.hopsFromVantage())
                 .append(sighting.hopsFromVantage() == 1 ? " hop away" : " hops away");
-        out.append(sighting.kind() == HostKind.UNKNOWN
-                ? ", type not established"
-                : ", " + sighting.kind().name().toLowerCase(java.util.Locale.ROOT));
+        out.append(
+                sighting.kind() == HostKind.UNKNOWN
+                        ? ", type not established"
+                        : ", " + sighting.kind().name().toLowerCase(java.util.Locale.ROOT));
         if (sighting.tier() != null) {
             out.append(", tier ").append(sighting.tier().tier());
         }

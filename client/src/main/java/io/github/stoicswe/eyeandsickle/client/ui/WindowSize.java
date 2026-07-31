@@ -112,12 +112,10 @@ public enum WindowSize {
      * @param scale the UI scale as a factor, where 1.0 is 100%
      * @param casingMargin {@code BezelStyle.margin()} — one side, doubled here
      */
-    public boolean fitsOnScreen(
-            double usableWidth, double usableHeight, double scale, int casingMargin) {
+    public boolean fitsOnScreen(double usableWidth, double usableHeight, double scale, int casingMargin) {
         double factor = scale <= 0 ? 1 : scale;
         double chrome = 2 * casingMargin;
-        return (width + chrome) * factor <= usableWidth
-                && (height + chrome) * factor <= usableHeight;
+        return (width + chrome) * factor <= usableWidth && (height + chrome) * factor <= usableHeight;
     }
 
     /**

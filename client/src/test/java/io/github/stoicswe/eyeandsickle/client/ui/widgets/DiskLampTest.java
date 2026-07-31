@@ -67,7 +67,9 @@ class DiskLampTest {
             assertThat(deepInATail.phase()).as("well into the sparse tail").isGreaterThan(12);
 
             Flicker afterWrite = deepInATail.next(5, 6);
-            assertThat(afterWrite.phase()).as("phase restarts, not just the countdown").isZero();
+            assertThat(afterWrite.phase())
+                    .as("phase restarts, not just the countdown")
+                    .isZero();
             assertThat(afterWrite.remaining()).isEqualTo(DWELL);
             assertThat(afterWrite.lit()).isTrue();
         }

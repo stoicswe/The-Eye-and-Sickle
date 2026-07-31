@@ -1,17 +1,17 @@
 package io.github.stoicswe.eyeandsickle.client.shell;
 
-import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.client.session.GameSession;
+import io.github.stoicswe.eyeandsickle.protocol.game.ChainMempool;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeAllocation;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeBudget;
-import io.github.stoicswe.eyeandsickle.protocol.game.ChainMempool;
+import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.protocol.game.FeeTier;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningPool;
-import io.github.stoicswe.eyeandsickle.protocol.game.PoolScheme;
-import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningSnapshot;
+import io.github.stoicswe.eyeandsickle.protocol.game.PoolScheme;
 import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
+import io.github.stoicswe.eyeandsickle.solo.Balance;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -43,8 +43,10 @@ public final class BuiltinCommands {
         Shell.CommandRegistry r = new Shell.CommandRegistry();
 
         // ---------------------------------------------------------------- sources
-        r.add(source("ps", List.of(), "Compute allocation by consumer — what is holding your rig.",
-                inv -> {
+        r.add(Commands.read("ps")
+                .category(CommandCategory.RIG)
+                .synopsis("Compute allocation by consumer — what is holding your rig.")
+                .lines(inv -> {
                     ComputeBudget b = inv.session().computeBudget();
                     List<String> out = new ArrayList<>();
                     out.add(pad("CONSUMER", 22) + pad("CYCLES", 8) + "STATE");
@@ -66,8 +68,11 @@ public final class BuiltinCommands {
                     return out;
                 }));
 
-        r.add(source("ss", List.of("netstat"), "Connection table — one row per known node.",
-                inv -> {
+        r.add(Commands.read("ss")
+                .category(CommandCategory.NETWORK)
+                .aliases("netstat")
+                .synopsis("Connection table — one row per known node.")
+                .lines(inv -> {
                     List<String> out = new ArrayList<>();
                     out.add(pad("ADDRESS", 20) + pad("TIER", 6) + pad("RECON", 7) + "NOTE");
                     for (GameSession.KnownNode n : inv.session().knownNodes()) {
@@ -82,24 +87,41 @@ public final class BuiltinCommands {
                     return out;
                 }));
 
-        r.add(source("df", List.of(), "Storage tiers as mount points, with their exposure.",
-                inv -> {
+        r.add(Commands.read("df")
+                .category(CommandCategory.FILES)
+                .synopsis("Storage tiers as mount points, with their exposure.")
+                .lines(inv -> {
                     List<String> out = new ArrayList<>();
                     out.add(pad("MOUNT", 26) + pad("ITEMS", 7) + "EXPOSURE");
                     out.add(pad("/rig/storage/vault", 26)
-                            + pad(String.valueOf(inv.session().items(StorageTier.VAULT).size()), 7)
+                            + pad(
+                                    String.valueOf(inv.session()
+                                            .items(StorageTier.VAULT)
+                                            .size()),
+                                    7)
                             + "safe");
                     out.add(pad("/rig/storage/standard", 26)
-                            + pad(String.valueOf(inv.session().items(StorageTier.STANDARD_STORAGE).size()), 7)
+                            + pad(
+                                    String.valueOf(inv.session()
+                                            .items(StorageTier.STANDARD_STORAGE)
+                                            .size()),
+                                    7)
                             + "exposed while online");
                     out.add(pad("/rig/storage/high", 26)
-                            + pad(String.valueOf(inv.session().items(StorageTier.HIGH_HACKABLE_ZONE).size()), 7)
+                            + pad(
+                                    String.valueOf(inv.session()
+                                            .items(StorageTier.HIGH_HACKABLE_ZONE)
+                                            .size()),
+                                    7)
                             + "always exposed");
                     return out;
                 }));
 
-        r.add(source("ls", List.of(), "List what is in a place in the namespace.",
-                inv -> {
+        r.add(Commands.read("ls")
+                .category(CommandCategory.FILES)
+                .optionalArg("path", "cmd.ls.arg.path")
+                .synopsis("List what is in a place in the namespace.")
+                .lines(inv -> {
                     String path = inv.stage().argument(0).orElse("/");
                     if (Glob.isGlob(path)) {
                         String dir = path.contains("/") ? path.substring(0, path.lastIndexOf('/')) : "/";
@@ -107,7 +129,8 @@ public final class BuiltinCommands {
                         List<String> matched = new ArrayList<>();
                         for (String entry : Namespace.list(inv.session(), dir)) {
                             String name = entry.split("\\s")[0];
-                            if (Glob.matches(pattern, name.endsWith("/") ? name.substring(0, name.length() - 1) : name)) {
+                            if (Glob.matches(
+                                    pattern, name.endsWith("/") ? name.substring(0, name.length() - 1) : name)) {
                                 matched.add(entry);
                             }
                         }
@@ -120,8 +143,10 @@ public final class BuiltinCommands {
                     return entries.isEmpty() ? List.of("ls: " + path + ": no such place") : entries;
                 }));
 
-        r.add(source("ledger", List.of(), "Every movement of ethecoin, newest first.",
-                inv -> {
+        r.add(Commands.read("ledger")
+                .category(CommandCategory.ECONOMY)
+                .synopsis("Every movement of ethecoin, newest first.")
+                .lines(inv -> {
                     List<String> out = new ArrayList<>();
                     out.add(pad("WHEN", 22) + pad("DELTA", 12) + pad("BALANCE", 12) + "WHAT");
                     for (GameSession.LedgerRow row : inv.session().ledger(200)) {
@@ -136,8 +161,11 @@ public final class BuiltinCommands {
                     return out;
                 }));
 
-        r.add(source("log", List.of(), "What the rig has been doing. -p filters by severity.",
-                inv -> {
+        r.add(Commands.read("log")
+                .category(CommandCategory.RIG)
+                .value("p", "cmd.log.p")
+                .synopsis("What the rig has been doing. -p filters by severity.")
+                .lines(inv -> {
                     // -p is journalctl's own flag and takes journalctl's own semantics: a NUMBER,
                     // where lower is more severe, and the filter is "this level or worse". A player
                     // who learns `-p 4` here can type it into journalctl tonight.
@@ -167,8 +195,10 @@ public final class BuiltinCommands {
                     return out;
                 }));
 
-        r.add(source("items", List.of(), "Everything you own, across all three tiers.",
-                inv -> {
+        r.add(Commands.read("items")
+                .category(CommandCategory.FILES)
+                .synopsis("Everything you own, across all three tiers.")
+                .lines(inv -> {
                     List<String> out = new ArrayList<>();
                     out.add(pad("NAME", 30) + pad("TIER", 22) + "ORIGIN");
                     for (GameSession.InventoryItem i : inv.session().items(null)) {
@@ -183,8 +213,13 @@ public final class BuiltinCommands {
                 }));
 
         // ---------------------------------------------------------------- filters
-        r.add(filter("grep", "Keep only the lines that match. -i ignore case, -v invert, -E extended regex.",
-                inv -> {
+        r.add(Commands.filter("grep")
+                .category(CommandCategory.TEXT)
+                .flag("i", "cmd.grep.i")
+                .flag("v", "cmd.grep.v")
+                .arg("pattern", "cmd.grep.arg.pattern")
+                .synopsis("Keep only the lines that match. -i ignore case, -v invert, -E extended regex.")
+                .lines(inv -> {
                     String pattern = inv.stage().argument(0).orElse("");
                     if (pattern.isEmpty()) {
                         return List.of("grep: no pattern given");
@@ -211,8 +246,11 @@ public final class BuiltinCommands {
                     return out;
                 }));
 
-        r.add(filter("sort", "Reorder lines. -r reverses.",
-                inv -> {
+        r.add(Commands.filter("sort")
+                .category(CommandCategory.TEXT)
+                .flag("r", "cmd.sort.r")
+                .synopsis("Reorder lines. -r reverses.")
+                .lines(inv -> {
                     List<String> out = new ArrayList<>(inv.input());
                     out.sort(String::compareToIgnoreCase);
                     if (inv.stage().hasFlag("r")) {
@@ -221,8 +259,11 @@ public final class BuiltinCommands {
                     return out;
                 }));
 
-        r.add(filter("uniq", "Collapse runs of identical neighbouring lines. -c counts them.",
-                inv -> {
+        r.add(Commands.filter("uniq")
+                .category(CommandCategory.TEXT)
+                .flag("c", "cmd.uniq.c")
+                .synopsis("Collapse runs of identical neighbouring lines. -c counts them.")
+                .lines(inv -> {
                     List<String> out = new ArrayList<>();
                     String previous = null;
                     int run = 0;
@@ -244,21 +285,32 @@ public final class BuiltinCommands {
                     return out;
                 }));
 
-        r.add(filter("head", "Show the first few lines and stop. -n sets how many.",
-                inv -> inv.input().stream().limit(countFlag(inv, 10)).toList()));
+        r.add(Commands.filter("head")
+                .category(CommandCategory.TEXT)
+                .value("n", "cmd.head.n")
+                .synopsis("Show the first few lines and stop. -n sets how many.")
+                .lines(inv -> inv.input().stream().limit(countFlag(inv, 10)).toList()));
 
-        r.add(filter("tail", "Show the last few lines.",
-                inv -> {
+        r.add(Commands.filter("tail")
+                .category(CommandCategory.TEXT)
+                .value("n", "cmd.tail.n")
+                .synopsis("Show the last few lines.")
+                .lines(inv -> {
                     long n = countFlag(inv, 10);
                     int from = (int) Math.max(0, inv.input().size() - n);
                     return inv.input().subList(from, inv.input().size());
                 }));
 
-        r.add(filter("wc", "Count lines instead of showing them. -l is the only mode here.",
-                inv -> List.of(String.valueOf(inv.input().size()))));
+        r.add(Commands.filter("wc")
+                .category(CommandCategory.TEXT)
+                .synopsis("Count lines instead of showing them. -l is the only mode here.")
+                .lines(inv -> List.of(String.valueOf(inv.input().size()))));
 
-        r.add(filter("cut", "Keep chosen whitespace-separated columns. -f selects them, 1-based.",
-                inv -> {
+        r.add(Commands.filter("cut")
+                .category(CommandCategory.TEXT)
+                .value("f", "cmd.cut.f")
+                .synopsis("Keep chosen whitespace-separated columns. -f selects them, 1-based.")
+                .lines(inv -> {
                     String spec = inv.stage().flag("f").orElse("1");
                     List<Integer> fields = new ArrayList<>();
                     for (String part : spec.split(",")) {
@@ -286,9 +338,13 @@ public final class BuiltinCommands {
                 }));
 
         // ---------------------------------------------------------------- actions
-        r.add(action("mine", List.of(),
-                "Commit cycles to self-mining. --allocate=N, --pool or --solo, or no argument to report.",
-                inv -> {
+        r.add(Commands.act("mine")
+                .category(CommandCategory.ECONOMY)
+                .value("pool", "cmd.mine.pool")
+                .flag("solo", "cmd.mine.solo")
+                .value("allocate", "cmd.mine.allocate")
+                .synopsis("Commit cycles to self-mining. --allocate=N, --pool or --solo, or no argument to report.")
+                .runs(inv -> {
                     // Mode first: `mine --solo` takes no allocation and must not be read as a usage
                     // error for the allocation it did not carry.
                     if (inv.stage().hasFlag("pool") || inv.stage().hasFlag("solo")) {
@@ -306,7 +362,9 @@ public final class BuiltinCommands {
                         }
                         return Command.Output.of(modeOutcome);
                     }
-                    String value = inv.stage().flag("allocate").orElse(inv.stage().argument(0).orElse(""));
+                    String value = inv.stage()
+                            .flag("allocate")
+                            .orElse(inv.stage().argument(0).orElse(""));
                     if (value.isBlank()) {
                         // No argument at all reports rather than refusing. `mine` is the only view of
                         // the chain in the terminal, and a bare invocation asking "how is mining
@@ -327,15 +385,24 @@ public final class BuiltinCommands {
                         return Command.Output.ok(
                                 "would allocate " + cycles + " cycles to self-mining",
                                 "self-mining yields 0.4 EC per cycle-hour, generates no heat, and is online-only",
-                                "rig total: " + inv.session().computeBudget().total().cycles()
+                                "rig total: "
+                                        + inv.session().computeBudget().total().cycles()
                                         + "  currently available: "
-                                        + inv.session().computeBudget().available().cycles());
+                                        + inv.session()
+                                                .computeBudget()
+                                                .available()
+                                                .cycles());
                     }
                     return Command.Output.of(inv.session().allocateSelfMining(cycles));
                 }));
 
-        r.add(action("send", List.of(), "Send ethecoin to an address. --fee=economy|standard|priority.",
-                inv -> {
+        r.add(Commands.act("send")
+                .category(CommandCategory.ECONOMY)
+                .choice("fee", "cmd.send.fee", "economy", "standard", "priority")
+                .arg("address", "cmd.send.arg.address")
+                .arg("amount", "cmd.send.arg.amount")
+                .synopsis("Send ethecoin to an address. --fee=economy|standard|priority.")
+                .runs(inv -> {
                     String to = inv.stage().argument(0).orElse("");
                     String amount = inv.stage().argument(1).orElse("");
                     FeeTier tier = FeeTier.of(inv.stage().flag("fee").orElse("standard"));
@@ -349,11 +416,10 @@ public final class BuiltinCommands {
                     // ofDecimal also REFUSES anything finer than 18 places rather than truncating it.
                     java.math.BigInteger wei;
                     try {
-                        wei = io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin
-                                .ofDecimal(amount.trim()).wei();
+                        wei = io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.ofDecimal(amount.trim())
+                                .wei();
                     } catch (NumberFormatException | ArithmeticException e) {
-                        return Command.Output.usage("send: not an amount: " + amount
-                                + " (up to 18 decimal places)");
+                        return Command.Output.usage("send: not an amount: " + amount + " (up to 18 decimal places)");
                     }
                     if (inv.stage().isDryRun()) {
                         ChainMempool pool = inv.session().mempool();
@@ -362,37 +428,40 @@ public final class BuiltinCommands {
                                 "would send " + Ethecoin.format(wei) + " to " + to,
                                 "fee: " + Ethecoin.format(Balance.feeFor(tier)) + " (" + tier.label() + ") — "
                                         + tier.promise(),
-                                String.format(Locale.ROOT,
+                                String.format(
+                                        Locale.ROOT,
                                         "the cheapest slot in the next block is going for %.0f; "
                                                 + "a block arrives every ~%d min on average",
                                         Ethecoin.format(pool.lowFeeWei()),
                                         Math.round(pool.expectedNextBlockSeconds() / 60)),
-                                "the balance moves at once; the chain record confirms when a miner "
-                                        + "picks it up");
+                                "the balance moves at once; the chain record confirms when a miner " + "picks it up");
                     }
                     return Command.Output.of(inv.session().send(to, wei, tier));
                 }));
 
-        r.add(action("mempool", List.of(), "What is waiting for a miner, and what the next blocks hold.",
-                inv -> {
+        r.add(Commands.act("mempool")
+                .category(CommandCategory.ECONOMY)
+                .synopsis("What is waiting for a miner, and what the next blocks hold.")
+                .runs(inv -> {
                     ChainMempool pool = inv.session().mempool();
                     List<String> out = new ArrayList<>();
-                    out.add(String.format(Locale.ROOT,
+                    out.add(String.format(
+                            Locale.ROOT,
                             "%d of yours waiting · cheapest slot %s · top of the queue %s",
-                            pool.yoursPending(), Ethecoin.format(pool.lowFeeWei()),
+                            pool.yoursPending(),
+                            Ethecoin.format(pool.lowFeeWei()),
                             Ethecoin.format(pool.highFeeWei())));
                     // The mean stays published beside the estimate: the ETA is derived from it, and
                     // a countdown with no stated average is a deadline. The elapsed figure is a fact.
-                    out.add(String.format(Locale.ROOT,
+                    out.add(String.format(
+                            Locale.ROOT,
                             "a block every ~%d min on average · last one %s ago",
                             Math.round(pool.expectedNextBlockSeconds() / 60),
                             // ⚠ duration() answers "never" at zero — correct for an infinite wait,
                             // nonsense for an elapsed one ("last one never ago").
-                            pool.secondsSinceLastBlock() <= 0
-                                    ? "0s" : duration(pool.secondsSinceLastBlock())));
+                            pool.secondsSinceLastBlock() <= 0 ? "0s" : duration(pool.secondsSinceLastBlock())));
                     out.add("");
-                    out.add(pad("", 8) + pad("TXS", 6) + pad("YOURS", 7) + pad("FULL", 7)
-                            + pad("FEES", 10) + "~WHEN");
+                    out.add(pad("", 8) + pad("TXS", 6) + pad("YOURS", 7) + pad("FULL", 7) + pad("FEES", 10) + "~WHEN");
                     for (ChainMempool.ProjectedBlock p : pool.projected()) {
                         out.add(pad(p.index() == 0 ? "next" : "+" + (p.index() + 1), 8)
                                 + pad(String.valueOf(p.transactions()), 6)
@@ -410,14 +479,20 @@ public final class BuiltinCommands {
                             out.add("  " + pad(q.tx().shortHash(), 16)
                                     + pad(Ethecoin.format(q.tx().valueWei()), 12)
                                     + pad("fee " + Ethecoin.format(q.tx().feeWei()), 14)
-                                    + pad(q.beyondProjection()
-                                            ? "past +3"
-                                            : q.projectedIndex() == 0
-                                                    ? "next block" : "block +" + (q.projectedIndex() + 1), 12)
-                                    + pad(q.beyondProjection()
-                                            ? "no estimate"
-                                            : eta(pool.projected().get(q.projectedIndex()),
-                                                    pool.expectedNextBlockSeconds()), 16)
+                                    + pad(
+                                            q.beyondProjection()
+                                                    ? "past +3"
+                                                    : q.projectedIndex() == 0
+                                                            ? "next block"
+                                                            : "block +" + (q.projectedIndex() + 1),
+                                            12)
+                                    + pad(
+                                            q.beyondProjection()
+                                                    ? "no estimate"
+                                                    : eta(
+                                                            pool.projected().get(q.projectedIndex()),
+                                                            pool.expectedNextBlockSeconds()),
+                                            16)
                                     + q.tx().description());
                         }
                     }
@@ -429,8 +504,10 @@ public final class BuiltinCommands {
                     return Command.Output.ok(out);
                 }));
 
-        r.add(action("pools", List.of(), "List the mining pools on the chain and what each one costs.",
-                inv -> {
+        r.add(Commands.act("pools")
+                .category(CommandCategory.ECONOMY)
+                .synopsis("List the mining pools on the chain and what each one costs.")
+                .runs(inv -> {
                     List<MiningPool> pools = inv.session().pools();
                     if (pools.isEmpty()) {
                         return Command.Output.refused("not connected to a chain");
@@ -438,8 +515,12 @@ public final class BuiltinCommands {
                     MiningSnapshot m = inv.session().miningChain();
                     String joined = m.pool() == null ? "" : m.pool().id();
                     List<String> out = new ArrayList<>();
-                    out.add(pad("", 3) + pad("POOL", 20) + pad("SCHEME", 8)
-                            + right("FEE", 7) + right("CHAIN", 7) + right("PAYS", 10));
+                    out.add(pad("", 3)
+                            + pad("POOL", 20)
+                            + pad("SCHEME", 8)
+                            + right("FEE", 7)
+                            + right("CHAIN", 7)
+                            + right("PAYS", 10));
                     for (MiningPool pool : pools) {
                         // The interval, not just the fee. They are the two axes of the choice and
                         // they pull against each other — a table showing only the fee would read as
@@ -463,49 +544,67 @@ public final class BuiltinCommands {
                     return Command.Output.ok(out);
                 }));
 
-        r.add(action("collect", List.of(), "Sweep deployed-miner yield into your balance.",
-                inv -> Command.Output.of(inv.session().collect())));
+        r.add(Commands.act("collect")
+                .category(CommandCategory.ECONOMY)
+                .synopsis("Sweep deployed-miner yield into your balance.")
+                .runs(inv -> Command.Output.of(inv.session().collect())));
 
-        r.add(action("scan", List.of(), "Search your own rig for things hiding from routine listings.",
-                inv -> {
+        r.add(Commands.act("scan")
+                .category(CommandCategory.RIG)
+                .flag("thorough", "cmd.scan.thorough")
+                .flag("full", "cmd.scan.full")
+                .synopsis("Search your own rig for things hiding from routine listings.")
+                .runs(inv -> {
                     String tier = inv.stage().hasFlag("thorough")
                             ? "thorough"
                             : inv.stage().hasFlag("full") ? "full" : "quick";
                     if (inv.stage().isDryRun()) {
-                        long cost = switch (tier) {
-                            case "thorough" -> 35;
-                            case "full" -> 15;
-                            default -> 5;
-                        };
+                        long cost =
+                                switch (tier) {
+                                    case "thorough" -> 35;
+                                    case "full" -> 15;
+                                    default -> 5;
+                                };
                         return Command.Output.ok(
                                 "would run scan --" + tier,
                                 "published cost: " + cost + " cycles",
-                                "available: " + inv.session().computeBudget().available().cycles() + " cycles");
+                                "available: "
+                                        + inv.session()
+                                                .computeBudget()
+                                                .available()
+                                                .cycles() + " cycles");
                     }
                     return Command.Output.of(inv.session().scan(tier));
                 }));
 
-        r.add(new SimpleCommand("mv", List.of(), 1, "Move an item between storage tiers.", true, false,
-                inv -> {
+        r.add(Commands.act("mv")
+                .category(CommandCategory.FILES)
+                .arg("item", "cmd.mv.arg.item")
+                .arg("tier", "cmd.mv.arg.tier")
+                .synopsis("Move an item between storage tiers.")
+                .runs(inv -> {
                     String item = inv.stage().argument(0).orElse("");
                     String tier = inv.stage().argument(1).orElse("");
                     if (item.isBlank() || tier.isBlank()) {
                         return Command.Output.usage("mv <item> <vault|standard|high>");
                     }
-                    StorageTier to = switch (tier.toLowerCase(Locale.ROOT)) {
-                        case "vault" -> StorageTier.VAULT;
-                        case "standard" -> StorageTier.STANDARD_STORAGE;
-                        case "high" -> StorageTier.HIGH_HACKABLE_ZONE;
-                        default -> null;
-                    };
+                    StorageTier to =
+                            switch (tier.toLowerCase(Locale.ROOT)) {
+                                case "vault" -> StorageTier.VAULT;
+                                case "standard" -> StorageTier.STANDARD_STORAGE;
+                                case "high" -> StorageTier.HIGH_HACKABLE_ZONE;
+                                default -> null;
+                            };
                     if (to == null) {
                         return Command.Output.usage("mv: unknown tier '" + tier + "'");
                     }
                     return Command.Output.of(inv.session().moveItem(item, to));
                 }));
 
-        r.add(action("abort", List.of(), "Withdraw from the current operation. Always confirms first.",
-                inv -> {
+        r.add(Commands.act("abort")
+                .category(CommandCategory.BREACH)
+                .synopsis("Withdraw from the current operation. Always confirms first.")
+                .runs(inv -> {
                     // 130 is 128 + 2, and signal 2 is SIGINT — what Ctrl-C sends. That is not a
                     // coincidence or a flavour number: it is what a real machine reports when you
                     // interrupt something, and exit-status(7) teaches exactly this.
@@ -513,7 +612,8 @@ public final class BuiltinCommands {
                     // There is nothing to abort yet because the breach minigame is [PROPOSAL]
                     // (docs/design/05). Saying so beats reporting a successful abort of nothing.
                     return new Command.Output(
-                            List.of("Nothing to abort — no operation is running.",
+                            List.of(
+                                    "Nothing to abort — no operation is running.",
                                     "",
                                     "When there is one, this reports 130: that is 128 + 2, signal 2 is",
                                     "SIGINT, and SIGINT is what Ctrl-C sends. See exit-status(7)."),
@@ -531,14 +631,16 @@ public final class BuiltinCommands {
         // behave identically with the game closed. That is correct: the answer to 0xFF + 1 is not
         // the server's opinion, and a calculator that spent compute would be a tax on understanding
         // the rest of the game.
-        r.add(new SimpleCommand("calc", List.of("bc"), 1,
-                "Evaluate an expression in hex, decimal, octal or binary. --bits=N, --signed.",
-                false, false,
-                inv -> {
+        r.add(Commands.read("calc")
+                .category(CommandCategory.SHELL)
+                .choice("bits", "cmd.calc.bits", "8", "16", "32", "64")
+                .flag("signed", "cmd.calc.signed")
+                .aliases("bc")
+                .synopsis("Evaluate an expression in hex, decimal, octal or binary. --bits=N, --signed.")
+                .runs(inv -> {
                     String expression = calcExpression(inv);
                     if (expression.isBlank()) {
-                        return Command.Output.usage(
-                                "calc <expression>   e.g. calc 0xff xor 0b1010, calc 1 lsh 12");
+                        return Command.Output.usage("calc <expression>   e.g. calc 0xff xor 0b1010, calc 1 lsh 12");
                     }
                     var width = calcWidth(inv);
                     if (width.isEmpty()) {
@@ -553,22 +655,29 @@ public final class BuiltinCommands {
                 }));
 
         // ---------------------------------------------------------------- information
-        r.add(source("id", List.of("whoami"), "Who you are on this rig.",
-                inv -> List.of(
+        r.add(Commands.read("id")
+                .category(CommandCategory.RIG)
+                .aliases("whoami")
+                .synopsis("Who you are on this rig.")
+                .lines(inv -> List.of(
                         "handle    " + inv.session().handle(),
                         "mode      " + inv.session().mode().label(),
                         "          " + inv.session().mode().explanation(),
                         "heat      " + inv.session().personalHeat(),
                         "balance   " + inv.session().balance())));
 
-        r.add(source("verify", List.of(), "Check an item's provenance chain.",
-                inv -> {
+        r.add(Commands.read("verify")
+                .category(CommandCategory.FILES)
+                .arg("item", "cmd.verify.arg.item")
+                .synopsis("Check an item's provenance chain.")
+                .lines(inv -> {
                     String item = inv.stage().argument(0).orElse("");
                     if (item.isBlank()) {
                         return List.of("verify <item>");
                     }
                     return inv.session().items(null).stream()
-                            .filter(i -> i.itemId().equals(item) || i.displayName().equalsIgnoreCase(item))
+                            .filter(i ->
+                                    i.itemId().equals(item) || i.displayName().equalsIgnoreCase(item))
                             .findFirst()
                             .map(i -> i.hasProvenance()
                                     ? List.of(i.displayName() + ": chain verified to genesis")
@@ -608,12 +717,11 @@ public final class BuiltinCommands {
     }
 
     /** {@code --bits=N}, defaulting to 32 — wide enough for an address, narrow enough to read. */
-    private static java.util.Optional<io.github.stoicswe.eyeandsickle.client.ui.calc.WordSize>
-            calcWidth(Command.Invocation inv) {
+    private static java.util.Optional<io.github.stoicswe.eyeandsickle.client.ui.calc.WordSize> calcWidth(
+            Command.Invocation inv) {
         String bits = inv.stage().flag("bits").filter(s -> !s.isBlank()).orElse("32");
         try {
-            return io.github.stoicswe.eyeandsickle.client.ui.calc.WordSize
-                    .ofBits(Integer.parseInt(bits.trim()));
+            return io.github.stoicswe.eyeandsickle.client.ui.calc.WordSize.ofBits(Integer.parseInt(bits.trim()));
         } catch (NumberFormatException e) {
             return java.util.Optional.empty();
         }
@@ -626,8 +734,7 @@ public final class BuiltinCommands {
      * makes is that they are one value. A command that answered in the base you asked in would be a
      * base converter, and conversion is the part nobody needs help with.
      */
-    private static List<String> calcLines(
-            io.github.stoicswe.eyeandsickle.client.ui.calc.Calculator calc) {
+    private static List<String> calcLines(io.github.stoicswe.eyeandsickle.client.ui.calc.Calculator calc) {
         List<String> out = new ArrayList<>();
         for (var radix : io.github.stoicswe.eyeandsickle.client.ui.calc.Radix.values()) {
             out.add(pad(radix.label(), 6) + calc.row(radix));
@@ -675,86 +782,6 @@ public final class BuiltinCommands {
         return (wei.signum() >= 0 ? "+" : "") + Ethecoin.format(wei);
     }
 
-    private interface Lines {
-        List<String> apply(Command.Invocation invocation);
-    }
-
-    private interface Runs {
-        Command.Output apply(Command.Invocation invocation);
-    }
-
-    private static Command source(String name, List<String> aliases, String synopsis, Lines body) {
-        return new SimpleCommand(name, aliases, 1, synopsis, false, false,
-                inv -> Command.Output.ok(body.apply(inv)));
-    }
-
-    private static Command filter(String name, String synopsis, Lines body) {
-        return new SimpleCommand(name, List.of(), 1, synopsis, false, true,
-                inv -> Command.Output.ok(body.apply(inv)));
-    }
-
-    private static Command action(String name, List<String> aliases, String synopsis, Runs body) {
-        return new SimpleCommand(name, aliases, 1, synopsis, true, false, body);
-    }
-
-    /** The one implementation every built-in uses. Keeps the catalogue a data structure. */
-    private static class SimpleCommand implements Command {
-
-        private final String name;
-        private final List<String> aliases;
-        private final int section;
-        private final String synopsis;
-        private final boolean sideEffect;
-        private final boolean isFilter;
-        private final Runs body;
-
-        SimpleCommand(String name, List<String> aliases, int section, String synopsis,
-                boolean sideEffect, boolean isFilter, Runs body) {
-            this.name = name;
-            this.aliases = List.copyOf(aliases);
-            this.section = section;
-            this.synopsis = synopsis;
-            this.sideEffect = sideEffect;
-            this.isFilter = isFilter;
-            this.body = body;
-        }
-
-        @Override
-        public String name() {
-            return name;
-        }
-
-        @Override
-        public List<String> aliases() {
-            return aliases;
-        }
-
-        @Override
-        public int section() {
-            return section;
-        }
-
-        @Override
-        public String synopsis() {
-            return synopsis;
-        }
-
-        @Override
-        public boolean hasSideEffect() {
-            return sideEffect;
-        }
-
-        @Override
-        public boolean isFilter() {
-            return isFilter;
-        }
-
-        @Override
-        public Output run(Invocation invocation) {
-            return body.apply(invocation);
-        }
-    }
-
     /** Exposed so `help` and the palette can describe the catalogue without running anything. */
     public static Map<String, String> synopses(Shell.CommandRegistry registry) {
         Map<String, String> out = new LinkedHashMap<>();
@@ -790,25 +817,29 @@ public final class BuiltinCommands {
         }
 
         out.add("this rig  " + hashes(m.hashrate()) + " from " + m.cycles() + " cycles"
-                + String.format(Locale.ROOT, "  (%.2f%% of the chain)",
+                + String.format(
+                        Locale.ROOT,
+                        "  (%.2f%% of the chain)",
                         100.0d * m.hashrate() / Math.max(1L, m.networkHashrate())));
         out.add("");
-        out.add("mode      " + (solo ? "SOLO   no fee, no floor"
-                : "POOLED   " + m.pool().name() + "  " + m.pool().scheme()
-                        + ", fee " + m.pool().feeText() + ", " + m.pool().shareText() + " of the chain"));
+        out.add("mode      "
+                + (solo
+                        ? "SOLO   no fee, no floor"
+                        : "POOLED   " + m.pool().name() + "  " + m.pool().scheme() + ", fee "
+                                + m.pool().feeText() + ", " + m.pool().shareText() + " of the chain"));
         // ⚠ Three words, because the payout EVENT is a different thing in each. Solo is paid a
         // block; PPS is paid per share; PPLNS is paid a cut of a block the POOL found, which is
         // neither. Calling all three "share" would undo the distinction mining-pool(7) teaches.
         String unit = solo ? "block" : m.pool().scheme() == PoolScheme.PPLNS ? "payout" : "share";
-        out.add("pays      " + Ethecoin.format(m.payoutWei()) + " per " + unit
-                + ", about one every " + duration(m.expectedPayoutSeconds()));
+        out.add("pays      " + Ethecoin.format(m.payoutWei()) + " per " + unit + ", about one every "
+                + duration(m.expectedPayoutSeconds()));
         out.add("expected  " + Ethecoin.format(m.expectedWeiPerHour()) + "/hr");
         out.add("odds      " + String.format(Locale.ROOT, "%.0f%%", 100 * m.chanceWithin(3600))
                 + " of at least one in the next hour, "
                 + String.format(Locale.ROOT, "%.0f%%", 100 * m.chanceWithin(8 * 3600)) + " in eight");
         out.add("");
-        out.add("found     " + m.lifetimePayouts() + " " + unit
-                + (m.lifetimePayouts() == 1 ? "" : "s") + ", " + Ethecoin.format(m.lifetimeWei()) + " all told");
+        out.add("found     " + m.lifetimePayouts() + " " + unit + (m.lifetimePayouts() == 1 ? "" : "s") + ", "
+                + Ethecoin.format(m.lifetimeWei()) + " all told");
         if (m.secondsSinceLastPayout() >= 0) {
             out.add("last      " + duration(m.secondsSinceLastPayout()) + " ago");
         } else {
@@ -817,8 +848,8 @@ public final class BuiltinCommands {
         if (!solo && m.pendingWei().signum() > 0) {
             // The pool's unpaid balance. Real dashboards show it, and without it a player watching a
             // static balance between settlements has no way to tell holding from broken.
-            out.add("unpaid    " + Ethecoin.format(m.pendingWei())
-                    + " on the pool's books, settles in " + m.secondsUntilSettle() + "s");
+            out.add("unpaid    " + Ethecoin.format(m.pendingWei()) + " on the pool's books, settles in "
+                    + m.secondsUntilSettle() + "s");
         }
         if (solo) {
             // The one line that has to be there. A four-hour dry spell reads as "due", and it is not.
@@ -873,7 +904,6 @@ public final class BuiltinCommands {
         }
         return String.format(Locale.ROOT, "%.1fh", total / 3600.0d);
     }
-
 
     /**
      * A projection's ETA: the countdown while it holds, the distribution once it does not.

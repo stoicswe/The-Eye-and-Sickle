@@ -52,8 +52,7 @@ public final class BoardFactory {
      */
     private static final List<String> CODES = List.of("1C", "55", "7A", "BD", "E9", "FF");
 
-    private static final List<String> GOAL_LABELS =
-            List.of("BASIC DATAMINE", "ADVANCED DATAMINE", "MASTER DATAMINE");
+    private static final List<String> GOAL_LABELS = List.of("BASIC DATAMINE", "ADVANCED DATAMINE", "MASTER DATAMINE");
 
     /**
      * Builds every layer and its board. Called once, from {@code BreachRules.begin}.

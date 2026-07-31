@@ -33,7 +33,6 @@ import java.util.Optional;
  * not allowed to be quietly different from it.
  */
 public enum CalcOp {
-
     ADD("+", "add"),
     SUB("-", "subtract"),
     MUL("*", "multiply"),
@@ -90,21 +89,22 @@ public enum CalcOp {
     public long apply(long left, long right, WordSize word, boolean signed) {
         long a = word.mask(left);
         long b = word.mask(right);
-        long result = switch (this) {
-            case ADD -> a + b;
-            case SUB -> a - b;
-            case MUL -> a * b;
-            case DIV -> divide(a, b, word, signed);
-            case MOD -> remainder(a, b, word, signed);
-            case AND -> a & b;
-            case OR -> a | b;
-            case XOR -> a ^ b;
-            case SHL -> shiftLeft(a, count(b, word));
-            case SHR -> shiftRight(a, count(b, word));
-            case SAR -> arithmeticShiftRight(word.signed(a), count(b, word), word);
-            case ROL -> rotate(a, (int) (count(b, word) % word.bits()), word, true);
-            case ROR -> rotate(a, (int) (count(b, word) % word.bits()), word, false);
-        };
+        long result =
+                switch (this) {
+                    case ADD -> a + b;
+                    case SUB -> a - b;
+                    case MUL -> a * b;
+                    case DIV -> divide(a, b, word, signed);
+                    case MOD -> remainder(a, b, word, signed);
+                    case AND -> a & b;
+                    case OR -> a | b;
+                    case XOR -> a ^ b;
+                    case SHL -> shiftLeft(a, count(b, word));
+                    case SHR -> shiftRight(a, count(b, word));
+                    case SAR -> arithmeticShiftRight(word.signed(a), count(b, word), word);
+                    case ROL -> rotate(a, (int) (count(b, word) % word.bits()), word, true);
+                    case ROR -> rotate(a, (int) (count(b, word) % word.bits()), word, false);
+                };
         return word.mask(result);
     }
 

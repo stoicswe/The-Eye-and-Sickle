@@ -90,7 +90,8 @@ class GateStateRepositoryIT extends PostgresIntegrationTestBase {
         // Different class, and a different character, are both isolated.
         assertThat(repository.highestLiveBreachTier(CHARACTER, PuzzleClass.BREACH_PROTOCOL))
                 .isEmpty();
-        assertThat(repository.highestLiveBreachTier(OTHER, PuzzleClass.OFFSET_CIPHER)).isEmpty();
+        assertThat(repository.highestLiveBreachTier(OTHER, PuzzleClass.OFFSET_CIPHER))
+                .isEmpty();
     }
 
     @Test

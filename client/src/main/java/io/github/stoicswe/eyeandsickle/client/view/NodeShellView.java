@@ -129,8 +129,8 @@ public final class NodeShellView {
             // have put a mutation of persisted state inside a formatter.
             if (typed.equals("cd") || typed.startsWith("cd ")) {
                 String path = typed.length() > 2 ? typed.substring(3).trim() : "~";
-                GameSession.Outcome moved = session.changeDirectory(
-                        address, path.equals("~") ? homeOf(session, address) : path);
+                GameSession.Outcome moved =
+                        session.changeDirectory(address, path.equals("~") ? homeOf(session, address) : path);
                 if (moved.succeeded()) {
                     // `cd` is a deliberate move, so it belongs in Recents — the same rule the file
                     // manager's navigation follows.
@@ -205,8 +205,8 @@ public final class NodeShellView {
                 return;
             }
             RemoteSession current = live.get();
-            strip.setText(Ui.upper(current.displayName() + "  ·  " + current.address()
-                    + "  ·  " + current.cwd() + "  ·  " + current.cycles() + "C HELD"));
+            strip.setText(Ui.upper(current.displayName() + "  ·  " + current.address() + "  ·  " + current.cwd()
+                    + "  ·  " + current.cycles() + "C HELD"));
             prompt.setText(promptText(session, address));
         };
 
@@ -227,8 +227,25 @@ public final class NodeShellView {
      * nothing in it but an OK button is a dialog that trains people to dismiss dialogs.
      */
     private static ContextMenu buildMenu(GameSession session, String address, TextField input) {
+        return buildMenu(session, address, input, NodeCommands.byGroup());
+    }
+
+    /**
+     * The same menu, over any catalogue.
+     *
+     * <p>⚠ Package-visible and parameterised so the <b>local</b> terminal can share it rather than
+     * grow a second copy. Two menus over two hand-kept lists is the arrangement where one of them
+     * quietly stops matching its shell — and this class's own comment already warns about exactly
+     * that failure one level down, for flags. The builder, the preview and the insert-don't-run rule
+     * are all catalogue-agnostic; only the catalogue differs.
+     */
+    static ContextMenu buildMenu(
+            GameSession session,
+            String address,
+            TextField input,
+            Map<String, List<NodeCommands.NodeCommand>> catalogue) {
         ContextMenu menu = new ContextMenu();
-        NodeCommands.byGroup().forEach((group, commands) -> {
+        catalogue.forEach((group, commands) -> {
             Menu submenu = new Menu(group);
             for (NodeCommands.NodeCommand command : commands) {
                 MenuItem item = new MenuItem(command.name() + "  —  " + command.synopsis());
@@ -257,10 +274,7 @@ public final class NodeShellView {
      * It writes into the input rather than running, so the last act is always the player's.
      */
     private static void showBuilder(
-            GameSession session,
-            String address,
-            NodeCommands.NodeCommand command,
-            TextField input) {
+            GameSession session, String address, NodeCommands.NodeCommand command, TextField input) {
 
         javafx.stage.Popup popup = new javafx.stage.Popup();
         popup.setAutoHide(true);
@@ -288,7 +302,8 @@ public final class NodeShellView {
             row.setAlignment(Pos.CENTER_LEFT);
             switch (option.kind()) {
                 case FLAG -> {
-                    io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch box = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch(option.name());
+                    io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch box =
+                            new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch(option.name());
                     box.selectedProperty().addListener((o, was, now) -> refresh.run());
                     controls.put(option, box);
                     row.getChildren().add(box);
@@ -336,8 +351,7 @@ public final class NodeShellView {
             row.setAlignment(Pos.CENTER_LEFT);
             Label help = Ui.small(argument.help());
             help.setWrapText(true);
-            row.getChildren().addAll(
-                    new Label(argument.name() + (argument.required() ? " *" : "")), field, help);
+            row.getChildren().addAll(new Label(argument.name() + (argument.required() ? " *" : "")), field, help);
             optionRows.getChildren().add(row);
         }
 
@@ -350,10 +364,14 @@ public final class NodeShellView {
         cancel.onInvoke(popup::hide);
 
         refresh.run();
-        panel.getChildren().addAll(
-                title, synopsis, optionRows,
-                Ui.label("Command"), preview,
-                Ui.row(UiTokens.SPACE_3, insert, cancel));
+        panel.getChildren()
+                .addAll(
+                        title,
+                        synopsis,
+                        optionRows,
+                        Ui.label("Command"),
+                        preview,
+                        Ui.row(UiTokens.SPACE_3, insert, cancel));
         popup.getContent().add(panel);
         if (input.getScene() != null && input.getScene().getWindow() != null) {
             var bounds = input.localToScreen(input.getBoundsInLocal());
@@ -380,7 +398,8 @@ public final class NodeShellView {
                     }
                 }
                 case CHOICE, VALUE -> {
-                    if (control instanceof ComboBox<?> combo && combo.getValue() != null
+                    if (control instanceof ComboBox<?> combo
+                            && combo.getValue() != null
                             && !String.valueOf(combo.getValue()).isBlank()) {
                         out.append(' ').append(option.name()).append('=').append(combo.getValue());
                     }
@@ -420,9 +439,7 @@ public final class NodeShellView {
         // where the rules put the session, so this cannot name a directory that is not there.
         String cwd = cwdOf(session, address);
         String users = io.github.stoicswe.eyeandsickle.solo.fs.VirtualFs.USERS + "/";
-        return cwd.startsWith(users)
-                ? users + cwd.substring(users.length()).split("/")[0]
-                : "/";
+        return cwd.startsWith(users) ? users + cwd.substring(users.length()).split("/")[0] : "/";
     }
 
     /** {@code user@host:/path$} — the same shape and the same order as the deck's own prompt. */

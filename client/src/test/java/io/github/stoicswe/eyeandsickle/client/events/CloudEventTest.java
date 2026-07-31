@@ -23,8 +23,7 @@ import org.junit.jupiter.api.Test;
 class CloudEventTest {
 
     private static CloudEvent valid() {
-        return CloudEvent.of(EventTypes.of("intent"), "/client/session", "purchase",
-                Map.of("outcome", "ok"));
+        return CloudEvent.of(EventTypes.of("intent"), "/client/session", "purchase", Map.of("outcome", "ok"));
     }
 
     @Nested
@@ -45,22 +44,22 @@ class CloudEventTest {
         @Test
         @DisplayName("each one is refused when absent or blank")
         void eachIsRequired() {
-            assertThatThrownBy(() -> new CloudEvent(" ", URI.create("/x"), "1.0", "t",
-                    null, null, null, Instant.now(), Map.of(), Map.of()))
+            assertThatThrownBy(() -> new CloudEvent(
+                            " ", URI.create("/x"), "1.0", "t", null, null, null, Instant.now(), Map.of(), Map.of()))
                     .hasMessageContaining("id");
-            assertThatThrownBy(() -> new CloudEvent("1", null, "1.0", "t",
-                    null, null, null, Instant.now(), Map.of(), Map.of()))
+            assertThatThrownBy(() ->
+                            new CloudEvent("1", null, "1.0", "t", null, null, null, Instant.now(), Map.of(), Map.of()))
                     .hasMessageContaining("source");
-            assertThatThrownBy(() -> new CloudEvent("1", URI.create("/x"), "1.0", "",
-                    null, null, null, Instant.now(), Map.of(), Map.of()))
+            assertThatThrownBy(() -> new CloudEvent(
+                            "1", URI.create("/x"), "1.0", "", null, null, null, Instant.now(), Map.of(), Map.of()))
                     .hasMessageContaining("type");
         }
 
         @Test
         @DisplayName("specversion is pinned to 1.0")
         void specVersionIsPinned() {
-            assertThatThrownBy(() -> new CloudEvent("1", URI.create("/x"), "0.3", "t",
-                    null, null, null, Instant.now(), Map.of(), Map.of()))
+            assertThatThrownBy(() -> new CloudEvent(
+                            "1", URI.create("/x"), "0.3", "t", null, null, null, Instant.now(), Map.of(), Map.of()))
                     .hasMessageContaining("specversion");
         }
 
@@ -94,8 +93,8 @@ class CloudEventTest {
         void subjectIsAbsentOrReal() {
             // Absent and empty are different statements. A blank subject claims there is one and
             // names nothing, which is worse than saying nothing.
-            assertThatThrownBy(() -> new CloudEvent("1", URI.create("/x"), "1.0", "t",
-                    null, null, "  ", Instant.now(), Map.of(), Map.of()))
+            assertThatThrownBy(() -> new CloudEvent(
+                            "1", URI.create("/x"), "1.0", "t", null, null, "  ", Instant.now(), Map.of(), Map.of()))
                     .hasMessageContaining("subject");
             assertThat(CloudEvent.of("t", "/x", null).subject()).isNull();
         }
@@ -111,7 +110,8 @@ class CloudEventTest {
         @Test
         @DisplayName("time is present and recent")
         void timeIsPresent() {
-            assertThat(valid().time()).isBetween(Instant.now().minusSeconds(5), Instant.now().plusSeconds(5));
+            assertThat(valid().time())
+                    .isBetween(Instant.now().minusSeconds(5), Instant.now().plusSeconds(5));
         }
     }
 
@@ -124,9 +124,7 @@ class CloudEventTest {
         void namesAreLowercaseAlphanumeric() {
             assertThat(valid().with("retry", "1").extensions()).containsEntry("retry", "1");
             for (String bad : new String[] {"Retry", "re-try", "re_try", "re.try", "ретри", ""}) {
-                assertThatThrownBy(() -> valid().with(bad, "1"))
-                        .as("%s", bad)
-                        .hasMessageContaining("§4.1");
+                assertThatThrownBy(() -> valid().with(bad, "1")).as("%s", bad).hasMessageContaining("§4.1");
             }
         }
 
@@ -134,8 +132,7 @@ class CloudEventTest {
         @DisplayName("no longer than twenty characters")
         void namesAreTerse() {
             assertThat(valid().with("a".repeat(20), "1").extensions()).hasSize(1);
-            assertThatThrownBy(() -> valid().with("a".repeat(21), "1"))
-                    .hasMessageContaining("20");
+            assertThatThrownBy(() -> valid().with("a".repeat(21), "1")).hasMessageContaining("20");
         }
 
         /**
@@ -147,9 +144,7 @@ class CloudEventTest {
         @DisplayName("an extension may not shadow a core attribute")
         void noShadowing() {
             for (String core : new String[] {"id", "source", "type", "specversion", "subject", "time", "data"}) {
-                assertThatThrownBy(() -> valid().with(core, "x"))
-                        .as("%s", core)
-                        .hasMessageContaining("shadow");
+                assertThatThrownBy(() -> valid().with(core, "x")).as("%s", core).hasMessageContaining("shadow");
             }
         }
     }
@@ -174,8 +169,8 @@ class CloudEventTest {
             assertThat(scan.isA(EventTypes.of("portscan"))).isTrue();
             assertThat(scan.isA(EventTypes.of("portscan.started"))).isTrue();
             // ⚠ Not a prefix match on the raw string: "portscan" must not catch "portscanner".
-            assertThat(CloudEvent.of(EventTypes.of("portscanner"), "/x", "s")
-                    .isA(EventTypes.of("portscan"))).isFalse();
+            assertThat(CloudEvent.of(EventTypes.of("portscanner"), "/x", "s").isA(EventTypes.of("portscan")))
+                    .isFalse();
         }
     }
 }

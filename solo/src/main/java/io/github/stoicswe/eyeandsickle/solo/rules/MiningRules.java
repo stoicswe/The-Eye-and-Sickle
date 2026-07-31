@@ -1,7 +1,5 @@
 package io.github.stoicswe.eyeandsickle.solo.rules;
 
-import java.math.BigInteger;
-import java.math.BigDecimal;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningPool;
 import io.github.stoicswe.eyeandsickle.protocol.game.PoolScheme;
@@ -14,6 +12,8 @@ import io.github.stoicswe.eyeandsickle.solo.state.MinerState;
 import io.github.stoicswe.eyeandsickle.solo.state.NodeState;
 import io.github.stoicswe.eyeandsickle.solo.state.RigState;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.time.Duration;
 import java.time.Instant;
 
@@ -178,10 +178,8 @@ public final class MiningRules {
      * directions. Solo takes all of it.
      */
     public static BigInteger rewardBaseWei(RigState rig) {
-        boolean passesFeesOn = modeOf(rig) == MiningMode.SOLO
-                || poolOf(rig).scheme() == PoolScheme.PPLNS;
-        return Balance.BLOCK_SUBSIDY_WEI
-                .add(passesFeesOn ? Balance.expectedBlockFeesWei() : BigInteger.ZERO);
+        boolean passesFeesOn = modeOf(rig) == MiningMode.SOLO || poolOf(rig).scheme() == PoolScheme.PPLNS;
+        return Balance.BLOCK_SUBSIDY_WEI.add(passesFeesOn ? Balance.expectedBlockFeesWei() : BigInteger.ZERO);
     }
 
     /**
@@ -205,8 +203,8 @@ public final class MiningRules {
 
     /** The long-run rate, in wei per hour. Equal in both modes but for the pool's fee. */
     public static BigInteger expectedWeiPerHour(RigState rig, ChainState chain) {
-        double seconds = ChainRules.expectedSeconds(
-                workingDifficulty(rig, chain), ChainRules.hashrate(rig.selfMiningCycles));
+        double seconds =
+                ChainRules.expectedSeconds(workingDifficulty(rig, chain), ChainRules.hashrate(rig.selfMiningCycles));
         if (!Double.isFinite(seconds) || seconds <= 0) {
             return BigInteger.ZERO;
         }
@@ -232,8 +230,7 @@ public final class MiningRules {
             return 0L;
         }
         double shareSeconds = Math.max(1.0d, poolOf(rig).shareSeconds());
-        return Math.max(1L, Math.round(
-                Balance.POOL_SHARE_NOISE_CYCLES * Balance.POOL_SHARE_SECONDS / shareSeconds));
+        return Math.max(1L, Math.round(Balance.POOL_SHARE_NOISE_CYCLES * Balance.POOL_SHARE_SECONDS / shareSeconds));
     }
 
     /**
@@ -386,8 +383,8 @@ public final class MiningRules {
      */
     private static BigInteger bank(RigState rig, BigDecimal value) {
         rig.miningResidueWei = rig.miningResidueWei.add(value);
-        BigInteger banked = rig.miningResidueWei.setScale(0, java.math.RoundingMode.FLOOR)
-                .toBigIntegerExact();
+        BigInteger banked =
+                rig.miningResidueWei.setScale(0, java.math.RoundingMode.FLOOR).toBigIntegerExact();
         rig.miningResidueWei = rig.miningResidueWei.subtract(new BigDecimal(banked));
         rig.miningPendingWei = rig.miningPendingWei.add(banked);
         return banked;
@@ -408,8 +405,7 @@ public final class MiningRules {
      * {@code ChainExplorer} derives them for the block card, so a contributor row and the card it
      * names cannot come apart. See {@code ContributionState}.
      */
-    private static void record(
-            SoloSave save, ChainRules.Won block, BigInteger credited, boolean won) {
+    private static void record(SoloSave save, ChainRules.Won block, BigInteger credited, boolean won) {
         ChainState chain = save.chain;
         if (chain == null) {
             return;
@@ -543,7 +539,8 @@ public final class MiningRules {
             }
             BigInteger cap = bufferCap(miner);
             BigInteger before = miner.bufferedWei;
-            miner.bufferedWei = before.add(deployedYield(miner.hostCycles, elapsed)).min(cap);
+            miner.bufferedWei =
+                    before.add(deployedYield(miner.hostCycles, elapsed)).min(cap);
             miner.lastAccruedAt = now;
             added = added.add(miner.bufferedWei.subtract(before));
         }

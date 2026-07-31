@@ -1,8 +1,8 @@
 package io.github.stoicswe.eyeandsickle.solo.net;
 
-import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeConsumer;
 import io.github.stoicswe.eyeandsickle.protocol.game.DifficultyTier;
+import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.protocol.game.HostKind;
 import io.github.stoicswe.eyeandsickle.protocol.game.NetDocument;
 import io.github.stoicswe.eyeandsickle.protocol.game.NetLink;
@@ -19,7 +19,6 @@ import io.github.stoicswe.eyeandsickle.solo.rules.LedgerRules;
 import io.github.stoicswe.eyeandsickle.solo.state.AllocationState;
 import io.github.stoicswe.eyeandsickle.solo.state.HostState;
 import io.github.stoicswe.eyeandsickle.solo.state.ItemState;
-import io.github.stoicswe.eyeandsickle.solo.state.MinerState;
 import io.github.stoicswe.eyeandsickle.solo.state.NodeState;
 import io.github.stoicswe.eyeandsickle.solo.state.ResolutionState;
 import io.github.stoicswe.eyeandsickle.solo.state.ServerState;
@@ -32,7 +31,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -181,8 +179,7 @@ public final class NetRules {
 
         List<Sighting> sightings = new ArrayList<>();
         for (String address : visible) {
-            sightings.add(sighting(
-                    save, hosts.get(address), known.get(address), servers, hops, vantage, topology));
+            sightings.add(sighting(save, hosts.get(address), known.get(address), servers, hops, vantage, topology));
         }
 
         List<NetLink> links = new ArrayList<>();
@@ -286,8 +283,7 @@ public final class NetRules {
      * share the minimum needed to recognise identities, never enough for one to grief another's
      * internal state, so a cross-server bridge exposes a handshake and not a topology.
      */
-    private static String peerServerName(
-            HostState host, Map<String, ServerState> servers, TopologyState topology) {
+    private static String peerServerName(HostState host, Map<String, ServerState> servers, TopologyState topology) {
         for (HostState candidate : topology.hosts) {
             if (candidate.address.equals(host.bridgePeer)) {
                 ServerState server = servers.get(candidate.serverId);
@@ -322,8 +318,8 @@ public final class NetRules {
         if (!owns(save, tier)) {
             return Optional.empty();
         }
-        AllocationState allocation = ComputeRules.reserve(
-                save.rig, ComputeConsumer.CONTROL_CHANNEL, tier.label(), tier.cycles());
+        AllocationState allocation =
+                ComputeRules.reserve(save.rig, ComputeConsumer.CONTROL_CHANNEL, tier.label(), tier.cycles());
         if (allocation == null) {
             return Optional.empty();
         }
@@ -358,7 +354,9 @@ public final class NetRules {
                 continue;
             }
             boolean hostsMiner = false;
-            double threshold = Balance.netSweepBase(tier.tier(), HostArchetypes.signalOf(host, hostsMiner).name())
+            double threshold = Balance.netSweepBase(
+                            tier.tier(),
+                            HostArchetypes.signalOf(host, hostsMiner).name())
                     * hopFactor(hops.get(host.address));
             if (host.detectRoll < threshold) {
                 found.add(host.address);
@@ -370,20 +368,14 @@ public final class NetRules {
         Rng rng = Rng.of(save);
         double roll = rng.nextDouble();
         rng.commit(save);
-        int counterHackDepth =
-                roll < Balance.netCounterHackChance(deepestInRange) ? deepestInRange : -1;
+        int counterHackDepth = roll < Balance.netCounterHackChance(deepestInRange) ? deepestInRange : -1;
 
         // ⚠ Longer on an infested rig, baked in at commission — see ComputeRules.slowedSeconds. A
         // sweep that takes 26 seconds instead of 20 is the cheapest hint in the game that something
         // is eating the machine, and it costs nothing to notice.
         long seconds = ComputeRules.slowedSeconds(save.rig, tier.seconds());
         TaskState task = new TaskState(
-                "sweep",
-                tier.label(),
-                allocation.allocationId,
-                tier.cycles(),
-                now,
-                now.plusSeconds(seconds));
+                "sweep", tier.label(), allocation.allocationId, tier.cycles(), now, now.plusSeconds(seconds));
         // The sweep's loudness, declared on the task rather than derived from its cycles. It is
         // present-tense by construction: NoiseRules counts a task only while it is still running, so
         // the meter drops back the instant this one's countdown reaches zero.
@@ -391,9 +383,11 @@ public final class NetRules {
         task.outcome = encode(tier.itemId(), vantage, candidates.size(), counterHackDepth, found);
         save.tasks.add(task);
 
-        EventLog.notice(save, "net",
-                tier.label() + ": " + tier.cycles() + " cycles held, ~" + seconds
-                        + "s, and loud the whole time.", now);
+        EventLog.notice(
+                save,
+                "net",
+                tier.label() + ": " + tier.cycles() + " cycles held, ~" + seconds + "s, and loud the whole time.",
+                now);
         return Optional.of(task);
     }
 
@@ -427,11 +421,11 @@ public final class NetRules {
         }
 
         if (report.found() > 0) {
-            EventLog.notice(save, "net",
-                    task.label + ": " + report.inRange() + " in range, " + report.found() + " new.", now);
+            EventLog.notice(
+                    save, "net", task.label + ": " + report.inRange() + " in range, " + report.found() + " new.", now);
         } else {
-            EventLog.info(save, "net",
-                    task.label + ": " + report.inRange() + " in range, 0 new. " + report.note(), now);
+            EventLog.info(
+                    save, "net", task.label + ": " + report.inRange() + " in range, 0 new. " + report.note(), now);
         }
         return report;
     }
@@ -457,7 +451,8 @@ public final class NetRules {
         Encoded encoded = decode(task);
         double fraction = Math.max(0.0d, Math.min(1.0d, progress));
         int keep = (int) Math.round(encoded.found().size() * fraction);
-        List<String> kept = encoded.found().subList(0, Math.max(0, Math.min(encoded.found().size(), keep)));
+        List<String> kept =
+                encoded.found().subList(0, Math.max(0, Math.min(encoded.found().size(), keep)));
         task.outcome = encode(
                 encoded.toolId(),
                 encoded.vantage(),
@@ -575,7 +570,9 @@ public final class NetRules {
         }
         if (!host.address.equals(topology.vantageAddress)) {
             topology.vantageAddress = host.address;
-            EventLog.notice(save, "net",
+            EventLog.notice(
+                    save,
+                    "net",
                     "operating from " + host.address + (ownRig ? " (localhost)" : " — sweeps now reach from here."),
                     now);
         }
@@ -620,17 +617,19 @@ public final class NetRules {
             if (!host.foothold) {
                 host.foothold = true;
                 changed = true;
-                EventLog.notice(save, "net",
-                        "foothold on " + host.address + "; `connect " + host.address + "` to sweep from it.", now);
+                EventLog.notice(
+                        save,
+                        "net",
+                        "foothold on " + host.address + "; `connect " + host.address + "` to sweep from it.",
+                        now);
             }
             if (!host.looted) {
                 host.looted = true;
                 changed = true;
                 if (host.lootWei.signum() > 0) {
-                    LedgerRules.apply(save, host.lootWei, LOOT_LEDGER_TYPE,
-                            "Recovered from " + host.address, now);
-                    EventLog.info(save, "net",
-                            Ethecoin.format(host.lootWei) + " recovered from " + host.address + ".", now);
+                    LedgerRules.apply(save, host.lootWei, LOOT_LEDGER_TYPE, "Recovered from " + host.address, now);
+                    EventLog.info(
+                            save, "net", Ethecoin.format(host.lootWei) + " recovered from " + host.address + ".", now);
                 }
             }
         }
@@ -664,17 +663,17 @@ public final class NetRules {
         host.documentTakenAt = now;
         topology.documents.add(host.documentId);
 
-        int material = host.tier >= Balance.SCHEMATIC_MATERIAL_MIN_TIER
-                ? Balance.SCHEMATIC_MATERIAL_PER_BREACH
-                : 0;
+        int material = host.tier >= Balance.SCHEMATIC_MATERIAL_MIN_TIER ? Balance.SCHEMATIC_MATERIAL_PER_BREACH : 0;
         save.schematicMaterial += material;
 
-        EventLog.notice(save, "net",
+        EventLog.notice(
+                save,
+                "net",
                 "recovered " + DocumentPool.title(host.documentId) + " from " + host.address
                         + (material > 0 ? "; it carried schematic material." : "."),
                 now);
-        return Optional.of(new NetDocument(
-                host.documentId, DocumentPool.title(host.documentId), host.address, now, material));
+        return Optional.of(
+                new NetDocument(host.documentId, DocumentPool.title(host.documentId), host.address, now, material));
     }
 
     /**
@@ -696,8 +695,7 @@ public final class NetRules {
                 taken.add(host);
             }
         }
-        taken.sort(Comparator.comparing(
-                        (HostState h) -> h.documentTakenAt == null ? Instant.EPOCH : h.documentTakenAt)
+        taken.sort(Comparator.comparing((HostState h) -> h.documentTakenAt == null ? Instant.EPOCH : h.documentTakenAt)
                 .thenComparing(h -> h.address));
 
         List<NetDocument> out = new ArrayList<>(taken.size());
@@ -820,8 +818,7 @@ public final class NetRules {
      *     depth is carried rather than a bare flag because it sets the planted miner's tier, its host
      *     cycles, whether it is rootkit-wrapped, and how much heat it costs
      */
-    private record Encoded(
-            String toolId, String vantage, int inRange, int counterHackDepth, List<String> found) {}
+    private record Encoded(String toolId, String vantage, int inRange, int counterHackDepth, List<String> found) {}
 
     /**
      * One line, pipe-separated, versioned.
@@ -832,9 +829,9 @@ public final class NetRules {
      * {@code v1} tag is what lets a later shape be added without a save written today decoding as
      * garbage — an unrecognised version reads as an empty sweep, which is honest.
      */
-    private static String encode(
-            String toolId, String vantage, int inRange, int counterHackDepth, List<String> found) {
-        return String.join("|",
+    private static String encode(String toolId, String vantage, int inRange, int counterHackDepth, List<String> found) {
+        return String.join(
+                "|",
                 "sweep",
                 "v1",
                 toolId,
@@ -868,5 +865,4 @@ public final class NetRules {
             return fallback;
         }
     }
-
 }

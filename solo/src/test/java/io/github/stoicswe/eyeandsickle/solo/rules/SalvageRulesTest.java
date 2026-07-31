@@ -55,8 +55,10 @@ class SalvageRulesTest {
         void lowTiersNeverPay() {
             SoloSave save = save();
             for (int i = 0; i < 50; i++) {
-                assertThat(SalvageRules.award(save, record("BREACHED", "LIVE", 1))).isZero();
-                assertThat(SalvageRules.award(save, record("BREACHED", "LIVE", 2))).isZero();
+                assertThat(SalvageRules.award(save, record("BREACHED", "LIVE", 1)))
+                        .isZero();
+                assertThat(SalvageRules.award(save, record("BREACHED", "LIVE", 2)))
+                        .isZero();
             }
             // design/10 §1a's failure in a different costume: farm the softest target you can reach.
             // The tier gate sets pace, never reach — so fifty easy wins are worth exactly nothing.
@@ -67,7 +69,8 @@ class SalvageRulesTest {
         @DisplayName("a dormant target is worth loot and never worth an unlock")
         void dormantTargetsNeverPay() {
             SoloSave save = save();
-            assertThat(SalvageRules.award(save, record("BREACHED", "DORMANT", 5))).isZero();
+            assertThat(SalvageRules.award(save, record("BREACHED", "DORMANT", 5)))
+                    .isZero();
             assertThat(save.schematicMaterial).isZero();
         }
 

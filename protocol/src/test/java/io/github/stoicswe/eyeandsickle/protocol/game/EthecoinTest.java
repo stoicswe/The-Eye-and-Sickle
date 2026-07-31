@@ -45,8 +45,7 @@ class EthecoinTest {
         @DisplayName("whole ethecoin scales by the minor-unit factor")
         void wholeUnitsScale() {
             assertThat(Ethecoin.ofWholeEthecoin(25))
-                    .isEqualTo(Ethecoin.ofWei(
-                            java.math.BigInteger.valueOf(25).multiply(Ethecoin.WEI_PER_ETHECOIN)));
+                    .isEqualTo(Ethecoin.ofWei(java.math.BigInteger.valueOf(25).multiply(Ethecoin.WEI_PER_ETHECOIN)));
             assertThat(Ethecoin.ofWholeEthecoin(0)).isEqualTo(Ethecoin.ZERO);
         }
 
@@ -63,10 +62,8 @@ class EthecoinTest {
         void hugeAmountsAreExact() {
             Ethecoin huge = Ethecoin.ofWholeEthecoin(Long.MAX_VALUE);
             assertThat(huge.wei())
-                    .isEqualTo(java.math.BigInteger.valueOf(Long.MAX_VALUE)
-                            .multiply(Ethecoin.WEI_PER_ETHECOIN));
-            assertThat(huge.plus(Ethecoin.ofWei(1)).wei())
-                    .isEqualTo(huge.wei().add(java.math.BigInteger.ONE));
+                    .isEqualTo(java.math.BigInteger.valueOf(Long.MAX_VALUE).multiply(Ethecoin.WEI_PER_ETHECOIN));
+            assertThat(huge.plus(Ethecoin.ofWei(1)).wei()).isEqualTo(huge.wei().add(java.math.BigInteger.ONE));
         }
 
         @Test
@@ -83,8 +80,7 @@ class EthecoinTest {
         @Test
         @DisplayName("addition sums minor units")
         void additionSums() {
-            assertThat(Ethecoin.ofWei(2_500).plus(Ethecoin.ofWei(267)))
-                    .isEqualTo(Ethecoin.ofWei(2_767));
+            assertThat(Ethecoin.ofWei(2_500).plus(Ethecoin.ofWei(267))).isEqualTo(Ethecoin.ofWei(2_767));
         }
 
         @Test
@@ -99,8 +95,7 @@ class EthecoinTest {
         @Test
         @DisplayName("subtraction reduces the amount")
         void subtractionReduces() {
-            assertThat(Ethecoin.ofWei(2_500).minus(Ethecoin.ofWei(500)))
-                    .isEqualTo(Ethecoin.ofWei(2_000));
+            assertThat(Ethecoin.ofWei(2_500).minus(Ethecoin.ofWei(500))).isEqualTo(Ethecoin.ofWei(2_000));
         }
 
         @Test
@@ -260,7 +255,7 @@ class EthecoinTest {
     @Test
     @DisplayName("one canonical formatter, and no localized one")
     void oneCanonicalFormatter() {
-assertThat(Ethecoin.format(Ethecoin.ofDecimal("4.80").wei())).isEqualTo("4.8 EC");
+        assertThat(Ethecoin.format(Ethecoin.ofDecimal("4.80").wei())).isEqualTo("4.8 EC");
         // ⚠ The bug the consolidation fixed: a debit under one whole ethecoin kept its magnitude and
         // lost its sign, which on a ledger makes a fee indistinguishable from a credit.
         assertThat(Ethecoin.format(Ethecoin.ofDecimal("0.05").wei().negate())).isEqualTo("-0.05 EC");
@@ -271,9 +266,9 @@ assertThat(Ethecoin.format(Ethecoin.ofDecimal("4.80").wei())).isEqualTo("4.8 EC"
         // No Locale-taking overload: that is where a localized format would arrive, and it belongs to
         // the client. Reflection rather than a comment, because the point is to notice a new one.
         assertThat(Arrays.stream(Ethecoin.class.getDeclaredMethods())
-                .filter(method -> method.getName().equals("format"))
-                .flatMap(method -> Arrays.stream(method.getParameterTypes()))
-                .map(Class::getName))
+                        .filter(method -> method.getName().equals("format"))
+                        .flatMap(method -> Arrays.stream(method.getParameterTypes()))
+                        .map(Class::getName))
                 .as("a localized formatter belongs to the client, not to the wire type")
                 .doesNotContain("java.util.Locale");
         assertThat(Arrays.stream(Ethecoin.class.getDeclaredMethods()).map(Method::getName))

@@ -41,10 +41,8 @@ class SwitchTest {
             Platform.startup(up::countDown);
         } catch (IllegalStateException alreadyRunning) {
             up.countDown();
-        } catch (UnsupportedOperationException | NoClassDefFoundError
-                | ExceptionInInitializerError headless) {
-            Assumptions.abort("no display — the JavaFX toolkit cannot start here: "
-                    + headless.getMessage());
+        } catch (UnsupportedOperationException | NoClassDefFoundError | ExceptionInInitializerError headless) {
+            Assumptions.abort("no display — the JavaFX toolkit cannot start here: " + headless.getMessage());
         }
         if (!up.await(20, TimeUnit.SECONDS)) {
             Assumptions.abort("the JavaFX toolkit did not start within 20s");
@@ -72,8 +70,25 @@ class SwitchTest {
     }
 
     private static MouseEvent click() {
-        return new MouseEvent(MouseEvent.MOUSE_CLICKED, 4, 4, 4, 4, MouseButton.PRIMARY, 1,
-                false, false, false, false, true, false, false, true, false, false, null);
+        return new MouseEvent(
+                MouseEvent.MOUSE_CLICKED,
+                4,
+                4,
+                4,
+                4,
+                MouseButton.PRIMARY,
+                1,
+                false,
+                false,
+                false,
+                false,
+                true,
+                false,
+                false,
+                true,
+                false,
+                false,
+                null);
     }
 
     @Test
@@ -104,11 +119,9 @@ class SwitchTest {
         boolean[] states = onFxThread(() -> {
             Switch control = new Switch("Full screen");
             boolean traversable = control.isFocusTraversable();
-            control.fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED, "", "", KeyCode.SPACE,
-                    false, false, false, false));
+            control.fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED, "", "", KeyCode.SPACE, false, false, false, false));
             boolean afterSpace = control.isSelected();
-            control.fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED, "", "", KeyCode.ENTER,
-                    false, false, false, false));
+            control.fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED, "", "", KeyCode.ENTER, false, false, false, false));
             return new boolean[] {traversable, afterSpace, control.isSelected()};
         });
         assertThat(states[0]).as("reachable by tab").isTrue();
@@ -129,8 +142,7 @@ class SwitchTest {
             Switch control = new Switch("Signal glitch");
             String off = control.getAccessibleText();
             control.setSelected(true);
-            return new String[] {off, control.getAccessibleText(),
-                    String.valueOf(control.getAccessibleRole())};
+            return new String[] {off, control.getAccessibleText(), String.valueOf(control.getAccessibleRole())};
         });
         assertThat(spoken[0]).isEqualTo("Signal glitch, off");
         assertThat(spoken[1]).isEqualTo("Signal glitch, on");

@@ -85,8 +85,9 @@ public record TermPage(
                 case "real" -> REAL;
                 case "real, simplified", "real,simplified" -> REAL_SIMPLIFIED;
                 case "game" -> GAME;
-                default -> throw new IllegalArgumentException(
-                        "Unknown status '" + raw + "' — must be real, 'real, simplified' or game");
+                default ->
+                    throw new IllegalArgumentException(
+                            "Unknown status '" + raw + "' — must be real, 'real, simplified' or game");
             };
         }
     }
@@ -116,8 +117,8 @@ public record TermPage(
      * <p>Fixed rather than file-order, so a page whose author wrote the sections out of sequence still
      * renders in the order a reader's eye expects — which is the order every real page uses.
      */
-    public static final List<String> SECTION_ORDER = List.of(
-            "SYNOPSIS", "DESCRIPTION", "OPTIONS", "EXIT STATUS", "REAL-WORLD COUNTERPART", "CAVEATS");
+    public static final List<String> SECTION_ORDER =
+            List.of("SYNOPSIS", "DESCRIPTION", "OPTIONS", "EXIT STATUS", "REAL-WORLD COUNTERPART", "CAVEATS");
 
     /** Body sections in canonical order, skipping any this page does not carry. */
     public Map<String, String> orderedBody() {

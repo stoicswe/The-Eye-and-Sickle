@@ -215,9 +215,9 @@ public final class BreachPresenter {
             // Announced rather than printed inline: a client-side refusal reaches the log and the
             // notification system by the same route a rules refusal does, so the player sees one
             // kind of message in one place. See GameSession.refuse.
-            session.refuse("breach", action.refusal().isBlank()
-                    ? "that move is not available on this layer."
-                    : action.refusal());
+            session.refuse(
+                    "breach",
+                    action.refusal().isBlank() ? "that move is not available on this layer." : action.refusal());
             return;
         }
         BreachLayer layer = session.breach().flatMap(BreachSnapshot::active).orElse(null);
@@ -227,8 +227,10 @@ public final class BreachPresenter {
         }
         String argument = argumentFor(action, layer);
         if (argument == null) {
-            session.refuse("breach", "pick a target for this action first — "
-                    + (action.argumentHint().isBlank() ? "it needs one." : action.argumentHint()) + ".");
+            session.refuse(
+                    "breach",
+                    "pick a target for this action first — "
+                            + (action.argumentHint().isBlank() ? "it needs one." : action.argumentHint()) + ".");
             return;
         }
         invoke(action.actionId(), argument);
@@ -324,11 +326,12 @@ public final class BreachPresenter {
             return "";
         }
         BreachBoard board = layer.board();
-        String selection = switch (board) {
-            case MatrixBoard ignored -> grid.selection();
-            case OffsetBoard ignored -> cipher.selection();
-            case null -> "";
-        };
+        String selection =
+                switch (board) {
+                    case MatrixBoard ignored -> grid.selection();
+                    case OffsetBoard ignored -> cipher.selection();
+                    case null -> "";
+                };
         return selection.isBlank() ? null : selection;
     }
 

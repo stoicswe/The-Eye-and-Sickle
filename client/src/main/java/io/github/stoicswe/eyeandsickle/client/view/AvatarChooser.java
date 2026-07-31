@@ -63,8 +63,8 @@ public final class AvatarChooser {
         chooser.setTitle("Choose a picture");
         // The formats JavaFX can actually decode. Offering more would produce a file dialog that
         // accepts something the next step silently rejects.
-        chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(
-                "Images", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp"));
+        chooser.getExtensionFilters()
+                .add(new FileChooser.ExtensionFilter("Images", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.bmp"));
 
         File file;
         try {
@@ -153,17 +153,14 @@ public final class AvatarChooser {
         hint.setWrapText(true);
         hint.setMaxWidth(VIEWPORT);
 
-        VBox panel = new VBox(UiTokens.SPACE_3,
-                Ui.label("Crop"), viewport, zoom, hint,
-                Ui.row(UiTokens.SPACE_3, save, cancel));
+        VBox panel = new VBox(
+                UiTokens.SPACE_3, Ui.label("Crop"), viewport, zoom, hint, Ui.row(UiTokens.SPACE_3, save, cancel));
         panel.getStyleClass().addAll("es-files", "es-body-pad", "es-files-dialog");
         panel.setAlignment(Pos.CENTER_LEFT);
 
         popup.getContent().add(panel);
         if (owner != null) {
-            popup.show(owner,
-                    owner.getX() + (owner.getWidth() - VIEWPORT) / 2 - 20,
-                    owner.getY() + 100);
+            popup.show(owner, owner.getX() + (owner.getWidth() - VIEWPORT) / 2 - 20, owner.getY() + 100);
         }
     }
 

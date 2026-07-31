@@ -112,7 +112,14 @@ public final class SystemProcesses {
             new Daemon("init", "root", 1, 1, false, "", true, "the first process; userland descends from it"),
             new Daemon("devd", "root", 254, 2, false, "", true, "reacts to hardware appearing and leaving"),
             new Daemon("syslogd", "root", 388, 1, false, "", true, "the system log socket"),
-            new Daemon("auditd", "root", 402, 3, false, FACILITY_AUDIT, true,
+            new Daemon(
+                    "auditd",
+                    "root",
+                    402,
+                    3,
+                    false,
+                    FACILITY_AUDIT,
+                    true,
                     "the audit trail — what a scan asks about other processes"),
             new Daemon("cron", "root", 441, 1, false, "", true, "runs things on a schedule"),
             new Daemon("sshd", "root", 468, 1, false, "", true, "listens for shells"),
@@ -126,8 +133,7 @@ public final class SystemProcesses {
 
             // ── userland, the fiction's own ───────────────────────────────────────────────────
             new Daemon("cyclesd", "operator", 631, 4, false, "", false, "keeps the compute ledger honest"),
-            new Daemon("netd", "root", 648, 6, false, FACILITY_NET, false,
-                    "the interface a sweep sends through"),
+            new Daemon("netd", "root", 648, 6, false, FACILITY_NET, false, "the interface a sweep sends through"),
             new Daemon("ledgerd", "operator", 662, 3, false, "", false, "writes the ethecoin ledger to disk"),
             new Daemon("vaultd", "operator", 679, 2, false, "", false, "the encrypted vault's mount"),
             new Daemon("provenanced", "daemon", 694, 3, false, "", false, "signs and checks item provenance"),

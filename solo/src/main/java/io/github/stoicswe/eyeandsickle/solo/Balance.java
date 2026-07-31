@@ -1,8 +1,8 @@
 package io.github.stoicswe.eyeandsickle.solo;
 
-import java.math.BigInteger;
 import io.github.stoicswe.eyeandsickle.protocol.game.FeeTier;
 import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
+import java.math.BigInteger;
 
 /**
  * Every tunable number the solo runtime uses, in one place, each cited to the design document that
@@ -44,9 +44,9 @@ public final class Balance {
      * on a smaller scale and produced exactly one confusion per new reader.
      */
     public static BigInteger ec(String amount) {
-        return io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.ofDecimal(amount).wei();
+        return io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.ofDecimal(amount)
+                .wei();
     }
-
 
     private Balance() {}
 
@@ -360,11 +360,10 @@ public final class Balance {
      * above 12 — so the calculation is done in {@link BigDecimal} and lands on an exact wei count.
      */
     public static BigInteger expectedBlockFeesWei() {
-        java.math.BigDecimal meanTransactions = java.math.BigDecimal.valueOf(
-                12 + (BLOCK_TRANSACTION_LIMIT - 12 - 1) / 2.0d);
+        java.math.BigDecimal meanTransactions =
+                java.math.BigDecimal.valueOf(12 + (BLOCK_TRANSACTION_LIMIT - 12 - 1) / 2.0d);
         java.math.BigDecimal meanFee = new java.math.BigDecimal(
-                FEE_ECONOMY_WEI.add(FEE_PRIORITY_WEI.subtract(FEE_ECONOMY_WEI)
-                        .divide(BigInteger.TWO)));
+                FEE_ECONOMY_WEI.add(FEE_PRIORITY_WEI.subtract(FEE_ECONOMY_WEI).divide(BigInteger.TWO)));
         return meanTransactions.multiply(meanFee).toBigInteger();
     }
 
@@ -394,8 +393,7 @@ public final class Balance {
         // subsidy and the per-cycle-hour rate are both in wei and divide into a pure number around
         // 2352. Converting either to double on its own would be the lossy step; dividing them is not.
         double subsidyOverRate = new java.math.BigDecimal(BLOCK_SUBSIDY_WEI)
-                .divide(new java.math.BigDecimal(SELF_MINING_WEI_PER_CYCLE_HOUR),
-                        java.math.MathContext.DECIMAL64)
+                .divide(new java.math.BigDecimal(SELF_MINING_WEI_PER_CYCLE_HOUR), java.math.MathContext.DECIMAL64)
                 .doubleValue();
         double cycles = subsidyOverRate * (1.0d - POOL_FEE) * 3600.0d / CHAIN_TARGET_BLOCK_SECONDS;
         return cycles * HASHES_PER_CYCLE_SECOND;
@@ -1644,8 +1642,7 @@ public final class Balance {
      */
     public static double breachProtocolShare(double known) {
         double fraction = Math.clamp(known, 0.0d, 1.0d);
-        return BREACH_PROTOCOL_SHARE
-                + (BREACH_PROTOCOL_SHARE_INFORMED - BREACH_PROTOCOL_SHARE) * fraction;
+        return BREACH_PROTOCOL_SHARE + (BREACH_PROTOCOL_SHARE_INFORMED - BREACH_PROTOCOL_SHARE) * fraction;
     }
 
     /**
@@ -1675,9 +1672,7 @@ public final class Balance {
      * heat and the counter-hack roll — one number, three consequences, no chance of them disagreeing.
      */
     public static int breachNoisePoints(String puzzleClass, int rawNoise) {
-        return "OFFSET_CIPHER".equals(puzzleClass)
-                ? (int) Math.round(rawNoise * BREACH_CIPHER_NOISE_FACTOR)
-                : rawNoise;
+        return "OFFSET_CIPHER".equals(puzzleClass) ? (int) Math.round(rawNoise * BREACH_CIPHER_NOISE_FACTOR) : rawNoise;
     }
 
     /** The side of a protocol grid: 5 at tier 1, 7 at the top. */
@@ -1752,8 +1747,7 @@ public final class Balance {
     public static final int CIPHER_PREFILL_BONUS_MAX = 2;
 
     /** The most cells the generator will ever hand over, before the per-board cap. */
-    public static final int CIPHER_PREFILL_CEILING =
-            CIPHER_PREFILL_BASE_MAX + CIPHER_PREFILL_BONUS_MAX;
+    public static final int CIPHER_PREFILL_CEILING = CIPHER_PREFILL_BASE_MAX + CIPHER_PREFILL_BONUS_MAX;
 
     /**
      * How many columns a board of this length may have given away.
@@ -2188,21 +2182,24 @@ public final class Balance {
         String s = signal == null ? "LOW" : signal.trim().toUpperCase(java.util.Locale.ROOT);
         int t = Math.max(1, Math.min(3, sweepTier));
         return switch (s) {
-            case "HIGH" -> switch (t) {
-                case 1 -> 0.85d;
-                case 2 -> 0.95d;
-                default -> 0.99d;
-            };
-            case "MODERATE" -> switch (t) {
-                case 1 -> 0.60d;
-                case 2 -> 0.78d;
-                default -> 0.90d;
-            };
-            default -> switch (t) {
-                case 1 -> 0.35d;
-                case 2 -> 0.55d;
-                default -> 0.72d;
-            };
+            case "HIGH" ->
+                switch (t) {
+                    case 1 -> 0.85d;
+                    case 2 -> 0.95d;
+                    default -> 0.99d;
+                };
+            case "MODERATE" ->
+                switch (t) {
+                    case 1 -> 0.60d;
+                    case 2 -> 0.78d;
+                    default -> 0.90d;
+                };
+            default ->
+                switch (t) {
+                    case 1 -> 0.35d;
+                    case 2 -> 0.55d;
+                    default -> 0.72d;
+                };
         };
     }
 }

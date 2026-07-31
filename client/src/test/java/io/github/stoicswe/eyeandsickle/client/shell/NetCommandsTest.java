@@ -39,8 +39,7 @@ class NetCommandsTest {
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-07-27T12:00:00Z"), ZoneOffset.UTC);
 
     private static Shell shell(Path dir) {
-        GameSession session = new LocalGameSession(
-                TestSaves.bare(new SaveStore(dir.resolve("s.json")), "op", CLOCK));
+        GameSession session = new LocalGameSession(TestSaves.bare(new SaveStore(dir.resolve("s.json")), "op", CLOCK));
         Shell.CommandRegistry registry = BuiltinCommands.registry();
         NetCommands.register(registry);
         return new Shell(session, registry);
@@ -148,8 +147,8 @@ class NetCommandsTest {
             // docs/client/04 §3.4 and Invariant I14: gate evaluation belongs to the rules. And
             // detection is a roll made once at world generation and stored, so an estimate of what
             // a sweep would find would be reading the answer out of the save.
-            String output = String.join("\n", shell(dir).run("sweep -n").lines()).toLowerCase(
-                    java.util.Locale.ROOT);
+            String output =
+                    String.join("\n", shell(dir).run("sweep -n").lines()).toLowerCase(java.util.Locale.ROOT);
             assertThat(output)
                     .doesNotContain("affordable")
                     .doesNotContain("would find")
@@ -161,9 +160,13 @@ class NetCommandsTest {
         void perTierFigures(@TempDir Path dir) {
             Shell shell = shell(dir);
             assertThat(String.join("\n", shell.run("sweep --wide -n").lines()))
-                    .contains("net-sweep-wide").contains("5 cycles").contains("45s");
+                    .contains("net-sweep-wide")
+                    .contains("5 cycles")
+                    .contains("45s");
             assertThat(String.join("\n", shell.run("sweep --deep -n").lines()))
-                    .contains("net-sweep-deep").contains("9 cycles").contains("90s");
+                    .contains("net-sweep-deep")
+                    .contains("9 cycles")
+                    .contains("90s");
         }
 
         @Test
@@ -237,7 +240,8 @@ class NetCommandsTest {
             // Decision N-4, stated where a player will actually meet it. Progression must not depend
             // on the narrative layer, and the surface that recovers the narrative layer is the
             // honest place to say so.
-            String output = String.join("\n", shell(dir).run("download -n 10.0.0.9").lines());
+            String output =
+                    String.join("\n", shell(dir).run("download -n 10.0.0.9").lines());
             assertThat(output).contains("nothing in one is required to advance");
         }
     }
@@ -259,7 +263,8 @@ class NetCommandsTest {
                         .as("`sweep %s` is a tier the rules know", option.flag())
                         .isPresent();
             }
-            assertThat(session.sweepOptions()).extracting(GameSession.SweepOption::flag)
+            assertThat(session.sweepOptions())
+                    .extracting(GameSession.SweepOption::flag)
                     .containsExactly("", "--wide", "--deep");
         }
 
@@ -295,8 +300,7 @@ class NetCommandsTest {
             Shell shell = shell(dir);
             var wide = shell.session().sweepOptions().get(1);
             assertThat(wide.available()).isFalse();
-            assertThat(shell.session().sweep(wide.flag()).status())
-                    .isEqualTo(GameSession.Outcome.NOPERM);
+            assertThat(shell.session().sweep(wide.flag()).status()).isEqualTo(GameSession.Outcome.NOPERM);
         }
     }
 }

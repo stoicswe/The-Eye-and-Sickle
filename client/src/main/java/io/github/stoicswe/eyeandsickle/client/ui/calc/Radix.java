@@ -109,9 +109,7 @@ public enum Radix {
     public String format(long value, WordSize word, boolean signed) {
         if (this == DEC) {
             long reading = signed ? word.signed(value) : word.mask(value);
-            String digits = signed
-                    ? Long.toString(Math.abs(reading))
-                    : Long.toUnsignedString(word.mask(value));
+            String digits = signed ? Long.toString(Math.abs(reading)) : Long.toUnsignedString(word.mask(value));
             // Math.abs(Long.MIN_VALUE) is still Long.MIN_VALUE — the one value whose magnitude does
             // not fit. Its unsigned text is the same digits, so take them from there instead.
             if (signed && reading == Long.MIN_VALUE) {

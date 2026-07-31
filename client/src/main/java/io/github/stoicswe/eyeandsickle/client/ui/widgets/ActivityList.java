@@ -121,8 +121,8 @@ public final class ActivityList extends VBox {
         live.clear();
         rows.getChildren().clear();
         if (tasks.isEmpty()) {
-            rows.getChildren().add(Note.empty(
-                    "Nothing running. A scan, or cycles returning from one, appears here with its "
+            rows.getChildren()
+                    .add(Note.empty("Nothing running. A scan, or cycles returning from one, appears here with its "
                             + "time remaining."));
             return;
         }
@@ -218,14 +218,11 @@ public final class ActivityList extends VBox {
             }
             meter.setFraction(progress, false);
             Duration left = task.remaining();
-            remaining.setText(left.isZero()
-                    ? Ui.upper("finishing")
-                    : Ui.upper(clock(left) + " left"));
+            remaining.setText(left.isZero() ? Ui.upper("finishing") : Ui.upper(clock(left) + " left"));
 
             Duration total = Duration.between(task.startedAt(), task.endsAt());
             Duration done = total.minus(left);
-            elapsed.setText(Ui.upper(clock(done) + " / " + clock(total)
-                    + " · " + Math.round(progress * 100) + "%"));
+            elapsed.setText(Ui.upper(clock(done) + " / " + clock(total) + " · " + Math.round(progress * 100) + "%"));
         }
 
         private void dispose() {

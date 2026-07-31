@@ -145,14 +145,14 @@ class BreachResolutionTest {
             assertThatThrownBy(() ->
                             new ResolutionRecord(null, DifficultyTier.of(1), TargetState.LIVE, BreachOutcome.BREACHED))
                     .isInstanceOf(NullPointerException.class);
-            assertThatThrownBy(() ->
-                            new ResolutionRecord(PuzzleClass.OFFSET_CIPHER, null, TargetState.LIVE, BreachOutcome.BREACHED))
+            assertThatThrownBy(() -> new ResolutionRecord(
+                            PuzzleClass.OFFSET_CIPHER, null, TargetState.LIVE, BreachOutcome.BREACHED))
                     .isInstanceOf(NullPointerException.class);
-            assertThatThrownBy(() ->
-                            new ResolutionRecord(PuzzleClass.OFFSET_CIPHER, DifficultyTier.of(1), null, BreachOutcome.BREACHED))
+            assertThatThrownBy(() -> new ResolutionRecord(
+                            PuzzleClass.OFFSET_CIPHER, DifficultyTier.of(1), null, BreachOutcome.BREACHED))
                     .isInstanceOf(NullPointerException.class);
-            assertThatThrownBy(
-                            () -> new ResolutionRecord(PuzzleClass.OFFSET_CIPHER, DifficultyTier.of(1), TargetState.LIVE, null))
+            assertThatThrownBy(() -> new ResolutionRecord(
+                            PuzzleClass.OFFSET_CIPHER, DifficultyTier.of(1), TargetState.LIVE, null))
                     .isInstanceOf(NullPointerException.class);
         }
 

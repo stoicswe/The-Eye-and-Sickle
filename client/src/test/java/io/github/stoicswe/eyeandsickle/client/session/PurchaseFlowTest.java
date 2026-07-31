@@ -1,9 +1,9 @@
 package io.github.stoicswe.eyeandsickle.client.session;
 
-import io.github.stoicswe.eyeandsickle.solo.Balance;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
+import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.SoloGame;
 import io.github.stoicswe.eyeandsickle.solo.rules.Repac;
 import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
@@ -98,8 +98,7 @@ class PurchaseFlowTest {
         assertThat(session.items(StorageTier.VAULT)).isEmpty();
 
         // Nor can it be resold — that hole would be shaped exactly like the secondary market.
-        assertThat(Repac.sell(game.state(), pkg.path()).refusal())
-                .isEqualTo(Repac.Refusal.UNCONFIRMED);
+        assertThat(Repac.sell(game.state(), pkg.path()).refusal()).isEqualTo(Repac.Refusal.UNCONFIRMED);
 
         // ── confirmed ─────────────────────────────────────────────────────────────────────────
         // Let the chain go again: a tiny outstanding draw is a block that is about to be found.
@@ -108,9 +107,7 @@ class PurchaseFlowTest {
         game.tick();
 
         StoredFileState upg = onlyFile(game);
-        assertThat(upg.name)
-                .as("confirmation is what runs Repac")
-                .endsWith(Repac.PACKAGE_SUFFIX);
+        assertThat(upg.name).as("confirmation is what runs Repac").endsWith(Repac.PACKAGE_SUFFIX);
         assertThat(Repac.locked(game.state(), upg)).isFalse();
 
         // ── installed ─────────────────────────────────────────────────────────────────────────

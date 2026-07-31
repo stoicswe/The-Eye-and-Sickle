@@ -61,13 +61,7 @@ public final class HostArchetypes {
      * nobody replays a world for its place names.
      */
     private static final List<String> SERVER_NAMES = List.of(
-            "home-relay",
-            "south-exchange",
-            "north-yard",
-            "west-depot",
-            "east-annex",
-            "lower-works",
-            "outer-span");
+            "home-relay", "south-exchange", "north-yard", "west-depot", "east-annex", "lower-works", "outer-span");
 
     /** The name for the server at {@code index}, wrapping if the pool is ever outgrown. */
     public static String serverName(int index) {

@@ -86,8 +86,7 @@ public record MatrixBoard(
         // an off-by-one that shows up as a cell the player can see and cannot take, which reads as a
         // broken game rather than as a bad state.
         if (used.size() != grid.size()) {
-            throw new IllegalArgumentException(
-                    "used has " + used.size() + " rows but the grid has " + grid.size());
+            throw new IllegalArgumentException("used has " + used.size() + " rows but the grid has " + grid.size());
         }
         for (int row = 0; row < grid.size(); row++) {
             if (used.get(row).size() != grid.get(row).size()) {
@@ -106,7 +105,10 @@ public record MatrixBoard(
 
     /** Whether a cell is one the next pick may legally take. */
     public boolean selectable(int row, int column) {
-        if (row < 0 || row >= grid.size() || column < 0 || column >= grid.get(row).size()) {
+        if (row < 0
+                || row >= grid.size()
+                || column < 0
+                || column >= grid.get(row).size()) {
             return false;
         }
         if (used.get(row).get(column) || bufferRemaining() == 0) {

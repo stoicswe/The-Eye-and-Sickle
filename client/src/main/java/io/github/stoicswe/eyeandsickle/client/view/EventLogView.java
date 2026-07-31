@@ -63,7 +63,8 @@ public final class EventLogView {
         search.setPromptText("Filter by type, subject or payload");
         HBox.setHgrow(search, Priority.ALWAYS);
 
-        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch follow = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Follow");
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch follow =
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Follow");
         follow.setSelected(true);
         follow.setAccessibleText("Scroll to the newest event as it arrives");
 
@@ -87,7 +88,8 @@ public final class EventLogView {
                     return;
                 }
                 String payload = event.payload();
-                setText(String.format("%s  %-28s %-22s %s",
+                setText(String.format(
+                        "%s  %-28s %-22s %s",
                         event.time() == null ? "--:--:--.---" : STAMP.format(event.time()),
                         event.shortType(),
                         event.subject() == null ? "-" : event.subject(),
@@ -96,13 +98,12 @@ public final class EventLogView {
                 // attributes that identify an event and the two nobody reads while scanning — on the
                 // row they would push the type and payload off the right edge, and the whole value of
                 // a stream is being able to scan it.
-                javafx.scene.control.Tooltip tip = new javafx.scene.control.Tooltip(
-                        "type    " + event.type()
-                                + "\nid      " + event.id()
-                                + "\nsource  " + event.source()
-                                + "\nspec    " + event.specversion()
-                                + (event.subject() == null ? "" : "\nsubject " + event.subject())
-                                + (payload.isBlank() ? "" : "\ndata    " + payload));
+                javafx.scene.control.Tooltip tip = new javafx.scene.control.Tooltip("type    " + event.type()
+                        + "\nid      " + event.id()
+                        + "\nsource  " + event.source()
+                        + "\nspec    " + event.specversion()
+                        + (event.subject() == null ? "" : "\nsubject " + event.subject())
+                        + (payload.isBlank() ? "" : "\ndata    " + payload));
                 tip.setWrapText(true);
                 tip.setMaxWidth(460);
                 setTooltip(tip);
@@ -114,7 +115,8 @@ public final class EventLogView {
         VBox.setVgrow(list, Priority.ALWAYS);
 
         Runnable refresh = () -> {
-            String query = search.getText() == null ? "" : search.getText().trim().toLowerCase();
+            String query =
+                    search.getText() == null ? "" : search.getText().trim().toLowerCase();
             List<CloudEvent> events = recorder.events().stream()
                     .filter(event -> query.isEmpty()
                             || event.type().toLowerCase().contains(query)

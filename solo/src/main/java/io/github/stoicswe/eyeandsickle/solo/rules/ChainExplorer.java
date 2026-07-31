@@ -1,11 +1,10 @@
 package io.github.stoicswe.eyeandsickle.solo.rules;
 
-import java.math.BigInteger;
-import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.protocol.game.BlockContribution;
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainBlock;
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainMempool;
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainTransaction;
+import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningPool;
 import io.github.stoicswe.eyeandsickle.solo.Balance;
@@ -13,11 +12,12 @@ import io.github.stoicswe.eyeandsickle.solo.Pools;
 import io.github.stoicswe.eyeandsickle.solo.state.ChainState;
 import io.github.stoicswe.eyeandsickle.solo.state.ContributionState;
 import io.github.stoicswe.eyeandsickle.solo.state.LedgerEntryState;
+import io.github.stoicswe.eyeandsickle.solo.state.PendingTxState;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
+import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import io.github.stoicswe.eyeandsickle.solo.state.PendingTxState;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -347,7 +347,8 @@ public final class ChainExplorer {
             // ⚠ Drawn in hundredths and scaled up, not drawn across the wei range. A uniform draw
             // over 18 decimals gives every NPC transfer an eighteen-digit tail, and a block full of
             // those reads as machine output rather than as people sending each other money.
-            BigInteger value = Ethecoin.ofDecimal("0.01").wei()
+            BigInteger value = Ethecoin.ofDecimal("0.01")
+                    .wei()
                     .multiply(BigInteger.valueOf(25L + Math.floorMod(readLong(seed, 0), 250_000L)));
             // ⚠ The rules' fee, not a second derivation of one. These are summed and PAID to whoever
             // mined the block, so a copy here would be a block whose card and whose payout disagreed
@@ -434,8 +435,7 @@ public final class ChainExplorer {
     }
 
     /** One ledger row as a chain transaction. The single builder both surfaces go through. */
-    private static ChainTransaction transaction(
-            SoloSave save, LedgerEntryState entry, int nonce, String mine) {
+    private static ChainTransaction transaction(SoloSave save, LedgerEntryState entry, int nonce, String mine) {
         boolean incoming = entry.deltaWei.signum() >= 0;
         // A block reward has no sender: the coins did not exist before the block. Explorers render
         // that as a transfer from the zero address, and a coinbase costs no gas because there was no
@@ -448,9 +448,7 @@ public final class ChainExplorer {
         // one, and that is the test.
         boolean fromNamedParty = entry.counterparty != null && !entry.counterparty.isBlank();
         boolean coinbase = incoming && isMinted(entry.type) && !fromNamedParty;
-        String counterparty = fromNamedParty
-                ? entry.counterparty
-                : address("counterparty:" + entry.type);
+        String counterparty = fromNamedParty ? entry.counterparty : address("counterparty:" + entry.type);
         BigInteger fee = feeOf(save, entry);
         return new ChainTransaction(
                 txHash(save, entry),
@@ -554,8 +552,7 @@ public final class ChainExplorer {
     public static ChainMempool mempool(SoloSave save, Instant now) {
         ChainState chain = save.chain;
         if (chain == null) {
-            return new ChainMempool(List.of(), 0, List.of(), 0, 0,
-                    BigInteger.ZERO, BigInteger.ZERO);
+            return new ChainMempool(List.of(), 0, List.of(), 0, 0, BigInteger.ZERO, BigInteger.ZERO);
         }
         String mine = addressOf(save);
         List<ChainTransaction> pending = new ArrayList<>();
@@ -588,9 +585,7 @@ public final class ChainExplorer {
         // The anchor. Falls back to now only on a chain that has never recorded a block, which is a
         // state genesis() does not produce — without the fallback a fresh save would date every ETA
         // from the epoch and every card would read "running long" on the first frame.
-        Instant anchor = chain.lastBlockAt == null || chain.lastBlockAt.equals(Instant.EPOCH)
-                ? now
-                : chain.lastBlockAt;
+        Instant anchor = chain.lastBlockAt == null || chain.lastBlockAt.equals(Instant.EPOCH) ? now : chain.lastBlockAt;
 
         List<ChainMempool.ProjectedBlock> projected = new ArrayList<>();
         // Which projection each waiting transaction lands in, by its position in the fee-sorted
@@ -664,15 +659,20 @@ public final class ChainExplorer {
             // before the queues were split apart, so five cards printed the same figure five times
             // and a player comparing them learned nothing from looking past the first.
             projected.add(new ChainMempool.ProjectedBlock(
-                    index, total, ours, (long) total * GAS_PER_TRANSFER,
-                    BLOCK_GAS_LIMIT, fees, gasPrice(clearingHere), etaOf(anchor, index)));
+                    index,
+                    total,
+                    ours,
+                    (long) total * GAS_PER_TRANSFER,
+                    BLOCK_GAS_LIMIT,
+                    fees,
+                    gasPrice(clearingHere),
+                    etaOf(anchor, index)));
         }
 
         List<ChainMempool.Queued> queued = new ArrayList<>();
         for (int i = 0; i < pending.size(); i++) {
             int index = landsIn[i];
-            queued.add(new ChainMempool.Queued(
-                    pending.get(i), index, index < 0 ? null : etaOf(anchor, index)));
+            queued.add(new ChainMempool.Queued(pending.get(i), index, index < 0 ? null : etaOf(anchor, index)));
         }
 
         // ⚠ BOTH as fee AMOUNTS, in the unit the fee tiers are quoted in. They used to be gas
@@ -684,7 +684,8 @@ public final class ChainExplorer {
         BigInteger top = pending.isEmpty() ? clearingRate : pending.getFirst().feeWei();
         long since = chain.lastBlockAt == null
                 ? 0L
-                : Math.max(0L, java.time.Duration.between(chain.lastBlockAt, now).toSeconds());
+                : Math.max(
+                        0L, java.time.Duration.between(chain.lastBlockAt, now).toSeconds());
         return new ChainMempool(
                 queued,
                 queued.size(),

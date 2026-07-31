@@ -110,8 +110,7 @@ class NoiseRulesTest {
 
             // The one place a pool's share interval is more than flavour: MERIDIAN asks every 15s,
             // SMALL HOURS every 60s. Picking a quieter pool is a real play.
-            assertThat(NoiseRules.outwardCycles(often, T0))
-                    .isGreaterThan(NoiseRules.outwardCycles(rarely, T0));
+            assertThat(NoiseRules.outwardCycles(often, T0)).isGreaterThan(NoiseRules.outwardCycles(rarely, T0));
         }
 
         @Test
@@ -203,10 +202,8 @@ class NoiseRulesTest {
         @Test
         @DisplayName("the ladder is loudness as well as sensitivity")
         void louderTiersAreLouder() {
-            assertThat(Balance.NET_SWEEP_BASE_NOISE)
-                    .isLessThan(Balance.NET_SWEEP_WIDE_NOISE);
-            assertThat(Balance.NET_SWEEP_WIDE_NOISE)
-                    .isLessThan(Balance.NET_SWEEP_DEEP_NOISE);
+            assertThat(Balance.NET_SWEEP_BASE_NOISE).isLessThan(Balance.NET_SWEEP_WIDE_NOISE);
+            assertThat(Balance.NET_SWEEP_WIDE_NOISE).isLessThan(Balance.NET_SWEEP_DEEP_NOISE);
             // Below a full rig even at the top, so a player can still read a sweep running ON TOP of
             // something else. A tier that pinned the meter would erase that distinction.
             assertThat(Balance.NET_SWEEP_DEEP_NOISE).isLessThan(100L);
@@ -218,8 +215,7 @@ class NoiseRulesTest {
             SoloSave save = rig();
             sweep(save, Balance.NET_SWEEP_DEEP_NOISE, 90);
             sweep(save, Balance.NET_SWEEP_DEEP_NOISE, 90);
-            assertThat(NoiseRules.outwardCycles(save, T0))
-                    .isEqualTo(2 * Balance.NET_SWEEP_DEEP_NOISE);
+            assertThat(NoiseRules.outwardCycles(save, T0)).isEqualTo(2 * Balance.NET_SWEEP_DEEP_NOISE);
             assertThat(NoiseRules.level(save, T0)).isEqualTo(1.0d);
         }
 

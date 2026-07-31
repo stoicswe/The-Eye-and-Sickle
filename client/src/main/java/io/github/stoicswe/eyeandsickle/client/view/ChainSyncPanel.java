@@ -1,11 +1,11 @@
 package io.github.stoicswe.eyeandsickle.client.view;
 
-import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.client.ui.Pulse;
 import io.github.stoicswe.eyeandsickle.client.ui.Ui;
 import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.CellMeter;
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainSync;
+import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import java.time.Duration;
 import java.util.Locale;
 import javafx.geometry.Pos;
@@ -116,8 +116,7 @@ public final class ChainSyncPanel {
             // meter stuck at one cell. Suppressing the animation must never suppress the report.
             int at = Pulse.shared().reducedMotion() ? STEPS : Math.min(STEPS, step[0]++);
             meter.set(at);
-            heights.setText(String.format(Locale.ROOT, "%,d → %,d",
-                    sync.fromHeight(), sync.heightAt(at, STEPS)));
+            heights.setText(String.format(Locale.ROOT, "%,d → %,d", sync.fromHeight(), sync.heightAt(at, STEPS)));
             caption.setText(caption(sync, at));
             if (at >= STEPS && !finished[0]) {
                 finished[0] = true;
@@ -146,11 +145,14 @@ public final class ChainSyncPanel {
     /** The line under the meter: what is being replayed, then what it came to. */
     private static String caption(ChainSync sync, int at) {
         if (at < STEPS) {
-            return String.format(Locale.ROOT,
+            return String.format(
+                    Locale.ROOT,
                     "%,d blocks over %s · replaying the chain's own record",
-                    sync.blocks(), human(Duration.ofSeconds(sync.awaySeconds())));
+                    sync.blocks(),
+                    human(Duration.ofSeconds(sync.awaySeconds())));
         }
-        return String.format(Locale.ROOT,
+        return String.format(
+                Locale.ROOT,
                 "%,d blocks over %s · difficulty %.2f → %.2f · %d retarget%s",
                 sync.blocks(),
                 human(Duration.ofSeconds(sync.awaySeconds())),
@@ -173,53 +175,59 @@ public final class ChainSyncPanel {
     private static void fill(VBox summary, ChainSync sync) {
         summary.getChildren().clear();
         if (sync.blocksWon() > 0) {
-            summary.getChildren().add(line(
-                    sync.blocksWon() == 1
-                            ? "1 block is yours — found after logout, before the rig spun down."
-                            : sync.blocksWon() + " blocks are yours — found after logout, before the "
-                                    + "rig spun down.",
-                    "es-sync-win"));
+            summary.getChildren()
+                    .add(line(
+                            sync.blocksWon() == 1
+                                    ? "1 block is yours — found after logout, before the rig spun down."
+                                    : sync.blocksWon() + " blocks are yours — found after logout, before the "
+                                            + "rig spun down.",
+                            "es-sync-win"));
         }
         if (sync.poolBlocks() > 0) {
-            summary.getChildren().add(line(
-                    "Your pool found " + sync.poolBlocks()
-                            + (sync.poolBlocks() == 1 ? " block" : " blocks")
-                            + " while your rig was still contributing.",
-                    "es-sync-note"));
+            summary.getChildren()
+                    .add(line(
+                            "Your pool found " + sync.poolBlocks()
+                                    + (sync.poolBlocks() == 1 ? " block" : " blocks")
+                                    + " while your rig was still contributing.",
+                            "es-sync-note"));
         }
         if (sync.creditedWei().signum() > 0) {
-            summary.getChildren().add(line(
-                    Ethecoin.format(sync.creditedWei()) + " settled — subsidy and fees together.",
-                    "es-sync-win"));
+            summary.getChildren()
+                    .add(line(
+                            Ethecoin.format(sync.creditedWei()) + " settled — subsidy and fees together.",
+                            "es-sync-win"));
         }
         if (sync.transactionsConfirmed() > 0) {
             // ⚠ Not income, and the wording keeps that clear. The value moved when the row was
             // written; confirmation only stamps it with the height that carried it. A transaction
             // left unconfirmed across a four-day absence would be the lie.
-            summary.getChildren().add(line(
-                    sync.transactionsConfirmed() == 1
-                            ? "1 of your transactions was mined while you were away."
-                            : sync.transactionsConfirmed()
-                                    + " of your transactions were mined while you were away.",
-                    "es-sync-note"));
+            summary.getChildren()
+                    .add(line(
+                            sync.transactionsConfirmed() == 1
+                                    ? "1 of your transactions was mined while you were away."
+                                    : sync.transactionsConfirmed()
+                                            + " of your transactions were mined while you were away.",
+                            "es-sync-note"));
         }
         if (sync.capped()) {
-            summary.getChildren().add(line(
-                    "Your rig ran for " + human(Duration.ofSeconds(sync.minedSeconds()))
-                            + " after logout and then stopped. The other "
-                            + String.format(Locale.ROOT, "%,d", sync.uncontestedBlocks())
-                            + " blocks were mined without it.",
-                    "es-sync-note"));
+            summary.getChildren()
+                    .add(line(
+                            "Your rig ran for " + human(Duration.ofSeconds(sync.minedSeconds()))
+                                    + " after logout and then stopped. The other "
+                                    + String.format(Locale.ROOT, "%,d", sync.uncontestedBlocks())
+                                    + " blocks were mined without it.",
+                            "es-sync-note"));
         }
         if (sync.truncated()) {
-            summary.getChildren().add(line(
-                    "The fill stopped at its block limit — the chain is still behind. It will "
-                            + "continue catching up on the next load.",
-                    "es-sync-warn"));
+            summary.getChildren()
+                    .add(line(
+                            "The fill stopped at its block limit — the chain is still behind. It will "
+                                    + "continue catching up on the next load.",
+                            "es-sync-warn"));
         }
         if (summary.getChildren().isEmpty()) {
-            summary.getChildren().add(line(
-                    "Nothing of yours was in any of it. The chain simply kept going.", "es-sync-note"));
+            summary.getChildren()
+                    .add(line("Nothing of yours was in any of it. The chain simply kept going.", "es-sync-note"));
         }
     }
 
@@ -245,7 +253,6 @@ public final class ChainSyncPanel {
         long rest = hours % 24;
         return rest == 0 ? days + "d" : days + "d " + rest + "h";
     }
-
 
     /**
      * The panel and the one thing the caller has to remember.

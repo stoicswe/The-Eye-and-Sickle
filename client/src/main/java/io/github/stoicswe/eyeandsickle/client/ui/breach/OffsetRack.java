@@ -66,11 +66,15 @@ public final class OffsetRack extends VBox {
         offsetRow.setAlignment(Pos.CENTER_LEFT);
         hint.getStyleClass().add("es-cipher-hint");
 
-        getChildren().addAll(
-                Ui.micro("OBSERVED"), observedRow,
-                Ui.micro("TARGET"), targetRow,
-                Ui.micro("OFFSET"), offsetRow,
-                hint);
+        getChildren()
+                .addAll(
+                        Ui.micro("OBSERVED"),
+                        observedRow,
+                        Ui.micro("TARGET"),
+                        targetRow,
+                        Ui.micro("OFFSET"),
+                        offsetRow,
+                        hint);
 
         setFocusTraversable(true);
         setPickOnBounds(true);
@@ -211,9 +215,7 @@ public final class OffsetRack extends VBox {
             return;
         }
         for (int i = 0; i < next.length(); i++) {
-            String text = i == cursor && !typing.isEmpty()
-                    ? typing
-                    : OffsetBoard.offsetText(value(next, i));
+            String text = i == cursor && !typing.isEmpty() ? typing : OffsetBoard.offsetText(value(next, i));
             Label cell = new Label(pad(text));
             cell.getStyleClass().add("es-cipher-cell");
             if (next.wrong().contains(i)) {

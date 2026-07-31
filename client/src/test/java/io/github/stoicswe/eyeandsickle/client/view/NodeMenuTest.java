@@ -78,8 +78,7 @@ class NodeMenuTest {
             Platform.startup(up::countDown);
         } catch (IllegalStateException alreadyRunning) {
             up.countDown();
-        } catch (UnsupportedOperationException | NoClassDefFoundError
-                | ExceptionInInitializerError headless) {
+        } catch (UnsupportedOperationException | NoClassDefFoundError | ExceptionInInitializerError headless) {
             // ⚠ Three types, because a headless toolkit fails in three shapes: the direct refusal
             // ("Unable to open DISPLAY", which is what CI reported), a graphics class that will not
             // load at all, and a failure during static initialisation of one that does. Catching only
@@ -115,8 +114,8 @@ class NodeMenuTest {
     @DisplayName("right-clicking a machine does not throw when the anchor is rebuilt underneath it")
     void rightClickDoesNotThrow(@TempDir Path dir) throws Exception {
         onFxThread(() -> {
-            SoloGame game = SoloGame.open(
-                    new SaveStore(dir.resolve("s.json")), "operator", Clock.fixed(T0, ZoneOffset.UTC));
+            SoloGame game =
+                    SoloGame.open(new SaveStore(dir.resolve("s.json")), "operator", Clock.fixed(T0, ZoneOffset.UTC));
             LocalGameSession session = new LocalGameSession(game);
             Region map = NetMapView.create(session);
             // ⚠ A Scene with NO Stage — the same condition a node detached by a repaint is in, and
@@ -140,8 +139,7 @@ class NodeMenuTest {
 
             for (Node cell : cells.subList(0, Math.min(6, cells.size()))) {
                 assertThatCode(() -> cell.fireEvent(new ContextMenuEvent(
-                        ContextMenuEvent.CONTEXT_MENU_REQUESTED,
-                        4, 4, 40, 40, false, null)))
+                                ContextMenuEvent.CONTEXT_MENU_REQUESTED, 4, 4, 40, 40, false, null)))
                         .as("right-clicking %s", cell instanceof Label label ? label.getText() : cell)
                         .doesNotThrowAnyException();
             }

@@ -68,11 +68,7 @@ final class RigAbout {
         caption.setWrapText(true);
         portrait.getChildren().addAll(name, caption);
 
-        root.getChildren().addAll(
-                portrait,
-                Ui.hairline(UiTokens.ABOUT_RULE_WIDTH, false),
-                specification(),
-                footnote());
+        root.getChildren().addAll(portrait, Ui.hairline(UiTokens.ABOUT_RULE_WIDTH, false), specification(), footnote());
         return root;
     }
 

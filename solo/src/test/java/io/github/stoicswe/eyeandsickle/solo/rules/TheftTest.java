@@ -41,8 +41,8 @@ class TheftTest {
 
     /** Gives a parasite the {@code DEPLOYED_MINER} allocation it holds on a rig with room for it. */
     private static AllocationState hold(SoloSave save, MinerState miner) {
-        AllocationState allocation = ComputeRules.reserve(
-                save.rig, ComputeConsumer.DEPLOYED_MINER, miner.label, miner.hostCycles);
+        AllocationState allocation =
+                ComputeRules.reserve(save.rig, ComputeConsumer.DEPLOYED_MINER, miner.label, miner.hostCycles);
         miner.allocationId = allocation.allocationId;
         return allocation;
     }
@@ -158,7 +158,8 @@ class TheftTest {
             }
             ComputeBudget budget = ComputeRules.snapshot(save);
             assertThat(budget.unaccountedFor()).isEqualTo(Cycles.of(50));
-            assertThat(budget.allocations().stream().map(ComputeAllocation::cycles)).isEmpty();
+            assertThat(budget.allocations().stream().map(ComputeAllocation::cycles))
+                    .isEmpty();
         }
 
         @Test

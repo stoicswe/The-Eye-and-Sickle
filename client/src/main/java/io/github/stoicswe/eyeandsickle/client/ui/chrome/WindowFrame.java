@@ -194,8 +194,7 @@ public final class WindowFrame extends Pane {
     void rebuildControls() {
         controls.getChildren().clear();
         Label minimizeControl = onMinimize == null ? null : control("[−]", onMinimize, false);
-        Label maximizeControl = onMaximize == null
-                ? null : control("[+]", onMaximize, false, "es-strip-ctl-max");
+        Label maximizeControl = onMaximize == null ? null : control("[+]", onMaximize, false, "es-strip-ctl-max");
         Label closeControl = onClose == null ? null : control("[×]", onClose, true);
 
         // ⚠ Reordered, not mirrored. macOS runs close, minimise, zoom; Windows runs minimise,
@@ -235,8 +234,7 @@ public final class WindowFrame extends Pane {
         label.setFocusTraversable(true);
         label.getStyleClass().add("es-focusable");
         label.setOnKeyPressed(e -> {
-            if (e.getCode() == javafx.scene.input.KeyCode.SPACE
-                    || e.getCode() == javafx.scene.input.KeyCode.ENTER) {
+            if (e.getCode() == javafx.scene.input.KeyCode.SPACE || e.getCode() == javafx.scene.input.KeyCode.ENTER) {
                 e.consume();
                 action.run();
             }
@@ -262,8 +260,8 @@ public final class WindowFrame extends Pane {
         double h = getHeight();
 
         edge.resizeRelocate(0, 0, w, h);
-        inner.resizeRelocate(UiTokens.HAIR, UiTokens.HAIR,
-                Math.max(0, w - 2 * UiTokens.HAIR), Math.max(0, h - 2 * UiTokens.HAIR));
+        inner.resizeRelocate(
+                UiTokens.HAIR, UiTokens.HAIR, Math.max(0, w - 2 * UiTokens.HAIR), Math.max(0, h - 2 * UiTokens.HAIR));
 
         edge.setClip(clip(w, h));
         inner.setClip(clip(Math.max(0, w - 2 * UiTokens.HAIR), Math.max(0, h - 2 * UiTokens.HAIR)));
@@ -338,13 +336,7 @@ public final class WindowFrame extends Pane {
         if (cut <= 0) {
             return new double[] {0, 0, w, 0, w, h, 0, h};
         }
-        return new double[] {
-            0, 0,
-            w - cut, 0,
-            w, cut,
-            w, h,
-            0, h
-        };
+        return new double[] {0, 0, w - cut, 0, w, cut, w, h, 0, h};
     }
 
     @Override

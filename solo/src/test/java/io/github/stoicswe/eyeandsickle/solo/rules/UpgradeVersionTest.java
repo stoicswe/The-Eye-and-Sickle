@@ -1,6 +1,5 @@
 package io.github.stoicswe.eyeandsickle.solo.rules;
 
-import java.math.BigInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -11,6 +10,7 @@ import io.github.stoicswe.eyeandsickle.solo.Catalogue;
 import io.github.stoicswe.eyeandsickle.solo.SoloGame;
 import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import io.github.stoicswe.eyeandsickle.solo.state.ItemState;
+import java.math.BigInteger;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
@@ -36,8 +36,7 @@ class UpgradeVersionTest {
     private static final Instant T0 = Instant.parse("2026-07-30T09:00:00Z");
 
     private static SoloGame game(Path dir) {
-        return SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator",
-                Clock.fixed(T0, ZoneOffset.UTC));
+        return SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", Clock.fixed(T0, ZoneOffset.UTC));
     }
 
     @Nested
@@ -96,7 +95,9 @@ class UpgradeVersionTest {
             for (Catalogue.Offering offering : Catalogue.offerings()) {
                 for (int tier = 1; tier <= 5; tier++) {
                     UpgradeVersion version = Versions.on(offering.id(), "10.0.0." + tier, tier);
-                    assertThat(version.major()).as("%s tier %d", offering.id(), tier).isEqualTo(tier);
+                    assertThat(version.major())
+                            .as("%s tier %d", offering.id(), tier)
+                            .isEqualTo(tier);
                     // The catalogue is the single source of every capability figure. If a version
                     // ever reached one, it would have to come through here.
                     assertThat(Catalogue.byId(offering.id()).orElseThrow().equippedCycles())
@@ -169,7 +170,8 @@ class UpgradeVersionTest {
         @DisplayName("harder machines carry newer builds — the whole reward loop")
         void tierDrivesTheMajor() {
             for (int tier = 1; tier <= 5; tier++) {
-                assertThat(Versions.on("net-sweep-wide", "10.0.0.9", tier).major()).isEqualTo(tier);
+                assertThat(Versions.on("net-sweep-wide", "10.0.0.9", tier).major())
+                        .isEqualTo(tier);
             }
             // Out-of-range tiers clamp rather than producing a version nothing can read.
             assertThat(Versions.on("x", "y", 0).major()).isEqualTo(1);
@@ -246,10 +248,9 @@ class UpgradeVersionTest {
                     .filter(path -> game.upgradeAt(host.address, path).isEmpty())
                     .findFirst()
                     .orElse("");
-            org.junit.jupiter.api.Assumptions.assumeTrue(!dud.isBlank(),
-                    "every bundle in this world resolves — nothing to check");
-            assertThat(game.info(host.address, dud))
-                    .anyMatch(line -> line.contains("no catalogue entry"));
+            org.junit.jupiter.api.Assumptions.assumeTrue(
+                    !dud.isBlank(), "every bundle in this world resolves — nothing to check");
+            assertThat(game.info(host.address, dud)).anyMatch(line -> line.contains("no catalogue entry"));
         }
 
         /**
@@ -270,8 +271,8 @@ class UpgradeVersionTest {
                     .orElseThrow();
             host.foothold = true;
             String path = upgradePathOn(game, host.address);
-            org.junit.jupiter.api.Assumptions.assumeTrue(!path.isBlank(),
-                    "this world's first host carries no app bundle; the shape is covered elsewhere");
+            org.junit.jupiter.api.Assumptions.assumeTrue(
+                    !path.isBlank(), "this world's first host carries no app bundle; the shape is covered elsewhere");
 
             var offer = game.upgradeAt(host.address, path);
             assertThat(offer).isPresent();
@@ -366,11 +367,17 @@ class UpgradeVersionTest {
             // ⚠ "Older" is not "don't bother" — an older build is still worth real ethecoin, and a
             // verdict that stopped at the comparison would be the interface deciding for the player.
             UpgradeOffer older = new UpgradeOffer(
-                    "net-sweep-wide", "Net Sweep (Wide)", "summary",
-                    new UpgradeVersion(2, 0), new UpgradeVersion(4, 0),
+                    "net-sweep-wide",
+                    "Net Sweep (Wide)",
+                    "summary",
+                    new UpgradeVersion(2, 0),
+                    new UpgradeVersion(4, 0),
                     UpgradeOffer.Standing.OLDER,
                     io.github.stoicswe.eyeandsickle.protocol.game.UnlockGate.ETHECOIN,
-                    1_000L, Balance.ec("5"), true, 0L);
+                    1_000L,
+                    Balance.ec("5"),
+                    true,
+                    0L);
             assertThat(older.verdict()).contains("sell");
             assertThat(older.worthInstalling()).isFalse();
         }

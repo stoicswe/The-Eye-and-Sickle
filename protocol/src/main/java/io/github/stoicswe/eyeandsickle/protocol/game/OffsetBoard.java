@@ -102,8 +102,8 @@ public record OffsetBoard(
         commits = Math.max(0, commits);
 
         if (observed.size() != target.size()) {
-            throw new IllegalArgumentException("observed has " + observed.size()
-                    + " cells but target has " + target.size());
+            throw new IllegalArgumentException(
+                    "observed has " + observed.size() + " cells but target has " + target.size());
         }
         cursor = observed.isEmpty() ? 0 : Math.max(0, Math.min(observed.size() - 1, cursor));
     }

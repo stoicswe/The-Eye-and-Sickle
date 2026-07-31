@@ -121,55 +121,92 @@ public enum RigTab {
             // Overview and About draw no table, but returning the CPU set rather than an empty list
             // means the widget is never asked to render zero columns — and a tab switch back from
             // CPU finds the sort it left, because the column list is the same object.
-            case OVERVIEW, ABOUT, CPU -> List.of(
-                    processColumn(),
-                    number("% CPU", 9, p -> String.format(Locale.ROOT, "%.1f", p.cpuPercent()),
-                            Comparator.comparingDouble(RigProcess::cpuPercent)),
-                    number("CPU TIME", 12, RigProcess::cpuTimeText,
-                            Comparator.comparing(RigProcess::cpuTime)),
-                    number("THREADS", 9, p -> String.valueOf(p.threads()),
-                            Comparator.comparingInt(RigProcess::threads)),
-                    number("IDLE WK", 9, p -> String.valueOf(p.idleWakeups()),
-                            Comparator.comparingInt(RigProcess::idleWakeups)),
-                    number("CYCLES", 8, p -> p.cycles() > 0 ? String.valueOf(p.cycles()) : "--",
-                            Comparator.comparingLong(RigProcess::cycles)),
-                    pid(),
-                    user());
+            case OVERVIEW, ABOUT, CPU ->
+                List.of(
+                        processColumn(),
+                        number(
+                                "% CPU",
+                                9,
+                                p -> String.format(Locale.ROOT, "%.1f", p.cpuPercent()),
+                                Comparator.comparingDouble(RigProcess::cpuPercent)),
+                        number("CPU TIME", 12, RigProcess::cpuTimeText, Comparator.comparing(RigProcess::cpuTime)),
+                        number(
+                                "THREADS",
+                                9,
+                                p -> String.valueOf(p.threads()),
+                                Comparator.comparingInt(RigProcess::threads)),
+                        number(
+                                "IDLE WK",
+                                9,
+                                p -> String.valueOf(p.idleWakeups()),
+                                Comparator.comparingInt(RigProcess::idleWakeups)),
+                        number(
+                                "CYCLES",
+                                8,
+                                p -> p.cycles() > 0 ? String.valueOf(p.cycles()) : "--",
+                                Comparator.comparingLong(RigProcess::cycles)),
+                        pid(),
+                        user());
 
-            case MEMORY -> List.of(
-                    processColumn(),
-                    number("MEMORY", 12, RigProcess::memoryText,
-                            Comparator.comparingLong(RigProcess::memoryBytes)),
-                    number("THREADS", 9, p -> String.valueOf(p.threads()),
-                            Comparator.comparingInt(RigProcess::threads)),
-                    number("PORTS", 8, p -> String.valueOf(p.ports()),
-                            Comparator.comparingInt(RigProcess::ports)),
-                    number("CYCLES", 8, p -> p.cycles() > 0 ? String.valueOf(p.cycles()) : "--",
-                            Comparator.comparingLong(RigProcess::cycles)),
-                    pid(),
-                    user());
+            case MEMORY ->
+                List.of(
+                        processColumn(),
+                        number("MEMORY", 12, RigProcess::memoryText, Comparator.comparingLong(RigProcess::memoryBytes)),
+                        number(
+                                "THREADS",
+                                9,
+                                p -> String.valueOf(p.threads()),
+                                Comparator.comparingInt(RigProcess::threads)),
+                        number("PORTS", 8, p -> String.valueOf(p.ports()), Comparator.comparingInt(RigProcess::ports)),
+                        number(
+                                "CYCLES",
+                                8,
+                                p -> p.cycles() > 0 ? String.valueOf(p.cycles()) : "--",
+                                Comparator.comparingLong(RigProcess::cycles)),
+                        pid(),
+                        user());
 
-            case DISK -> List.of(
-                    processColumn(),
-                    number("WRITTEN", 12, p -> RigProcess.bytesText(p.bytesWritten()),
-                            Comparator.comparingLong(RigProcess::bytesWritten)),
-                    number("READ", 12, p -> RigProcess.bytesText(p.bytesRead()),
-                            Comparator.comparingLong(RigProcess::bytesRead)),
-                    pid(),
-                    user());
+            case DISK ->
+                List.of(
+                        processColumn(),
+                        number(
+                                "WRITTEN",
+                                12,
+                                p -> RigProcess.bytesText(p.bytesWritten()),
+                                Comparator.comparingLong(RigProcess::bytesWritten)),
+                        number(
+                                "READ",
+                                12,
+                                p -> RigProcess.bytesText(p.bytesRead()),
+                                Comparator.comparingLong(RigProcess::bytesRead)),
+                        pid(),
+                        user());
 
-            case NETWORK -> List.of(
-                    processColumn(),
-                    number("SENT", 11, p -> RigProcess.bytesText(p.sentBytes()),
-                            Comparator.comparingLong(RigProcess::sentBytes)),
-                    number("RCVD", 11, p -> RigProcess.bytesText(p.rcvdBytes()),
-                            Comparator.comparingLong(RigProcess::rcvdBytes)),
-                    number("PKT OUT", 10, p -> String.valueOf(p.sentPackets()),
-                            Comparator.comparingLong(RigProcess::sentPackets)),
-                    number("PKT IN", 10, p -> String.valueOf(p.rcvdPackets()),
-                            Comparator.comparingLong(RigProcess::rcvdPackets)),
-                    pid(),
-                    user());
+            case NETWORK ->
+                List.of(
+                        processColumn(),
+                        number(
+                                "SENT",
+                                11,
+                                p -> RigProcess.bytesText(p.sentBytes()),
+                                Comparator.comparingLong(RigProcess::sentBytes)),
+                        number(
+                                "RCVD",
+                                11,
+                                p -> RigProcess.bytesText(p.rcvdBytes()),
+                                Comparator.comparingLong(RigProcess::rcvdBytes)),
+                        number(
+                                "PKT OUT",
+                                10,
+                                p -> String.valueOf(p.sentPackets()),
+                                Comparator.comparingLong(RigProcess::sentPackets)),
+                        number(
+                                "PKT IN",
+                                10,
+                                p -> String.valueOf(p.rcvdPackets()),
+                                Comparator.comparingLong(RigProcess::rcvdPackets)),
+                        pid(),
+                        user());
         };
     }
 
@@ -180,7 +217,11 @@ public enum RigTab {
      * rather than in a separate block of capitals — and that adjacency is the entire tell.
      */
     private static Column processColumn() {
-        return new Column("PROCESS", 22, false, RigProcess::name,
+        return new Column(
+                "PROCESS",
+                22,
+                false,
+                RigProcess::name,
                 Comparator.comparing(p -> p.name().toLowerCase(Locale.ROOT)));
     }
 
@@ -192,8 +233,7 @@ public enum RigTab {
      * long after the machine did.
      */
     private static Column pid() {
-        return new Column("PID", 8, true, p -> String.valueOf(p.pid()),
-                Comparator.comparingInt(RigProcess::pid));
+        return new Column("PID", 8, true, p -> String.valueOf(p.pid()), Comparator.comparingInt(RigProcess::pid));
     }
 
     /**
@@ -204,7 +244,11 @@ public enum RigTab {
      * down this column finds it in about a second.
      */
     private static Column user() {
-        return new Column("USER", 16, false, RigProcess::user,
+        return new Column(
+                "USER",
+                16,
+                false,
+                RigProcess::user,
                 Comparator.comparing(p -> p.user().toLowerCase(Locale.ROOT)));
     }
 

@@ -145,8 +145,7 @@ public final class SystemReport {
     public static String processor() {
         int cores = Runtime.getRuntime().availableProcessors();
         String arch = property("os.arch");
-        return cores + (cores == 1 ? " CORE" : " CORES")
-                + (arch.equals(UNKNOWN) ? "" : " · " + Ascii.upper(arch));
+        return cores + (cores == 1 ? " CORE" : " CORES") + (arch.equals(UNKNOWN) ? "" : " · " + Ascii.upper(arch));
     }
 
     /**
@@ -170,8 +169,7 @@ public final class SystemReport {
 
     private static boolean hardwareAccelerated() {
         try {
-            return javafx.application.Platform.isSupported(
-                    javafx.application.ConditionalFeature.SCENE3D);
+            return javafx.application.Platform.isSupported(javafx.application.ConditionalFeature.SCENE3D);
         } catch (Throwable t) {
             return false;
         }

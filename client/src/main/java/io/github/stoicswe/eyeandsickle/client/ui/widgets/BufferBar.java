@@ -38,8 +38,7 @@ public final class BufferBar extends VBox {
     public BufferBar() {
         super(3);
         for (int i = 0; i < UiTokens.BUFFER_CELLS; i++) {
-            Region cell = Ui.block(
-                    UiTokens.BUFFER_CELL_WIDTH, UiTokens.BUFFER_CELL_HEIGHT, "es-buffer-cell");
+            Region cell = Ui.block(UiTokens.BUFFER_CELL_WIDTH, UiTokens.BUFFER_CELL_HEIGHT, "es-buffer-cell");
             cells.add(cell);
             strip.getChildren().add(cell);
         }
@@ -69,8 +68,7 @@ public final class BufferBar extends VBox {
         }
 
         double heldHours = fraction * hoursCap;
-        String text = String.format(
-                Locale.ROOT, "%s / %s", clock(heldHours), clock(hoursCap));
+        String text = String.format(Locale.ROOT, "%s / %s", clock(heldHours), clock(hoursCap));
         caption.setText(full ? text + " · DISCARDING" : text);
         caption.getStyleClass().removeAll("es-buffer-text-lost");
         if (full) {

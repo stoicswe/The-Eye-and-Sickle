@@ -145,8 +145,13 @@ class ChainSyncTest {
             Path file = dir.resolve("save.json");
             SoloGame game = at(file, T0);
             game.credit(Balance.ec("500"), "TEST", "seed");
-            assertThat(game.debit(Balance.ec("5"), "TRANSFER", "Sent to an address",
-                    FeeTier.PRIORITY, ChainExplorer.address("someone"))).isTrue();
+            assertThat(game.debit(
+                            Balance.ec("5"),
+                            "TRANSFER",
+                            "Sent to an address",
+                            FeeTier.PRIORITY,
+                            ChainExplorer.address("someone")))
+                    .isTrue();
             assertThat(game.state().chain.mempool).hasSize(1);
             game.persist();
 
@@ -295,8 +300,7 @@ class ChainSyncTest {
                 assertThat(row.transactions()).isPositive();
             });
             // Every recorded height is a height the chain actually reached.
-            assertThat(rows).allSatisfy(row ->
-                    assertThat(row.height()).isLessThanOrEqualTo(back.state().chain.height));
+            assertThat(rows).allSatisfy(row -> assertThat(row.height()).isLessThanOrEqualTo(back.state().chain.height));
         }
 
         /**
@@ -360,12 +364,10 @@ class ChainSyncTest {
                 row.at = T0;
                 chain.contributions.add(row);
             }
-            while (chain.contributions.size()
-                    > io.github.stoicswe.eyeandsickle.solo.state.ContributionState.LIMIT) {
+            while (chain.contributions.size() > io.github.stoicswe.eyeandsickle.solo.state.ContributionState.LIMIT) {
                 chain.contributions.removeFirst();
             }
-            assertThat(chain.contributions)
-                    .hasSize(io.github.stoicswe.eyeandsickle.solo.state.ContributionState.LIMIT);
+            assertThat(chain.contributions).hasSize(io.github.stoicswe.eyeandsickle.solo.state.ContributionState.LIMIT);
             // Newest first out of the reader, and the oldest 50 are gone rather than the newest.
             assertThat(game.contributions(1).getFirst().height())
                     .isEqualTo(io.github.stoicswe.eyeandsickle.solo.state.ContributionState.LIMIT + 49);
@@ -464,11 +466,16 @@ class ChainSyncTest {
                 SoloSave online = store.load();
                 SoloSave offline = store.load();
                 onlineWins += ChainRules.advanceNetwork(online, span, T0.plus(span), new Rng(seed))
-                        .yourBlocks().size();
+                        .yourBlocks()
+                        .size();
                 offlineWins += ChainRules.sync(offline, T0, T0.plus(span), new Rng(seed))
-                        .minted().yourBlocks().size();
+                        .minted()
+                        .yourBlocks()
+                        .size();
             }
-            assertThat(onlineWins).as("the fixture must actually win blocks online").isGreaterThan(40);
+            assertThat(onlineWins)
+                    .as("the fixture must actually win blocks online")
+                    .isGreaterThan(40);
             assertThat(offlineWins)
                     .as("offline %d vs online %d — expected about half", offlineWins, onlineWins)
                     .isBetween((int) (onlineWins * 0.30d), (int) (onlineWins * 0.70d));
@@ -495,10 +502,15 @@ class ChainSyncTest {
                     save.rig.miningMode = MiningMode.POOLED.name();
                 }
                 var live = ChainRules.advanceNetwork(online, span, T0.plus(span), new Rng(seed));
-                var filled = ChainRules.sync(offline, T0, T0.plus(span), new Rng(seed)).minted();
-                assertThat(filled.poolBlocks().stream().map(ChainRules.Won::height).toList())
+                var filled = ChainRules.sync(offline, T0, T0.plus(span), new Rng(seed))
+                        .minted();
+                assertThat(filled.poolBlocks().stream()
+                                .map(ChainRules.Won::height)
+                                .toList())
                         .as("a pool wins the same blocks either way, seed %d", seed)
-                        .isEqualTo(live.poolBlocks().stream().map(ChainRules.Won::height).toList());
+                        .isEqualTo(live.poolBlocks().stream()
+                                .map(ChainRules.Won::height)
+                                .toList());
             }
         }
     }

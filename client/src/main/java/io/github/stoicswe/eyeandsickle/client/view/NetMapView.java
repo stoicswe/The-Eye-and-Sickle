@@ -6,7 +6,6 @@ import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
 import io.github.stoicswe.eyeandsickle.client.ui.netmap.NetGraph;
 import io.github.stoicswe.eyeandsickle.client.ui.netmap.NetLegend;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.KeyValue;
-import io.github.stoicswe.eyeandsickle.client.ui.widgets.Note;
 import io.github.stoicswe.eyeandsickle.protocol.game.NetDocument;
 import io.github.stoicswe.eyeandsickle.protocol.game.NetFolder;
 import io.github.stoicswe.eyeandsickle.protocol.game.NetMap;
@@ -246,38 +245,35 @@ public final class NetMapView {
         // cursor, which is what a context menu means.
         javafx.scene.control.ContextMenu nodeMenu = new javafx.scene.control.ContextMenu();
         String[] menuTarget = {""};
-        java.util.function.BiConsumer<String, javafx.scene.input.ContextMenuEvent> openMenu =
-                (address, event) -> {
-                    // ⚠ THE WINDOW IS CAPTURED FIRST, and the menu is anchored to it rather than to
-                    // the node that fired the event.
-                    //
-                    // Selecting repaints, and repainting REBUILDS THE GRAPH — so by the time the
-                    // menu is shown, the label the player right-clicked has been detached from the
-                    // scene. Anchoring a popup to a node with no window throws
-                    // "The owner node needs to be associated with a window", which is a crash on
-                    // every right-click of a machine on the map. Screen coordinates are absolute, so
-                    // the menu lands in exactly the same place either way.
-                    //
-                    // Selecting still happens BEFORE the rebuild, for the reason above this block:
-                    // a menu that acted on the previously-selected machine while the pointer was
-                    // plainly over another one would be a context menu about the wrong context.
-                    javafx.scene.Node source = event.getSource() instanceof javafx.scene.Node node
-                            ? node
-                            : null;
-                    javafx.stage.Window window = source == null || source.getScene() == null
-                            ? null
-                            : source.getScene().getWindow();
+        java.util.function.BiConsumer<String, javafx.scene.input.ContextMenuEvent> openMenu = (address, event) -> {
+            // ⚠ THE WINDOW IS CAPTURED FIRST, and the menu is anchored to it rather than to
+            // the node that fired the event.
+            //
+            // Selecting repaints, and repainting REBUILDS THE GRAPH — so by the time the
+            // menu is shown, the label the player right-clicked has been detached from the
+            // scene. Anchoring a popup to a node with no window throws
+            // "The owner node needs to be associated with a window", which is a crash on
+            // every right-click of a machine on the map. Screen coordinates are absolute, so
+            // the menu lands in exactly the same place either way.
+            //
+            // Selecting still happens BEFORE the rebuild, for the reason above this block:
+            // a menu that acted on the previously-selected machine while the pointer was
+            // plainly over another one would be a context menu about the wrong context.
+            javafx.scene.Node source = event.getSource() instanceof javafx.scene.Node node ? node : null;
+            javafx.stage.Window window = source == null || source.getScene() == null
+                    ? null
+                    : source.getScene().getWindow();
 
-                    menuTarget[0] = address;
-                    select.accept(address);
-                    rebuildNodeMenu(nodeMenu, session, menuTarget[0], actions, arming, select);
-                    if (window == null) {
-                        // Nothing to anchor to — the panel is not on screen. Selecting has already
-                        // happened, which is the half of this that is still meaningful.
-                        return;
-                    }
-                    nodeMenu.show(window, event.getScreenX(), event.getScreenY());
-                };
+            menuTarget[0] = address;
+            select.accept(address);
+            rebuildNodeMenu(nodeMenu, session, menuTarget[0], actions, arming, select);
+            if (window == null) {
+                // Nothing to anchor to — the panel is not on screen. Selecting has already
+                // happened, which is the half of this that is still meaningful.
+                return;
+            }
+            nodeMenu.show(window, event.getScreenX(), event.getScreenY());
+        };
         graph.setOnNodeMenu(openMenu);
         list.setOnNodeMenu(openMenu);
         NetLegend legend = new NetLegend();
@@ -341,8 +337,7 @@ public final class NetMapView {
         BreachView.Chip sweepWide = sweepChips.get("--wide");
         BreachView.Chip sweepDeep = sweepChips.get("--deep");
 
-        HBox controls = Ui.row(UiTokens.SPACE_3,
-                graphControl, listControl, folderControl, Ui.spacer(), sweepGroup);
+        HBox controls = Ui.row(UiTokens.SPACE_3, graphControl, listControl, folderControl, Ui.spacer(), sweepGroup);
 
         // ---------------------------------------------------------------- selection
         KeyValue selection = KeyValue.of("Selected", "NONE");
@@ -355,13 +350,11 @@ public final class NetMapView {
         BreachView.Chip unfile = action("UNFILE");
         connect.setAccessibleText("Move the vantage to the selected machine. Requires a foothold.");
         download.setAccessibleText("Recover a document from the selected machine.");
-        breach.setAccessibleText(
-                "Aim the breach window at the selected machine and open it. Nothing is spent until "
-                        + "you start the breach there.");
+        breach.setAccessibleText("Aim the breach window at the selected machine and open it. Nothing is spent until "
+                + "you start the breach there.");
         fileHere.setAccessibleText("Put the selected machine into the selected folder.");
         unfile.setAccessibleText("Take the selected machine out of whatever folder it is in.");
-        HBox selectionRow = Ui.row(
-                UiTokens.SPACE_3, selection, breach, connect, download, fileHere, unfile);
+        HBox selectionRow = Ui.row(UiTokens.SPACE_3, selection, breach, connect, download, fileHere, unfile);
 
         // ---------------------------------------------------------------- filing
         //
@@ -383,8 +376,8 @@ public final class NetMapView {
         removeFolder.setAccessibleText(
                 "Remove the selected folder. What was inside it moves up one level; nothing is lost.");
         toTop.setAccessibleText("Move the selected folder back out to the top level.");
-        HBox folderRow = Ui.row(UiTokens.SPACE_3,
-                folderSelection, folderName, newFolder, renameFolder, removeFolder, toTop);
+        HBox folderRow =
+                Ui.row(UiTokens.SPACE_3, folderSelection, folderName, newFolder, renameFolder, removeFolder, toTop);
 
         // ---------------------------------------------------------------- activity and notices
         Label activity = new Label();
@@ -418,8 +411,7 @@ public final class NetMapView {
         HBox.setHgrow(area, Priority.ALWAYS);
         VBox.setVgrow(data, Priority.ALWAYS);
 
-        root.getChildren().addAll(
-                strip, controls, selectionRow, folderRow, detail, activity, data, reader);
+        root.getChildren().addAll(strip, controls, selectionRow, folderRow, detail, activity, data, reader);
 
         // ---------------------------------------------------------------- wiring
         Runnable applyDisplay = () -> {
@@ -578,12 +570,10 @@ public final class NetMapView {
             // The selection survives a refresh only while the map still carries it. A machine the
             // player selected and then lost sight of falls back to NONE rather than leaving two
             // controls pointing at an address the rules would now refuse.
-            Optional<Sighting> chosen = selected[0].isBlank()
-                    ? Optional.<Sighting>empty()
-                    : map.at(selected[0]);
+            Optional<Sighting> chosen = selected[0].isBlank() ? Optional.<Sighting>empty() : map.at(selected[0]);
             selection.set(chosen.map(Sighting::address).orElse("NONE"));
-            detail.setText(chosen.map(NetHostList::describe).orElse(
-                    "Pick a machine in any view. All three select the same thing."));
+            detail.setText(chosen.map(NetHostList::describe)
+                    .orElse("Pick a machine in any view. All three select the same thing."));
             visible(connect, chosen.isPresent());
             visible(download, chosen.map(Sighting::documentAvailable).orElse(false));
             // Offered for anything but the player's own rig. Whether the machine can actually be
@@ -685,14 +675,13 @@ public final class NetMapView {
         menu.getItems().add(header);
         menu.getItems().add(new javafx.scene.control.SeparatorMenuItem());
 
-        javafx.scene.control.MenuItem shell = new javafx.scene.control.MenuItem(
-                open ? "Raise the shell" : "Open a shell");
+        javafx.scene.control.MenuItem shell =
+                new javafx.scene.control.MenuItem(open ? "Raise the shell" : "Open a shell");
         shell.setOnAction(event -> actions.openShell(address));
         menu.getItems().add(shell);
 
         if (!self) {
-            javafx.scene.control.MenuItem breach = new javafx.scene.control.MenuItem(
-                    held ? "Breach again" : "Breach");
+            javafx.scene.control.MenuItem breach = new javafx.scene.control.MenuItem(held ? "Breach again" : "Breach");
             breach.setOnAction(event -> actions.breach(address));
             menu.getItems().add(breach);
         }
@@ -715,8 +704,7 @@ public final class NetMapView {
         info.setOnAction(event -> actions.info(address));
         menu.getItems().add(info);
 
-        javafx.scene.control.MenuItem vantage = new javafx.scene.control.MenuItem(
-                "Move vantage here");
+        javafx.scene.control.MenuItem vantage = new javafx.scene.control.MenuItem("Move vantage here");
         // ⚠ Named for what it does, not "Connect". Moving the vantage changes where every future
         // sweep measures from (I2's ceiling), and calling it the same word as opening a shell is how
         // a player comes to believe that opening eight shells gave them eight vantages.
@@ -768,17 +756,17 @@ public final class NetMapView {
      * many words.
      */
     static Map<String, RungRender> renderLadder(List<GameSession.SweepOption> options) {
-        GameSession.SweepOption base = options.stream()
-                .filter(o -> o.flag().isBlank())
-                .findFirst()
-                .orElse(null);
+        GameSession.SweepOption base =
+                options.stream().filter(o -> o.flag().isBlank()).findFirst().orElse(null);
         Map<String, RungRender> rendered = new LinkedHashMap<>();
         for (GameSession.SweepOption option : options) {
             String label = Ui.upper(rungName(option.flag())) + " " + option.cycles() + "C";
-            rendered.put(option.flag(), new RungRender(
-                    option.available() ? label : label + " " + LOCKED,
-                    !option.available(),
-                    sweepTooltip(option, base)));
+            rendered.put(
+                    option.flag(),
+                    new RungRender(
+                            option.available() ? label : label + " " + LOCKED,
+                            !option.available(),
+                            sweepTooltip(option, base)));
         }
         return rendered;
     }
@@ -795,9 +783,7 @@ public final class NetMapView {
      * spent by trying; a sweep reserves its compute inside {@code beginSweep}, which never runs.
      */
     private static void paintSweepLadder(
-            List<GameSession.SweepOption> options,
-            Map<String, BreachView.Chip> chips,
-            Map<String, Tooltip> tips) {
+            List<GameSession.SweepOption> options, Map<String, BreachView.Chip> chips, Map<String, Tooltip> tips) {
         renderLadder(options).forEach((flag, rung) -> {
             BreachView.Chip chip = chips.get(flag);
             Tooltip tip = tips.get(flag);
@@ -836,8 +822,7 @@ public final class NetMapView {
      * — which is the failure {@code CLAUDE.md} warns about when it says the economy values are
      * calibrated as a set.
      */
-    private static String sweepTooltip(
-            GameSession.SweepOption option, GameSession.SweepOption base) {
+    private static String sweepTooltip(GameSession.SweepOption option, GameSession.SweepOption base) {
         StringBuilder out = new StringBuilder();
         out.append(Ui.upper(option.name()));
         if (!option.available()) {
@@ -863,15 +848,24 @@ public final class NetMapView {
                     + "already within reach but too quiet for the base sweep.\n\n");
         }
 
-        out.append(option.cycles()).append(" cycles held, about ").append(option.seconds())
+        out.append(option.cycles())
+                .append(" cycles held, about ")
+                .append(option.seconds())
                 .append("s, and loud while it runs.");
         if (base != null && !option.flag().isBlank()) {
-            out.append("\n\nAgainst BASE: ").append(base.cycles()).append(" cycles and about ")
-                    .append(base.seconds()).append("s at sensitivity ").append(base.sensitivity())
-                    .append(", against ").append(option.cycles()).append(" cycles and about ")
-                    .append(option.seconds()).append("s at sensitivity ")
-                    .append(option.sensitivity()).append(" here. Louder, too — the ladder is "
-                            + "loudness as well as sensitivity.");
+            out.append("\n\nAgainst BASE: ")
+                    .append(base.cycles())
+                    .append(" cycles and about ")
+                    .append(base.seconds())
+                    .append("s at sensitivity ")
+                    .append(base.sensitivity())
+                    .append(", against ")
+                    .append(option.cycles())
+                    .append(" cycles and about ")
+                    .append(option.seconds())
+                    .append("s at sensitivity ")
+                    .append(option.sensitivity())
+                    .append(" here. Louder, too — the ladder is " + "loudness as well as sensitivity.");
         }
         out.append("\n\nA sweep never costs ethecoin. The tool does, once.");
         return out.toString();

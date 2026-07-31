@@ -106,8 +106,7 @@ class EconomyColumnsTest {
         Row row = new Row(FakeResultSet.row(values), "DeployedMiner");
 
         assertThat(EconomyColumns.ethecoinOrNull(row, "buffer_wei")).isNull();
-        assertThatThrownBy(() -> EconomyColumns.ethecoin(row, "buffer_wei"))
-                .isInstanceOf(RowMappingException.class);
+        assertThatThrownBy(() -> EconomyColumns.ethecoin(row, "buffer_wei")).isInstanceOf(RowMappingException.class);
     }
 
     @Test

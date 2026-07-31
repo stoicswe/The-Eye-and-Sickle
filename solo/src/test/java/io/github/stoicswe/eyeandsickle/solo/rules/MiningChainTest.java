@@ -1,10 +1,9 @@
 package io.github.stoicswe.eyeandsickle.solo.rules;
 
-import java.math.BigInteger;
 import static io.github.stoicswe.eyeandsickle.solo.support.Money.ec;
-import static org.assertj.core.api.Assertions.withinPercentage;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
+import static org.assertj.core.api.Assertions.withinPercentage;
 
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningPool;
@@ -14,6 +13,7 @@ import io.github.stoicswe.eyeandsickle.solo.Pools;
 import io.github.stoicswe.eyeandsickle.solo.breach.Rng;
 import io.github.stoicswe.eyeandsickle.solo.state.ChainState;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
+import java.math.BigInteger;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -147,8 +147,8 @@ class MiningChainTest {
             chain.retargetStartedAt = T0;
             double before = chain.difficulty;
             // A window that took exactly as long as it should: the adjustment is 1.0.
-            ChainRules.retarget(chain, T0.plusSeconds(
-                    Balance.CHAIN_RETARGET_BLOCKS * Balance.CHAIN_TARGET_BLOCK_SECONDS));
+            ChainRules.retarget(
+                    chain, T0.plusSeconds(Balance.CHAIN_RETARGET_BLOCKS * Balance.CHAIN_TARGET_BLOCK_SECONDS));
             assertThat(chain.difficulty).isCloseTo(before, within(1e-9));
             assertThat(chain.blocksSinceRetarget).isZero();
         }
@@ -242,7 +242,8 @@ class MiningChainTest {
             Instant at = T0;
             for (int i = 0; i < 2000; i++) {
                 at = at.plusSeconds(840);
-                yours += ChainRules.advanceNetwork(save, Duration.ofSeconds(840), at, rng).yours();
+                yours += ChainRules.advanceNetwork(save, Duration.ofSeconds(840), at, rng)
+                        .yours();
             }
             // Drawing them separately would count the same hashrate twice: the pool would win its
             // full share and the player would win on top of it, inflating the chain's block rate and
@@ -289,8 +290,7 @@ class MiningChainTest {
                 // asserting something the model cannot deliver: the network hashrate is a double.
                 assertThat(ec(perHour))
                         .as("%d cycles", cycles)
-                        .isCloseTo(cycles * ec(Balance.SELF_MINING_WEI_PER_CYCLE_HOUR),
-                                withinPercentage(1e-10d));
+                        .isCloseTo(cycles * ec(Balance.SELF_MINING_WEI_PER_CYCLE_HOUR), withinPercentage(1e-10d));
             }
         }
 
@@ -312,8 +312,7 @@ class MiningChainTest {
             // comparison below is likewise in EC: these are rate statements about the economy, and
             // an exact wei equality would be asserting the rounding of a Poisson process.
             double feeExposure =
-                    ec(Balance.BLOCK_SUBSIDY_WEI.add(Balance.expectedBlockFeesWei()))
-                            / ec(Balance.BLOCK_SUBSIDY_WEI);
+                    ec(Balance.BLOCK_SUBSIDY_WEI.add(Balance.expectedBlockFeesWei())) / ec(Balance.BLOCK_SUBSIDY_WEI);
             assertThat(ec(s)).isCloseTo(ec(p) / (1 - Balance.POOL_FEE) * feeExposure, within(0.02d));
         }
 
@@ -327,8 +326,7 @@ class MiningChainTest {
                 // the solo rate a quarter rig rounds down where a full rig rounds up.
                 assertThat(ec(MiningRules.expectedWeiPerHour(large.rig, large.chain)))
                         .as("%s", mode)
-                        .isCloseTo(4 * ec(MiningRules.expectedWeiPerHour(small.rig, small.chain)),
-                                within(0.04d));
+                        .isCloseTo(4 * ec(MiningRules.expectedWeiPerHour(small.rig, small.chain)), within(0.04d));
             }
         }
 
@@ -368,10 +366,9 @@ class MiningChainTest {
             // income rise rather than re-solving chainNetworkHashrate to absorb it; see
             // Balance.expectedBlockFeesWei and design/03 §1.1.
             double withFees =
-                    ec(Balance.BLOCK_SUBSIDY_WEI.add(Balance.expectedBlockFeesWei()))
-                            / ec(Balance.BLOCK_SUBSIDY_WEI);
-            double expected = 4000 * 100 * ec(Balance.SELF_MINING_WEI_PER_CYCLE_HOUR)
-                    / (1 - Balance.POOL_FEE) * withFees;
+                    ec(Balance.BLOCK_SUBSIDY_WEI.add(Balance.expectedBlockFeesWei())) / ec(Balance.BLOCK_SUBSIDY_WEI);
+            double expected =
+                    4000 * 100 * ec(Balance.SELF_MINING_WEI_PER_CYCLE_HOUR) / (1 - Balance.POOL_FEE) * withFees;
             // 4000 hours is about 1020 blocks; standard error ≈ 3.1%, so 12% is ~4 sigma. This is
             // the test that would catch a solo payout that was secretly worth more or less than a
             // block, which is the single easiest thing to get wrong here.
@@ -423,8 +420,9 @@ class MiningChainTest {
             double previous = 0;
             for (long cycles : new long[] {10, 25, 50, 100}) {
                 SoloSave save = rig(cycles, MiningMode.SOLO);
-                double chance = 1 - Math.exp(-3600.0d / ChainRules.expectedSeconds(
-                        save.chain.difficulty, ChainRules.hashrate(cycles)));
+                double chance = 1
+                        - Math.exp(-3600.0d
+                                / ChainRules.expectedSeconds(save.chain.difficulty, ChainRules.hashrate(cycles)));
                 assertThat(chance).as("%d cycles", cycles).isGreaterThan(previous);
                 // ⚠ Never certain, at any rig this game can build. That is the request — "a very
                 // large amount of cycles to make it likely" — and it is also just true of a Poisson
@@ -462,8 +460,7 @@ class MiningChainTest {
             // here would be asserting a precision the model does not have; what the economy actually
             // promises is 40 EC/hr, and this checks that to a part in a trillion.
             assertThat(ec(MiningRules.expectedWeiPerHour(save.rig, save.chain)))
-                    .isCloseTo(100 * ec(Balance.SELF_MINING_WEI_PER_CYCLE_HOUR),
-                            withinPercentage(1e-10d));
+                    .isCloseTo(100 * ec(Balance.SELF_MINING_WEI_PER_CYCLE_HOUR), withinPercentage(1e-10d));
             assertThat(Pools.defaultPool().feeBasisPoints()).isEqualTo(Balance.POOL_FEE_BASIS_POINTS);
         }
 
@@ -486,11 +483,10 @@ class MiningChainTest {
             // ...and really does pay far less often. A roster where one row wins on both axes is a
             // roster with one row in it.
             assertThat(ChainRules.expectedSeconds(
-                            MiningRules.workingDifficulty(cheap.rig, cheap.chain),
-                            ChainRules.hashrate(100)))
-                    .isGreaterThan(20 * ChainRules.expectedSeconds(
-                            MiningRules.workingDifficulty(dear.rig, dear.chain),
-                            ChainRules.hashrate(100)));
+                            MiningRules.workingDifficulty(cheap.rig, cheap.chain), ChainRules.hashrate(100)))
+                    .isGreaterThan(20
+                            * ChainRules.expectedSeconds(
+                                    MiningRules.workingDifficulty(dear.rig, dear.chain), ChainRules.hashrate(100)));
         }
 
         @Test
@@ -508,8 +504,11 @@ class MiningChainTest {
                         ? ec(Balance.BLOCK_SUBSIDY_WEI.add(Balance.expectedBlockFeesWei()))
                                 / ec(Balance.BLOCK_SUBSIDY_WEI)
                         : 1.0d;
-                double expected = 100 * ec(Balance.SELF_MINING_WEI_PER_CYCLE_HOUR)
-                        * (1 - pool.fee()) / (1 - Balance.POOL_FEE) * feeShare;
+                double expected = 100
+                        * ec(Balance.SELF_MINING_WEI_PER_CYCLE_HOUR)
+                        * (1 - pool.fee())
+                        / (1 - Balance.POOL_FEE)
+                        * feeShare;
                 assertThat(ec(MiningRules.expectedWeiPerHour(save.rig, save.chain)))
                         .as("%s", pool.name())
                         .isCloseTo(expected, within(0.02d));
@@ -529,9 +528,9 @@ class MiningChainTest {
             assertThat(pplns).hasSizeGreaterThan(1);
             for (MiningPool pool : pplns) {
                 SoloSave save = onPool(100, pool.id());
-                double perHourAtZeroFee = ec(MiningRules.expectedWeiPerHour(save.rig, save.chain))
-                        / (1 - pool.fee());
-                double reference = 100 * ec(Balance.SELF_MINING_WEI_PER_CYCLE_HOUR)
+                double perHourAtZeroFee = ec(MiningRules.expectedWeiPerHour(save.rig, save.chain)) / (1 - pool.fee());
+                double reference = 100
+                        * ec(Balance.SELF_MINING_WEI_PER_CYCLE_HOUR)
                         / (1 - Balance.POOL_FEE)
                         * ec(Balance.BLOCK_SUBSIDY_WEI.add(Balance.expectedBlockFeesWei()))
                         / ec(Balance.BLOCK_SUBSIDY_WEI);
@@ -551,8 +550,7 @@ class MiningChainTest {
             // Balance derives this from the two distributions rather than pasting a measured
             // number, so that a change to the fee ladder or the block limit cannot leave the
             // published income expectation quietly describing the old economy.
-            assertThat(ec(total) / blocks)
-                    .isCloseTo(ec(Balance.expectedBlockFeesWei()), within(0.30d));
+            assertThat(ec(total) / blocks).isCloseTo(ec(Balance.expectedBlockFeesWei()), within(0.30d));
         }
 
         @Test
@@ -572,7 +570,8 @@ class MiningChainTest {
                 // ten minutes divided by its share of the chain. Nothing about your own rig moves it.
                 assertThat(interval)
                         .as("%s at %s of the chain", pool.name(), pool.shareText())
-                        .isCloseTo(Balance.CHAIN_TARGET_BLOCK_SECONDS / pool.networkShare(),
+                        .isCloseTo(
+                                Balance.CHAIN_TARGET_BLOCK_SECONDS / pool.networkShare(),
                                 within(Balance.CHAIN_TARGET_BLOCK_SECONDS / pool.networkShare() * 0.02));
             }
         }
@@ -667,8 +666,7 @@ class MiningChainTest {
             // payout would show up here and nowhere else.
             assertThat(save.rig.miningWei).isEqualTo(paid);
             assertThat(save.rig.miningPendingWei).isGreaterThanOrEqualTo(java.math.BigInteger.ZERO);
-            assertThat(save.rig.miningResidueWei)
-                    .isBetween(java.math.BigDecimal.ZERO, java.math.BigDecimal.ONE);
+            assertThat(save.rig.miningResidueWei).isBetween(java.math.BigDecimal.ZERO, java.math.BigDecimal.ONE);
 
             double accountedFor = ec(paid.add(save.rig.miningPendingWei));
             double expected = 40 * ec(MiningRules.expectedWeiPerHour(save.rig, save.chain));
@@ -784,8 +782,8 @@ class MiningChainTest {
             // payoutWei is a BigDecimal (a share can be fractional), hence compareTo rather than
             // isEqualTo — BigDecimal equality is scale-sensitive and 160.00 != 160 to it.
             assertThat(MiningRules.payoutWei(save.rig, save.chain)
-                    .compareTo(new java.math.BigDecimal(
-                            Balance.BLOCK_SUBSIDY_WEI.add(Balance.expectedBlockFeesWei()))))
+                            .compareTo(new java.math.BigDecimal(
+                                    Balance.BLOCK_SUBSIDY_WEI.add(Balance.expectedBlockFeesWei()))))
                     .isZero();
         }
     }
@@ -888,8 +886,10 @@ class MiningChainTest {
             // The offline path never calls runSelfMining at all; this asserts the shape that makes
             // that safe — zero elapsed earns zero, which is what resume() leaves behind when it sets
             // lastTick = now.
-            assertThat(MiningRules.runSelfMining(save, Duration.ZERO, T0, rng, NOTHING)).isZero();
-            assertThat(MiningRules.runSelfMining(save, Duration.ofSeconds(-60), T0, rng, NOTHING)).isZero();
+            assertThat(MiningRules.runSelfMining(save, Duration.ZERO, T0, rng, NOTHING))
+                    .isZero();
+            assertThat(MiningRules.runSelfMining(save, Duration.ofSeconds(-60), T0, rng, NOTHING))
+                    .isZero();
         }
 
         @Test

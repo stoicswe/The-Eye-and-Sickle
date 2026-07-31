@@ -114,7 +114,9 @@ public final class ProcessRules {
             double progress = task.progressAt(now);
             String label = task.label;
             settlePartial(save, task, progress, now);
-            EventLog.warning(save, "rig",
+            EventLog.warning(
+                    save,
+                    "rig",
                     label + " killed at " + Math.round(progress * 100) + "%. "
                             + task.cycles + " cycles are recovering in full — stopping early returns "
                             + "your time, never your capacity.",
@@ -176,7 +178,9 @@ public final class ProcessRules {
             }
             ComputeRules.release(save.rig, miner.allocationId);
             save.rig.foreignMiners.remove(miner);
-            EventLog.notice(save, "rig",
+            EventLog.notice(
+                    save,
+                    "rig",
                     "killed " + processName(miner) + ": " + miner.hostCycles
                             + " cycles are yours again. Its buffer went with it — a crack takes the "
                             + "buffer, a kill just takes the process.",
@@ -208,7 +212,9 @@ public final class ProcessRules {
                 return Outcome.refused("nothing is self-mining");
             }
             save.rig.selfMiningCycles = 0L;
-            EventLog.warning(save, "mining",
+            EventLog.warning(
+                    save,
+                    "mining",
                     "self-mining stopped; " + was + " cycles released and the block in progress is forfeit.",
                     now);
             return Outcome.ok(1);
@@ -224,8 +230,7 @@ public final class ProcessRules {
             // Released onto the curve rather than returned outright: capacity that was committed is
             // capacity that has to cool, however the commitment ended. Same price as a killed task.
             ComputeRules.beginRecovery(save.rig, allocationId, now);
-            EventLog.notice(save, "rig",
-                    label + " released; " + allocation.cycles + " cycles are recovering.", now);
+            EventLog.notice(save, "rig", label + " released; " + allocation.cycles + " cycles are recovering.", now);
             return Outcome.ok(1);
         }
         return Outcome.refused("that process is no longer running");
@@ -270,12 +275,16 @@ public final class ProcessRules {
             double progress = task.progressAt(now);
             String label = task.label;
             settlePartial(save, task, progress, now);
-            EventLog.warning(save, "rig",
+            EventLog.warning(
+                    save,
+                    "rig",
                     label + " went down with " + daemon.name() + " at " + Math.round(progress * 100)
                             + "%. It kept what it had; its cycles recover in full.",
                     now);
         }
-        EventLog.notice(save, "rig",
+        EventLog.notice(
+                save,
+                "rig",
                 daemon.name() + " restarted"
                         + (dependents.isEmpty() ? "." : ", taking " + dependents.size() + " with it."),
                 now);

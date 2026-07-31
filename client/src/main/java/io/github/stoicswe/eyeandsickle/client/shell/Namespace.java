@@ -44,23 +44,27 @@ public final class Namespace {
             case "/" -> out.addAll(List.of("rig/", "net/", "ledger/", "man/"));
             case "/rig" -> out.addAll(List.of("compute/", "storage/", "tools/", "bots/", "defense/"));
             case "/rig/storage" -> out.addAll(List.of("vault/", "standard/", "high/"));
-            case "/rig/compute" -> session.computeBudget().allocations()
-                    .forEach(a -> out.add(a.consumer().name().toLowerCase(java.util.Locale.ROOT)
-                            + "  " + a.cycles().cycles() + " cycles"));
+            case "/rig/compute" ->
+                session.computeBudget()
+                        .allocations()
+                        .forEach(a -> out.add(a.consumer().name().toLowerCase(java.util.Locale.ROOT) + "  "
+                                + a.cycles().cycles() + " cycles"));
             case "/rig/storage/vault" -> session.items(StorageTier.VAULT).forEach(i -> out.add(i.displayName()));
-            case "/rig/storage/standard" -> session.items(StorageTier.STANDARD_STORAGE)
-                    .forEach(i -> out.add(i.displayName()));
-            case "/rig/storage/high" -> session.items(StorageTier.HIGH_HACKABLE_ZONE)
-                    .forEach(i -> out.add(i.displayName()));
-            case "/rig/tools" -> session.items(null).stream()
-                    .filter(GameSession.InventoryItem::equipped)
-                    .forEach(i -> out.add(i.displayName()));
+            case "/rig/storage/standard" ->
+                session.items(StorageTier.STANDARD_STORAGE).forEach(i -> out.add(i.displayName()));
+            case "/rig/storage/high" ->
+                session.items(StorageTier.HIGH_HACKABLE_ZONE).forEach(i -> out.add(i.displayName()));
+            case "/rig/tools" ->
+                session.items(null).stream()
+                        .filter(GameSession.InventoryItem::equipped)
+                        .forEach(i -> out.add(i.displayName()));
             case "/net" -> session.knownNodes().forEach(n -> out.add(n.address() + "/"));
             case "/ledger" -> session.ledger(50).forEach(r -> out.add(r.at() + "  " + r.description()));
             default -> {
                 if (p.startsWith("/net/")) {
                     String address = p.substring("/net/".length());
-                    boolean known = session.knownNodes().stream().anyMatch(n -> n.address().equals(address));
+                    boolean known = session.knownNodes().stream()
+                            .anyMatch(n -> n.address().equals(address));
                     if (known) {
                         out.add("miners/");
                     }
@@ -72,7 +76,9 @@ public final class Namespace {
 
     public static boolean exists(GameSession session, String path) {
         String p = normalise(path);
-        return p.equals("/") || !list(session, parent(p)).isEmpty() || !list(session, p).isEmpty();
+        return p.equals("/")
+                || !list(session, parent(p)).isEmpty()
+                || !list(session, p).isEmpty();
     }
 
     static String normalise(String path) {

@@ -1,6 +1,5 @@
 package io.github.stoicswe.eyeandsickle.solo.net;
 
-import java.math.BigInteger;
 import io.github.stoicswe.eyeandsickle.protocol.game.HostKind;
 import io.github.stoicswe.eyeandsickle.protocol.game.SignalStrength;
 import io.github.stoicswe.eyeandsickle.solo.Balance;
@@ -92,8 +91,7 @@ public final class TopologyGenerator {
         TopologyState topology = new TopologyState();
 
         // ── STEP 1: server count ───────────────────────────────────────────────────────── 1 draw
-        int serverCount = Balance.NET_SERVERS_MIN
-                + rng.nextInt(Balance.NET_SERVERS_MAX - Balance.NET_SERVERS_MIN + 1);
+        int serverCount = Balance.NET_SERVERS_MIN + rng.nextInt(Balance.NET_SERVERS_MAX - Balance.NET_SERVERS_MIN + 1);
 
         // ── STEP 2: the spanning tree ──────────────────────────────── 3 draws per server after home
         int[] depth = new int[serverCount];
@@ -380,7 +378,8 @@ public final class TopologyGenerator {
             if (contacts.size() >= Balance.NET_HOME_GUARANTEED_CONTACTS) {
                 break;
             }
-            if (HostKind.GATEWAY.name().equals(host.kind) || HostKind.BRIDGE.name().equals(host.kind)) {
+            if (HostKind.GATEWAY.name().equals(host.kind)
+                    || HostKind.BRIDGE.name().equals(host.kind)) {
                 continue;
             }
             contacts.add(host);

@@ -64,6 +64,10 @@ public final class CycleGrid extends VBox {
 
     private final CellField field = new CellField();
     private final HBox beside = new HBox(UiTokens.SPACE_6);
+
+    /** The left half: the cell field and the legend that names its colours. */
+    private final VBox left = new VBox(UiTokens.SPACE_6);
+
     private final javafx.scene.layout.GridPane legend = new javafx.scene.layout.GridPane();
     private final List<Cell> cells = new ArrayList<>();
     private final List<Slice> slices = new ArrayList<>();
@@ -87,11 +91,38 @@ public final class CycleGrid extends VBox {
         // a row does not cover renders as a solid block of rule colour. A FlowPane leaves exactly
         // that: the ragged remainder at the end of each line.
         legend.widthProperty().addListener((obs, was, now) -> relayoutLegend());
-        // The field shrink-wraps to 25 cells, which on a wide panel leaves usable space beside it.
-        // `aside` is that space — see setAside.
-        beside.getChildren().add(field);
+        // ── the split ────────────────────────────────────────────────────────────────────────
+        //
+        // Two halves: the allocation on the left — the cell field AND the legend that names its
+        // colours — and the instruments on the right. The legend belongs with the thing it
+        // explains; it used to run the full width underneath both columns, which put the key to
+        // the left half's colours under the right half's animations.
+        //
+        // ⚠ The two columns are TOP-aligned so the instruments begin at the same line the cell
+        // field does. That is the whole point of a split: two things being read side by side have
+        // to start together, or the eye reads them as sequence rather than as comparison.
+        left.getChildren().addAll(field, legend);
+        left.setAlignment(Pos.TOP_LEFT);
+        // The well grows to take whatever height the row ends up with, so the left half reads as
+        // one panel rather than a small grid floating above empty space. The cells stay their own
+        // size — see CellField.layoutChildren, which lays out from the top left and does not
+        // stretch them.
+        VBox.setVgrow(field, javafx.scene.layout.Priority.ALWAYS);
+        beside.getChildren().add(left);
         beside.setAlignment(Pos.TOP_LEFT);
-        getChildren().addAll(beside, legend);
+        // ⚠ fillHeight TRUE here, unlike the shrink-wrapped arrangement this replaced. Both halves
+        // are columns now and both want the row's height: the left so its well can fill, the right
+        // so its own VBox can top-align the instruments inside it. What must NOT happen is the old
+        // failure — a StackPane handed the full height and centring its content — and `setAside`
+        // guards that by wrapping whatever it is given in a top-aligned box.
+        beside.setFillHeight(true);
+        // ⚠ prefWidth ZERO on both halves, plus Hgrow on both, is what makes the split EQUAL. With
+        // their natural preferred widths left in place the row divides the *surplus* evenly rather
+        // than the whole, so the half holding the wider content (the legend) keeps its head start —
+        // measured at roughly 64/36 before this line.
+        left.setPrefWidth(0);
+        HBox.setHgrow(left, javafx.scene.layout.Priority.ALWAYS);
+        getChildren().add(beside);
         // Recovering and unaccounted cells alternate between two states on a two-step loop (§5).
         // One subscription drives every such cell, not one per cell (§7.3).
         blink = Pulse.shared().animate(UiTokens.RECOVERY_BLINK_MS, this::flip);
@@ -129,7 +160,8 @@ public final class CycleGrid extends VBox {
         // ⚠ HIDDEN is filtered out here and nowhere else, so the cells exist and the row does not.
         // A legend entry is a NAME, and naming unattributed capacity is precisely what the readout
         // must not do before an audit — see Owner.HIDDEN.
-        List<Slice> listed = slices.stream().filter(s -> s.owner() != Owner.HIDDEN).toList();
+        List<Slice> listed =
+                slices.stream().filter(s -> s.owner() != Owner.HIDDEN).toList();
         if (listed.isEmpty()) {
             return;
         }
@@ -211,9 +243,19 @@ public final class CycleGrid extends VBox {
         while (beside.getChildren().size() > 1) {
             beside.getChildren().removeLast();
         }
-        if (aside != null) {
-            beside.getChildren().add(aside);
+        if (aside == null) {
+            return;
         }
+        // ⚠ Wrapped in a TOP-ALIGNED box rather than added directly. The row hands its children the
+        // full height now, and a StackPane given a height centres its content inside it — which is
+        // exactly the gap-above-the-cutaway defect this class already carries a note about. The
+        // wrapper makes "starts at the top" a property of the slot rather than of whatever is put
+        // in it.
+        VBox right = new VBox(aside);
+        right.setAlignment(Pos.TOP_LEFT);
+        right.setPrefWidth(0);
+        HBox.setHgrow(right, javafx.scene.layout.Priority.ALWAYS);
+        beside.getChildren().add(right);
     }
 
     /** Stops this grid's share of the shared driver. Called when the panel closes. */
@@ -343,9 +385,7 @@ public final class CycleGrid extends VBox {
             if (fits >= UiTokens.CYCLE_PER_ROW) {
                 return UiTokens.CYCLE_PER_ROW;
             }
-            return fits >= UiTokens.CYCLE_PER_ROW_NARROW
-                    ? UiTokens.CYCLE_PER_ROW_NARROW
-                    : UiTokens.CYCLE_PER_ROW_TIGHT;
+            return fits >= UiTokens.CYCLE_PER_ROW_NARROW ? UiTokens.CYCLE_PER_ROW_NARROW : UiTokens.CYCLE_PER_ROW_TIGHT;
         }
 
         private double cellSize(int columns, double width) {
@@ -372,8 +412,7 @@ public final class CycleGrid extends VBox {
             for (int i = 0; i < children.size(); i++) {
                 int row = i / columns;
                 int column = i % columns;
-                children.get(i).resizeRelocate(
-                        left + column * (size + GAP), top + row * (size + GAP), size, size);
+                children.get(i).resizeRelocate(left + column * (size + GAP), top + row * (size + GAP), size, size);
             }
         }
 
@@ -383,8 +422,7 @@ public final class CycleGrid extends VBox {
             int columns = columns();
             double size = cellSize(columns, w);
             int rows = (int) Math.ceil(getChildren().size() / (double) columns);
-            return getInsets().getTop() + getInsets().getBottom()
-                    + rows * size + Math.max(0, rows - 1) * GAP;
+            return getInsets().getTop() + getInsets().getBottom() + rows * size + Math.max(0, rows - 1) * GAP;
         }
 
         @Override
@@ -398,9 +436,9 @@ public final class CycleGrid extends VBox {
          */
         @Override
         protected double computePrefWidth(double height) {
-            int used = Math.min(UiTokens.CYCLE_PER_ROW, Math.max(1, getChildren().size()));
-            return getInsets().getLeft() + getInsets().getRight()
-                    + used * MAX_CELL + Math.max(0, used - 1) * GAP;
+            int used =
+                    Math.min(UiTokens.CYCLE_PER_ROW, Math.max(1, getChildren().size()));
+            return getInsets().getLeft() + getInsets().getRight() + used * MAX_CELL + Math.max(0, used - 1) * GAP;
         }
     }
 }

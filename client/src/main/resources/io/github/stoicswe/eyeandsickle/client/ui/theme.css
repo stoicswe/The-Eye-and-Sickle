@@ -41,7 +41,10 @@
 
     /* cold grayscale — everything that is not live */
     -es-dim-3:     #33403F;
-    -es-dim-2:     #4E5D5E;
+    /* ⚠ Lifted from #4E5D5E (2026-07-30). Measured at 2.78:1 against -es-panel, the only token
+       in the deck palette under the 3:1 floor ContrastTest enforces — it carries server and layer
+       labels, which are text. #5A6C6D is 3.4:1 and is the same hue. */
+    -es-dim-2:     #5A6C6D;
     -es-dim-1:     #7B8D8E;
     -es-text:      #A9BCBD;
     -es-text-hi:   #DCE9E9;
@@ -327,6 +330,28 @@
 .es-strip-ctl-max:hover { -fx-text-fill: -es-gain; }
 
 /* The focused window's strip is brighter. Depth from brightness, never shadow (§2.1). */
+/* The right half of the rig monitor's split — the instruments' well.
+   ⚠ Border only, no fill. The cell field opposite carries a background because its cells are read
+   against it; these are line art and text, and a second filled panel would make the window two
+   competing blocks instead of one split. ⚠ No radius: §9 is unamended outside `.es-rounded`. */
+.es-aside-well {
+    -fx-border-color: -es-rule;
+    -fx-border-width: 1;
+    /* ⚠ 10, MATCHING .es-grid-well above. The two wells are the split's two halves and their
+       CONTENTS have to start on the same line — so it is the insets that must agree, not the box
+       tops. At 8 the cage sat 2px above the first cell row, which is exactly the sort of drift a
+       render shows and a description does not. */
+    -fx-padding: 10;
+}
+
+/* The hex stream under the core cutaway. Decoration: nothing here is read off game state.
+   ⚠ Only the NEWEST line is bright, and the two oldest fade — the column has to read as a flow with
+   a direction, and a block of uniformly-lit noise would read as a readout instead. ⚠ Two-class
+   selectors: theme.css's late `.label` rule beats a one-class one at equal specificity. */
+.es-hexstream .es-hexstream-line { -fx-text-fill: -es-dim-2; }
+.es-hexstream .es-hexstream-new  { -fx-text-fill: -es-amber-mid; }
+.es-hexstream .es-hexstream-old  { -fx-text-fill: -es-dim-3; }
+
 /* The on/off switch — this deck's replacement for a checkbox (2026-07-30).
    ⚠ SQUARE. §9's radius ban is unamended and UiContractTest scans this file, so the obvious lozenge
    is only available under the rounded-windows opt-in, below. ⚠ Never colour alone (§4.4): the knob's
@@ -1275,10 +1300,17 @@
     -fx-font-size: 11px;
 }
 
-/* A contact: something is there, and that is ALL the base sweep tells you. Dimmest on purpose —
-   docs/design/07 sells knowing WHAT it is as the Passive Sniffer's whole job, and a contact that
-   read as clearly as an identified host would make that 15 EC pointless. */
-.es-netmap .es-netmap-contact    { -fx-text-fill: -es-dim-3; }
+/* A contact: something is there, and that is ALL the base sweep tells you. The QUIETEST readable
+   state, not the faintest paintable one — docs/design/07 sells knowing WHAT it is as the Passive
+   Sniffer's whole job, and a contact that read as clearly as an identified host would make that
+   15 EC pointless.
+   ⚠ Moved off -es-dim-3 (2026-07-30). That token is the GREEBLE colour — decorative texture — and
+   measured against every palette's own panel it lands at 1.77:1 on the deck and 2.06:1 on Classic.
+   Below 3:1 a state a player has to READ is not quiet, it is missing, and on Classic's light ramp
+   it disappeared outright. -es-dim-1 is 5.5:1 or better on all five and is still visibly below
+   -es-text at 9.7:1, so the hierarchy the sniffer is sold on survives intact. ContrastTest holds
+   the floor for every theme. */
+.es-netmap .es-netmap-contact    { -fx-text-fill: -es-dim-1; }
 /* Identified: a Passive Sniffer told you its type. */
 .es-netmap .es-netmap-identified { -fx-text-fill: -es-dim-1; }
 /* A host you hold — the brightest ordinary state, because it is the one you can act from. */
@@ -1293,8 +1325,9 @@
 .es-netmap .es-netmap-vantage    { -fx-text-fill: -es-text-hi; }
 /* A bridge to another server: the thing that makes the world bigger. */
 .es-netmap .es-netmap-bridge     { -fx-text-fill: -es-text; }
-/* Beyond the hop ceiling, or unresolved. */
-.es-netmap .es-netmap-dark       { -fx-text-fill: -es-dim-3; }
+/* Beyond the hop ceiling, or unresolved. ⚠ Same move off -es-dim-3, same reason: a LOCKED node
+   still carries an address and a `[#]` a player is meant to read and act on. */
+.es-netmap .es-netmap-dark       { -fx-text-fill: -es-dim-1; }
 /* THE ONE ALARM IN THE FEATURE. A suspected honeypot is the only thing here worth a warning. */
 .es-netmap .es-netmap-trap       { -fx-text-fill: -es-alarm; }
 
@@ -2162,7 +2195,19 @@
  */
 /* The unlit stem is rule-hi, not rule: a thermometer at zero still has to read as a thermometer,
    and at the panel-edge value it disappeared into the strip. Absence of heat is information too. */
-.es-thermo-cell { -fx-background-color: -es-rule-hi; }
+/* ⚠ The UNLIT cell is a WELL, not a rule (2026-07-30). It was `-es-rule-hi`, which is #2C383B on
+   the deck and #1A1A1A on uOS Classic — and Classic's low-band fills are `-es-dim-1` #2A2A2A and
+   `-es-text` #101010, all near-black. So on the light palette an unlit cell and a lit one were the
+   same value and the meter read as a row of black dashes with no fill at all: the one thing it
+   exists to show was invisible on the one palette where it mattered most.
+   `-es-tool` is the well colour and inverts correctly — dark on the dark palettes, light on Classic
+   — so an empty cell contrasts with every band on both ramps. The border makes the empty part read
+   as a container waiting to be filled rather than as absence. */
+.es-thermo-cell {
+    -fx-background-color: -es-tool;
+    -fx-border-color: -es-rule;
+    -fx-border-width: 1;
+}
 .es-thermo-gap  { -fx-background-color: transparent; }
 /* The graduations. Visible, because they are what makes this banded rather than continuous. */
 .es-thermo-tick { -fx-background-color: -es-dim-2; }
@@ -2180,6 +2225,14 @@
 
 /* The band ramp, walking grey → amber → alarm. Same five steps as the .es-heat-N text colours, so
    the thermometer and the word beside it cannot drift apart. */
+/* ⚠ A lit cell drops the well's border, so the band reads as a solid block rather than a tinted
+   outline. Without this the 1px rule cuts every cell and the stem looks like a dotted line. */
+.es-thermo-cell.es-thermo-fill-0,
+.es-thermo-cell.es-thermo-fill-1,
+.es-thermo-cell.es-thermo-fill-2,
+.es-thermo-cell.es-thermo-fill-3,
+.es-thermo-cell.es-thermo-fill-4 { -fx-border-color: transparent; }
+
 .es-thermo-fill-0 { -fx-background-color: -es-dim-1; }
 .es-thermo-fill-1 { -fx-background-color: -es-text; }
 .es-thermo-fill-2 { -fx-background-color: -es-amber-mid; }

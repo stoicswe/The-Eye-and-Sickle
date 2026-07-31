@@ -110,8 +110,7 @@ class SessionRulesTest {
         @DisplayName("an address that was never swept is unknown, not merely unbreached")
         void unknownHost() {
             SoloSave save = save(true);
-            assertThat(SessionRules.open(save, "10.9.9.9", NOW).refusal())
-                    .isEqualTo(SessionRules.Refusal.UNKNOWN_HOST);
+            assertThat(SessionRules.open(save, "10.9.9.9", NOW).refusal()).isEqualTo(SessionRules.Refusal.UNKNOWN_HOST);
         }
 
         @Test
@@ -214,8 +213,7 @@ class SessionRulesTest {
             // ⚠ /Users, not /home — uOS's root is macOS-shaped as of 2026-07-28.
             SoloSave save = save(true);
             var opened = SessionRules.open(save, "10.0.0.9", NOW);
-            assertThat(opened.session().cwd)
-                    .startsWith(io.github.stoicswe.eyeandsickle.solo.fs.VirtualFs.USERS + "/");
+            assertThat(opened.session().cwd).startsWith(io.github.stoicswe.eyeandsickle.solo.fs.VirtualFs.USERS + "/");
         }
 
         @Test
@@ -225,7 +223,8 @@ class SessionRulesTest {
             SessionRules.open(save, "10.0.0.9", NOW);
             String before = SessionRules.find(save, "10.0.0.9").orElseThrow().cwd;
 
-            assertThat(SessionRules.changeDirectory(save, "10.0.0.9", "/nowhere", NOW)).isFalse();
+            assertThat(SessionRules.changeDirectory(save, "10.0.0.9", "/nowhere", NOW))
+                    .isFalse();
             assertThat(SessionRules.find(save, "10.0.0.9").orElseThrow().cwd).isEqualTo(before);
         }
 
@@ -237,9 +236,9 @@ class SessionRulesTest {
 
             // /System is listable on any machine — you can see an operating system's shape without
             // holding the box. What you cannot do is read any of it.
-            assertThat(SessionRules.changeDirectory(save, "10.0.0.9", "/System/etc", NOW)).isTrue();
-            assertThat(SessionRules.find(save, "10.0.0.9").orElseThrow().cwd)
-                    .isEqualTo("/System/etc");
+            assertThat(SessionRules.changeDirectory(save, "10.0.0.9", "/System/etc", NOW))
+                    .isTrue();
+            assertThat(SessionRules.find(save, "10.0.0.9").orElseThrow().cwd).isEqualTo("/System/etc");
         }
     }
 }

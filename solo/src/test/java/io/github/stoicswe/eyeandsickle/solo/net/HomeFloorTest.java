@@ -86,8 +86,7 @@ class HomeFloorTest {
                     assertThat(host.honeypot).isFalse();
                     // Worth breaching, not merely breachable. Three of these is 9 EC against the
                     // 15 EC Passive Sniffer — the intended first purchase.
-                    assertThat(host.lootWei)
-                            .isGreaterThanOrEqualTo(Balance.NET_LOOT_FLOOR_WEI);
+                    assertThat(host.lootWei).isGreaterThanOrEqualTo(Balance.NET_LOOT_FLOOR_WEI);
                 }
             }
         }
@@ -108,7 +107,9 @@ class HomeFloorTest {
                 }
                 // Without this, a player who has cleared their neighbourhood has nowhere to go AND no
                 // way to see that they have nowhere to go — the map would simply stop growing.
-                assertThat(nearby).as("bridge within 2 links on seed %d", seed(i)).isTrue();
+                assertThat(nearby)
+                        .as("bridge within 2 links on seed %d", seed(i))
+                        .isTrue();
             }
         }
 
@@ -176,7 +177,8 @@ class HomeFloorTest {
             // six of a hundred cycles, so everything on that rig runs ~6% slower until it is cracked
             // — which is the cheapest hint in the game that something is wrong, and the reason this
             // asserts a bound rather than an equality. Cracking the parasite gives the time back.
-            long published = NetTestKit.T0.plusSeconds(Balance.NET_SWEEP_BASE_SECONDS).getEpochSecond();
+            long published =
+                    NetTestKit.T0.plusSeconds(Balance.NET_SWEEP_BASE_SECONDS).getEpochSecond();
             assertThat(task.endsAt.getEpochSecond())
                     .as("never faster than the published duration, and slowed only by theft")
                     .isBetween(published, published + Balance.NET_SWEEP_BASE_SECONDS);

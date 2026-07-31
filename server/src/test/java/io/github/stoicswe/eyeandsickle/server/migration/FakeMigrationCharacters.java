@@ -42,7 +42,8 @@ final class FakeMigrationCharacters implements MigrationCharacters {
                 faction,
                 Heat.ZERO.plus(java.math.BigDecimal.valueOf(heat)),
                 Ethecoin.ofWei(java.math.BigInteger.valueOf(balanceMinor)
-                        .multiply(Ethecoin.WEI_PER_ETHECOIN).divide(java.math.BigInteger.valueOf(100))),
+                        .multiply(Ethecoin.WEI_PER_ETHECOIN)
+                        .divide(java.math.BigInteger.valueOf(100))),
                 NOW,
                 NOW,
                 0L);

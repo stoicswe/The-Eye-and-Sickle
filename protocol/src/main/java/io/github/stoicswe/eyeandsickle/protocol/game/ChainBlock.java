@@ -61,9 +61,24 @@ public record ChainBlock(
 
     /** The same header with its transactions attached. Bodies are derived on demand, never stored. */
     public ChainBlock withBody(java.util.List<ChainTransaction> transactions) {
-        return new ChainBlock(number, hash, parentHash, timestamp, minerLabel, minerAddress, yours,
-                difficulty, nonce, this.transactions, gasUsed, gasLimit, sizeBytes, rewardWei,
-                feesWei, extraData, transactions);
+        return new ChainBlock(
+                number,
+                hash,
+                parentHash,
+                timestamp,
+                minerLabel,
+                minerAddress,
+                yours,
+                difficulty,
+                nonce,
+                this.transactions,
+                gasUsed,
+                gasLimit,
+                sizeBytes,
+                rewardWei,
+                feesWei,
+                extraData,
+                transactions);
     }
 
     /** What the miner took home: the subsidy plus every fee in the block. */

@@ -168,10 +168,12 @@ public final class NodeReports {
      * folder — a different feature, with the reports buried in it.
      */
     public static boolean rename(SoloSave save, String address, String alias) {
-        return find(save, address).map(report -> {
-            report.alias = alias == null ? "" : alias.trim();
-            return true;
-        }).orElse(false);
+        return find(save, address)
+                .map(report -> {
+                    report.alias = alias == null ? "" : alias.trim();
+                    return true;
+                })
+                .orElse(false);
     }
 
     /**
@@ -182,17 +184,19 @@ public final class NodeReports {
      * rather than stored, because a tag nobody can type is a tag nobody can search.
      */
     public static boolean retag(SoloSave save, String address, List<String> tags) {
-        return find(save, address).map(report -> {
-            java.util.LinkedHashSet<String> clean = new java.util.LinkedHashSet<>();
-            for (String tag : tags == null ? List.<String>of() : tags) {
-                String trimmed = tag == null ? "" : tag.trim().toLowerCase(java.util.Locale.ROOT);
-                if (!trimmed.isEmpty()) {
-                    clean.add(trimmed);
-                }
-            }
-            report.tags = new ArrayList<>(clean);
-            return true;
-        }).orElse(false);
+        return find(save, address)
+                .map(report -> {
+                    java.util.LinkedHashSet<String> clean = new java.util.LinkedHashSet<>();
+                    for (String tag : tags == null ? List.<String>of() : tags) {
+                        String trimmed = tag == null ? "" : tag.trim().toLowerCase(java.util.Locale.ROOT);
+                        if (!trimmed.isEmpty()) {
+                            clean.add(trimmed);
+                        }
+                    }
+                    report.tags = new ArrayList<>(clean);
+                    return true;
+                })
+                .orElse(false);
     }
 
     /** Every file, most recently updated first — which is the order a player looks for one in. */

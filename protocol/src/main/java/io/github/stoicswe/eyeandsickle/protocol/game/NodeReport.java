@@ -102,8 +102,7 @@ public record NodeReport(
     }
 
     private static boolean contains(String haystack, String needle) {
-        return haystack != null
-                && haystack.toLowerCase(java.util.Locale.ROOT).contains(needle);
+        return haystack != null && haystack.toLowerCase(java.util.Locale.ROOT).contains(needle);
     }
 
     /** Cycles free at the moment the load was sampled, or -1 if it never was. */

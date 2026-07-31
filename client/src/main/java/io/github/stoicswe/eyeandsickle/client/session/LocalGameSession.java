@@ -80,8 +80,7 @@ public final class LocalGameSession implements GameSession {
     public Outcome setAvatar(String base64Png) {
         game.state().avatarPng = base64Png == null ? "" : base64Png;
         persist();
-        return changed(Outcome.ok(base64Png == null || base64Png.isBlank()
-                ? "picture cleared" : "picture set"));
+        return changed(Outcome.ok(base64Png == null || base64Png.isBlank() ? "picture cleared" : "picture set"));
     }
 
     @Override
@@ -148,7 +147,8 @@ public final class LocalGameSession implements GameSession {
     public List<KnownNode> knownNodes() {
         List<KnownNode> out = new ArrayList<>();
         for (NodeState n : game.state().knownNodes) {
-            out.add(new KnownNode(n.address, n.label, n.reconLevel, n.tier, n.deployedMiners.size(), n.hostsForeignMiner));
+            out.add(new KnownNode(
+                    n.address, n.label, n.reconLevel, n.tier, n.deployedMiners.size(), n.hostsForeignMiner));
         }
         return out;
     }
@@ -330,7 +330,9 @@ public final class LocalGameSession implements GameSession {
      * well-formed, which is exactly what a player needs surfaced.
      */
     private Outcome announce(String facility, Outcome outcome) {
-        if (outcome.succeeded() || outcome.status() == Outcome.USAGE || outcome.message().isBlank()) {
+        if (outcome.succeeded()
+                || outcome.status() == Outcome.USAGE
+                || outcome.message().isBlank()) {
             return outcome;
         }
         io.github.stoicswe.eyeandsickle.solo.rules.EventLog.error(
@@ -403,7 +405,6 @@ public final class LocalGameSession implements GameSession {
                 .orElseGet(() -> notEnoughCycles(t.cycles()));
     }
 
-
     // ── every refusal is announced ────────────────────────────────────────────────────────────
     //
     // Each intent below is a wrapper around the private one that does the work, and the wrapper's
@@ -432,13 +433,13 @@ public final class LocalGameSession implements GameSession {
     }
 
     @Override
-    public Outcome send(String toAddress, java.math.BigInteger wei,
-            io.github.stoicswe.eyeandsickle.protocol.game.FeeTier tier) {
+    public Outcome send(
+            String toAddress, java.math.BigInteger wei, io.github.stoicswe.eyeandsickle.protocol.game.FeeTier tier) {
         return announce("chain", sendIntent(toAddress, wei, tier));
     }
 
-    private Outcome sendIntent(String toAddress, java.math.BigInteger wei,
-            io.github.stoicswe.eyeandsickle.protocol.game.FeeTier tier) {
+    private Outcome sendIntent(
+            String toAddress, java.math.BigInteger wei, io.github.stoicswe.eyeandsickle.protocol.game.FeeTier tier) {
         if (toAddress == null || !toAddress.matches("0x[0-9a-fA-F]{40}")) {
             return Outcome.usage("send <0x…40 hex> <amount> — an address is 20 bytes of hex");
         }
@@ -451,8 +452,8 @@ public final class LocalGameSession implements GameSession {
                     + " needed including the " + Ethecoin.format(fee) + " fee, "
                     + Ethecoin.format(game.balance().wei()) + " held");
         }
-        return Outcome.ok("broadcast " + Ethecoin.format(wei) + " to " + toAddress
-                + " with a " + Ethecoin.format(fee) + " fee — waiting for a miner");
+        return Outcome.ok("broadcast " + Ethecoin.format(wei) + " to " + toAddress + " with a " + Ethecoin.format(fee)
+                + " fee — waiting for a miner");
     }
 
     @Override
@@ -461,43 +462,44 @@ public final class LocalGameSession implements GameSession {
     }
 
     @Override
-    public java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.PackageManifest> packageAt(
-            String path) {
+    public java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.PackageManifest> packageAt(String path) {
         return io.github.stoicswe.eyeandsickle.solo.rules.Repac.manifest(game.state(), path);
     }
 
     @Override
-    public Outcome portScan(
-            String address, io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget target) {
+    public Outcome portScan(String address, io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget target) {
         var started = game.portScan(address, target);
         if (started.succeeded()) {
-            return changed(Outcome.ok(String.format(Locale.ROOT,
+            return changed(Outcome.ok(String.format(
+                    Locale.ROOT,
                     "scanning %s for %s — %d cycles, ~%ds, %d%% chance it notices.",
-                    address, target.label().toLowerCase(Locale.ROOT),
-                    started.cycles(), started.duration().toSeconds(), started.riskPercent())));
+                    address,
+                    target.label().toLowerCase(Locale.ROOT),
+                    started.cycles(),
+                    started.duration().toSeconds(),
+                    started.riskPercent())));
         }
         // ⚠ The rules' refusal, named. "Could not scan" would leave a player retrying a thing that
         // will refuse for the same reason every time.
         return switch (started.refusal()) {
-            case UNKNOWN_HOST -> Outcome.refused(
-                    "no machine at " + address + " that a sweep has found. Sweep for it first.");
-            case YOUR_OWN_RIG -> Outcome.refused(
-                    "that is your own rig. The audit window reads it directly — free, silent, and "
-                            + "it sees everything a scan could not.");
+            case UNKNOWN_HOST ->
+                Outcome.refused("no machine at " + address + " that a sweep has found. Sweep for it first.");
+            case YOUR_OWN_RIG ->
+                Outcome.refused("that is your own rig. The audit window reads it directly — free, silent, and "
+                        + "it sees everything a scan could not.");
             case NOT_ENOUGH_CYCLES -> notEnoughCycles(started.cycles());
             case ALREADY_RUNNING -> Outcome.refused("a scan of " + address + " is already running.");
         };
     }
 
     @Override
-    public java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.PortScanReport>
-            portScanReport(String address) {
+    public java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.PortScanReport> portScanReport(
+            String address) {
         return game.portScan(address);
     }
 
     @Override
-    public java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.NodeReport> nodeReport(
-            String address) {
+    public java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.NodeReport> nodeReport(String address) {
         return io.github.stoicswe.eyeandsickle.solo.net.NodeReports.at(game.state(), address);
     }
 
@@ -512,9 +514,10 @@ public final class LocalGameSession implements GameSession {
             return Outcome.refused("no report on " + address + " — scan it first, then name it.");
         }
         persist();
-        return changed(Outcome.ok(alias == null || alias.isBlank()
-                ? "name cleared on " + address
-                : address + " is now \"" + alias.trim() + "\""));
+        return changed(Outcome.ok(
+                alias == null || alias.isBlank()
+                        ? "name cleared on " + address
+                        : address + " is now \"" + alias.trim() + "\""));
     }
 
     @Override
@@ -534,9 +537,10 @@ public final class LocalGameSession implements GameSession {
     public PortScanQuote portScanQuote(
             String address, io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget target) {
         long cycles = io.github.stoicswe.eyeandsickle.solo.net.PortScanRules.cyclesFor(target);
-        long seconds = io.github.stoicswe.eyeandsickle.solo.net.PortScanRules
-                .durationFor(target).toSeconds();
-        var host = game.state().topology == null ? null
+        long seconds = io.github.stoicswe.eyeandsickle.solo.net.PortScanRules.durationFor(target)
+                .toSeconds();
+        var host = game.state().topology == null
+                ? null
                 : game.state().topology.hosts.stream()
                         .filter(h -> address.equals(h.address))
                         .findFirst()
@@ -548,8 +552,8 @@ public final class LocalGameSession implements GameSession {
 
     @Override
     public Outcome boostFee(String txHash, io.github.stoicswe.eyeandsickle.protocol.game.FeeTier tier) {
-        var result = io.github.stoicswe.eyeandsickle.solo.rules.MempoolRules.boost(
-                game.state(), txHash, tier, game.now());
+        var result =
+                io.github.stoicswe.eyeandsickle.solo.rules.MempoolRules.boost(game.state(), txHash, tier, game.now());
         return result.ok() ? changed(Outcome.ok(result.message())) : Outcome.refused(result.message());
     }
 
@@ -574,14 +578,12 @@ public final class LocalGameSession implements GameSession {
     }
 
     @Override
-    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.BlockContribution> contributions(
-            int limit) {
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.BlockContribution> contributions(int limit) {
         return game.contributions(limit);
     }
 
     @Override
-    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.ChainTransaction> chainTransactions(
-            int limit) {
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.ChainTransaction> chainTransactions(int limit) {
         return game.chainTransactions(limit);
     }
 
@@ -622,12 +624,13 @@ public final class LocalGameSession implements GameSession {
             return Outcome.ok("already mining " + mode.name().toLowerCase(java.util.Locale.ROOT));
         }
         var after = game.mining();
-        return Outcome.ok(mode == io.github.stoicswe.eyeandsickle.protocol.game.MiningMode.SOLO
-                ? "mining solo: the whole block subsidy or nothing, about one block every "
-                        + Math.round(after.expectedPayoutSeconds() / 60) + " minutes on average"
-                : "mining pooled: a steady share every "
-                        + Math.round(io.github.stoicswe.eyeandsickle.solo.Balance.POOL_SHARE_SECONDS)
-                        + "s, less the pool's fee");
+        return Outcome.ok(
+                mode == io.github.stoicswe.eyeandsickle.protocol.game.MiningMode.SOLO
+                        ? "mining solo: the whole block subsidy or nothing, about one block every "
+                                + Math.round(after.expectedPayoutSeconds() / 60) + " minutes on average"
+                        : "mining pooled: a steady share every "
+                                + Math.round(io.github.stoicswe.eyeandsickle.solo.Balance.POOL_SHARE_SECONDS)
+                                + "s, less the pool's fee");
     }
 
     @Override
@@ -755,9 +758,7 @@ public final class LocalGameSession implements GameSession {
     }
 
     private Outcome dismissBreachIntent() {
-        return game.dismissBreach()
-                ? changed(Outcome.ok("outcome cleared"))
-                : Outcome.ok("nothing to clear");
+        return game.dismissBreach() ? changed(Outcome.ok("outcome cleared")) : Outcome.ok("nothing to clear");
     }
 
     /**
@@ -798,18 +799,21 @@ public final class LocalGameSession implements GameSession {
             var host = game.net().at(state.address);
             out.add(new RemoteSession(
                     state.address,
-                    host.map(io.github.stoicswe.eyeandsickle.protocol.game.Sighting::label).orElse(""),
+                    host.map(io.github.stoicswe.eyeandsickle.protocol.game.Sighting::label)
+                            .orElse(""),
                     state.cwd,
                     state.openedAt,
                     state.cycles,
-                    host.map(io.github.stoicswe.eyeandsickle.protocol.game.Sighting::vantage).orElse(false)
+                    host.map(io.github.stoicswe.eyeandsickle.protocol.game.Sighting::vantage)
+                                    .orElse(false)
                             && isOwnRig(state.address)));
         }
         return java.util.List.copyOf(out);
     }
 
     private boolean isOwnRig(String address) {
-        return game.net().at(address)
+        return game.net()
+                .at(address)
                 .map(s -> s.kind() == io.github.stoicswe.eyeandsickle.protocol.game.HostKind.SELF)
                 .orElse(false);
     }
@@ -822,19 +826,17 @@ public final class LocalGameSession implements GameSession {
     private Outcome openSessionIntent(String address) {
         var opened = game.openSession(address);
         if (opened.succeeded()) {
-            return changed(Outcome.ok("shell opened on " + address
-                    + " — " + opened.session().cycles + " cycles held while it stays open"));
+            return changed(Outcome.ok("shell opened on " + address + " — " + opened.session().cycles
+                    + " cycles held while it stays open"));
         }
         // Each refusal names the thing that would fix it. A shell that just said "no" on a machine
         // the player can SEE is the most frustrating possible refusal, because the obstacle is
         // invisible: docs/client/04 §3.5's rule that 77 means "not yet, and here is why".
         return switch (opened.refusal()) {
-            case UNKNOWN_HOST -> Outcome.refused(
-                    "no machine at " + address + " — sweep for it first");
-            case NO_FOOTHOLD -> Outcome.gated(
-                    "no foothold on " + address + " — breach it before you can run anything on it");
-            case NOT_ENOUGH_COMPUTE -> notEnoughCycles(
-                    io.github.stoicswe.eyeandsickle.solo.Balance.SESSION_CYCLES);
+            case UNKNOWN_HOST -> Outcome.refused("no machine at " + address + " — sweep for it first");
+            case NO_FOOTHOLD ->
+                Outcome.gated("no foothold on " + address + " — breach it before you can run anything on it");
+            case NOT_ENOUGH_COMPUTE -> notEnoughCycles(io.github.stoicswe.eyeandsickle.solo.Balance.SESSION_CYCLES);
         };
     }
 
@@ -856,8 +858,7 @@ public final class LocalGameSession implements GameSession {
     }
 
     @Override
-    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.FsEntry> list(
-            String address, String path) {
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.FsEntry> list(String address, String path) {
         return game.list(address, path);
     }
 
@@ -899,27 +900,25 @@ public final class LocalGameSession implements GameSession {
 
     @Override
     public Outcome download(
-            String address,
-            io.github.stoicswe.eyeandsickle.protocol.game.FsEntry entry,
-            String destination) {
+            String address, io.github.stoicswe.eyeandsickle.protocol.game.FsEntry entry, String destination) {
         var started = game.download(address, entry, destination);
         if (started.succeeded()) {
-            return announce("net", changed(Outcome.ok(
-                    "downloading " + entry.name() + " — " + bytes(started.bytes()) + " at "
+            return announce(
+                    "net",
+                    changed(Outcome.ok("downloading " + entry.name() + " — " + bytes(started.bytes()) + " at "
                             + megabits(io.github.stoicswe.eyeandsickle.solo.Balance.LINK_UP_BITS)
                             + ", about " + Math.max(1, started.duration().toSeconds()) + "s")));
         }
         return switch (started.refusal()) {
-            case NOT_CONNECTED -> Outcome.refused(
-                    "not connected to " + address + " — mount it before pulling anything off it");
-            case NOT_READABLE -> Outcome.gated(
-                    entry.name() + ": you do not hold this machine. Breach it first.");
+            case NOT_CONNECTED ->
+                Outcome.refused("not connected to " + address + " — mount it before pulling anything off it");
+            case NOT_READABLE -> Outcome.gated(entry.name() + ": you do not hold this machine. Breach it first.");
             case ALREADY_RUNNING -> Outcome.refused(entry.name() + " is already on its way");
             // Named rather than generic: a player who tried to copy a log file is entitled to know
             // it is scenery rather than to conclude downloads are broken.
-            case NOT_TRANSFERABLE -> Outcome.refused(
-                    entry.name() + ": nothing on your rig would know what to do with this. "
-                            + "Fragments, wallets, upgrades and schematics are what transfer.");
+            case NOT_TRANSFERABLE ->
+                Outcome.refused(entry.name() + ": nothing on your rig would know what to do with this. "
+                        + "Fragments, wallets, upgrades and schematics are what transfer.");
         };
     }
 
@@ -951,12 +950,12 @@ public final class LocalGameSession implements GameSession {
     public Outcome sell(String path) {
         var result = game.sell(path);
         return result.ok()
-                ? announce("ledger", changed(Outcome.ok(
-                        result.message() + " for " + Ethecoin.format(result.wei()))))
+                ? announce("ledger", changed(Outcome.ok(result.message() + " for " + Ethecoin.format(result.wei()))))
                 // 77 rather than 1 for the gate case: it is "not this way", not "no".
                 : new Outcome(
-                        result.refusal() == io.github.stoicswe.eyeandsickle.solo.rules.Repac
-                                .Refusal.NOT_SELLABLE ? Outcome.NOPERM : Outcome.REFUSED,
+                        result.refusal() == io.github.stoicswe.eyeandsickle.solo.rules.Repac.Refusal.NOT_SELLABLE
+                                ? Outcome.NOPERM
+                                : Outcome.REFUSED,
                         result.message());
     }
 
@@ -965,9 +964,14 @@ public final class LocalGameSession implements GameSession {
         java.time.Instant asOf = game.now();
         return game.transfers().stream()
                 .map(task -> new RunningTask(
-                        task.taskId, task.kind, task.label,
+                        task.taskId,
+                        task.kind,
+                        task.label,
                         "the other end's upload is the ceiling, not your download",
-                        task.startedAt, task.endsAt, task.cycles, asOf))
+                        task.startedAt,
+                        task.endsAt,
+                        task.cycles,
+                        asOf))
                 .toList();
     }
 
@@ -1009,12 +1013,11 @@ public final class LocalGameSession implements GameSession {
         // SoloGame.open backfills the world now, so this should be unreachable; it stays because a
         // refusal that names the wrong resource is the most expensive kind of wrong.
         if (!game.hasNetwork()) {
-            return Outcome.refused(
-                    "this character has no network yet — reopen the save to bring the interface up");
+            return Outcome.refused("this character has no network yet — reopen the save to bring the interface up");
         }
         return game.sweep(tier.get())
-                .map(t -> changed(Outcome.ok("sweep started from " + game.net().vantageAddress()
-                        + " — " + tier.get().cycles() + " cycles held, and loud until it ends")))
+                .map(t -> changed(Outcome.ok("sweep started from " + game.net().vantageAddress() + " — "
+                        + tier.get().cycles() + " cycles held, and loud until it ends")))
                 .orElseGet(() -> notEnoughCycles(tier.get().cycles()));
     }
 
@@ -1036,8 +1039,7 @@ public final class LocalGameSession implements GameSession {
             boolean owned = game.ownsSweep(tier);
             var offering = io.github.stoicswe.eyeandsickle.solo.Catalogue.byId(tier.itemId());
             String name = offering.map(o -> o.name()).orElse(tier.label());
-            java.math.BigInteger price = offering.map(o -> o.priceWei())
-                .orElse(java.math.BigInteger.ZERO);
+            java.math.BigInteger price = offering.map(o -> o.priceWei()).orElse(java.math.BigInteger.ZERO);
             // Words, never a bare price: docs/client/05 §5 forbids a generic "locked" and requires
             // the requirement itself be stated. A player who is told "25.00 EC" without being told
             // WHAT costs it has been given a number, not a route.
@@ -1201,8 +1203,8 @@ public final class LocalGameSession implements GameSession {
         if (game.state().items.stream().anyMatch(i -> o.id().equals(i.itemType))) {
             return Outcome.refused("you already have " + o.name() + ".");
         }
-        if (io.github.stoicswe.eyeandsickle.solo.net.TransferRules
-                .running(game.state(), "/market/" + o.id() + ".pkg").isPresent()) {
+        if (io.github.stoicswe.eyeandsickle.solo.net.TransferRules.running(game.state(), "/market/" + o.id() + ".pkg")
+                .isPresent()) {
             return Outcome.refused(o.name() + " is already downloading.");
         }
         // ⚠ THE ITEM IS NOT CREATED HERE ANY MORE (changed 2026-07-29).
@@ -1216,8 +1218,12 @@ public final class LocalGameSession implements GameSession {
         // two — the purchase and a separate TX_FEE line — and only the first is broadcast, so
         // reaching for the end of the ledger gets the fee, which never confirms and would hold the
         // package forever with the money gone.
-        var paid = game.spend(o.priceWei(), "MARKET", "Bought " + o.name(),
-                io.github.stoicswe.eyeandsickle.protocol.game.FeeTier.STANDARD, "");
+        var paid = game.spend(
+                o.priceWei(),
+                "MARKET",
+                "Bought " + o.name(),
+                io.github.stoicswe.eyeandsickle.protocol.game.FeeTier.STANDARD,
+                "");
         if (paid.isEmpty()) {
             return Outcome.refused("not enough ethecoin — " + o.name() + " costs "
                     + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.ofWei(o.priceWei())
@@ -1230,33 +1236,37 @@ public final class LocalGameSession implements GameSession {
             // silently. Nothing here can currently produce it — the two refusals it can return are
             // both checked above — so this is the branch that exists to be loud if that stops being
             // true rather than to be taken.
-            return changed(Outcome.refused(
-                    "paid for " + o.name() + ", but the download would not start. `ledger` has the "
+            return changed(
+                    Outcome.refused("paid for " + o.name() + ", but the download would not start. `ledger` has the "
                             + "transaction; the package is not on its way."));
         }
-        return changed(Outcome.ok(String.format(Locale.ROOT,
+        return changed(Outcome.ok(String.format(
+                Locale.ROOT,
                 "bought %s — downloading %.0f MB to Downloads. It installs once the block carrying "
                         + "your payment confirms.",
-                o.name(), started.bytes() / (1024.0d * 1024.0d))));
+                o.name(),
+                started.bytes() / (1024.0d * 1024.0d))));
     }
 
     /** Standing reservations from {@code docs/design/09-defense-and-hardening.md} §1. */
     private static long defenseCycles(String kind, int tier) {
         return switch (kind) {
-            case "firewall" -> switch (tier) {
-                case 1 -> Balance.DEFENSE_FIREWALL_T1_CYCLES;
-                case 2 -> Balance.DEFENSE_FIREWALL_T2_CYCLES;
-                default -> Balance.DEFENSE_FIREWALL_T3_CYCLES;
-            };
+            case "firewall" ->
+                switch (tier) {
+                    case 1 -> Balance.DEFENSE_FIREWALL_T1_CYCLES;
+                    case 2 -> Balance.DEFENSE_FIREWALL_T2_CYCLES;
+                    default -> Balance.DEFENSE_FIREWALL_T3_CYCLES;
+                };
             case "canary" -> Balance.DEFENSE_CANARY_CYCLES;
             case "tarpit" -> Balance.DEFENSE_TARPIT_CYCLES;
             case "honeypot-stash" -> Balance.DEFENSE_HONEYPOT_STASH_CYCLES;
             case "auto-counter-daemon" -> Balance.DEFENSE_AUTO_COUNTER_CYCLES;
-            case "detection-array" -> switch (tier) {
-                case 1 -> Balance.DEFENSE_DETECTION_ARRAY_T1_CYCLES;
-                case 2 -> Balance.DEFENSE_DETECTION_ARRAY_T2_CYCLES;
-                default -> Balance.DEFENSE_DETECTION_ARRAY_T3_CYCLES;
-            };
+            case "detection-array" ->
+                switch (tier) {
+                    case 1 -> Balance.DEFENSE_DETECTION_ARRAY_T1_CYCLES;
+                    case 2 -> Balance.DEFENSE_DETECTION_ARRAY_T2_CYCLES;
+                    default -> Balance.DEFENSE_DETECTION_ARRAY_T3_CYCLES;
+                };
             default -> 0L;
         };
     }
@@ -1295,8 +1305,7 @@ public final class LocalGameSession implements GameSession {
                 if (!runningTaskIds().contains(finished)) {
                     bus.publish(
                             io.github.stoicswe.eyeandsickle.client.events.EventTypes.of(
-                                    io.github.stoicswe.eyeandsickle.client.events.EventTypes.TASK
-                                            + ".finished"),
+                                    io.github.stoicswe.eyeandsickle.client.events.EventTypes.TASK + ".finished"),
                             "/client/tasks",
                             finished);
                 }
@@ -1305,8 +1314,7 @@ public final class LocalGameSession implements GameSession {
             if (heightAfter > heightBefore) {
                 bus.publish(
                         io.github.stoicswe.eyeandsickle.client.events.EventTypes.of(
-                                io.github.stoicswe.eyeandsickle.client.events.EventTypes.CHAIN
-                                        + ".block"),
+                                io.github.stoicswe.eyeandsickle.client.events.EventTypes.CHAIN + ".block"),
                         "/client/chain",
                         String.valueOf(heightAfter),
                         // ⚠ `blocks`, not just the new height. A tick after a long pause settles
@@ -1373,8 +1381,7 @@ public final class LocalGameSession implements GameSession {
     /** Puts a completed intent on the bus, named for whatever called {@code changed}. */
     private void publishIntent(Outcome outcome) {
         String what = StackWalker.getInstance()
-                .walk(frames -> frames
-                        .map(StackWalker.StackFrame::getMethodName)
+                .walk(frames -> frames.map(StackWalker.StackFrame::getMethodName)
                         // changed() and publishIntent() are this mechanism, not the act. The first
                         // frame that is neither is the intent the player actually invoked.
                         .filter(name -> !name.equals("changed") && !name.equals("publishIntent"))
@@ -1386,8 +1393,7 @@ public final class LocalGameSession implements GameSession {
                 "/client/session",
                 what,
                 java.util.Map.of(
-                        "outcome", outcome.succeeded() ? "ok" : "refused",
-                        "status", String.valueOf(outcome.status())));
+                        "outcome", outcome.succeeded() ? "ok" : "refused", "status", String.valueOf(outcome.status())));
     }
 
     /**
@@ -1416,5 +1422,4 @@ public final class LocalGameSession implements GameSession {
             }
         }
     }
-
 }

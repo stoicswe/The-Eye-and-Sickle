@@ -143,9 +143,25 @@ public final class RemoteGameSession implements GameSession {
         // that does not exist.
         return new io.github.stoicswe.eyeandsickle.protocol.game.MiningSnapshot(
                 io.github.stoicswe.eyeandsickle.protocol.game.MiningMode.POOLED,
-                0L, 0L, 0L, 0.0d, 0.0d, 0L, 0L, 0.0d, -1L,
-                java.math.BigInteger.ZERO, java.math.BigInteger.ZERO, 0L,
-                java.math.BigInteger.ZERO, 0, null, null, java.math.BigInteger.ZERO, 0L, 0L);
+                0L,
+                0L,
+                0L,
+                0.0d,
+                0.0d,
+                0L,
+                0L,
+                0.0d,
+                -1L,
+                java.math.BigInteger.ZERO,
+                java.math.BigInteger.ZERO,
+                0L,
+                java.math.BigInteger.ZERO,
+                0,
+                null,
+                null,
+                java.math.BigInteger.ZERO,
+                0L,
+                0L);
     }
 
     @Override
@@ -201,8 +217,7 @@ public final class RemoteGameSession implements GameSession {
      */
     private Outcome unavailable() {
         return new Outcome(
-                Outcome.UNAVAILABLE,
-                "Not connected to " + server + ". Online play is not wired up yet — see CL-8.");
+                Outcome.UNAVAILABLE, "Not connected to " + server + ". Online play is not wired up yet — see CL-8.");
     }
 
     @Override
@@ -226,8 +241,8 @@ public final class RemoteGameSession implements GameSession {
     }
 
     @Override
-    public Outcome send(String toAddress, java.math.BigInteger wei,
-            io.github.stoicswe.eyeandsickle.protocol.game.FeeTier tier) {
+    public Outcome send(
+            String toAddress, java.math.BigInteger wei, io.github.stoicswe.eyeandsickle.protocol.game.FeeTier tier) {
         return unavailable();
     }
 
@@ -239,8 +254,7 @@ public final class RemoteGameSession implements GameSession {
     }
 
     @Override
-    public int storageCapacity(
-            io.github.stoicswe.eyeandsickle.protocol.game.StorageTier tier) {
+    public int storageCapacity(io.github.stoicswe.eyeandsickle.protocol.game.StorageTier tier) {
         // Zero, not a guessed default. A disconnected session knows nothing about the server's
         // capacities, and a grid drawn against an invented six would tell the player their vault
         // was full when the client simply has not been told anything.
@@ -253,8 +267,13 @@ public final class RemoteGameSession implements GameSession {
         // rendered from a projection's etaAt, and a placeholder card would give the panel an instant
         // to count down to on a session that has no chain behind it at all.
         return new io.github.stoicswe.eyeandsickle.protocol.game.ChainMempool(
-                java.util.List.of(), 0, java.util.List.of(), 0, 0,
-                java.math.BigInteger.ZERO, java.math.BigInteger.ZERO);
+                java.util.List.of(),
+                0,
+                java.util.List.of(),
+                0,
+                0,
+                java.math.BigInteger.ZERO,
+                java.math.BigInteger.ZERO);
     }
 
     @Override
@@ -268,8 +287,7 @@ public final class RemoteGameSession implements GameSession {
     }
 
     @Override
-    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.ChainTransaction> chainTransactions(
-            int limit) {
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.ChainTransaction> chainTransactions(int limit) {
         return java.util.List.of();
     }
 
@@ -294,8 +312,7 @@ public final class RemoteGameSession implements GameSession {
     }
 
     @Override
-    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.BlockContribution> contributions(
-            int limit) {
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.BlockContribution> contributions(int limit) {
         return java.util.List.of();
     }
 
@@ -310,26 +327,23 @@ public final class RemoteGameSession implements GameSession {
     }
 
     @Override
-    public java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.PackageManifest> packageAt(
-            String path) {
+    public java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.PackageManifest> packageAt(String path) {
         return java.util.Optional.empty();
     }
 
     @Override
-    public Outcome portScan(
-            String address, io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget target) {
+    public Outcome portScan(String address, io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget target) {
         return unavailable();
     }
 
     @Override
-    public java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.PortScanReport>
-            portScanReport(String address) {
+    public java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.PortScanReport> portScanReport(
+            String address) {
         return java.util.Optional.empty();
     }
 
     @Override
-    public java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.NodeReport> nodeReport(
-            String address) {
+    public java.util.Optional<io.github.stoicswe.eyeandsickle.protocol.game.NodeReport> nodeReport(String address) {
         return java.util.Optional.empty();
     }
 
@@ -525,8 +539,7 @@ public final class RemoteGameSession implements GameSession {
     }
 
     @Override
-    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.FsEntry> list(
-            String address, String path) {
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.FsEntry> list(String address, String path) {
         return java.util.List.of();
     }
 
@@ -569,9 +582,7 @@ public final class RemoteGameSession implements GameSession {
 
     @Override
     public Outcome download(
-            String address,
-            io.github.stoicswe.eyeandsickle.protocol.game.FsEntry entry,
-            String destination) {
+            String address, io.github.stoicswe.eyeandsickle.protocol.game.FsEntry entry, String destination) {
         return unavailable();
     }
 

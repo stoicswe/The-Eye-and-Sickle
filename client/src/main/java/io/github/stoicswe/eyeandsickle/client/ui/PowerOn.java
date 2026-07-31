@@ -89,6 +89,7 @@ public final class PowerOn extends StackPane {
 
     /** The bar's own geometry. Thin and wide, the proportions a firmware bar has. */
     private static final double BAR_WIDTH = 248;
+
     private static final double BAR_HEIGHT = 6;
 
     /**
@@ -99,8 +100,6 @@ public final class PowerOn extends StackPane {
      * a word instead of a word.
      */
     private static final double RING_RADIUS = 33;
-
-
 
     /** One full breath of the halo. Slow enough to read as glow rather than as a blink. */
     private static final double BREATH_MS = 2200;
@@ -177,7 +176,6 @@ public final class PowerOn extends StackPane {
         label.getStyleClass().add("es-poweron-letter");
         return label;
     }
-
 
     /**
      * Starts the splash.

@@ -119,7 +119,8 @@ class GatedOfferingTest {
         void proofOfSkillSecondaryAllowed() {
             // GateRequirement deliberately does not forbid this; only SCHEMATIC-as-secondary and
             // primary==secondary are structural errors. The offering must not invent a stricter rule.
-            ProofOfSkillRequirement proof = new ProofOfSkillRequirement(PuzzleClass.BREACH_PROTOCOL, DifficultyTier.of(2));
+            ProofOfSkillRequirement proof =
+                    new ProofOfSkillRequirement(PuzzleClass.BREACH_PROTOCOL, DifficultyTier.of(2));
             assertThatCode(() -> GatedOffering.split("ec-plus-skill", EC, proof))
                     .doesNotThrowAnyException();
             assertThatCode(() -> GatedOffering.split("ec-plus-rep", EC, REP)).doesNotThrowAnyException();

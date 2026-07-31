@@ -102,7 +102,8 @@ public final class WrapStrip extends Region {
     @Override
     protected double computePrefHeight(double width) {
         double usable = (width < 0 ? getWidth() : width)
-                - getInsets().getLeft() - getInsets().getRight()
+                - getInsets().getLeft()
+                - getInsets().getRight()
                 - (pinned == null ? 0 : widthOf(pinned));
         double row = rowHeight();
         return getInsets().getTop() + getInsets().getBottom() + row * rowsNeeded(usable);
@@ -146,8 +147,7 @@ public final class WrapStrip extends Region {
         double row = rowHeight();
 
         if (pinned != null) {
-            pinned.resizeRelocate(
-                    pinnedLeft ? left : left + full - pinnedWidth, top, pinnedWidth, row);
+            pinned.resizeRelocate(pinnedLeft ? left : left + full - pinnedWidth, top, pinnedWidth, row);
         }
         // Everything else starts after the controls when they are on the left, so the flow never
         // runs underneath them.

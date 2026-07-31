@@ -80,9 +80,22 @@ public record ChainSync(
      */
     public ChainSync withCredit(BigInteger creditedWei) {
         return new ChainSync(
-                from, to, awaySeconds, minedSeconds, fromHeight, toHeight, blocks, competedBlocks,
-                blocksWon, poolBlocks, creditedWei, retargets, difficultyBefore,
-                difficultyAfter, transactionsConfirmed, truncated);
+                from,
+                to,
+                awaySeconds,
+                minedSeconds,
+                fromHeight,
+                toHeight,
+                blocks,
+                competedBlocks,
+                blocksWon,
+                poolBlocks,
+                creditedWei,
+                retargets,
+                difficultyBefore,
+                difficultyAfter,
+                transactionsConfirmed,
+                truncated);
     }
 
     /** Whether there is anything here worth showing a screen for. */

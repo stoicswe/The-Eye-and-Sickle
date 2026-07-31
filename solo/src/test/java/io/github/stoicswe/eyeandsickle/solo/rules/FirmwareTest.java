@@ -47,15 +47,19 @@ class FirmwareTest {
     private static final String IMAGE = "firmware-implant";
 
     private static SoloGame game(Path dir) {
-        return SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator",
-                Clock.fixed(T0, ZoneOffset.UTC));
+        return SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", Clock.fixed(T0, ZoneOffset.UTC));
     }
 
     /** A repacked firmware image sitting in Downloads, ready to install. */
     private static String holdImage(SoloGame game) {
         StoredFileState file = Repac.arrive(
-                game.state(), "/Users/operator/Downloads", "mining-firmware.pkg", "10.0.0.9",
-                1_000L, IMAGE, new io.github.stoicswe.eyeandsickle.protocol.game.UpgradeVersion(3, 1),
+                game.state(),
+                "/Users/operator/Downloads",
+                "mining-firmware.pkg",
+                "10.0.0.9",
+                1_000L,
+                IMAGE,
+                new io.github.stoicswe.eyeandsickle.protocol.game.UpgradeVersion(3, 1),
                 T0);
         Repac.repack(game.state(), file, T0);
         return file.path();
@@ -115,8 +119,16 @@ class FirmwareTest {
         @DisplayName("firmware with no schematic named is rejected at construction")
         void firmwareMustNameItsSchematic() {
             assertThatThrownBy(() -> new Catalogue.Offering(
-                    "rogue-firmware", "Rogue", "desc", UnlockGate.ETHECOIN, Balance.ec("1"), 0L, "",
-                    UpgradeKind.FIRMWARE, "", "mining"))
+                            "rogue-firmware",
+                            "Rogue",
+                            "desc",
+                            UnlockGate.ETHECOIN,
+                            Balance.ec("1"),
+                            0L,
+                            "",
+                            UpgradeKind.FIRMWARE,
+                            "",
+                            "mining"))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("schematic");
         }
@@ -128,7 +140,8 @@ class FirmwareTest {
             // split above would collapse into "money buys the ceiling" in one commit.
             assertThat(Catalogue.offerings())
                     .noneMatch(offering -> offering.id().equals(Catalogue.FIRMWARE_IMPLANT_SCHEMATIC)
-                            && offering.purchasable() && offering.kind() != UpgradeKind.FIRMWARE);
+                            && offering.purchasable()
+                            && offering.kind() != UpgradeKind.FIRMWARE);
             assertThat(Catalogue.byId(Catalogue.FIRMWARE_IMPLANT_SCHEMATIC))
                     .as("the id names the IMAGE; the schematic itself is not a catalogue entry")
                     .isPresent()
@@ -194,8 +207,7 @@ class FirmwareTest {
             stopMining(game.state());
             game.state().rig.selfMiningCycles = 40L;
             String path = holdImage(game);
-            assertThat(Repac.install(game.state(), path, T0).refusal())
-                    .isEqualTo(Repac.Refusal.NO_SCHEMATIC);
+            assertThat(Repac.install(game.state(), path, T0).refusal()).isEqualTo(Repac.Refusal.NO_SCHEMATIC);
         }
 
         @Test
@@ -207,9 +219,14 @@ class FirmwareTest {
             stopMining(game.state());
             game.state().rig.selfMiningCycles = 40L;
             StoredFileState file = Repac.arrive(
-                    game.state(), "/Users/operator/Downloads", "sweep.pkg", "10.0.0.9", 1_000L,
+                    game.state(),
+                    "/Users/operator/Downloads",
+                    "sweep.pkg",
+                    "10.0.0.9",
+                    1_000L,
                     "net-sweep-wide",
-                    new io.github.stoicswe.eyeandsickle.protocol.game.UpgradeVersion(2, 0), T0);
+                    new io.github.stoicswe.eyeandsickle.protocol.game.UpgradeVersion(2, 0),
+                    T0);
             Repac.repack(game.state(), file, T0);
             assertThat(Repac.install(game.state(), file.path(), T0).ok()).isTrue();
         }
@@ -278,13 +295,11 @@ class FirmwareTest {
 
             game.state().schematics.add(Catalogue.FIRMWARE_IMPLANT_SCHEMATIC);
             game.state().rig.selfMiningCycles = 20L;
-            assertThat(game.upgradeAt("", path))
-                    .get()
-                    .satisfies(offer -> {
-                        assertThat(offer.haveSchematic()).isTrue();
-                        assertThat(offer.readyToFlash()).isFalse();
-                        assertThat(offer.flashRequirement()).contains("Mining is running");
-                    });
+            assertThat(game.upgradeAt("", path)).get().satisfies(offer -> {
+                assertThat(offer.haveSchematic()).isTrue();
+                assertThat(offer.readyToFlash()).isFalse();
+                assertThat(offer.flashRequirement()).contains("Mining is running");
+            });
         }
     }
 }

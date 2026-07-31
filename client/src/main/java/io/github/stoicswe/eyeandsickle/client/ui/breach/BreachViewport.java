@@ -97,8 +97,7 @@ public final class BreachViewport extends StackPane {
      */
     private static final int GAUGE_TEXT_COL = GAUGE_COL + 6 + 2;
 
-    private final AsciiCanvas canvas =
-            new AsciiCanvas(UiTokens.VIEWPORT_ROWS, UiTokens.VIEWPORT_COLS);
+    private final AsciiCanvas canvas = new AsciiCanvas(UiTokens.VIEWPORT_ROWS, UiTokens.VIEWPORT_COLS);
     private final Label caption = Ui.micro("");
 
     private BreachSnapshot snapshot;
@@ -179,8 +178,7 @@ public final class BreachViewport extends StackPane {
         canvas.rule(2, 0, BOX_COLS, AsciiCanvas.INK_DIM);
         int middle = TOWER_TOP + TOWER_ROWS / 2;
         canvas.centre(middle - 1, INTERIOR_COL, INTERIOR_WIDTH, "NO BREACH OPEN", AsciiCanvas.INK_DIM);
-        canvas.centre(middle + 1, INTERIOR_COL, INTERIOR_WIDTH, "PICK A TARGET TO BEGIN",
-                AsciiCanvas.INK_DIM);
+        canvas.centre(middle + 1, INTERIOR_COL, INTERIOR_WIDTH, "PICK A TARGET TO BEGIN", AsciiCanvas.INK_DIM);
         caption.setText(Ui.upper("idle " + AsciiCanvas.BULLET + " no compute reserved"));
         setAccessibleText("Breach viewport. No breach open.");
     }
@@ -194,11 +192,13 @@ public final class BreachViewport extends StackPane {
      * built on it. A player who can see that from the viewport does not have to remember it.
      */
     private void head() {
-        int tier = snapshot.difficultyTier() == null ? 0 : snapshot.difficultyTier().tier();
-        String state = snapshot.liveOrDormant() == null ? "" : snapshot.liveOrDormant().name();
+        int tier = snapshot.difficultyTier() == null
+                ? 0
+                : snapshot.difficultyTier().tier();
+        String state =
+                snapshot.liveOrDormant() == null ? "" : snapshot.liveOrDormant().name();
         String mark = snapshot.minerCrack() ? "OWN RIG" : "NOISE " + snapshot.noiseSoFar();
-        String suffix = " " + AsciiCanvas.BULLET + " T" + tier
-                + " " + AsciiCanvas.BULLET + " " + state;
+        String suffix = " " + AsciiCanvas.BULLET + " T" + tier + " " + AsciiCanvas.BULLET + " " + state;
 
         // ⚠ Clip the LABEL, never the assembled line. Truncating the whole string is what the first
         // build did, and a long hostname ate the tier and the LIVE/DORMANT flag from the right —
@@ -337,8 +337,11 @@ public final class BreachViewport extends StackPane {
         for (int i = 0; i < spent; i++) {
             canvas.put(STRIKE_ROW, col++, AsciiCanvas.BULLET, AsciiCanvas.INK_DIM);
         }
-        canvas.text(STRIKE_ROW, Math.max(col + 2, GAUGE_TEXT_COL),
-                "STRIKES " + left + " OF " + limit + " REMAINING", AsciiCanvas.INK_DIM);
+        canvas.text(
+                STRIKE_ROW,
+                Math.max(col + 2, GAUGE_TEXT_COL),
+                "STRIKES " + left + " OF " + limit + " REMAINING",
+                AsciiCanvas.INK_DIM);
         caption();
     }
 
@@ -351,8 +354,8 @@ public final class BreachViewport extends StackPane {
         }
         String position = layer == null
                 ? "resolved"
-                : "layer " + (layer.index() + 1) + " of " + snapshot.layers().size()
-                        + " " + AsciiCanvas.BULLET + " " + className(layer.puzzleClass()).toLowerCase(Locale.ROOT);
+                : "layer " + (layer.index() + 1) + " of " + snapshot.layers().size() + " " + AsciiCanvas.BULLET + " "
+                        + className(layer.puzzleClass()).toLowerCase(Locale.ROOT);
         // Values snap. §7.3 forbids a count-up or an odometer on any numeric readout, without
         // exception, and this string is rebuilt whole on every render rather than eased toward.
         caption.setText(Ui.upper(position
@@ -374,13 +377,19 @@ public final class BreachViewport extends StackPane {
         StringBuilder out = new StringBuilder("Breach on ")
                 .append(nullToEmpty(snapshot.targetLabel()))
                 .append(", tier ")
-                .append(snapshot.difficultyTier() == null ? 0 : snapshot.difficultyTier().tier())
+                .append(
+                        snapshot.difficultyTier() == null
+                                ? 0
+                                : snapshot.difficultyTier().tier())
                 .append(snapshot.minerCrack() ? ", your own rig, no heat on any outcome" : "")
                 .append(". ");
         for (BreachLayer layer : snapshot.layers()) {
-            out.append("Layer ").append(layer.index())
-                    .append(' ').append(className(layer.puzzleClass()).toLowerCase(Locale.ROOT))
-                    .append(' ').append(word(layer.state()).toLowerCase(Locale.ROOT))
+            out.append("Layer ")
+                    .append(layer.index())
+                    .append(' ')
+                    .append(className(layer.puzzleClass()).toLowerCase(Locale.ROOT))
+                    .append(' ')
+                    .append(word(layer.state()).toLowerCase(Locale.ROOT))
                     .append(". ");
         }
         return out.toString();

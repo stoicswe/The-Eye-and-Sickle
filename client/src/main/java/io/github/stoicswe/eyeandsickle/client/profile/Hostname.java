@@ -64,10 +64,7 @@ public final class Hostname {
             return "A hostname cannot start or end with a hyphen.";
         }
         for (char c : name.toCharArray()) {
-            boolean allowed = (c >= 'a' && c <= 'z')
-                    || (c >= 'A' && c <= 'Z')
-                    || (c >= '0' && c <= '9')
-                    || c == '-';
+            boolean allowed = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-';
             if (!allowed) {
                 return "Letters, digits and hyphens only. Those are the characters DNS allows in a "
                         + "host label — underscores included, which is why one is refused here even "

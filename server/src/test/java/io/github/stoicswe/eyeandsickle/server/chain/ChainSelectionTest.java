@@ -93,8 +93,10 @@ class ChainSelectionTest {
     @DisplayName("nulls and nonsense are ignored rather than crashing the bootstrap")
     void junkIsSurvivable() {
         ChainHead local = head(100, 5_000);
-        assertThat(ChainSelection.better(local, java.util.Arrays.asList(null, null))).isEmpty();
-        assertThat(ChainSelection.better(null, java.util.Arrays.asList((ChainHead) null))).isEmpty();
+        assertThat(ChainSelection.better(local, java.util.Arrays.asList(null, null)))
+                .isEmpty();
+        assertThat(ChainSelection.better(null, java.util.Arrays.asList((ChainHead) null)))
+                .isEmpty();
         // A head is a claim from a stranger. Refusing to start because one was malformed would make a
         // server's availability depend on its worst-behaved peer.
         assertThat(ChainSelection.shouldMintGenesis(null, java.util.Arrays.asList((ChainHead) null)))

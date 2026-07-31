@@ -130,8 +130,7 @@ class AccountRepositoryIT extends PostgresIntegrationTestBase {
         UUID playerId = repository.findByCharacter(ALICE).orElseThrow().playerId();
 
         // First writer moves the version from 0 to 1.
-        transactions()
-                .executeWithoutResult(status -> repository.writeBalance(playerId, Ethecoin.ofDecimal("15"), 0L));
+        transactions().executeWithoutResult(status -> repository.writeBalance(playerId, Ethecoin.ofDecimal("15"), 0L));
 
         // Second writer still believes it holds version 0 — the classic lost update, which here would be
         // a player spending the same ethecoin twice. It must be refused, not silently dropped.

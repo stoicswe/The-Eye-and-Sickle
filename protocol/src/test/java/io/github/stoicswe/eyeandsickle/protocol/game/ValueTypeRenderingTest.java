@@ -1,8 +1,8 @@
 package io.github.stoicswe.eyeandsickle.protocol.game;
 
-import java.math.BigInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.math.BigInteger;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -59,8 +59,7 @@ class ValueTypeRenderingTest {
             assertThat(Ethecoin.ofDecimal("8.00")).hasToString("8 EC");
             assertThat(Ethecoin.ofDecimal("500")).hasToString("500 EC");
             // The full-precision case from the request — exact, all eighteen places.
-            assertThat(Ethecoin.ofDecimal("0.037097927036961408"))
-                    .hasToString("0.037097927036961408 EC");
+            assertThat(Ethecoin.ofDecimal("0.037097927036961408")).hasToString("0.037097927036961408 EC");
             // One wei: the smallest thing that exists, and it still renders.
             assertThat(Ethecoin.ofWei(1L)).hasToString("0.000000000000000001 EC");
         }
@@ -87,8 +86,7 @@ class ValueTypeRenderingTest {
         @Test
         @DisplayName("a bare concatenation — the thing that actually went wrong — is now correct")
         void concatenationIsSafe() {
-            assertThat("you have " + Ethecoin.ofDecimal("123.45"))
-                    .isEqualTo("you have 123.45 EC");
+            assertThat("you have " + Ethecoin.ofDecimal("123.45")).isEqualTo("you have 123.45 EC");
         }
 
         /**
@@ -112,11 +110,13 @@ class ValueTypeRenderingTest {
             assertThat(Ethecoin.formatApprox(share, 4)).isEqualTo("0.3333 EC");
 
             // Trailing zeros are trimmed after the cap, and the sign survives it.
-            assertThat(Ethecoin.formatApprox(Ethecoin.ofDecimal("40.00001").wei(), 4)).isEqualTo("40 EC");
+            assertThat(Ethecoin.formatApprox(Ethecoin.ofDecimal("40.00001").wei(), 4))
+                    .isEqualTo("40 EC");
             assertThat(Ethecoin.formatApprox(Ethecoin.ofDecimal("1.5").wei().negate(), 4))
                     .isEqualTo("-1.5 EC");
             // ⚠ Zero decimals is a whole number, not an empty fraction.
-            assertThat(Ethecoin.formatApprox(Ethecoin.ofDecimal("40.6").wei(), 0)).isEqualTo("41 EC");
+            assertThat(Ethecoin.formatApprox(Ethecoin.ofDecimal("40.6").wei(), 0))
+                    .isEqualTo("41 EC");
         }
 
         @Test

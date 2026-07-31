@@ -30,18 +30,12 @@ package io.github.stoicswe.eyeandsickle.client.profile;
  * @param reducedMotionOverride nullable, and the null is meaningful: it means "follow the system"
  */
 public record SettingsSnapshot(
-        String rigHostname,
-        String teachingLevel,
-        int uiScalePercent,
-        Boolean reducedMotionOverride) {
+        String rigHostname, String teachingLevel, int uiScalePercent, Boolean reducedMotionOverride) {
 
     /** Every machine-wide setting the assistant may write. Kept in sync with the record by its test. */
     public static SettingsSnapshot of(ClientProfile.Settings settings) {
         return new SettingsSnapshot(
-                settings.rigHostname,
-                settings.teachingLevel,
-                settings.uiScalePercent,
-                settings.reducedMotionOverride);
+                settings.rigHostname, settings.teachingLevel, settings.uiScalePercent, settings.reducedMotionOverride);
     }
 
     /** Puts the captured values back. The caller re-applies them to the live scene. */

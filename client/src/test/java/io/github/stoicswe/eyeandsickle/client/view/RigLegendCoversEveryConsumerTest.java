@@ -2,12 +2,11 @@ package io.github.stoicswe.eyeandsickle.client.view;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.stoicswe.eyeandsickle.client.ui.widgets.CycleGrid;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeAllocation;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeBudget;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeConsumer;
 import io.github.stoicswe.eyeandsickle.protocol.game.Cycles;
-import io.github.stoicswe.eyeandsickle.client.ui.widgets.CycleGrid;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -42,8 +41,14 @@ class RigLegendCoversEveryConsumerTest {
         List<ComputeAllocation> allocations = new ArrayList<>();
         for (ComputeConsumer consumer : ComputeConsumer.values()) {
             allocations.add(new ComputeAllocation(
-                    UUID.randomUUID(), rig, null, consumer, UUID.randomUUID(),
-                    Cycles.of(2), ComputeAllocation.State.ACTIVE, null));
+                    UUID.randomUUID(),
+                    rig,
+                    null,
+                    consumer,
+                    UUID.randomUUID(),
+                    Cycles.of(2),
+                    ComputeAllocation.State.ACTIVE,
+                    null));
         }
         long claimed = 2L * ComputeConsumer.values().length;
         return new ComputeBudget(rig, Cycles.of(claimed), Cycles.of(0), allocations);
@@ -58,9 +63,25 @@ class RigLegendCoversEveryConsumerTest {
     private static io.github.stoicswe.eyeandsickle.protocol.game.MiningSnapshot idleMining() {
         return new io.github.stoicswe.eyeandsickle.protocol.game.MiningSnapshot(
                 io.github.stoicswe.eyeandsickle.protocol.game.MiningMode.SOLO,
-                0L, 0L, 0L, 0.0d, 0.0d, 0L, 0L, 0.0d, -1L,
-                java.math.BigInteger.ZERO, java.math.BigInteger.ZERO, 0L, java.math.BigInteger.ZERO,
-                0, null, null, java.math.BigInteger.ZERO, 0L, 0L);
+                0L,
+                0L,
+                0L,
+                0.0d,
+                0.0d,
+                0L,
+                0L,
+                0.0d,
+                -1L,
+                java.math.BigInteger.ZERO,
+                java.math.BigInteger.ZERO,
+                0L,
+                java.math.BigInteger.ZERO,
+                0,
+                null,
+                null,
+                java.math.BigInteger.ZERO,
+                0L,
+                0L);
     }
 
     @Test
@@ -76,8 +97,10 @@ class RigLegendCoversEveryConsumerTest {
         assertThat(slices)
                 .as("one slice per consumer, each carrying its cycles")
                 .hasSizeGreaterThanOrEqualTo(ComputeConsumer.values().length);
-        assertThat(slices).allSatisfy(slice ->
-                assertThat(slice.label()).as("a drawn slice must name itself").isNotBlank());
+        assertThat(slices)
+                .allSatisfy(slice -> assertThat(slice.label())
+                        .as("a drawn slice must name itself")
+                        .isNotBlank());
     }
 
     /**

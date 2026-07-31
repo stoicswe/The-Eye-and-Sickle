@@ -105,9 +105,7 @@ public final class Ui {
 
     /** A 1px hairline, the only divider the language has (§2.3). */
     public static Region hairline(double length, boolean vertical) {
-        return vertical
-                ? block(UiTokens.HAIR, length, "es-panel-edge")
-                : block(length, UiTokens.HAIR, "es-panel-edge");
+        return vertical ? block(UiTokens.HAIR, length, "es-panel-edge") : block(length, UiTokens.HAIR, "es-panel-edge");
     }
 
     public static HBox row(double spacing, Node... children) {

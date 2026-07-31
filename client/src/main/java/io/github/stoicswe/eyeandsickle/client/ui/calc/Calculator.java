@@ -459,9 +459,7 @@ public final class Calculator {
             return new Result(false, calc, "expression ends with an operator");
         }
         calc.equals();
-        return calc.error().isEmpty()
-                ? new Result(true, calc, "")
-                : new Result(false, calc, calc.error());
+        return calc.error().isEmpty() ? new Result(true, calc, "") : new Result(false, calc, calc.error());
     }
 
     /** What {@link #evaluate} came back with. */
@@ -479,10 +477,8 @@ public final class Calculator {
         if (expression == null || expression.isBlank()) {
             return List.of();
         }
-        String padded = expression
-                .replace(">>>", " RSH ")
-                .replace(">>", " ASR ")
-                .replace("<<", " LSH ");
+        String padded =
+                expression.replace(">>>", " RSH ").replace(">>", " ASR ").replace("<<", " LSH ");
         for (String symbol : List.of("+", "*", "/", "%", "&", "|", "^")) {
             padded = padded.replace(symbol, " " + symbol + " ");
         }

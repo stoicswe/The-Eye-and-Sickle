@@ -1,7 +1,7 @@
 package io.github.stoicswe.eyeandsickle.solo.state;
 
-import java.math.BigInteger;
 import io.github.stoicswe.eyeandsickle.solo.Balance;
+import java.math.BigInteger;
 import java.time.Instant;
 import java.util.UUID;
 

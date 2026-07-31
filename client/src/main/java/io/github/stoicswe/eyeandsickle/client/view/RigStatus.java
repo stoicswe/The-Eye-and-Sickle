@@ -3,7 +3,6 @@ package io.github.stoicswe.eyeandsickle.client.view;
 import io.github.stoicswe.eyeandsickle.client.session.GameSession;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeBudget;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * Everything the rig readout shows, derived once.

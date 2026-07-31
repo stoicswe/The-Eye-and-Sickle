@@ -33,7 +33,9 @@ public final class Money {
      * {@code BigInteger} to {@code BigInteger} — {@link #ec(String)} builds the expected side.
      */
     public static double ec(BigInteger wei) {
-        return new BigDecimal(wei).divide(new BigDecimal(Ethecoin.WEI_PER_ETHECOIN)).doubleValue();
+        return new BigDecimal(wei)
+                .divide(new BigDecimal(Ethecoin.WEI_PER_ETHECOIN))
+                .doubleValue();
     }
 
     /** An exact amount written the way the design docs write one: {@code ec("68")}. */

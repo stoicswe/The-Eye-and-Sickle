@@ -79,7 +79,9 @@ class HostnameTest {
         @DisplayName("letters, digits and hyphens pass")
         void accepted() {
             for (String name : java.util.List.of("rig", "eye-central", "node7", "a", "x-1-y")) {
-                assertThat(Hostname.problem(name)).as("%s is a valid host label", name).isNull();
+                assertThat(Hostname.problem(name))
+                        .as("%s is a valid host label", name)
+                        .isNull();
             }
         }
 

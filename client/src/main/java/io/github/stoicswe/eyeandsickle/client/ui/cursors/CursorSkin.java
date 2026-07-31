@@ -182,8 +182,7 @@ public enum CursorSkin {
      * <p>Two strokes rather than one: the ground-coloured ring sits a pixel outside the accent one,
      * which is what keeps a thin circle from disappearing against a cell of the same brightness.
      */
-    private void drawRing(
-            GraphicsContext g, CursorRole role, double size, double mid, Color accent, Color edge) {
+    private void drawRing(GraphicsContext g, CursorRole role, double size, double mid, Color accent, Color edge) {
         double r = Math.floor(size * 0.30);
 
         g.setStroke(edge);
@@ -201,8 +200,7 @@ public enum CursorSkin {
         }
     }
 
-    private void drawReticle(
-            GraphicsContext g, CursorRole role, double size, double mid, Color accent, Color edge) {
+    private void drawReticle(GraphicsContext g, CursorRole role, double size, double mid, Color accent, Color edge) {
         double arm = Math.floor(size * 0.42);
         double gap = 3;
 
@@ -277,8 +275,7 @@ public enum CursorSkin {
      * ({@code ui/chrome/DeskManager}) — the resize cursor is the one place the player is touching an
      * edge this application drew, so a system arrow there is the most conspicuous possible seam.
      */
-    private void drawResize(
-            GraphicsContext g, CursorRole role, double size, double mid, Color accent, Color edge) {
+    private void drawResize(GraphicsContext g, CursorRole role, double size, double mid, Color accent, Color edge) {
         double arm = Math.floor(size * 0.34);
         double head = 3.5;
         double angle = role.angleDegrees();

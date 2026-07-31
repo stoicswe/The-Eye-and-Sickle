@@ -113,12 +113,27 @@ public final class RigMonitorView {
         head.setAlignment(Pos.BASELINE_LEFT);
         head.getChildren().addAll(Ui.row(UiTokens.SPACE_2, claimed, claimedUnit), free, recovering);
 
-        Greeble greeble = new Greeble(82);
+        // ⚠ .filling() — the strip spans the panel, so a fixed 82 characters stopped roughly
+        // two-thirds of the way across and read as texture that ran out rather than texture.
+        Greeble greeble = new Greeble(82).filling();
         CycleGrid grid = new CycleGrid();
         // The cutaway sits in the space the capped cell field leaves beside it. It is a second view
         // of the same number — a post is amber for exactly as long as its bank is self-mining.
         CoreCage cage = new CoreCage();
-        grid.setAside(cage);
+        // ⚠ A COLUMN, so the cage sits at the top of the space rather than centred in it, and the
+        // room underneath carries a second instrument. Both are decoration and neither is read off
+        // game state — the numbers in the stream are invented, which is why only its newest line is
+        // drawn bright: nothing here may be mistaken for something a player can act on.
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.HexStream stream =
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.HexStream();
+        VBox aside = new VBox(UiTokens.SPACE_4, cage, stream);
+        aside.setAlignment(Pos.TOP_LEFT);
+        // ⚠ A well, matching the cell field opposite it. The two halves of the split are the same
+        // kind of object — a bounded instrument panel — and giving only one of them an edge made the
+        // right half read as loose content beside a panel rather than as the other half of a pair.
+        aside.getStyleClass().add("es-aside-well");
+        VBox.setVgrow(stream, Priority.ALWAYS);
+        grid.setAside(aside);
 
         KeyValue rate = KeyValue.of("Return rate", "0.0000 EC/S").live();
         KeyValue hourly = KeyValue.of("Projected", "0.00 EC/HR").live();
@@ -144,8 +159,8 @@ public final class RigMonitorView {
         VBox overview = new VBox(UiTokens.SPACE_6, greeble, grid, activity, working, notes);
         VBox.setVgrow(grid, Priority.SOMETIMES);
 
-        Label tableNote = Ui.small(
-                "Everything running on this rig. Nothing here is labelled hostile — right-click a row "
+        Label tableNote =
+                Ui.small("Everything running on this rig. Nothing here is labelled hostile — right-click a row "
                         + "to kill it, sort a column to compare. A process that is not yours has to "
                         + "look like one that is, and looking like one is not the same as being one.");
         tableNote.setWrapText(true);
@@ -212,6 +227,30 @@ public final class RigMonitorView {
         table.setOnRestart(process -> session.restartProcess(process.processId()));
 
         root.getChildren().addAll(head, tabs, overview, tableSide, about);
+
+        // ⚠ Three widgets on this panel hold a share of the shared Pulse, and until now NOTHING
+        // released them: `CycleGrid.dispose` and `CoreCage.dispose` both existed, were both correct,
+        // and were both called by nobody — so every open of the rig monitor left another blink and
+        // another cutaway ticking forever behind a window that was gone. Adding a third driver made
+        // it worth fixing rather than worth matching.
+        //
+        // ⚠ The `attached` flag is what makes this safe: a scene listener fires with null both when
+        // the panel is removed AND before it is ever added, so disposing on the first null would tear
+        // the widgets down before the window had shown once.
+        boolean[] attached = {false};
+        root.sceneProperty().addListener((obs, was, now) -> {
+            if (now != null) {
+                attached[0] = true;
+                return;
+            }
+            if (!attached[0]) {
+                return;
+            }
+            attached[0] = false;
+            grid.dispose();
+            cage.dispose();
+            stream.dispose();
+        });
 
         Runnable refresh = () -> {
             ComputeBudget budget = session.computeBudget();
@@ -281,13 +320,13 @@ public final class RigMonitorView {
         for (ComputeConsumer consumer : ORDER) {
             long cycles = active.getOrDefault(consumer, 0L);
             if (cycles > 0) {
-                slices.add(new CycleGrid.Slice(
-                        owner(consumer), (int) cycles, label(consumer), detail(consumer, mining)));
+                slices.add(
+                        new CycleGrid.Slice(owner(consumer), (int) cycles, label(consumer), detail(consumer, mining)));
             }
         }
         if (recovering > 0) {
-            slices.add(new CycleGrid.Slice(
-                    CycleGrid.Owner.RECOVERING, (int) recovering, "Thermal recovery", "returning"));
+            slices.add(
+                    new CycleGrid.Slice(CycleGrid.Owner.RECOVERING, (int) recovering, "Thermal recovery", "returning"));
         }
 
         // Capacity that is gone with nothing to attribute it to.
@@ -309,8 +348,7 @@ public final class RigMonitorView {
 
         long available = budget.available().cycles();
         if (available > 0) {
-            slices.add(new CycleGrid.Slice(
-                    CycleGrid.Owner.FREE, (int) available, "Unallocated", "free"));
+            slices.add(new CycleGrid.Slice(CycleGrid.Owner.FREE, (int) available, "Unallocated", "free"));
         }
         return slices;
     }
@@ -363,7 +401,8 @@ public final class RigMonitorView {
             // precise answer than 40; it is the same answer wearing seventeen digits of noise, on the
             // line a player checks against the published figure. Four places is well past anything
             // this rate varies by and still short of where the double stops being exact.
-            return "~" + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.formatApprox(
+            return "~"
+                    + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.formatApprox(
                             mining.expectedWeiPerHour(), 4)
                     + "/hr " + (mining.mode() == MiningMode.SOLO ? "solo" : "pooled");
         }
@@ -415,8 +454,7 @@ public final class RigMonitorView {
 
         if (status.bufferCapWei().signum() > 0 && status.bufferFill() >= 1.0) {
             notes.add(Note.loss(
-                    "Deployed buffers are full.",
-                    "Everything they mine from here is discarded until you collect."));
+                    "Deployed buffers are full.", "Everything they mine from here is discarded until you collect."));
         }
 
         long available = budget.available().cycles();

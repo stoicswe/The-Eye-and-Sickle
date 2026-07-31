@@ -191,7 +191,8 @@ class NetRulesTest {
             carrier.tier = Balance.SCHEMATIC_MATERIAL_MIN_TIER - 1;
 
             int materialBefore = save.schematicMaterial;
-            NetDocument recovered = NetRules.download(save, carrier.address, NetTestKit.T0).orElseThrow();
+            NetDocument recovered =
+                    NetRules.download(save, carrier.address, NetTestKit.T0).orElseThrow();
 
             assertThat(recovered.schematicMaterial()).isZero();
             assertThat(save.schematicMaterial).isEqualTo(materialBefore);
@@ -207,7 +208,8 @@ class NetRulesTest {
             carrier.tier = Balance.SCHEMATIC_MATERIAL_MIN_TIER;
 
             int before = save.schematicMaterial;
-            NetDocument recovered = NetRules.download(save, carrier.address, NetTestKit.T0).orElseThrow();
+            NetDocument recovered =
+                    NetRules.download(save, carrier.address, NetTestKit.T0).orElseThrow();
 
             assertThat(recovered.schematicMaterial()).isEqualTo(Balance.SCHEMATIC_MATERIAL_PER_BREACH);
             assertThat(save.schematicMaterial).isEqualTo(before + Balance.SCHEMATIC_MATERIAL_PER_BREACH);
@@ -226,7 +228,8 @@ class NetRulesTest {
             assertThat(NetRules.download(save, carrier.address, NetTestKit.T0)).isEmpty();
             carrier.foothold = true;
             assertThat(NetRules.download(save, carrier.address, NetTestKit.T0)).isPresent();
-            assertThat(NetRules.download(save, carrier.address, NetTestKit.T0.plusSeconds(1))).isEmpty();
+            assertThat(NetRules.download(save, carrier.address, NetTestKit.T0.plusSeconds(1)))
+                    .isEmpty();
 
             assertThat(NetRules.documents(save)).hasSize(1);
             assertThat(NetRules.documents(save).getFirst().recoveredFrom()).isEqualTo(carrier.address);
@@ -433,7 +436,8 @@ class NetRulesTest {
             assertThat(legacy.topology).isNull();
             assertThat(NetRules.view(legacy)).isEqualTo(NetMap.empty());
             assertThat(NetRules.view(legacy).isEmpty()).isTrue();
-            assertThat(NetRules.beginSweep(legacy, SweepTier.BASE, NetTestKit.T0)).isEmpty();
+            assertThat(NetRules.beginSweep(legacy, SweepTier.BASE, NetTestKit.T0))
+                    .isEmpty();
             assertThat(NetRules.documents(legacy)).isEmpty();
             assertThat(NetRules.connect(legacy, "10.0.0.2", NetTestKit.T0)).isFalse();
             assertThat(NetRules.reconcileFootholds(legacy, NetTestKit.T0)).isFalse();

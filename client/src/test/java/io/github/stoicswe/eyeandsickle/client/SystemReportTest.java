@@ -63,7 +63,8 @@ class SystemReportTest {
         }
 
         private static Map.Entry<String, String> entryKey(String key) {
-            return org.assertj.core.api.Assertions.entry(key, SystemReport.rows().get(key));
+            return org.assertj.core.api.Assertions.entry(
+                    key, SystemReport.rows().get(key));
         }
     }
 

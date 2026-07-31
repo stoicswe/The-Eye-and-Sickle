@@ -1,13 +1,12 @@
 package io.github.stoicswe.eyeandsickle.solo.breach;
 
 import static io.github.stoicswe.eyeandsickle.solo.breach.BreachTestKit.T0;
-import static io.github.stoicswe.eyeandsickle.solo.breach.BreachTestKit.fullyScanned;
 import static io.github.stoicswe.eyeandsickle.solo.breach.BreachTestKit.focus;
+import static io.github.stoicswe.eyeandsickle.solo.breach.BreachTestKit.fullyScanned;
 import static io.github.stoicswe.eyeandsickle.solo.breach.BreachTestKit.nodeTarget;
 import static io.github.stoicswe.eyeandsickle.solo.breach.BreachTestKit.withNode;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.github.stoicswe.eyeandsickle.protocol.game.BreachSnapshot;
 import io.github.stoicswe.eyeandsickle.protocol.game.MatrixBoard;
 import io.github.stoicswe.eyeandsickle.protocol.game.OffsetBoard;
 import io.github.stoicswe.eyeandsickle.solo.Balance;
@@ -102,13 +101,15 @@ class BreachBoardsTest {
         void classIsFrozen() {
             SoloSave save = withNode(4242L, 4, 0, false, false);
             BreachRules.begin(save, nodeTarget(save), T0);
-            List<String> classes = save.activeBreach.layers.stream().map(l -> l.puzzleClass).toList();
+            List<String> classes =
+                    save.activeBreach.layers.stream().map(l -> l.puzzleClass).toList();
 
             // Re-reading is not re-rolling. Without this, a player who disliked the cipher could quit
             // to menu and come back until the grid turned up — which is choosing your own difficulty.
             BreachSnapshots.of(save);
             BreachSnapshots.of(save);
-            assertThat(save.activeBreach.layers.stream().map(l -> l.puzzleClass).toList()).isEqualTo(classes);
+            assertThat(save.activeBreach.layers.stream().map(l -> l.puzzleClass).toList())
+                    .isEqualTo(classes);
         }
     }
 
@@ -134,8 +135,13 @@ class BreachBoardsTest {
         @DisplayName("the buffer can hold the goals but is never generous about it")
         void bufferIsTight() {
             for (LayerState layer : allLayers("BREACH_PROTOCOL")) {
-                int longest = layer.matrixGoalLengths.stream().mapToInt(Integer::intValue).max().orElse(0);
-                int total = layer.matrixGoalLengths.stream().mapToInt(Integer::intValue).sum();
+                int longest = layer.matrixGoalLengths.stream()
+                        .mapToInt(Integer::intValue)
+                        .max()
+                        .orElse(0);
+                int total = layer.matrixGoalLengths.stream()
+                        .mapToInt(Integer::intValue)
+                        .sum();
                 // The longest sequence must fit, or it is decoration.
                 assertThat(layer.matrixBufferSize).isGreaterThanOrEqualTo(longest);
                 if (layer.matrixGoalLengths.size() > 1) {
@@ -183,8 +189,10 @@ class BreachBoardsTest {
         void progressIsTrailing() {
             // A run the player has already walked away from must not read as progress: acting on it
             // means picking towards a sequence that can no longer be completed from here.
-            assertThat(MatrixRules.trailingMatch(List.of("1C", "55", "BD"), List.of("1C", "55"))).isZero();
-            assertThat(MatrixRules.trailingMatch(List.of("BD", "1C", "55"), List.of("1C", "55"))).isEqualTo(2);
+            assertThat(MatrixRules.trailingMatch(List.of("1C", "55", "BD"), List.of("1C", "55")))
+                    .isZero();
+            assertThat(MatrixRules.trailingMatch(List.of("BD", "1C", "55"), List.of("1C", "55")))
+                    .isEqualTo(2);
         }
     }
 
@@ -220,8 +228,7 @@ class BreachBoardsTest {
                 // it was GIVEN, and a given cell holds the right answer. See CipherPrefillTest.
                 for (int c = 0; c < layer.cipherObserved.size(); c++) {
                     if (layer.cipherGiven.get(c)) {
-                        assertThat(layer.cipherEntered.get(c))
-                                .isEqualTo(OffsetRules.expected(layer, c));
+                        assertThat(layer.cipherEntered.get(c)).isEqualTo(OffsetRules.expected(layer, c));
                     } else {
                         assertThat(layer.cipherEntered.get(c)).isNull();
                     }
@@ -299,7 +306,8 @@ class BreachBoardsTest {
                 return;
             }
 
-            OffsetBoard board = (OffsetBoard) BreachSnapshots.of(save).active().orElseThrow().board();
+            OffsetBoard board = (OffsetBoard)
+                    BreachSnapshots.of(save).active().orElseThrow().board();
             // Both rows are public from the first frame — the puzzle is the arithmetic, not finding
             // out what to subtract. The answer row is empty, and stays the player's to fill.
             assertThat(board.observed()).isNotEmpty();
@@ -333,7 +341,8 @@ class BreachBoardsTest {
                 return;
             }
 
-            MatrixBoard board = (MatrixBoard) BreachSnapshots.of(save).active().orElseThrow().board();
+            MatrixBoard board = (MatrixBoard)
+                    BreachSnapshots.of(save).active().orElseThrow().board();
             assertThat(board.size()).isEqualTo(layer.matrixSize);
             assertThat(board.grid()).hasSize(layer.matrixSize);
             assertThat(board.goals()).isNotEmpty();

@@ -1,9 +1,9 @@
 package io.github.stoicswe.eyeandsickle.solo.proc;
 
-import io.github.stoicswe.eyeandsickle.solo.Balance;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeConsumer;
+import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.SoloGame;
 import io.github.stoicswe.eyeandsickle.solo.net.NetRules;
 import io.github.stoicswe.eyeandsickle.solo.net.SweepTier;
@@ -44,11 +44,9 @@ class ProcessRulesTest {
 
     /** A running audit that had named two parasites by the time it was interrupted. */
     private static TaskState scanInFlight(SoloSave save, String... foundIds) {
-        AllocationState allocation =
-                ComputeRules.reserve(save.rig, ComputeConsumer.ACTIVE_TOOL, "scan --full", 15L);
+        AllocationState allocation = ComputeRules.reserve(save.rig, ComputeConsumer.ACTIVE_TOOL, "scan --full", 15L);
         allocation.startedAt = T0;
-        TaskState task = new TaskState(
-                "scan", "scan --full", allocation.allocationId, 15L, T0, T0.plusSeconds(100));
+        TaskState task = new TaskState("scan", "scan --full", allocation.allocationId, 15L, T0, T0.plusSeconds(100));
         task.outcome = foundIds.length + " foreign miners found.";
         task.foundMinerIds = new java.util.ArrayList<>(java.util.List.of(foundIds));
         save.tasks.add(task);
@@ -65,16 +63,14 @@ class ProcessRulesTest {
             SoloSave save = bare();
             TaskState task = scanInFlight(save);
 
-            ProcessRules.Outcome outcome =
-                    ProcessRules.kill(save, "task:" + task.taskId, T0.plusSeconds(50));
+            ProcessRules.Outcome outcome = ProcessRules.kill(save, "task:" + task.taskId, T0.plusSeconds(50));
 
             assertThat(outcome.refused()).isFalse();
             assertThat(save.tasks).isEmpty();
             // ⚠ The whole price. The allocation is RECOVERING for its full 15 cycles, dated from the
             // kill — not shortened, not refunded. Stopping early returns the player's session time.
             assertThat(ComputeRules.recoveringCycles(save.rig)).isEqualTo(15L);
-            assertThat(ComputeRules.availableCycles(save.rig))
-                    .isEqualTo(save.rig.totalCycles - 15L);
+            assertThat(ComputeRules.availableCycles(save.rig)).isEqualTo(save.rig.totalCycles - 15L);
         }
 
         @Test
@@ -141,7 +137,8 @@ class ProcessRulesTest {
             java.math.BigInteger balance = save.ethecoinWei;
             long free = ComputeRules.availableCycles(save.rig);
 
-            assertThat(ProcessRules.kill(save, "miner:" + miner.minerId, T0).refused()).isFalse();
+            assertThat(ProcessRules.kill(save, "miner:" + miner.minerId, T0).refused())
+                    .isFalse();
 
             assertThat(save.rig.foreignMiners).isEmpty();
             assertThat(ComputeRules.availableCycles(save.rig)).isEqualTo(free + miner.hostCycles);
@@ -160,7 +157,8 @@ class ProcessRulesTest {
 
             // docs/design/04 §3.1's "manual audit still sees things a scan does not" has been a
             // sentence with no mechanic behind it. This is the mechanic.
-            assertThat(ProcessRules.kill(save, "miner:" + miner.minerId, T0).refused()).isFalse();
+            assertThat(ProcessRules.kill(save, "miner:" + miner.minerId, T0).refused())
+                    .isFalse();
             assertThat(save.rig.foreignMiners).isEmpty();
         }
     }
@@ -191,8 +189,7 @@ class ProcessRulesTest {
             assertThat(save.tasks).doesNotContain(sweep);
             // Charged exactly as a direct kill is: full recovery for the full cycles. A free restart
             // would make "restart everything" the optimal opening move of every audit.
-            assertThat(ComputeRules.recoveringCycles(save.rig))
-                    .isGreaterThanOrEqualTo(sweep.cycles);
+            assertThat(ComputeRules.recoveringCycles(save.rig)).isGreaterThanOrEqualTo(sweep.cycles);
         }
 
         @Test
@@ -211,14 +208,17 @@ class ProcessRulesTest {
             TaskState scan = scanInFlight(save);
             assertThat(ProcessRules.restart(save, "sys:netd", T0).stopped()).isZero();
             assertThat(save.tasks).contains(scan);
-            assertThat(ProcessRules.restart(save, "sys:auditd", T0.plusSeconds(1)).stopped()).isEqualTo(1);
+            assertThat(ProcessRules.restart(save, "sys:auditd", T0.plusSeconds(1))
+                            .stopped())
+                    .isEqualTo(1);
         }
 
         @Test
         @DisplayName("restart is refused for anything that is not a system process")
         void restartIsSystemOnly() {
             SoloSave save = bare();
-            assertThat(ProcessRules.restart(save, "task:whatever", T0).refused()).isTrue();
+            assertThat(ProcessRules.restart(save, "task:whatever", T0).refused())
+                    .isTrue();
             assertThat(ProcessRules.restart(save, "sys:nosuchd", T0).refused()).isTrue();
         }
     }
@@ -232,7 +232,8 @@ class ProcessRulesTest {
         void selfMining() {
             SoloSave save = bare();
             save.rig.selfMiningCycles = 40L;
-            assertThat(ProcessRules.kill(save, "alloc:self-mining", T0).refused()).isFalse();
+            assertThat(ProcessRules.kill(save, "alloc:self-mining", T0).refused())
+                    .isFalse();
             assertThat(save.rig.selfMiningCycles).isZero();
             assertThat(save.log.stream().map(e -> e.message))
                     .anySatisfy(message -> assertThat(message).contains("forfeit"));
@@ -242,8 +243,7 @@ class ProcessRulesTest {
         @DisplayName("cycles already on their way back have nothing left to stop")
         void recoveringIsNotKillable() {
             SoloSave save = bare();
-            AllocationState allocation =
-                    ComputeRules.reserve(save.rig, ComputeConsumer.ACTIVE_TOOL, "held", 9L);
+            AllocationState allocation = ComputeRules.reserve(save.rig, ComputeConsumer.ACTIVE_TOOL, "held", 9L);
             ComputeRules.beginRecovery(save.rig, allocation.allocationId, T0);
             ProcessRules.Outcome outcome =
                     ProcessRules.kill(save, "alloc:" + allocation.allocationId, T0.plusSeconds(1));

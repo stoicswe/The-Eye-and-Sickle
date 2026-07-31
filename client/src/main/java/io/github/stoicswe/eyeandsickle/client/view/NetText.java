@@ -1,7 +1,7 @@
 package io.github.stoicswe.eyeandsickle.client.view;
 
-import io.github.stoicswe.eyeandsickle.protocol.game.HostKind;
 import io.github.stoicswe.eyeandsickle.client.session.GameSession;
+import io.github.stoicswe.eyeandsickle.protocol.game.HostKind;
 import io.github.stoicswe.eyeandsickle.protocol.game.NetDocument;
 import io.github.stoicswe.eyeandsickle.protocol.game.NetFolder;
 import io.github.stoicswe.eyeandsickle.protocol.game.NetMap;
@@ -132,8 +132,7 @@ public final class NetText {
      */
     public static List<Sighting> ordered(NetMap map) {
         List<Sighting> sightings = new ArrayList<>(map.sightings());
-        sightings.sort(Comparator
-                .comparing((Sighting s) -> !s.vantage())
+        sightings.sort(Comparator.comparing((Sighting s) -> !s.vantage())
                 .thenComparingInt(Sighting::hopsFromVantage)
                 .thenComparing(Sighting::address, NetText::compareAddresses));
         return sightings;
@@ -167,7 +166,9 @@ public final class NetText {
      * same reason: the misreading is what gets a player killed on their second breach.
      */
     static String kind(Sighting sighting) {
-        return sighting.kind() == HostKind.UNKNOWN ? UNKNOWN_KIND : sighting.kind().name();
+        return sighting.kind() == HostKind.UNKNOWN
+                ? UNKNOWN_KIND
+                : sighting.kind().name();
     }
 
     /**
@@ -190,9 +191,7 @@ public final class NetText {
      * somebody edited one of them.
      */
     static String state(Sighting sighting) {
-        String standing = sighting.vantage()
-                ? "vantage"
-                : sighting.foothold() ? "foothold" : "contact";
+        String standing = sighting.vantage() ? "vantage" : sighting.foothold() ? "foothold" : "contact";
         // ⚠ AFTER the standing, never instead of it. The two say different things — where the player
         // can operate from, and whether there is a file to open — and a marker that replaced the word
         // would trade a fact for a fact. Square brackets because the whole client marks a state that
@@ -329,12 +328,7 @@ public final class NetText {
 
     /** One folder's own line: indent, marker, name, and how much is under it. */
     static String folderRow(NetFolder folder) {
-        return "  ".repeat(folder.depth())
-                + "+ "
-                + folder.name()
-                + " ("
-                + folder.subtreeCount()
-                + ")";
+        return "  ".repeat(folder.depth()) + "+ " + folder.name() + " (" + folder.subtreeCount() + ")";
     }
 
     // ── documents ────────────────────────────────────────────────────────────────────────────

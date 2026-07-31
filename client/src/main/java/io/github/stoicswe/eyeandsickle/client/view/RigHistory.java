@@ -1,6 +1,5 @@
 package io.github.stoicswe.eyeandsickle.client.view;
 
-import io.github.stoicswe.eyeandsickle.client.ui.Ui;
 import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.Sparkline;
 import io.github.stoicswe.eyeandsickle.protocol.game.RigProcess;
@@ -73,6 +72,7 @@ public final class RigHistory extends VBox {
 
     /** The previous sample's totals, for differencing the monotonic counters. */
     private long lastRead = -1;
+
     private long lastWritten = -1;
     private long lastRcvd = -1;
     private long lastSent = -1;
@@ -134,10 +134,8 @@ public final class RigHistory extends VBox {
             sent += p.sentBytes();
         }
 
-        cpu.push(Math.min(1.0d, cpuTotal / 100.0d),
-                String.format(Locale.ROOT, "%.1f%%", cpuTotal));
-        memory.push(Math.min(1.0d, memoryTotal / MEMORY_CEILING_BYTES),
-                RigProcess.bytesText(memoryTotal));
+        cpu.push(Math.min(1.0d, cpuTotal / 100.0d), String.format(Locale.ROOT, "%.1f%%", cpuTotal));
+        memory.push(Math.min(1.0d, memoryTotal / MEMORY_CEILING_BYTES), RigProcess.bytesText(memoryTotal));
 
         pushRate(diskRead, read, lastRead, DISK_CEILING_BYTES_PER_SECOND);
         pushRate(diskWrite, written, lastWritten, DISK_CEILING_BYTES_PER_SECOND);
@@ -162,9 +160,7 @@ public final class RigHistory extends VBox {
      * being counted rather than a rate.
      */
     private void pushRate(Sparkline chart, long now, long previous, double ceiling) {
-        double perSecond = previous < 0 || now < previous
-                ? 0.0d
-                : (now - previous) / (double) SAMPLE_SECONDS;
+        double perSecond = previous < 0 || now < previous ? 0.0d : (now - previous) / (double) SAMPLE_SECONDS;
         chart.push(Math.min(1.0d, perSecond / ceiling), RigProcess.bytesText((long) perSecond) + "/s");
     }
 

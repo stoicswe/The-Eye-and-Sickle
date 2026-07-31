@@ -35,6 +35,33 @@ public interface Command {
         return false;
     }
 
+    /**
+     * What this command takes, as data.
+     *
+     * <h2>⚠ Default is {@link CommandSpec#NONE}, and that is honest rather than lazy</h2>
+     *
+     * A command that has not declared its options says so, and the menu offers it the universal
+     * flags alone. The alternative — guessing from {@code flagNames()}, which returns the universal
+     * set for everything — would produce a menu confidently offering flags no parser reads. An
+     * undeclared command is a gap somebody can fill; a wrongly-declared one is a lie the player has
+     * no way to catch.
+     */
+    default CommandSpec spec() {
+        return CommandSpec.NONE;
+    }
+
+    /**
+     * Which heading this sits under in the terminal's command menu.
+     *
+     * <p>⚠ The subject, not the pipeline behaviour. {@link #hasSideEffect()} and {@link #isFilter()}
+     * remain what {@link Shell} enforces; this is what a player navigates. Defaulting to
+     * {@link CommandCategory#SHELL} rather than guessing keeps an undeclared command visible — a
+     * command in the wrong drawer is findable, one in no drawer is gone.
+     */
+    default CommandCategory category() {
+        return CommandCategory.SHELL;
+    }
+
     default List<String> flagNames() {
         return List.of("-h", "--help", "--explain", "-n", "--dry-run", "-v", "--verbose", "--");
     }
@@ -84,8 +111,7 @@ public interface Command {
 
         /** Carries a session Outcome straight through, so `$?` matches what the rules decided. */
         public static Output of(GameSession.Outcome outcome) {
-            return new Output(
-                    outcome.message().isBlank() ? List.of() : List.of(outcome.message()), outcome.status());
+            return new Output(outcome.message().isBlank() ? List.of() : List.of(outcome.message()), outcome.status());
         }
     }
 }

@@ -45,8 +45,20 @@ class NetTypesTest {
      */
     private static Sighting contact(String address) {
         return new Sighting(
-                address, address, HOME.serverId(), HostKind.UNKNOWN, null, SignalStrength.LOW, 1, false, false, false,
-                false, false, false, "");
+                address,
+                address,
+                HOME.serverId(),
+                HostKind.UNKNOWN,
+                null,
+                SignalStrength.LOW,
+                1,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                "");
     }
 
     /** Every record in the network vocabulary. Enums are listed separately where they matter. */
@@ -234,8 +246,9 @@ class NetTypesTest {
             //   honeypot — 07 §2 requires the Honeypot Detector to keep a false-negative rate, since "a
             //     perfect detector removes the fear the traps exist to create". honeypotSuspected is
             //     named a suspicion so nobody later cleans it up into a finding.
-            List<String> names =
-                    componentsOf(Sighting.class).stream().map(RecordComponent::getName).toList();
+            List<String> names = componentsOf(Sighting.class).stream()
+                    .map(RecordComponent::getName)
+                    .toList();
 
             assertThat(names)
                     .as("ground truth belongs to the authoritative rules, never to a player-knowledge record")
@@ -257,8 +270,8 @@ class NetTypesTest {
         @Test
         @DisplayName("defaults the two readings that claim least")
         void defaultsClaimLeast() {
-            Sighting silent = new Sighting(
-                    null, null, null, null, null, null, 0, false, false, false, false, false, false, null);
+            Sighting silent =
+                    new Sighting(null, null, null, null, null, null, 0, false, false, false, false, false, false, null);
 
             assertThat(silent.address()).isEmpty();
             assertThat(silent.label()).isEmpty();
@@ -560,8 +573,7 @@ class NetTypesTest {
             // A lookup that distinguished the two would be a free probe: type an address, learn whether
             // something is there. That is the sweep's entire product, given away at the cost of a
             // keystroke.
-            NetMap map = new NetMap(
-                    HOME, "10.0.0.1", 1, List.of(HOME), List.of(contact("10.0.0.4")), List.of());
+            NetMap map = new NetMap(HOME, "10.0.0.1", 1, List.of(HOME), List.of(contact("10.0.0.4")), List.of());
 
             assertThat(map.at("10.0.0.4")).contains(contact("10.0.0.4"));
             assertThat(map.at("10.0.0.6")).isEmpty(); // exists in the world, not yet detected
@@ -685,7 +697,12 @@ class NetTypesTest {
                             .map(RecordComponent::getName)
                             .toList())
                     .containsExactly(
-                            "sweepToolId", "vantageAddress", "inRange", "found", "foundAddresses", "counterHacked",
+                            "sweepToolId",
+                            "vantageAddress",
+                            "inRange",
+                            "found",
+                            "foundAddresses",
+                            "counterHacked",
                             "note")
                     .doesNotContain("heat", "heatDelta", "penalty");
         }
@@ -791,8 +808,8 @@ class NetTypesTest {
             for (Class<?> type : NET_RECORDS) {
                 assertThat(componentsOf(type))
                         .as("%s must carry no probability, roll, chance or curve", type.getSimpleName())
-                        .noneMatch(component ->
-                                component.getType() == double.class || component.getType() == float.class);
+                        .noneMatch(
+                                component -> component.getType() == double.class || component.getType() == float.class);
             }
         }
 

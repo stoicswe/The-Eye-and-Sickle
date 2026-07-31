@@ -5,7 +5,6 @@ import io.github.stoicswe.eyeandsickle.client.ui.Ui;
 import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
 import io.github.stoicswe.eyeandsickle.client.ui.cursors.Cursors;
 import io.github.stoicswe.eyeandsickle.protocol.game.FsEntry;
-import io.github.stoicswe.eyeandsickle.protocol.game.FsKind;
 import io.github.stoicswe.eyeandsickle.protocol.game.RemoteSession;
 import io.github.stoicswe.eyeandsickle.protocol.game.Sighting;
 import io.github.stoicswe.eyeandsickle.solo.fs.VirtualFs;
@@ -139,10 +138,11 @@ public final class FileManagerView {
         // it would do — §4.4's rule that a state is never carried by appearance alone.
         boolean[] showHidden = {false};
         BreachView.Chip hiddenKey = key("Hidden: off");
-        hiddenKey.setAccessibleText(
-                "Show entries whose name starts with a dot. Ctrl+H does this in GNOME Files.");
-        Tooltip.install(hiddenKey, tip("A leading dot means hidden — a convention, not a permission. "
-                + "GNOME Files binds this to Ctrl+H, and `ls -a` is the same idea in a shell."));
+        hiddenKey.setAccessibleText("Show entries whose name starts with a dot. Ctrl+H does this in GNOME Files.");
+        Tooltip.install(
+                hiddenKey,
+                tip("A leading dot means hidden — a convention, not a permission. "
+                        + "GNOME Files binds this to Ctrl+H, and `ls -a` is the same idea in a shell."));
         hiddenKey.onInvoke(() -> {
             showHidden[0] = !showHidden[0];
             hiddenKey.setText(showHidden[0] ? "HIDDEN: ON" : "HIDDEN: OFF");
@@ -245,8 +245,7 @@ public final class FileManagerView {
      * the first, and a text field a player can <em>type</em> into would be a place to type a path
      * that goes somewhere — which is the one thing {@code docs/client/04} §3.1 rule 3 forbids.
      */
-    private static void paintCrumbs(
-            HBox crumbs, Place here, java.util.function.Consumer<Place> go) {
+    private static void paintCrumbs(HBox crumbs, Place here, java.util.function.Consumer<Place> go) {
         crumbs.getChildren().clear();
 
         Label machine = new Label(here.rig() ? "this rig" : here.address());
@@ -318,8 +317,7 @@ public final class FileManagerView {
         // shell reaches it too, and which means an intruder standing in it can read what the owner
         // has been doing. That last part is a feature of the fiction rather than a leak in it.
         sidebar.getChildren().add(Ui.label("Recents"));
-        Place recentsPlace = new Place("",
-                home + "/" + io.github.stoicswe.eyeandsickle.solo.fs.Recents.DIR);
+        Place recentsPlace = new Place("", home + "/" + io.github.stoicswe.eyeandsickle.solo.fs.Recents.DIR);
         place(sidebar, "Recents", recentsPlace, here, go);
 
         // ── Favorites ────────────────────────────────────────────────────────────────────────
@@ -351,7 +349,8 @@ public final class FileManagerView {
         // to and one of machines you had, made the player track a distinction the eject button
         // already expresses in place.
         sidebar.getChildren().add(Ui.label("Network"));
-        List<String> mounted = session.sessions().stream().map(RemoteSession::address).toList();
+        List<String> mounted =
+                session.sessions().stream().map(RemoteSession::address).toList();
         List<Sighting> breached = session.net().sightings().stream()
                 .filter(Sighting::foothold)
                 .filter(sighting -> !sighting.vantage())
@@ -363,8 +362,7 @@ public final class FileManagerView {
         }
         for (Sighting sighting : breached) {
             boolean connected = mounted.contains(sighting.address());
-            sidebar.getChildren().add(networkRow(
-                    session, sighting, connected, here, go, repaint, refusal));
+            sidebar.getChildren().add(networkRow(session, sighting, connected, here, go, repaint, refusal));
         }
 
         place(sidebar, "Trash", new Place("", home + "/.Trash"), here, go);
@@ -395,19 +393,19 @@ public final class FileManagerView {
         HBox row = new HBox(UiTokens.SPACE_2);
         row.setAlignment(Pos.CENTER_LEFT);
 
-        Label name = new Label(sighting.label().isBlank()
-                ? sighting.address() : sighting.label());
-        name.getStyleClass().add(here.address().equals(sighting.address())
-                ? "es-files-place-on" : "es-files-place");
+        Label name = new Label(sighting.label().isBlank() ? sighting.address() : sighting.label());
+        name.getStyleClass().add(here.address().equals(sighting.address()) ? "es-files-place-on" : "es-files-place");
         HBox.setHgrow(name, Priority.ALWAYS);
         name.setMaxWidth(Double.MAX_VALUE);
         Cursors.shared().clickable(name);
-        Tooltip.install(name, tip(sighting.address() + "\n"
-                + (connected
-                        ? "Connected. Its filesystem is browsable; anything you pull comes over its "
-                                + "uplink, not your downlink."
-                        : "Breached but not connected. Opening it costs cycles and makes noise for "
-                                + "as long as it stays open.")));
+        Tooltip.install(
+                name,
+                tip(sighting.address() + "\n"
+                        + (connected
+                                ? "Connected. Its filesystem is browsable; anything you pull comes over its "
+                                        + "uplink, not your downlink."
+                                : "Breached but not connected. Opening it costs cycles and makes noise for "
+                                        + "as long as it stays open.")));
         name.setOnMouseClicked(event -> {
             if (connected) {
                 go.accept(new Place(sighting.address(), "/"));
@@ -429,12 +427,14 @@ public final class FileManagerView {
             BreachView.Chip eject = key("Eject");
             eject.setAccessibleText("Disconnect from " + sighting.address()
                     + ". Miners and bots keep running; this only stops the connection.");
-            Tooltip.install(eject, tip("Disconnect from " + sighting.address() + ".\n\n"
-                    + "Note: this does NOT stop deployed miners, bots, or anything else running "
-                    + "there, "
-                    + "and it does not give up the foothold. What it stops is the connection — "
-                    + "which hands back the cycles it was holding and lowers your noise, because a "
-                    + "held session is the loudest thing you can do short of a sweep."));
+            Tooltip.install(
+                    eject,
+                    tip("Disconnect from " + sighting.address() + ".\n\n"
+                            + "Note: this does NOT stop deployed miners, bots, or anything else running "
+                            + "there, "
+                            + "and it does not give up the foothold. What it stops is the connection — "
+                            + "which hands back the cycles it was holding and lowers your noise, because a "
+                            + "held session is the loudest thing you can do short of a sweep."));
             eject.onInvoke(() -> {
                 GameSession.Outcome outcome = session.closeSession(sighting.address());
                 refusal.setText(outcome.succeeded() ? "" : outcome.message());
@@ -454,8 +454,7 @@ public final class FileManagerView {
      * thing a two-machine file manager can do.
      */
     private static void place(
-            VBox sidebar, String name, Place target,
-            Place here, java.util.function.Consumer<Place> go) {
+            VBox sidebar, String name, Place target, Place here, java.util.function.Consumer<Place> go) {
         Label row = new Label(name);
         row.getStyleClass().add(here.equals(target) ? "es-files-place-on" : "es-files-place");
         Cursors.shared().clickable(row);
@@ -492,9 +491,11 @@ public final class FileManagerView {
             cells.setAlignment(Pos.CENTER_LEFT);
             int filled = (int) Math.round(task.progress() * TRANSFER_CELLS);
             for (int i = 0; i < TRANSFER_CELLS; i++) {
-                cells.getChildren().add(Ui.block(
-                        UiTokens.METER_BAR_WIDTH, UiTokens.METER_BAR_HEIGHT,
-                        i < filled ? "es-files-cell-on" : "es-files-cell-off"));
+                cells.getChildren()
+                        .add(Ui.block(
+                                UiTokens.METER_BAR_WIDTH,
+                                UiTokens.METER_BAR_HEIGHT,
+                                i < filled ? "es-files-cell-on" : "es-files-cell-off"));
             }
 
             Label figures = Ui.small(Math.round(task.progress() * 100) + "%  ·  "
@@ -522,10 +523,11 @@ public final class FileManagerView {
         rows.getChildren().add(header());
 
         if (entries.isEmpty()) {
-            Label empty = Ui.small(here.rig()
-                    ? "Nothing here."
-                    : "Nothing readable here. A machine you do not hold shows its shape and opens "
-                            + "nothing — which is also what a port scan really tells you.");
+            Label empty = Ui.small(
+                    here.rig()
+                            ? "Nothing here."
+                            : "Nothing readable here. A machine you do not hold shows its shape and opens "
+                                    + "nothing — which is also what a port scan really tells you.");
             empty.setWrapText(true);
             empty.getStyleClass().add("es-files-empty");
             rows.getChildren().add(empty);
@@ -541,20 +543,17 @@ public final class FileManagerView {
         HBox head = new HBox(UiTokens.SPACE_3);
         head.getStyleClass().add("es-files-head");
         head.setAlignment(Pos.CENTER_LEFT);
-        head.getChildren().addAll(
-                column(Ui.label("Name"), 300),
-                column(Ui.label("Size"), 90),
-                column(Ui.label("Type"), 110),
-                column(Ui.label("Modified"), 170));
+        head.getChildren()
+                .addAll(
+                        column(Ui.label("Name"), 300),
+                        column(Ui.label("Size"), 90),
+                        column(Ui.label("Type"), 110),
+                        column(Ui.label("Modified"), 170));
         return head;
     }
 
     private static HBox row(
-            GameSession session,
-            FsEntry entry,
-            Place here,
-            java.util.function.Consumer<Place> go,
-            Label refusal) {
+            GameSession session, FsEntry entry, Place here, java.util.function.Consumer<Place> go, Label refusal) {
 
         HBox row = new HBox(UiTokens.SPACE_3);
         row.setAlignment(Pos.CENTER_LEFT);
@@ -565,8 +564,7 @@ public final class FileManagerView {
         // are in neither bundled face, so they would have been drawn by a host-OS fallback with its
         // own advance width, shearing this column differently on every platform. The markers that
         // replaced them are better anyway, because `/` and `*` are real and transfer.
-        Label name = new Label(entry.name()
-                + io.github.stoicswe.eyeandsickle.client.shell.NodeCommands.marker(entry));
+        Label name = new Label(entry.name() + io.github.stoicswe.eyeandsickle.client.shell.NodeCommands.marker(entry));
         name.getStyleClass().add("es-files-name");
         Label size = new Label(entry.directory() ? "—" : human(entry.sizeBytes()));
         size.getStyleClass().add("es-files-cell");
@@ -575,13 +573,15 @@ public final class FileManagerView {
         Label modified = new Label(STAMP.format(entry.modifiedAt()));
         modified.getStyleClass().add("es-files-cell");
 
-        row.getChildren().addAll(
-                column(name, 300), column(size, 90), column(type, 110), column(modified, 170));
+        row.getChildren().addAll(column(name, 300), column(size, 90), column(type, 110), column(modified, 170));
 
-        Tooltip.install(row, tip(entry.path() + "\n" + entry.mode() + "  " + entry.owner() + ":"
-                + entry.group()
-                + (entry.readable() ? "" : "\n\nYou cannot read this from here — you do not hold "
-                        + "this machine.")));
+        Tooltip.install(
+                row,
+                tip(entry.path() + "\n" + entry.mode() + "  " + entry.owner() + ":"
+                        + entry.group()
+                        + (entry.readable()
+                                ? ""
+                                : "\n\nYou cannot read this from here — you do not hold " + "this machine.")));
         Cursors.shared().clickable(row);
 
         row.setOnMouseClicked(event -> {
@@ -609,8 +609,7 @@ public final class FileManagerView {
             for (String destination : session.downloadDestinations()) {
                 MenuItem into = new MenuItem(VirtualFs.nameOf(destination));
                 into.setOnAction(event -> {
-                    GameSession.Outcome outcome =
-                            session.download(here.address(), entry, destination);
+                    GameSession.Outcome outcome = session.download(here.address(), entry, destination);
                     refusal.setText(outcome.message());
                 });
                 take.getItems().add(into);
@@ -625,13 +624,11 @@ public final class FileManagerView {
         // will not install, at exactly the moment a player is looking for that explanation.
         if (here.rig() && isPackage(entry)) {
             MenuItem install = new MenuItem("Install…");
-            install.setOnAction(event ->
-                    showPackage(session, entry, PackageView.Mode.INSTALL, refusal));
+            install.setOnAction(event -> showPackage(session, entry, PackageView.Mode.INSTALL, refusal));
             // Read-only. The safe way to look at something you have not decided about — and the one
             // to reach for on a package from a source you did not choose.
             MenuItem inspect = new MenuItem("Inspect");
-            inspect.setOnAction(event ->
-                    showPackage(session, entry, PackageView.Mode.INSPECT, refusal));
+            inspect.setOnAction(event -> showPackage(session, entry, PackageView.Mode.INSPECT, refusal));
             MenuItem sell = new MenuItem("Sell on the secondary market");
             sell.setOnAction(event -> refusal.setText(session.sell(entry.path()).message()));
             menu.getItems().addAll(new SeparatorMenuItem(), install, inspect, sell);
@@ -659,11 +656,7 @@ public final class FileManagerView {
      * the window being broken rather than the machine being closed to you.
      */
     private static void open(
-            GameSession session,
-            FsEntry entry,
-            Place here,
-            java.util.function.Consumer<Place> go,
-            Label refusal) {
+            GameSession session, FsEntry entry, Place here, java.util.function.Consumer<Place> go, Label refusal) {
         // ⚠ A DIRECTORY IS ENTERED. First, before anything else, unconditionally.
         //
         // This used to sit below a `read` call, and the result was that double-clicking /System/bin
@@ -696,13 +689,16 @@ public final class FileManagerView {
             showPackage(session, entry, PackageView.Mode.INSTALL, refusal);
             return;
         }
-        refusal.setText(switch (entry.kind()) {
-            case DOCUMENT -> entry.name() + " — a recovered fragment. Right-click to recover it; "
-                    + "it opens in the recon window.";
-            case LOOT -> entry.name() + " — an ethecoin cache. Right-click to take it.";
-            default -> entry.name() + " — " + human(entry.sizeBytes()) + ", " + entry.mode()
-                    + ". Nothing in this file is modelled.";
-        });
+        refusal.setText(
+                switch (entry.kind()) {
+                    case DOCUMENT ->
+                        entry.name() + " — a recovered fragment. Right-click to recover it; "
+                                + "it opens in the recon window.";
+                    case LOOT -> entry.name() + " — an ethecoin cache. Right-click to take it.";
+                    default ->
+                        entry.name() + " — " + human(entry.sizeBytes()) + ", " + entry.mode()
+                                + ". Nothing in this file is modelled.";
+                });
     }
 
     /** Whether this is an upgrade package in either of its two states — vendor's, or this rig's. */
@@ -722,8 +718,7 @@ public final class FileManagerView {
      * package but is not one this rig holds — somebody else's, or a name that merely ends in
      * {@code .pkg} — must produce the engine's sentence rather than an empty panel.
      */
-    private static void showPackage(
-            GameSession session, FsEntry entry, PackageView.Mode mode, Label refusal) {
+    private static void showPackage(GameSession session, FsEntry entry, PackageView.Mode mode, Label refusal) {
         var manifest = session.packageAt(entry.path());
         if (manifest.isEmpty()) {
             refusal.setText(session.install(entry.path()).message());
@@ -731,18 +726,18 @@ public final class FileManagerView {
         }
         javafx.stage.Popup popup = new javafx.stage.Popup();
         popup.setAutoHide(true);
-        Region panel = PackageView.create(session, manifest.get(), mode, popup::hide,
-                message -> refusal.setText(message));
+        Region panel =
+                PackageView.create(session, manifest.get(), mode, popup::hide, message -> refusal.setText(message));
         popup.getContent().add(panel);
         javafx.stage.Window window = javafx.stage.Window.getWindows().stream()
-                .filter(javafx.stage.Window::isShowing).findFirst().orElse(null);
+                .filter(javafx.stage.Window::isShowing)
+                .findFirst()
+                .orElse(null);
         if (window != null) {
             // ⚠ Centred on the PANEL's own width, not on a literal. It was 640 — the floor the panel
             // used to pin — so narrowing the panel would have left it centred for a width it no
             // longer has, sitting visibly off to one side.
-            popup.show(window,
-                    window.getX() + (window.getWidth() - panel.prefWidth(-1)) / 2,
-                    window.getY() + 90);
+            popup.show(window, window.getX() + (window.getWidth() - panel.prefWidth(-1)) / 2, window.getY() + 90);
         }
     }
 
@@ -759,8 +754,7 @@ public final class FileManagerView {
      * <p>The dialog names the <b>resale value</b> where there is one, because "delete this file?" and
      * "burn 108 EC?" are different questions and only the second is the one being asked.
      */
-    private static void confirmDelete(
-            GameSession session, FsEntry entry, Place here, Label refusal) {
+    private static void confirmDelete(GameSession session, FsEntry entry, Place here, Label refusal) {
         javafx.stage.Popup popup = new javafx.stage.Popup();
         popup.setAutoHide(true);
         VBox panel = new VBox(UiTokens.SPACE_3);
@@ -780,8 +774,7 @@ public final class FileManagerView {
                 .filter(offer -> offer.sellable() && offer.resaleWei().signum() > 0)
                 .ifPresent(offer -> {
                     Label worth = new Label("This would sell for "
-                            + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin
-                                    .ofWei(offer.resaleWei())
+                            + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.ofWei(offer.resaleWei())
                             + " on the secondary market.");
                     worth.setWrapText(true);
                     worth.getStyleClass().add("es-files-refusal");
@@ -805,7 +798,9 @@ public final class FileManagerView {
         panel.getChildren().addAll(body, buttons);
         popup.getContent().add(panel);
         javafx.stage.Window window = javafx.stage.Window.getWindows().stream()
-                .filter(javafx.stage.Window::isShowing).findFirst().orElse(null);
+                .filter(javafx.stage.Window::isShowing)
+                .findFirst()
+                .orElse(null);
         if (window != null) {
             popup.show(window);
         }
@@ -844,8 +839,13 @@ public final class FileManagerView {
         // this for. `session.info` carries the same facts as prose so that `stat` is not the poorer
         // surface — see SoloGame.describe — and the two must not disagree, which is why both read the
         // same UpgradeOffer rather than each deriving their own.
-        showFile(session, entry, lines,
-                session.upgradeAt(here.address(), entry.path()).map(FileManagerView::compare).orElse(null));
+        showFile(
+                session,
+                entry,
+                lines,
+                session.upgradeAt(here.address(), entry.path())
+                        .map(FileManagerView::compare)
+                        .orElse(null));
     }
 
     /**
@@ -880,8 +880,11 @@ public final class FileManagerView {
         versions.getChildren().add(cell("ON THIS MACHINE", offer.version().toString(), false));
         // ⚠ "none" rather than a blank or a dash. A player who owns nothing of this tool is being told
         // something useful, and an empty cell reads as a readout that failed.
-        versions.getChildren().add(cell("YOURS",
-                offer.yourVersion().known() ? offer.yourVersion().toString() : "none", true));
+        versions.getChildren()
+                .add(cell(
+                        "YOURS",
+                        offer.yourVersion().known() ? offer.yourVersion().toString() : "none",
+                        true));
         block.getChildren().add(versions);
 
         Label verdict = new Label(offer.verdict());
@@ -893,8 +896,7 @@ public final class FileManagerView {
         // alone: the word FIRMWARE leads the line, so the state is legible with the accent ignored.
         if (offer.firmware()) {
             Label firmware = new Label("FIRMWARE — " + offer.flashRequirement());
-            firmware.getStyleClass().add(
-                    offer.readyToFlash() ? "es-upgrade-flashable" : "es-upgrade-blocked");
+            firmware.getStyleClass().add(offer.readyToFlash() ? "es-upgrade-flashable" : "es-upgrade-blocked");
             firmware.setWrapText(true);
             block.getChildren().add(firmware);
         }
@@ -943,8 +945,7 @@ public final class FileManagerView {
         showFile(session, entry, lines, null);
     }
 
-    private static void showFile(
-            GameSession session, FsEntry entry, List<String> lines, Region banner) {
+    private static void showFile(GameSession session, FsEntry entry, List<String> lines, Region banner) {
         javafx.stage.Popup popup = new javafx.stage.Popup();
         popup.setAutoHide(true);
         VBox panel = new VBox(UiTokens.SPACE_2);
@@ -973,11 +974,11 @@ public final class FileManagerView {
 
         popup.getContent().add(panel);
         javafx.stage.Window window = javafx.stage.Window.getWindows().stream()
-                .filter(javafx.stage.Window::isShowing).findFirst().orElse(null);
+                .filter(javafx.stage.Window::isShowing)
+                .findFirst()
+                .orElse(null);
         if (window != null) {
-            popup.show(window,
-                    window.getX() + (window.getWidth() - 680) / 2,
-                    window.getY() + 90);
+            popup.show(window, window.getX() + (window.getWidth() - 680) / 2, window.getY() + 90);
         }
     }
 
@@ -1006,7 +1007,8 @@ public final class FileManagerView {
     }
 
     private static boolean isOwnRig(GameSession session, String address) {
-        return session.net().at(address)
+        return session.net()
+                .at(address)
                 .map(s -> s.kind() == io.github.stoicswe.eyeandsickle.protocol.game.HostKind.SELF)
                 .orElse(false);
     }

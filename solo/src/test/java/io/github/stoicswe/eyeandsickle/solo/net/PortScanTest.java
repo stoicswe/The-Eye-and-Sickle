@@ -27,8 +27,7 @@ class PortScanTest {
     private static final Instant T0 = Instant.parse("2026-07-29T09:00:00Z");
 
     private static SoloGame game(Path dir) {
-        return SoloGame.open(new SaveStore(dir.resolve("s.json")), "operator",
-                Clock.fixed(T0, ZoneOffset.UTC));
+        return SoloGame.open(new SaveStore(dir.resolve("s.json")), "operator", Clock.fixed(T0, ZoneOffset.UTC));
     }
 
     /**
@@ -66,8 +65,11 @@ class PortScanTest {
         for (PortScanTarget rung : PortScanTarget.values()) {
             assertThat(PortScanRules.cyclesFor(rung)).as("%s cycles", rung).isGreaterThan(cycles);
             assertThat(PortScanRules.durationFor(rung).toSeconds())
-                    .as("%s seconds", rung).isGreaterThan(seconds);
-            assertThat(PortScanRules.riskPercent(host, rung)).as("%s risk", rung).isGreaterThan(risk);
+                    .as("%s seconds", rung)
+                    .isGreaterThan(seconds);
+            assertThat(PortScanRules.riskPercent(host, rung))
+                    .as("%s risk", rung)
+                    .isGreaterThan(risk);
             cycles = PortScanRules.cyclesFor(rung);
             seconds = PortScanRules.durationFor(rung).toSeconds();
             risk = PortScanRules.riskPercent(host, rung);
@@ -128,7 +130,9 @@ class PortScanTest {
             assertThat(load).isBetween(0L, capability);
             moved |= load != PortScanRules.loadOf(host, T0);
         }
-        assertThat(moved).as("a load that never changed would make the snapshot warning a lie").isTrue();
+        assertThat(moved)
+                .as("a load that never changed would make the snapshot warning a lie")
+                .isTrue();
     }
 
     /**

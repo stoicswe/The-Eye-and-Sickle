@@ -80,7 +80,9 @@ public final class ManView {
             String wanted = statusFilter.getValue();
             List<TermPage> filtered = "everything".equals(wanted)
                     ? base
-                    : base.stream().filter(p -> p.status().label().equals(wanted)).toList();
+                    : base.stream()
+                            .filter(p -> p.status().label().equals(wanted))
+                            .toList();
             index.getItems().setAll(filtered);
         };
         search.textProperty().addListener((o, was, now) -> refilter.run());
@@ -89,7 +91,8 @@ public final class ManView {
         Label counts = new Label();
         counts.getStyleClass().add("es-text-secondary");
         counts.setWrapText(true);
-        counts.setText(terms.size() + " pages · " + terms.withStatus(TermPage.Status.REAL).size()
+        counts.setText(terms.size() + " pages · "
+                + terms.withStatus(TermPage.Status.REAL).size()
                 + " real · " + terms.withStatus(TermPage.Status.REAL_SIMPLIFIED).size()
                 + " simplified · " + terms.withStatus(TermPage.Status.GAME).size() + " ours");
 
@@ -133,9 +136,8 @@ public final class ManView {
 
         Label heading = new Label("MANUAL — man · apropos");
         heading.getStyleClass().add("es-panel-title");
-        Label note = new Label(
-                "Every page here is shaped like a real manual page, in the real section order. "
-                        + "Read a few hundred of these and a real one will hold no surprises.");
+        Label note = new Label("Every page here is shaped like a real manual page, in the real section order. "
+                + "Read a few hundred of these and a real one will hold no surprises.");
         note.setWrapText(true);
         note.getStyleClass().add("es-text-secondary");
 

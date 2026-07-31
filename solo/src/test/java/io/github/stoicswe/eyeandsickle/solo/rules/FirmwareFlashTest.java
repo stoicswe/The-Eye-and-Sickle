@@ -69,8 +69,15 @@ class FirmwareFlashTest {
         save.schematics.add(Catalogue.FIRMWARE_IMPLANT_SCHEMATIC);
         save.rig.selfMiningCycles = 0L;
         save.knownNodes.forEach(node -> node.deployedMiners.clear());
-        StoredFileState file = Repac.arrive(save, "/Users/operator/Downloads",
-                "mining-firmware.pkg", "10.0.0.9", 1_000L, IMAGE, new UpgradeVersion(4, 2), T0);
+        StoredFileState file = Repac.arrive(
+                save,
+                "/Users/operator/Downloads",
+                "mining-firmware.pkg",
+                "10.0.0.9",
+                1_000L,
+                IMAGE,
+                new UpgradeVersion(4, 2),
+                T0);
         Repac.repack(save, file, T0);
         return file.path();
     }
@@ -91,13 +98,27 @@ class FirmwareFlashTest {
         @DisplayName("firmware repacks to .frm, software still to .upg")
         void suffixes(@TempDir Path dir) {
             SoloGame game = game(dir);
-            StoredFileState firmware = Repac.arrive(game.state(), "/Users/operator/Downloads",
-                    "mining-firmware.pkg", "10.0.0.9", 1_000L, IMAGE, new UpgradeVersion(4, 2), T0);
+            StoredFileState firmware = Repac.arrive(
+                    game.state(),
+                    "/Users/operator/Downloads",
+                    "mining-firmware.pkg",
+                    "10.0.0.9",
+                    1_000L,
+                    IMAGE,
+                    new UpgradeVersion(4, 2),
+                    T0);
             Repac.repack(game.state(), firmware, T0);
             assertThat(firmware.name).endsWith(".frm");
 
-            StoredFileState software = Repac.arrive(game.state(), "/Users/operator/Downloads",
-                    "sweep.pkg", "10.0.0.9", 1_000L, "net-sweep-wide", new UpgradeVersion(2, 0), T0);
+            StoredFileState software = Repac.arrive(
+                    game.state(),
+                    "/Users/operator/Downloads",
+                    "sweep.pkg",
+                    "10.0.0.9",
+                    1_000L,
+                    "net-sweep-wide",
+                    new UpgradeVersion(2, 0),
+                    T0);
             Repac.repack(game.state(), software, T0);
             assertThat(software.name).endsWith(".upg");
         }
@@ -175,14 +196,20 @@ class FirmwareFlashTest {
         void oneAtATime(@TempDir Path dir) {
             SoloGame game = game(dir);
             String first = ready(game);
-            StoredFileState second = Repac.arrive(game.state(), "/Users/operator/Downloads",
-                    "mining-firmware-2.pkg", "10.0.0.8", 1_000L, IMAGE, new UpgradeVersion(3, 0), T0);
+            StoredFileState second = Repac.arrive(
+                    game.state(),
+                    "/Users/operator/Downloads",
+                    "mining-firmware-2.pkg",
+                    "10.0.0.8",
+                    1_000L,
+                    IMAGE,
+                    new UpgradeVersion(3, 0),
+                    T0);
             Repac.repack(game.state(), second, T0);
 
             assertThat(Repac.install(game.state(), first, T0).ok()).isTrue();
             // Two concurrent writes to the same device is how it is bricked.
-            assertThat(Repac.install(game.state(), second.path(), T0).refusal())
-                    .isEqualTo(Repac.Refusal.TOOL_RUNNING);
+            assertThat(Repac.install(game.state(), second.path(), T0).refusal()).isEqualTo(Repac.Refusal.TOOL_RUNNING);
         }
     }
 
@@ -241,7 +268,6 @@ class FirmwareFlashTest {
     }
 
     private static SoloGame game(Path dir) {
-        return SoloGame.open(new SaveStore(dir.resolve("s.json")), "operator",
-                Clock.fixed(T0, ZoneOffset.UTC));
+        return SoloGame.open(new SaveStore(dir.resolve("s.json")), "operator", Clock.fixed(T0, ZoneOffset.UTC));
     }
 }

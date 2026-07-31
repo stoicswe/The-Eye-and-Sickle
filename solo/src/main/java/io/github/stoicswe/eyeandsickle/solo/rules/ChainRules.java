@@ -1,11 +1,11 @@
 package io.github.stoicswe.eyeandsickle.solo.rules;
 
-import io.github.stoicswe.eyeandsickle.solo.Balance;
-import io.github.stoicswe.eyeandsickle.solo.breach.Rng;
-import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainSync;
+import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningPool;
+import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.Pools;
+import io.github.stoicswe.eyeandsickle.solo.breach.Rng;
 import io.github.stoicswe.eyeandsickle.solo.state.ChainState;
 import io.github.stoicswe.eyeandsickle.solo.state.PendingTxState;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
@@ -202,7 +202,8 @@ public final class ChainRules {
             return Minted.NOTHING;
         }
         // Online: the rig is running for the whole interval, so it competes for every block in it.
-        return advance(save, now.minus(elapsed), now, now, rng, TICK_BLOCK_LIMIT, false).minted();
+        return advance(save, now.minus(elapsed), now, now, rng, TICK_BLOCK_LIMIT, false)
+                .minted();
     }
 
     /**
@@ -215,8 +216,7 @@ public final class ChainRules {
      * @param confirmed the player's own pending transactions that were mined in it
      * @param truncated whether the block limit stopped the walk short of {@code to}
      */
-    private record Advance(
-            Minted minted, int competed, int retargets, int confirmed, boolean truncated) {}
+    private record Advance(Minted minted, int competed, int retargets, int confirmed, boolean truncated) {}
 
     /**
      * The most blocks one tick will produce, so a machine that slept with the client open cannot
@@ -255,13 +255,7 @@ public final class ChainRules {
      *     record keeps and nothing else reads
      */
     private static Advance advance(
-            SoloSave save,
-            Instant from,
-            Instant to,
-            Instant competesUntil,
-            Rng rng,
-            int limit,
-            boolean offline) {
+            SoloSave save, Instant from, Instant to, Instant competesUntil, Rng rng, int limit, boolean offline) {
         ChainState chain = save.chain;
         double span = millisBetween(from, to) / 1000.0d;
         if (chain == null || span <= 0 || chain.networkHashrate <= 0) {
@@ -335,8 +329,7 @@ public final class ChainRules {
             // stays on the counter and settles next time, exactly as it did before the cursor.
             chain.networkWorkDone += Math.max(0.0d, span - elapsed) / mean;
         }
-        return new Advance(
-                new Minted(blocks, yours, poolBlocks), competed, retargets, confirmed, truncated);
+        return new Advance(new Minted(blocks, yours, poolBlocks), competed, retargets, confirmed, truncated);
     }
 
     /**
@@ -380,9 +373,8 @@ public final class ChainRules {
      */
     private static String drawWinner(SoloSave save, Rng rng, boolean competing, boolean offline) {
         double roll = rng.nextDouble();
-        double you = competing
-                ? Math.min(1.0d, hashrate(save.rig.selfMiningCycles) / save.chain.networkHashrate)
-                : 0.0d;
+        double you =
+                competing ? Math.min(1.0d, hashrate(save.rig.selfMiningCycles) / save.chain.networkHashrate) : 0.0d;
         if (offline) {
             you *= Balance.OFFLINE_SOLO_WIN_WEIGHT;
         }
@@ -465,14 +457,7 @@ public final class ChainRules {
 
         long fromHeight = chain.height;
         double difficultyBefore = chain.difficulty;
-        Advance walked = advance(
-                save,
-                from,
-                to,
-                from.plusSeconds(mined),
-                rng,
-                Balance.CHAIN_SYNC_BLOCK_LIMIT,
-                true);
+        Advance walked = advance(save, from, to, from.plusSeconds(mined), rng, Balance.CHAIN_SYNC_BLOCK_LIMIT, true);
 
         ChainSync report = new ChainSync(
                 from,
@@ -538,10 +523,10 @@ public final class ChainRules {
      */
     public static void retarget(ChainState chain, Instant now) {
         long expected = Balance.CHAIN_RETARGET_BLOCKS * Balance.CHAIN_TARGET_BLOCK_SECONDS;
-        long actual = Math.max(1L, Duration.between(chain.retargetStartedAt, now).toSeconds());
+        long actual =
+                Math.max(1L, Duration.between(chain.retargetStartedAt, now).toSeconds());
         double adjustment = expected / (double) actual;
-        adjustment = Math.max(1.0d / Balance.CHAIN_RETARGET_CLAMP,
-                Math.min(Balance.CHAIN_RETARGET_CLAMP, adjustment));
+        adjustment = Math.max(1.0d / Balance.CHAIN_RETARGET_CLAMP, Math.min(Balance.CHAIN_RETARGET_CLAMP, adjustment));
         chain.difficulty = Math.max(1e-9d, chain.difficulty * adjustment);
         chain.blocksSinceRetarget = 0L;
         chain.retargetStartedAt = now;

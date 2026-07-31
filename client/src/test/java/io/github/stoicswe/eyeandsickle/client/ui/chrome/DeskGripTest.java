@@ -95,12 +95,18 @@ class DeskGripTest {
         // resized diagonally — every point in it is within 14px of two edges. Below the threshold
         // the plain edge test takes over, so the panel still has four distinct edges.
         assertThat(DeskManager.edgeAt(20, 1, 40, 30)).as("top edge, mid-span").isEqualTo(1);
-        assertThat(DeskManager.edgeAt(1, 15, 40, 30)).as("left edge, mid-height").isEqualTo(4);
+        assertThat(DeskManager.edgeAt(1, 15, 40, 30))
+                .as("left edge, mid-height")
+                .isEqualTo(4);
         assertThat(DeskManager.edgeAt(2, 2, 40, 30)).as("actual top-left").isEqualTo(1 | 4);
 
         // The point that proves the fallback fired: 10,10 is a corner grip in a normal panel and
         // nothing at all in this one.
-        assertThat(DeskManager.edgeAt(10, 10, 400, 300)).as("corner grip at full size").isEqualTo(1 | 4);
-        assertThat(DeskManager.edgeAt(10, 10, 40, 30)).as("no grip in a tiny panel").isZero();
+        assertThat(DeskManager.edgeAt(10, 10, 400, 300))
+                .as("corner grip at full size")
+                .isEqualTo(1 | 4);
+        assertThat(DeskManager.edgeAt(10, 10, 40, 30))
+                .as("no grip in a tiny panel")
+                .isZero();
     }
 }

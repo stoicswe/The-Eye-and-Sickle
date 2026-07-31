@@ -1,6 +1,5 @@
 package io.github.stoicswe.eyeandsickle.client.window;
 
-import io.github.stoicswe.eyeandsickle.solo.Balance;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.stoicswe.eyeandsickle.client.session.LocalGameSession;
@@ -8,7 +7,7 @@ import io.github.stoicswe.eyeandsickle.client.shell.BuiltinCommands;
 import io.github.stoicswe.eyeandsickle.client.shell.Command;
 import io.github.stoicswe.eyeandsickle.client.shell.ExitStatus;
 import io.github.stoicswe.eyeandsickle.client.shell.Shell;
-import io.github.stoicswe.eyeandsickle.solo.SoloGame;
+import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -135,8 +134,8 @@ class ShortcutsTest {
             var session = shell(dir).session();
             var outcome = session.purchase("detection-array-t1");
 
-            assertThat(outcome.status()).isEqualTo(io.github.stoicswe.eyeandsickle.client.session
-                    .GameSession.Outcome.NOPERM);
+            assertThat(outcome.status())
+                    .isEqualTo(io.github.stoicswe.eyeandsickle.client.session.GameSession.Outcome.NOPERM);
             assertThat(outcome.message()).contains("schematic").contains("never bought");
         }
 
@@ -190,7 +189,9 @@ class ShortcutsTest {
                     assertThat(o.priceWei()).as("%s", o.id()).isPositive();
                 } else {
                     assertThat(o.priceWei()).as("%s", o.id()).isZero();
-                    assertThat(o.gateRequirement()).as("%s must say why", o.id()).isNotBlank();
+                    assertThat(o.gateRequirement())
+                            .as("%s must say why", o.id())
+                            .isNotBlank();
                 }
             }
         }

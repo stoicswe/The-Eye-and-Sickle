@@ -38,11 +38,36 @@ class NetMapViewTest {
     private static final ServerRef HOME = new ServerRef("s0", "home-relay", 0, true);
 
     private static NetMap map() {
-        Sighting self = new Sighting("10.0.0.1", "localhost", "s0", HostKind.SELF, null,
-                SignalStrength.LOW, 0, true, true, false, false, false, false, "");
-        Sighting contact = new Sighting("10.0.0.4", "", "s0", HostKind.UNKNOWN,
-                DifficultyTier.of(1), SignalStrength.MODERATE, 1,
-                false, false, false, false, false, false, "");
+        Sighting self = new Sighting(
+                "10.0.0.1",
+                "localhost",
+                "s0",
+                HostKind.SELF,
+                null,
+                SignalStrength.LOW,
+                0,
+                true,
+                true,
+                false,
+                false,
+                false,
+                false,
+                "");
+        Sighting contact = new Sighting(
+                "10.0.0.4",
+                "",
+                "s0",
+                HostKind.UNKNOWN,
+                DifficultyTier.of(1),
+                SignalStrength.MODERATE,
+                1,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                "");
         return new NetMap(HOME, "10.0.0.1", 1, List.of(HOME), List.of(self, contact), List.of());
     }
 
@@ -73,8 +98,8 @@ class NetMapViewTest {
         @DisplayName("exactly one view shows at a time — there is no state where two or none do")
         void exactlyOne() {
             for (NetMapView.Display display : NetMapView.Display.values()) {
-                long showing = java.util.stream.Stream
-                        .of(display.showsGraph(), display.showsList(), display.showsFolders())
+                long showing = java.util.stream.Stream.of(
+                                display.showsGraph(), display.showsList(), display.showsFolders())
                         .filter(Boolean::booleanValue)
                         .count();
                 assertThat(showing).as("%s shows exactly one view", display).isEqualTo(1);
@@ -91,8 +116,7 @@ class NetMapViewTest {
                     .isEqualTo("[ GRAPH ]");
             assertThat(NetMapView.Display.LIST.control(NetMapView.Display.GRAPH))
                     .isEqualTo("  LIST  ");
-            assertThat(NetMapView.Display.LIST.control(NetMapView.Display.LIST))
-                    .isEqualTo("[ LIST ]");
+            assertThat(NetMapView.Display.LIST.control(NetMapView.Display.LIST)).isEqualTo("[ LIST ]");
         }
 
         @Test
@@ -119,21 +143,46 @@ class NetMapViewTest {
          * is the <em>rendering</em> of a verdict, and a fixture that produced the verdict too would
          * be testing {@code NetRules.owns} in a view test.
          */
-        private static List<io.github.stoicswe.eyeandsickle.client.session.GameSession.SweepOption>
-                ladder(boolean wideOwned, boolean deepOwned) {
+        private static List<io.github.stoicswe.eyeandsickle.client.session.GameSession.SweepOption> ladder(
+                boolean wideOwned, boolean deepOwned) {
             return List.of(
                     option("", "Net Sweep", true, "", 1, 2, 20),
-                    option("--wide", "Net Sweep (Wide)", wideOwned,
-                            "the Net Sweep (Wide) tool, 25.00 EC in the market", 2, 5, 45),
-                    option("--deep", "Net Sweep (Deep)", deepOwned,
-                            "the Net Sweep (Deep) tool, 55.00 EC in the market", 3, 9, 90));
+                    option(
+                            "--wide",
+                            "Net Sweep (Wide)",
+                            wideOwned,
+                            "the Net Sweep (Wide) tool, 25.00 EC in the market",
+                            2,
+                            5,
+                            45),
+                    option(
+                            "--deep",
+                            "Net Sweep (Deep)",
+                            deepOwned,
+                            "the Net Sweep (Deep) tool, 55.00 EC in the market",
+                            3,
+                            9,
+                            90));
         }
 
         private static io.github.stoicswe.eyeandsickle.client.session.GameSession.SweepOption option(
-                String flag, String name, boolean available, String requirement,
-                int sensitivity, long cycles, long seconds) {
+                String flag,
+                String name,
+                boolean available,
+                String requirement,
+                int sensitivity,
+                long cycles,
+                long seconds) {
             return new io.github.stoicswe.eyeandsickle.client.session.GameSession.SweepOption(
-                    flag, name, available, requirement, java.math.BigInteger.ZERO, sensitivity, cycles, seconds, cycles);
+                    flag,
+                    name,
+                    available,
+                    requirement,
+                    java.math.BigInteger.ZERO,
+                    sensitivity,
+                    cycles,
+                    seconds,
+                    cycles);
         }
 
         @Test
@@ -176,7 +225,8 @@ class NetMapViewTest {
         @Test
         @DisplayName("the tooltip names the requirement, and never says only 'locked'")
         void tooltipNamesTheRequirement() {
-            String wide = NetMapView.renderLadder(ladder(false, false)).get("--wide").tooltip();
+            String wide =
+                    NetMapView.renderLadder(ladder(false, false)).get("--wide").tooltip();
 
             assertThat(wide).contains("Net Sweep (Wide)").contains("25.00 EC");
             // ⚠ Invariant I2 in the first sentence a player reads. Someone who believes a better
@@ -202,8 +252,7 @@ class NetMapViewTest {
             // CLAUDE.md: the economy numbers are calibrated as a set. A label that spelled its own
             // cycle cost would keep quoting the old one after a retune, on the one control whose
             // whole job is to state a cost before it is paid.
-            var rendered = NetMapView.renderLadder(
-                    List.of(option("--wide", "Net Sweep (Wide)", true, "", 2, 7, 60)));
+            var rendered = NetMapView.renderLadder(List.of(option("--wide", "Net Sweep (Wide)", true, "", 2, 7, 60)));
             assertThat(rendered.get("--wide").label()).contains("7C");
         }
     }
@@ -250,11 +299,7 @@ class NetMapViewTest {
                             folder("relays", "/eye/relays", 1, List.of("10.0.0.9"), 1)),
                     List.of());
 
-            assertThat(lines).containsExactly(
-                    "+ eye (2)",
-                    "  - 10.0.0.4",
-                    "  + relays (1)",
-                    "    - 10.0.0.9");
+            assertThat(lines).containsExactly("+ eye (2)", "  - 10.0.0.4", "  + relays (1)", "    - 10.0.0.9");
         }
 
         @Test
@@ -276,8 +321,9 @@ class NetMapViewTest {
         @Test
         @DisplayName("the tree is plain ASCII, so it survives a copy-paste into a bug report")
         void asciiOnly() {
-            String drawn = String.join("\n", NetText.folderRows(
-                    List.of(folder("eye", "/eye", 0, List.of("10.0.0.4"), 1)), List.of("10.0.0.9")));
+            String drawn = String.join(
+                    "\n",
+                    NetText.folderRows(List.of(folder("eye", "/eye", 0, List.of("10.0.0.4"), 1)), List.of("10.0.0.9")));
             // Box-drawing glyphs would be prettier and would not survive being pasted somewhere with
             // a different font. They are also one more range for GlyphCoverageTest to police.
             assertThat(drawn.chars().allMatch(c -> c < 128)).isTrue();
@@ -299,8 +345,18 @@ class NetMapViewTest {
 
         /** The twelve the generator assigns. A body that is not on the classpath is unreadable. */
         private static final List<String> IDS = List.of(
-                "doc.rota", "doc.tariff", "doc.notice", "doc.transcript", "doc.manifest", "doc.memo",
-                "doc.roster", "doc.letter", "doc.audit", "doc.log", "doc.spec", "doc.index");
+                "doc.rota",
+                "doc.tariff",
+                "doc.notice",
+                "doc.transcript",
+                "doc.manifest",
+                "doc.memo",
+                "doc.roster",
+                "doc.letter",
+                "doc.audit",
+                "doc.log",
+                "doc.spec",
+                "doc.index");
 
         @Test
         @DisplayName("every id the generator can assign resolves to real text")
@@ -330,9 +386,7 @@ class NetMapViewTest {
             // player, and decision N-4 keeps it off the critical path. A fragment that said "you"
             // would be a companion character in a text file.
             for (String id : IDS) {
-                String body = " "
-                        + String.join(" ", NetText.documentBody(id)).toLowerCase(java.util.Locale.ROOT)
-                        + " ";
+                String body = " " + String.join(" ", NetText.documentBody(id)).toLowerCase(java.util.Locale.ROOT) + " ";
                 for (String pronoun : List.of(" you ", " your ", " yours ", " you're ", " you've ")) {
                     assertThat(body).as("%s avoids '%s'", id, pronoun.trim()).doesNotContain(pronoun);
                 }
@@ -348,8 +402,7 @@ class NetMapViewTest {
             assertThat(NetText.documentBody("doc.nothing")).containsExactly(NetText.UNREADABLE);
             assertThat(NetText.documentBody("")).containsExactly(NetText.UNREADABLE);
             assertThat(NetText.documentBody(null)).containsExactly(NetText.UNREADABLE);
-            assertThat(NetText.documentBody("../../../../etc/passwd"))
-                    .containsExactly(NetText.UNREADABLE);
+            assertThat(NetText.documentBody("../../../../etc/passwd")).containsExactly(NetText.UNREADABLE);
             assertThat(NetText.documentBody("/absolute")).containsExactly(NetText.UNREADABLE);
         }
     }

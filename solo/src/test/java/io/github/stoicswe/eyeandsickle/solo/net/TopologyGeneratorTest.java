@@ -145,7 +145,9 @@ class TopologyGeneratorTest {
                 for (ServerState server : topology.servers) {
                     for (String peerId : server.peerServerIds) {
                         int delta = Math.abs(server.depthFromHome - NetTestKit.server(topology, peerId).depthFromHome);
-                        assertThat(delta).as("edge %s→%s", server.serverId, peerId).isLessThanOrEqualTo(1);
+                        assertThat(delta)
+                                .as("edge %s→%s", server.serverId, peerId)
+                                .isLessThanOrEqualTo(1);
                     }
                 }
             }
@@ -156,8 +158,7 @@ class TopologyGeneratorTest {
         void sizeCapsHold() {
             for (int i = 0; i < 2_000; i++) {
                 TopologyState topology = NetTestKit.world(seed(i)).topology;
-                assertThat(topology.servers.size())
-                        .isBetween(Balance.NET_SERVERS_MIN, Balance.NET_SERVERS_MAX);
+                assertThat(topology.servers.size()).isBetween(Balance.NET_SERVERS_MIN, Balance.NET_SERVERS_MAX);
                 for (ServerState server : topology.servers) {
                     assertThat(NetTestKit.hostsOn(topology, server.serverId).size())
                             .as("machines on %s", server.serverId)
@@ -206,7 +207,9 @@ class TopologyGeneratorTest {
                 TopologyState topology = NetTestKit.world(seed(i)).topology;
                 Set<String> addresses = new HashSet<>();
                 for (HostState host : topology.hosts) {
-                    assertThat(addresses.add(host.address)).as("%s is unique", host.address).isTrue();
+                    assertThat(addresses.add(host.address))
+                            .as("%s is unique", host.address)
+                            .isTrue();
                 }
                 // 10.0.0.1 is a real private-range address for a real interface. Loopback was
                 // rejected: 127.0.0.1 is by definition not reachable from another host, and adjacency
@@ -273,7 +276,9 @@ class TopologyGeneratorTest {
                     // ⚠ BreachTarget's compact constructor THROWS above 3. A fourth firewall band
                     // would not be a balance mistake, it would be an exception raised while building
                     // the target list — a save that cannot render its own network.
-                    assertThat(host.firewallTier).as("firewall of %s", host.address).isBetween(0, 3);
+                    assertThat(host.firewallTier)
+                            .as("firewall of %s", host.address)
+                            .isBetween(0, 3);
                     assertThat(host.detectRoll).isBetween(0.0d, 1.0d);
                     assertThat(host.lootWei).isNotNegative();
                 }
@@ -327,8 +332,12 @@ class TopologyGeneratorTest {
                 assertThat(save.knownNodes).isEmpty();
                 for (HostState host : save.topology.hosts) {
                     boolean rig = host.address.equals(save.topology.playerAddress);
-                    assertThat(host.discovered).as("%s discovered", host.address).isEqualTo(rig);
-                    assertThat(host.identified).as("%s identified", host.address).isEqualTo(rig);
+                    assertThat(host.discovered)
+                            .as("%s discovered", host.address)
+                            .isEqualTo(rig);
+                    assertThat(host.identified)
+                            .as("%s identified", host.address)
+                            .isEqualTo(rig);
                     assertThat(host.foothold).as("%s foothold", host.address).isEqualTo(rig);
                     assertThat(host.looted).isFalse();
                     assertThat(host.documentTaken).isFalse();

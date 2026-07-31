@@ -91,7 +91,8 @@ class FolderRulesTest {
         void names() {
             SoloSave save = save();
             assertThat(FolderRules.create(save, "", "  ", T0).refused()).isTrue();
-            assertThat(FolderRules.create(save, "", "x".repeat(FolderRules.MAX_NAME + 1), T0).refused())
+            assertThat(FolderRules.create(save, "", "x".repeat(FolderRules.MAX_NAME + 1), T0)
+                            .refused())
                     .isTrue();
             // '/' separates path segments everywhere this tree is printed, so a name containing one
             // would render a path the player could not type back.
@@ -180,10 +181,16 @@ class FolderRulesTest {
             assertThat(FolderRules.file(save, "10.0.0.4", b).refused()).isFalse();
 
             List<NetFolder> tree = FolderRules.tree(save);
-            assertThat(tree.stream().filter(f -> f.folderId().equals(a)).findFirst().orElseThrow()
+            assertThat(tree.stream()
+                            .filter(f -> f.folderId().equals(a))
+                            .findFirst()
+                            .orElseThrow()
                             .addresses())
                     .isEmpty();
-            assertThat(tree.stream().filter(f -> f.folderId().equals(b)).findFirst().orElseThrow()
+            assertThat(tree.stream()
+                            .filter(f -> f.folderId().equals(b))
+                            .findFirst()
+                            .orElseThrow()
                             .addresses())
                     .containsExactly("10.0.0.4");
         }
@@ -309,10 +316,14 @@ class FolderRulesTest {
             String eye = mkdir(save, "", "eye");
             String relays = mkdir(save, eye, "relays");
 
-            assertThat(FolderRules.byPath(save, "/eye/relays")).isNotNull()
-                    .extracting(f -> f.folderId).isEqualTo(relays);
-            assertThat(FolderRules.byPath(save, "EYE/Relays/")).isNotNull()
-                    .extracting(f -> f.folderId).isEqualTo(relays);
+            assertThat(FolderRules.byPath(save, "/eye/relays"))
+                    .isNotNull()
+                    .extracting(f -> f.folderId)
+                    .isEqualTo(relays);
+            assertThat(FolderRules.byPath(save, "EYE/Relays/"))
+                    .isNotNull()
+                    .extracting(f -> f.folderId)
+                    .isEqualTo(relays);
             assertThat(FolderRules.byPath(save, "eye/missing")).isNull();
             assertThat(FolderRules.byPath(save, "/")).isNull();
         }

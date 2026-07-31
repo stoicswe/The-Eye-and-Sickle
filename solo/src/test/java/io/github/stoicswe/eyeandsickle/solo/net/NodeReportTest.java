@@ -133,8 +133,7 @@ class NodeReportTest {
 
         scanned(clock, game, address, PortScanTarget.VAULT_MEDIUM);
         var deep = NodeReports.at(game.state(), address).orElseThrow();
-        assertThat(deep.known()).isEqualTo(io.github.stoicswe.eyeandsickle.protocol.game
-                .NodeReport.total());
+        assertThat(deep.known()).isEqualTo(io.github.stoicswe.eyeandsickle.protocol.game.NodeReport.total());
         int estimate = deep.vaultMediumEstimate();
         Instant deepAt = deep.when(PortScanTarget.VAULT_MEDIUM);
 
@@ -194,8 +193,8 @@ class NodeReportTest {
         long downloads = NodeReports.at(game.state(), address).orElseThrow().downloadsBytes();
         game.persist();
 
-        SoloGame reopened = SoloGame.open(
-                new SaveStore(file), "operator", Clock.fixed(clock.instant(), ZoneOffset.UTC));
+        SoloGame reopened =
+                SoloGame.open(new SaveStore(file), "operator", Clock.fixed(clock.instant(), ZoneOffset.UTC));
         var report = NodeReports.at(reopened.state(), address).orElseThrow();
         assertThat(report.downloadsBytes()).isEqualTo(downloads);
         assertThat(report.knows(PortScanTarget.DOWNLOADS)).isTrue();
@@ -246,8 +245,8 @@ class NodeReportTest {
 
         scanned(clock, game, address, PortScanTarget.FIREWALL);
         assertThat(NodeReports.rename(game.state(), address, "the bank")).isTrue();
-        assertThat(NodeReports.retag(game.state(), address,
-                java.util.List.of("Rich", "  defended  ", "", "rich"))).isTrue();
+        assertThat(NodeReports.retag(game.state(), address, java.util.List.of("Rich", "  defended  ", "", "rich")))
+                .isTrue();
 
         var report = NodeReports.at(game.state(), address).orElseThrow();
         // Lowercased, trimmed, de-duplicated, blanks dropped — a tag nobody can type is a tag nobody
@@ -262,7 +261,9 @@ class NodeReportTest {
         assertThat(report.matches("bank")).isTrue();
         assertThat(report.matches("BANK")).as("case-insensitive").isTrue();
         assertThat(report.matches("rich")).as("by tag").isTrue();
-        assertThat(report.matches(address.substring(0, 5))).as("by partial address").isTrue();
+        assertThat(report.matches(address.substring(0, 5)))
+                .as("by partial address")
+                .isTrue();
         assertThat(report.matches("")).as("an empty search matches everything").isTrue();
         assertThat(report.matches("nothing-like-this")).isFalse();
     }
@@ -295,8 +296,8 @@ class NodeReportTest {
         NodeReports.retag(game.state(), address, java.util.List.of("revisit"));
         game.persist();
 
-        SoloGame reopened = SoloGame.open(
-                new SaveStore(file), "operator", Clock.fixed(clock.instant(), ZoneOffset.UTC));
+        SoloGame reopened =
+                SoloGame.open(new SaveStore(file), "operator", Clock.fixed(clock.instant(), ZoneOffset.UTC));
         var report = NodeReports.at(reopened.state(), address).orElseThrow();
         assertThat(report.alias()).isEqualTo("the bank");
         assertThat(report.tags()).containsExactly("revisit");

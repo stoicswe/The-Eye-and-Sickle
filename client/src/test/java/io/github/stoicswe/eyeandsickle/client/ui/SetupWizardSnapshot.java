@@ -86,11 +86,27 @@ public final class SetupWizardSnapshot {
 
     /** Fires the Continue chip the way a mouse would, so the harness walks the real navigation. */
     private static void click(Region root, String styleClass) {
-        root.lookupAll("." + styleClass).stream().findFirst().ifPresent(node ->
-                node.fireEvent(new javafx.scene.input.MouseEvent(
+        root.lookupAll("." + styleClass).stream()
+                .findFirst()
+                .ifPresent(node -> node.fireEvent(new javafx.scene.input.MouseEvent(
                         javafx.scene.input.MouseEvent.MOUSE_CLICKED,
-                        0, 0, 0, 0, javafx.scene.input.MouseButton.PRIMARY, 1,
-                        false, false, false, false, true, false, false, true, false, false, null)));
+                        0,
+                        0,
+                        0,
+                        0,
+                        javafx.scene.input.MouseButton.PRIMARY,
+                        1,
+                        false,
+                        false,
+                        false,
+                        false,
+                        true,
+                        false,
+                        false,
+                        true,
+                        false,
+                        false,
+                        null)));
     }
 
     private static void settle(Scene scene) {

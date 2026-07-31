@@ -9,13 +9,12 @@ import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
 import io.github.stoicswe.eyeandsickle.client.ui.breach.BreachViewport;
 import io.github.stoicswe.eyeandsickle.client.ui.breach.CostStrip;
 import io.github.stoicswe.eyeandsickle.client.ui.breach.MatrixGrid;
-import io.github.stoicswe.eyeandsickle.client.ui.breach.OutcomeSlate;
 import io.github.stoicswe.eyeandsickle.client.ui.breach.OffsetRack;
+import io.github.stoicswe.eyeandsickle.client.ui.breach.OutcomeSlate;
 import io.github.stoicswe.eyeandsickle.client.ui.cursors.Cursors;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.AttentionLedger;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.AttentionMeter;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.KeyValue;
-import io.github.stoicswe.eyeandsickle.client.ui.widgets.Note;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachLayer;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachSnapshot;
 import java.util.Optional;
@@ -116,8 +115,7 @@ public final class BreachView {
      * not a fallback: a definition the curriculum has not written yet must not be improvised here
      * ({@code docs/education/00-curriculum-and-method.md} §1.2).
      */
-    public static Region create(
-            GameSession session, TermDatabase terms, ClientProfile profile, BreachArming arming) {
+    public static Region create(GameSession session, TermDatabase terms, ClientProfile profile, BreachArming arming) {
         VBox root = new VBox(UiTokens.SPACE_6);
         root.getStyleClass().add("es-body-pad");
 
@@ -191,8 +189,8 @@ public final class BreachView {
         viewport.setMinWidth(Region.USE_PREF_SIZE);
 
         KeyValue selection = KeyValue.of("Selected", "NONE");
-        Label selectionHint = Ui.micro(
-                "Pick a slot or a node first; the action then acts on it. Every action prints its "
+        Label selectionHint =
+                Ui.micro("Pick a slot or a node first; the action then acts on it. Every action prints its "
                         + "attention cost before you spend it.");
         selectionHint.getStyleClass().add("es-legend-sub");
         HBox selectionRow = Ui.row(UiTokens.SPACE_5, selection, selectionHint);
@@ -239,8 +237,7 @@ public final class BreachView {
                 + "the whole attempt and cannot be undone into a refund.");
         Chip disarm = new Chip("Clear", "es-breach-chip-quiet");
         disarm.setAccessibleText("Un-arm the target without starting anything.");
-        VBox launch = new VBox(UiTokens.SPACE_3,
-                armedLabel, armedFacts, Ui.row(UiTokens.SPACE_3, start, disarm));
+        VBox launch = new VBox(UiTokens.SPACE_3, armedLabel, armedFacts, Ui.row(UiTokens.SPACE_3, start, disarm));
         // Both classes: `-launch` is the panel's own frame, `-picker` is what scopes the chip rules
         // (they are declared under it, because the cost-strip block only styles chips inside a
         // breach and these two live outside one).
@@ -250,8 +247,7 @@ public final class BreachView {
         // that misreading disabled outright.
         visible(launch, false);
 
-        root.getChildren().addAll(
-                head, crackNote, console, selectionRow, boards, outcome, launch, targets);
+        root.getChildren().addAll(head, crackNote, console, selectionRow, boards, outcome, launch, targets);
 
         presenter.bind(viewport, meter, ledger, strip, grid, cipher, slate);
         presenter.setSelectionSink(text -> {
@@ -261,8 +257,7 @@ public final class BreachView {
 
         // Picking a row arms it. Nothing is spent, and picking the armed row again clears it — so
         // there is always a way back to "nothing chosen" without having to choose something else.
-        targets.setOnSelect(t ->
-                arming.arm(t.targetId().equals(arming.armed()) ? "" : t.targetId()));
+        targets.setOnSelect(t -> arming.arm(t.targetId().equals(arming.armed()) ? "" : t.targetId()));
         disarm.onInvoke(() -> arming.arm(""));
         // ⚠ The launch control is DEAD FOR ONE PULSE after a target is armed.
         //
@@ -366,8 +361,7 @@ public final class BreachView {
 
             // Only once the window has actually elapsed — see the arming above. Resetting the label
             // on every refresh is what made the second press unreachable.
-            if (session.now().isAfter(armedUntil[0])
-                    && !abort.getText().equals(Ui.upper("Abort"))) {
+            if (session.now().isAfter(armedUntil[0]) && !abort.getText().equals(Ui.upper("Abort"))) {
                 abort.setText(Ui.upper("Abort"));
             }
 
@@ -386,11 +380,13 @@ public final class BreachView {
             visible(selectionRow, open && !resolved);
             visible(boards, open && !resolved);
             visible(outcome, resolved);
-            visible(retry, resolved && found
-                    .map(io.github.stoicswe.eyeandsickle.protocol.game.BreachSnapshot::targetId)
-                    .map(id -> session.breachTargets().stream()
-                            .anyMatch(t -> t.targetId().equals(id) && t.available()))
-                    .orElse(false));
+            visible(
+                    retry,
+                    resolved
+                            && found.map(io.github.stoicswe.eyeandsickle.protocol.game.BreachSnapshot::targetId)
+                                    .map(id -> session.breachTargets().stream()
+                                            .anyMatch(t -> t.targetId().equals(id) && t.available()))
+                                    .orElse(false));
             visible(targets, !open);
             visible(crackNote, open && found.get().minerCrack());
 
@@ -399,8 +395,9 @@ public final class BreachView {
             // Shown only when there is no breach running: while one is open the whole panel below is
             // the breach, and a second "start" control would be offering to begin an attempt on top
             // of the one in progress.
-            Optional<io.github.stoicswe.eyeandsickle.protocol.game.BreachTarget> armedTarget =
-                    open ? Optional.empty() : session.breachTargets().stream()
+            Optional<io.github.stoicswe.eyeandsickle.protocol.game.BreachTarget> armedTarget = open
+                    ? Optional.empty()
+                    : session.breachTargets().stream()
                             .filter(t -> t.targetId().equals(arming.armed()))
                             .findFirst();
             // An armed id that is no longer in the list is dropped rather than kept: a machine can
@@ -424,8 +421,7 @@ public final class BreachView {
             }
             targets.setSelected(open ? "" : arming.armed());
             armedTarget.ifPresent(t -> {
-                armedLabel.setText(Ui.upper(
-                        (t.label().isBlank() ? t.targetId() : t.label()) + " · " + t.address()));
+                armedLabel.setText(Ui.upper((t.label().isBlank() ? t.targetId() : t.label()) + " · " + t.address()));
                 armedFacts.setText("Tier " + t.difficultyTier().tier() + " · "
                         + t.computeCost() + " cycles, reserved for the whole attempt and released "
                         + "into thermal recovery however it ends"
@@ -445,8 +441,7 @@ public final class BreachView {
                 trace.set(Math.round(total.traceProgress() * 100) + "%");
 
                 Optional<BreachLayer> active = snapshot.active();
-                layer.set(active.map(BreachLayer::title)
-                        .orElse(resolved ? "RESOLVED" : Ui.upper("no active layer")));
+                layer.set(active.map(BreachLayer::title).orElse(resolved ? "RESOLVED" : Ui.upper("no active layer")));
                 strikes.set(strikeText(snapshot, active.orElse(null)));
             } else {
                 targets.refresh();

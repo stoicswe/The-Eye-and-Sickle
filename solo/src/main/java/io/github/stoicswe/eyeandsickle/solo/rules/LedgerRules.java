@@ -1,9 +1,9 @@
 package io.github.stoicswe.eyeandsickle.solo.rules;
 
-import java.math.BigInteger;
 import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.solo.state.LedgerEntryState;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
+import java.math.BigInteger;
 import java.time.Instant;
 
 /**
@@ -30,8 +30,7 @@ public final class LedgerRules {
      * @throws IllegalArgumentException if the delta would take the balance negative — the caller must
      *     have checked {@link #canDebit} first, and a bug that skips it should be loud
      */
-    public static Ethecoin apply(
-            SoloSave save, BigInteger deltaWei, String type, String description, Instant now) {
+    public static Ethecoin apply(SoloSave save, BigInteger deltaWei, String type, String description, Instant now) {
         applyEntry(save, deltaWei, type, description, now);
         return Ethecoin.ofWei(save.ethecoinWei);
     }
@@ -47,9 +46,8 @@ public final class LedgerRules {
             SoloSave save, BigInteger deltaWei, String type, String description, Instant now) {
         BigInteger next = save.ethecoinWei.add(deltaWei);
         if (next.signum() < 0) {
-            throw new IllegalArgumentException(
-                    "Ledger would go negative: balance " + Ethecoin.format(save.ethecoinWei)
-                            + " delta " + Ethecoin.format(deltaWei));
+            throw new IllegalArgumentException("Ledger would go negative: balance " + Ethecoin.format(save.ethecoinWei)
+                    + " delta " + Ethecoin.format(deltaWei));
         }
         save.ethecoinWei = next;
 

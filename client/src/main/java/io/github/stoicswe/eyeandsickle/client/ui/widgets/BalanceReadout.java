@@ -1,10 +1,9 @@
 package io.github.stoicswe.eyeandsickle.client.ui.widgets;
 
-import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.client.ui.Pulse;
 import io.github.stoicswe.eyeandsickle.client.ui.Ui;
 import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
-import java.util.Locale;
+import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import javafx.geometry.Pos;
 import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
@@ -163,7 +162,8 @@ public final class BalanceReadout extends HBox {
             // the digits the readout now prints — the counter would tick through nonsense.
             java.math.BigDecimal span = new java.math.BigDecimal(targetWei.subtract(startedFrom));
             shownWei = startedFrom.add(span.multiply(java.math.BigDecimal.valueOf(progress))
-                    .setScale(0, java.math.RoundingMode.HALF_UP).toBigIntegerExact());
+                    .setScale(0, java.math.RoundingMode.HALF_UP)
+                    .toBigIntegerExact());
             render();
             if (progress >= 1.0d) {
                 // Pinned to the target rather than left on the rounded step. A readout a minor unit
@@ -229,5 +229,4 @@ public final class BalanceReadout extends HBox {
         counter = null;
         flash = null;
     }
-
 }

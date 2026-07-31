@@ -31,13 +31,19 @@ class DeleteFileTest {
     private static final Instant T0 = Instant.parse("2026-07-30T09:00:00Z");
 
     private static SoloGame game(Path dir) {
-        return SoloGame.open(new SaveStore(dir.resolve("s.json")), "operator",
-                Clock.fixed(T0, ZoneOffset.UTC));
+        return SoloGame.open(new SaveStore(dir.resolve("s.json")), "operator", Clock.fixed(T0, ZoneOffset.UTC));
     }
 
     private static StoredFileState downloaded(SoloGame game, String name, String itemType) {
-        StoredFileState file = Repac.arrive(game.state(), "/Users/operator/Downloads", name,
-                "10.0.0.9", 1_000L, itemType, new UpgradeVersion(3, 1), T0);
+        StoredFileState file = Repac.arrive(
+                game.state(),
+                "/Users/operator/Downloads",
+                name,
+                "10.0.0.9",
+                1_000L,
+                itemType,
+                new UpgradeVersion(3, 1),
+                T0);
         Repac.repack(game.state(), file, T0);
         return file;
     }
@@ -70,16 +76,22 @@ class DeleteFileTest {
             StoredFileState file = downloaded(game, "sweep.pkg", "net-sweep-wide");
             Repac.delete(game.state(), file.path(), T0);
             assertThat(game.state().log)
-                    .anyMatch(line -> line.message.contains("deleted")
-                            && line.message.contains("sold for"));
+                    .anyMatch(line -> line.message.contains("deleted") && line.message.contains("sold for"));
         }
 
         @Test
         @DisplayName("a non-package file goes too — most accumulated junk is not a package")
         void deletesAnyStoredFile(@TempDir Path dir) {
             SoloGame game = game(dir);
-            StoredFileState file = Repac.arrive(game.state(), "/Users/operator/Downloads",
-                    "notes.txt", "10.0.0.9", 400L, "", UpgradeVersion.UNKNOWN, T0);
+            StoredFileState file = Repac.arrive(
+                    game.state(),
+                    "/Users/operator/Downloads",
+                    "notes.txt",
+                    "10.0.0.9",
+                    400L,
+                    "",
+                    UpgradeVersion.UNKNOWN,
+                    T0);
             assertThat(Repac.delete(game.state(), file.path(), T0).ok()).isTrue();
         }
     }

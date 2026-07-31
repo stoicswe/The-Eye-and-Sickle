@@ -1,11 +1,11 @@
 package io.github.stoicswe.eyeandsickle.client.ui;
 
-import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.client.profile.ClientProfile;
 import io.github.stoicswe.eyeandsickle.client.session.LocalGameSession;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeManager;
 import io.github.stoicswe.eyeandsickle.client.view.PackageView;
 import io.github.stoicswe.eyeandsickle.protocol.game.PackageManifest;
+import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.SoloGame;
 import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import java.awt.image.BufferedImage;
@@ -84,54 +84,70 @@ public final class PackageSnapshot {
         game.tick();
 
         String path = game.state().files.getFirst().path();
-        shoot(themes, session.packageAt(path).orElseThrow(), PackageView.Mode.INSTALL,
+        shoot(
+                themes,
+                session.packageAt(path).orElseThrow(),
+                PackageView.Mode.INSTALL,
                 out.resolve("package-locked.png"));
-        shoot(themes, session.packageAt(path).orElseThrow(), PackageView.Mode.INSPECT,
+        shoot(
+                themes,
+                session.packageAt(path).orElseThrow(),
+                PackageView.Mode.INSPECT,
                 out.resolve("package-inspect.png"));
 
         // Tampered — the branch that cannot happen in single player and is the reason the panel
         // prints two digests rather than a tick.
         game.state().files.getFirst().payloadSalt = "substituted";
-        shoot(themes, session.packageAt(path).orElseThrow(), PackageView.Mode.INSTALL,
+        shoot(
+                themes,
+                session.packageAt(path).orElseThrow(),
+                PackageView.Mode.INSTALL,
                 out.resolve("package-tampered.png"));
         game.state().files.getFirst().payloadSalt = "";
 
         // The port scanner, against a machine a sweep has found.
-        String scanTarget = game.state().topology == null || game.state().topology.hosts.isEmpty()
-                ? ""
-                : game.state().topology.hosts.stream()
-                        .filter(h -> !"SELF".equals(h.kind))
-                        .findFirst().map(h -> h.address).orElse("");
+        String scanTarget =
+                game.state().topology == null || game.state().topology.hosts.isEmpty()
+                        ? ""
+                        : game.state().topology.hosts.stream()
+                                .filter(h -> !"SELF".equals(h.kind))
+                                .findFirst()
+                                .map(h -> h.address)
+                                .orElse("");
         game.state().topology.hosts.stream()
                 .filter(h -> h.address.equals(scanTarget))
                 .forEach(h -> h.discovered = true);
         if (!scanTarget.isBlank()) {
-            shootPanel(themes,
-                    io.github.stoicswe.eyeandsickle.client.view.PortScanView.create(
-                            session, scanTarget, m -> {}),
-                    out.resolve("portscan.png"), 820, 700);
+            shootPanel(
+                    themes,
+                    io.github.stoicswe.eyeandsickle.client.view.PortScanView.create(session, scanTarget, m -> {}),
+                    out.resolve("portscan.png"),
+                    820,
+                    700);
             // And after one has run, so the findings block has something in it.
-            session.portScan(scanTarget,
-                    io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget.VAULT_MEDIUM);
+            session.portScan(scanTarget, io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget.VAULT_MEDIUM);
             clock.advance(Duration.ofMinutes(4));
             game.tick();
-            shootPanel(themes,
-                    io.github.stoicswe.eyeandsickle.client.view.PortScanView.create(
-                            session, scanTarget, m -> {}),
-                    out.resolve("portscan-done.png"), 820, 700);
+            shootPanel(
+                    themes,
+                    io.github.stoicswe.eyeandsickle.client.view.PortScanView.create(session, scanTarget, m -> {}),
+                    out.resolve("portscan-done.png"),
+                    820,
+                    700);
         }
         if (!scanTarget.isBlank()) {
             // A second, shallower scan hours later, so the report shows findings of DIFFERENT ages —
             // which is the whole reason the file is persisted rather than thrown away.
             clock.advance(Duration.ofHours(19));
-            session.portScan(scanTarget,
-                    io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget.OS_VERSION);
+            session.portScan(scanTarget, io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget.OS_VERSION);
             clock.advance(Duration.ofMinutes(2));
             game.tick();
-            shootPanel(themes,
-                    io.github.stoicswe.eyeandsickle.client.view.NodeReportView.create(
-                            session, scanTarget),
-                    out.resolve("node-report.png"), 700, 520);
+            shootPanel(
+                    themes,
+                    io.github.stoicswe.eyeandsickle.client.view.NodeReportView.create(session, scanTarget),
+                    out.resolve("node-report.png"),
+                    700,
+                    520);
             // Named and tagged, so the shot shows what the list is actually for.
             // A world label, so the shot shows the identifier doing its job rather than the
             // fallback. A machine nothing has identified genuinely has only an address.
@@ -150,14 +166,20 @@ public final class PackageSnapshot {
             known.label = "home-relay";
             session.nameNode(scanTarget, "the bank");
             session.tagNode(scanTarget, java.util.List.of("rich", "defended", "revisit"));
-            shootPanel(themes,
+            shootPanel(
+                    themes,
                     io.github.stoicswe.eyeandsickle.client.view.ReconView.create(session, a -> {}),
-                    out.resolve("recon.png"), 900, 300);
+                    out.resolve("recon.png"),
+                    900,
+                    300);
         }
-        shootPanel(themes,
+        shootPanel(
+                themes,
                 io.github.stoicswe.eyeandsickle.client.view.DefenseGameView.create(
                         session, "unregistered process  ·  6 cycles", o -> {}),
-                out.resolve("defense-prototype.png"), 620, 420);
+                out.resolve("defense-prototype.png"),
+                620,
+                420);
 
         // ── The LOG window, both tabs ──────────────────────────────────────────────────────────
         //
@@ -168,19 +190,38 @@ public final class PackageSnapshot {
         //
         // The requirement this checks is the user's: everything the LOG window used to be is now
         // OVERVIEW and must be unchanged, with EVENTS added beside it rather than in place of it.
-        shootPanel(themes,
+        shootPanel(
+                themes,
                 io.github.stoicswe.eyeandsickle.client.view.LogView.create(session),
-                out.resolve("log-overview.png"), 820, 620);
+                out.resolve("log-overview.png"),
+                820,
+                620);
         Region eventsTab = io.github.stoicswe.eyeandsickle.client.view.LogView.create(session);
         shootPanel(themes, eventsTab, out.resolve("log-events.png"), 820, 620, panel -> {
             // The chips are the tab picker; the second one is EVENTS. Fired rather than reached for
             // by a setter, because the click path is the thing a player has and therefore the thing
             // worth rendering through.
             var chips = new java.util.ArrayList<>(panel.lookupAll(".es-breach-chip"));
-            chips.get(1).fireEvent(new javafx.scene.input.MouseEvent(
-                    javafx.scene.input.MouseEvent.MOUSE_CLICKED, 4, 4, 4, 4,
-                    javafx.scene.input.MouseButton.PRIMARY, 1,
-                    false, false, false, false, true, false, false, true, false, false, null));
+            chips.get(1)
+                    .fireEvent(new javafx.scene.input.MouseEvent(
+                            javafx.scene.input.MouseEvent.MOUSE_CLICKED,
+                            4,
+                            4,
+                            4,
+                            4,
+                            javafx.scene.input.MouseButton.PRIMARY,
+                            1,
+                            false,
+                            false,
+                            false,
+                            false,
+                            true,
+                            false,
+                            false,
+                            true,
+                            false,
+                            false,
+                            null));
         });
 
         // Confirmed and ready to install.
@@ -188,12 +229,14 @@ public final class PackageSnapshot {
         clock.advance(Duration.ofHours(3));
         game.tick();
         String ready = game.state().files.getFirst().path();
-        shoot(themes, session.packageAt(ready).orElseThrow(), PackageView.Mode.INSTALL,
+        shoot(
+                themes,
+                session.packageAt(ready).orElseThrow(),
+                PackageView.Mode.INSTALL,
                 out.resolve("package-ready.png"));
     }
 
-    private static void shootPanel(ThemeManager themes, Region panel, Path to, int w, int h)
-            throws Exception {
+    private static void shootPanel(ThemeManager themes, Region panel, Path to, int w, int h) throws Exception {
         shootPanel(themes, panel, to, w, h, p -> {});
     }
 

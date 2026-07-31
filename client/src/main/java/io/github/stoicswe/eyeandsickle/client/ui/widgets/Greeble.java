@@ -42,13 +42,29 @@ public final class Greeble extends Label {
      * platform too.
      */
     private static final String BLOCKS = "▐▌▐▌";
+
     private static final String DOTS = "·····";
 
     /** Alignment marks. Meaningless, and more of them when the rig is being watched. */
     private static final String[] MARKS = {"//", "//", "╞╞", "▚▚"};
 
     private final Random random = new Random();
-    private final int length;
+
+    /**
+     * How many characters the strip generates.
+     *
+     * <p>⚠ No longer final. {@link #filling()} makes it follow the widget's real width, because a
+     * fixed count leaves a wide slot visibly short of its own edge — the strip is texture, and
+     * texture that stops two-thirds of the way across reads as content that ran out.
+     */
+    private int length;
+
+    /** Whether the count follows the width. Off by default: a fixed-width slot wants a fixed count. */
+    private boolean filling;
+
+    /** One character's advance in the face the stylesheet applied. Measured, never assumed. */
+    private double cellWidth;
+
     private double agitation;
     private AutoCloseable subscription;
 
@@ -61,6 +77,50 @@ public final class Greeble extends Label {
         setWrapText(false);
         setTextOverrun(javafx.scene.control.OverrunStyle.CLIP);
         subscription = Pulse.shared().animate(UiTokens.GREEBLE_MS, this::repaint);
+    }
+
+    /**
+     * Makes the strip generate as many characters as its width can show.
+     *
+     * <h2>⚠ Opt-in, and deliberately not the default</h2>
+     *
+     * Several greebles sit in slots whose width is decided by something else — the command strip's,
+     * for one — and a texture that grew to fill those would change a layout that is already right.
+     * What this is for is a strip spanning a panel, where a fixed count stops short of the edge and
+     * the eye reads the gap as a fault rather than as texture.
+     *
+     * <p>The advance is <b>measured</b> off the applied font, exactly as {@code Substrate} and
+     * {@code HexStream} do: the face and its size live in {@code theme.css}, so a hard-coded width
+     * in Java is a second source of truth that drifts the first time the stylesheet changes — and
+     * the symptom is a strip that no longer reaches its edge, which fails no build.
+     */
+    public Greeble filling() {
+        filling = true;
+        setMaxWidth(Double.MAX_VALUE);
+        widthProperty().addListener((obs, was, now) -> refit());
+        refit();
+        return this;
+    }
+
+    private void refit() {
+        double available = getWidth();
+        if (!filling || available <= 0) {
+            return;
+        }
+        if (cellWidth <= 0) {
+            applyCss();
+            javafx.scene.text.Text probe = new javafx.scene.text.Text("0");
+            probe.setFont(getFont());
+            cellWidth = probe.getLayoutBounds().getWidth();
+        }
+        if (cellWidth <= 0) {
+            return;
+        }
+        int wanted = Math.max(8, (int) Math.floor(available / cellWidth));
+        if (wanted != length) {
+            length = wanted;
+            repaint();
+        }
     }
 
     /** A greeble strip with the hairline and padding that separates it from the panel body. */
@@ -84,7 +144,10 @@ public final class Greeble extends Label {
     private void repaint() {
         StringBuilder out = new StringBuilder(length + 8);
         int guard = 0;
-        while (out.length() < length && guard++ < 80) {
+        // ⚠ The guard scales with the length. It was a flat 80, which was fine while every
+        // strip was ~82 characters and silently truncated a filled one on a wide panel —
+        // the loop ran out of iterations before the string ran out of room.
+        while (out.length() < length && guard++ < length + 20) {
             double roll = random.nextDouble();
             // Agitation steals probability from the quiet fragments and gives it to the marks. The
             // distribution below is the reference implementation's, shifted by that one term.

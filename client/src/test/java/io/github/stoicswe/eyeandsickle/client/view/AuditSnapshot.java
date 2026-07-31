@@ -77,8 +77,7 @@ public final class AuditSnapshot {
         Winding clock = new Winding(T0);
         SoloGame game = SoloGame.open(new SaveStore(profileDir.resolve("save.json")), "kyyrell", clock);
         LocalGameSession session = new LocalGameSession(game);
-        Shell shell = new Shell(session,
-                io.github.stoicswe.eyeandsickle.client.shell.BuiltinCommands.registry());
+        Shell shell = new Shell(session, io.github.stoicswe.eyeandsickle.client.shell.BuiltinCommands.registry());
 
         // Two completed audits so the history has both shapes in it — a hit and a clean run.
         session.scan("quick");
@@ -100,21 +99,36 @@ public final class AuditSnapshot {
             // The second chip is STATUS. Fired rather than reached for by a setter: the click path
             // is what a player has, so it is the path worth rendering through.
             var chips = new java.util.ArrayList<>(panel.lookupAll(".es-breach-chip"));
-            chips.get(1).fireEvent(new javafx.scene.input.MouseEvent(
-                    javafx.scene.input.MouseEvent.MOUSE_CLICKED, 4, 4, 4, 4,
-                    javafx.scene.input.MouseButton.PRIMARY, 1,
-                    false, false, false, false, true, false, false, true, false, false, null));
+            chips.get(1)
+                    .fireEvent(new javafx.scene.input.MouseEvent(
+                            javafx.scene.input.MouseEvent.MOUSE_CLICKED,
+                            4,
+                            4,
+                            4,
+                            4,
+                            javafx.scene.input.MouseButton.PRIMARY,
+                            1,
+                            false,
+                            false,
+                            false,
+                            false,
+                            true,
+                            false,
+                            false,
+                            true,
+                            false,
+                            false,
+                            null));
         });
     }
 
-    private static void shoot(ThemeManager themes, Region panel, Path to, int w, int h)
-            throws Exception {
+    private static void shoot(ThemeManager themes, Region panel, Path to, int w, int h) throws Exception {
         shoot(themes, panel, to, w, h, p -> {});
     }
 
     private static void shoot(
-            ThemeManager themes, Region panel, Path to, int w, int h,
-            java.util.function.Consumer<Region> drive) throws Exception {
+            ThemeManager themes, Region panel, Path to, int w, int h, java.util.function.Consumer<Region> drive)
+            throws Exception {
         StackPane host = new StackPane(panel);
         host.getStyleClass().add("es-scene-ground");
         Scene scene = new Scene(host, w, h);

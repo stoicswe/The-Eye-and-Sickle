@@ -176,8 +176,8 @@ public final class Notifications extends VBox {
         boolean severe = line.severity() <= RigEventSeverity.WARNING;
         slideIn(toast);
         double dwell = severe ? DWELL_SEVERE_MS : DWELL_MS;
-        Timeline expiry = new Timeline(new KeyFrame(
-                Duration.millis(dwell), e -> getChildren().remove(toast)));
+        Timeline expiry = new Timeline(
+                new KeyFrame(Duration.millis(dwell), e -> getChildren().remove(toast)));
         expiry.play();
     }
 
@@ -222,9 +222,10 @@ public final class Notifications extends VBox {
         double step = UiTokens.REVEAL_MS / UiTokens.REVEAL_STEPS;
         for (int i = 1; i <= UiTokens.REVEAL_STEPS; i++) {
             double remaining = travel * (1 - i / (double) UiTokens.REVEAL_STEPS);
-            slide.getKeyFrames().add(new KeyFrame(
-                    Duration.millis(step * i),
-                    new KeyValue(toast.translateXProperty(), remaining, Interpolator.DISCRETE)));
+            slide.getKeyFrames()
+                    .add(new KeyFrame(
+                            Duration.millis(step * i),
+                            new KeyValue(toast.translateXProperty(), remaining, Interpolator.DISCRETE)));
         }
         slide.play();
     }

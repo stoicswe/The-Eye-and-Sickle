@@ -37,8 +37,7 @@ class FootholdAfterBreachTest {
     private static final Instant T0 = Instant.parse("2026-07-29T09:00:00Z");
 
     private static SoloGame game(Path dir) {
-        return SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator",
-                Clock.fixed(T0, ZoneOffset.UTC));
+        return SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", Clock.fixed(T0, ZoneOffset.UTC));
     }
 
     /**
@@ -119,14 +118,14 @@ class FootholdAfterBreachTest {
         // has to settle it as well — otherwise the bug is permanent for anyone who already breached
         // something. This is also the idempotence check: reconcileFootholds is safe to replay because
         // `foothold` and `looted` are both one-way, so the loot must not be credited a second time.
-        SoloGame reloaded = SoloGame.open(
-                new SaveStore(dir.resolve("save.json")), "operator", Clock.fixed(T0, ZoneOffset.UTC));
+        SoloGame reloaded =
+                SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", Clock.fixed(T0, ZoneOffset.UTC));
         assertThat(on(reloaded.net(), host.address).foothold()).isTrue();
 
         java.math.BigInteger afterFirstLoad = reloaded.balance().wei();
         reloaded.persist();
-        SoloGame again = SoloGame.open(
-                new SaveStore(dir.resolve("save.json")), "operator", Clock.fixed(T0, ZoneOffset.UTC));
+        SoloGame again =
+                SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", Clock.fixed(T0, ZoneOffset.UTC));
         assertThat(again.balance().wei())
                 .as("a host's one-time loot is one-time across loads")
                 .isEqualTo(afterFirstLoad);

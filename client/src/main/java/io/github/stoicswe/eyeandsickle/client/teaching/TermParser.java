@@ -29,12 +29,22 @@ public final class TermParser {
 
     /** Every key the header may contain. Anything else is an error, not a warning. */
     private static final List<String> KNOWN_KEYS = List.of(
-            "id", "section", "name", "canonical", "gloss", "status", "aliases", "glossary", "seeAlso",
-            "reading", "notes", "revision");
+            "id",
+            "section",
+            "name",
+            "canonical",
+            "gloss",
+            "status",
+            "aliases",
+            "glossary",
+            "seeAlso",
+            "reading",
+            "notes",
+            "revision");
 
     /** Every body heading a page may carry — the real man sections plus the two game additions. */
-    private static final List<String> KNOWN_SECTIONS = List.of(
-            "SYNOPSIS", "DESCRIPTION", "OPTIONS", "EXIT STATUS", "REAL-WORLD COUNTERPART", "CAVEATS");
+    private static final List<String> KNOWN_SECTIONS =
+            List.of("SYNOPSIS", "DESCRIPTION", "OPTIONS", "EXIT STATUS", "REAL-WORLD COUNTERPART", "CAVEATS");
 
     /** Maximum gloss length, from §4.8.2. A gloss that needs more than this is two glosses. */
     public static final int MAX_GLOSS = 72;
@@ -159,8 +169,8 @@ public final class TermParser {
         }
         // Mandatory on every simplified page, because the caveat IS the simplification's disclosure.
         if (status == TermPage.Status.REAL_SIMPLIFIED && !body.containsKey("CAVEATS")) {
-            throw new TermFormatException(origin + ": a `real, simplified` page must carry CAVEATS "
-                    + "naming what was simplified (§4.3.1)");
+            throw new TermFormatException(
+                    origin + ": a `real, simplified` page must carry CAVEATS " + "naming what was simplified (§4.3.1)");
         }
 
         return new TermPage(

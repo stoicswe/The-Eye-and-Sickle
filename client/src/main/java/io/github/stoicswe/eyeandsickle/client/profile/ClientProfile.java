@@ -305,7 +305,7 @@ public final class ClientProfile {
         }
 
         /** Theme id, e.g. {@code deck} or {@code deck-hc}. Lowercase, per the glossary's convention. */
-                /**
+        /**
          * {@code explain} | {@code terms} | {@code off} — {@code docs/client/04} §3.10's {@code teach}
          * command. Defaults to {@code explain}, which is right for the audience the education goal
          * targets and probably wrong for a player who already knows Unix; CL-4 / T-2 tracks that.
@@ -323,7 +323,7 @@ public final class ClientProfile {
          * run a deliberately enlarged or high-contrast one; replacing it by default would be an
          * accessibility regression dressed as art direction. The custom skins are opt-in.
          */
-                /** Master switch for the slide-in notices. Everything they say stays in the log either way. */
+        /** Master switch for the slide-in notices. Everything they say stays in the log either way. */
         public boolean notificationsEnabled = true;
 
         /**
@@ -466,51 +466,51 @@ public final class ClientProfile {
          */
         public String rigHostname = Hostname.DEFAULT;
 
-    /**
-     * Whether every window in the game is drawn with rounded corners.
-     *
-     * <p>Permitted by {@code docs/design/ui-design-language.md} §9.3, amended 2026-07-28 to allow more
-     * user controllability — the same direction §9.1 already took for screen artefacts.
-     *
-     * <p>⚠ <b>Off by default</b>, because the failure §1 names is <em>a competent dark-mode
-     * developer tool</em> and hard edges are most of what keeps this deck from being one. A player
-     * who prefers soft corners on their own screen is not a design problem; a shipped default that
-     * drifts toward the generic is. What it must never round is anything a <em>measurement</em> is
-     * read off — see §9.3.
-     */
         /**
-     * Whether the game window wears the operating system's own frame instead of drawing its own.
-     *
-     * <p>⚠ <b>Off by default, and this is the one setting that contradicts §0 outright.</b>
-     * {@code docs/design/ui-design-language.md} §0 cancelled the {@code Stage}-per-tool model on the
-     * grounds that "the entire aesthetic depends on the player never seeing their own operating
-     * system", and §10 criterion 1 makes no visible OS chrome an acceptance criterion. Turning this
-     * on gives the player back a real title bar, real traffic lights, and a window that looks like
-     * every other window on their desk.
-     *
-     * <p>It is offered under §0.1 (amended 2026-07-28) for the same reason §9.1 permits screen
-     * artefacts and §9.3 permits rounded corners: it is the player's machine. What matters is that
-     * the <b>default</b> still describes the game — a player who never opens Settings sees the deck
-     * the design language specifies.
-     *
-     * <p>⚠ Needs a restart, unavoidably. {@code initStyle} is rejected on a realised Stage, and
-     * {@code DECORATED} and {@code TRANSPARENT} cannot both be true of one window.
-     */
-    public boolean nativeWindowBorder = false;
+         * Whether every window in the game is drawn with rounded corners.
+         *
+         * <p>Permitted by {@code docs/design/ui-design-language.md} §9.3, amended 2026-07-28 to allow more
+         * user controllability — the same direction §9.1 already took for screen artefacts.
+         *
+         * <p>⚠ <b>Off by default</b>, because the failure §1 names is <em>a competent dark-mode
+         * developer tool</em> and hard edges are most of what keeps this deck from being one. A player
+         * who prefers soft corners on their own screen is not a design problem; a shipped default that
+         * drifts toward the generic is. What it must never round is anything a <em>measurement</em> is
+         * read off — see §9.3.
+         */
+        /**
+         * Whether the game window wears the operating system's own frame instead of drawing its own.
+         *
+         * <p>⚠ <b>Off by default, and this is the one setting that contradicts §0 outright.</b>
+         * {@code docs/design/ui-design-language.md} §0 cancelled the {@code Stage}-per-tool model on the
+         * grounds that "the entire aesthetic depends on the player never seeing their own operating
+         * system", and §10 criterion 1 makes no visible OS chrome an acceptance criterion. Turning this
+         * on gives the player back a real title bar, real traffic lights, and a window that looks like
+         * every other window on their desk.
+         *
+         * <p>It is offered under §0.1 (amended 2026-07-28) for the same reason §9.1 permits screen
+         * artefacts and §9.3 permits rounded corners: it is the player's machine. What matters is that
+         * the <b>default</b> still describes the game — a player who never opens Settings sees the deck
+         * the design language specifies.
+         *
+         * <p>⚠ Needs a restart, unavoidably. {@code initStyle} is rejected on a realised Stage, and
+         * {@code DECORATED} and {@code TRANSPARENT} cannot both be true of one window.
+         */
+        public boolean nativeWindowBorder = false;
 
-    /**
-     * The order of {@code [×] [−] [+]} on windows inside the game — {@code system}, {@code macos}
-     * or {@code windows}.
-     *
-     * <p>⚠ <b>Order only, and desk windows only.</b> It never changes which side the controls are
-     * on — that is a platform convention the outer window follows unconditionally — and it never
-     * touches the outer window, which sits beside the player's real windows and is judged against
-     * them. See {@code ui/chrome/ControlOrder}.
-     *
-     * <p>Defaults to {@code system}: whatever this computer does, because that is the arrangement
-     * the player's hand already knows.
-     */
-            /** Which solo slot was last played, so the menu can pre-select it. 1-based; 0 means none. */
+        /**
+         * The order of {@code [×] [−] [+]} on windows inside the game — {@code system}, {@code macos}
+         * or {@code windows}.
+         *
+         * <p>⚠ <b>Order only, and desk windows only.</b> It never changes which side the controls are
+         * on — that is a platform convention the outer window follows unconditionally — and it never
+         * touches the outer window, which sits beside the player's real windows and is judged against
+         * them. See {@code ui/chrome/ControlOrder}.
+         *
+         * <p>Defaults to {@code system}: whatever this computer does, because that is the arrangement
+         * the player's hand already knows.
+         */
+        /** Which solo slot was last played, so the menu can pre-select it. 1-based; 0 means none. */
         public int lastSoloSlot = 0;
 
         /**

@@ -178,20 +178,20 @@ class RunningTaskTest {
             // the player is away has to still be there when they return.
             Path file = dir.resolve("s.json");
             MutableClock clock = new MutableClock(T0);
-            SoloGame first = io.github.stoicswe.eyeandsickle.client.support.TestSaves.bare(
-                    new SaveStore(file), "op", clock);
+            SoloGame first =
+                    io.github.stoicswe.eyeandsickle.client.support.TestSaves.bare(new SaveStore(file), "op", clock);
             new LocalGameSession(first).scan("full");
             first.persist();
 
             MutableClock later = new MutableClock(T0.plus(Duration.ofHours(2)));
-            LocalGameSession reopened =
-                    new LocalGameSession(io.github.stoicswe.eyeandsickle.client.support.TestSaves.bare(
-                            new SaveStore(file), "op", later));
+            LocalGameSession reopened = new LocalGameSession(
+                    io.github.stoicswe.eyeandsickle.client.support.TestSaves.bare(new SaveStore(file), "op", later));
 
             reopened.tick();
             assertThat(reopened.tasks()).as("the scan finished while away").isEmpty();
             assertThat(reopened.log(7, 200))
-                    .anyMatch(l -> l.message().contains("scan --full") && l.message().contains("finished"));
+                    .anyMatch(l ->
+                            l.message().contains("scan --full") && l.message().contains("finished"));
         }
     }
 

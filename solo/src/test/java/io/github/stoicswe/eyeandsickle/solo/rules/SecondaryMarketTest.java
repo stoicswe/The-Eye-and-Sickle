@@ -55,12 +55,9 @@ class SecondaryMarketTest {
             // A flat chance would make defection a price, and a price is something a player budgets
             // for. A rising one cannot be budgeted: the first is usually free, the fifth usually is
             // not, and the seller never knows which one costs them.
-            assertThat(SecondaryMarket.detectionChance(0))
-                    .isEqualTo(SecondaryMarket.BASE_DETECTION_PERCENT);
-            assertThat(SecondaryMarket.detectionChance(1))
-                    .isGreaterThan(SecondaryMarket.detectionChance(0));
-            assertThat(SecondaryMarket.detectionChance(4))
-                    .isGreaterThan(SecondaryMarket.detectionChance(2));
+            assertThat(SecondaryMarket.detectionChance(0)).isEqualTo(SecondaryMarket.BASE_DETECTION_PERCENT);
+            assertThat(SecondaryMarket.detectionChance(1)).isGreaterThan(SecondaryMarket.detectionChance(0));
+            assertThat(SecondaryMarket.detectionChance(4)).isGreaterThan(SecondaryMarket.detectionChance(2));
         }
 
         @Test
@@ -74,8 +71,7 @@ class SecondaryMarketTest {
         void asymmetric() {
             // If honesty paid back as fast as defection cost, the optimal play would be to
             // alternate and the score would measure nothing but volume.
-            assertThat(SecondaryMarket.DELIVERY_REWARD)
-                    .isLessThan(SecondaryMarket.DEFECTION_PENALTY);
+            assertThat(SecondaryMarket.DELIVERY_REWARD).isLessThan(SecondaryMarket.DEFECTION_PENALTY);
         }
 
         @Test

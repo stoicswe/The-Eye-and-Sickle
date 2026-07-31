@@ -46,7 +46,8 @@ public final class ManCommands {
             // no REAL-WORLD COUNTERPART does not conclude their memory is faulty (§4.3.1).
             out.add(section.getKey() + (TermPage.isGameAdded(section.getKey()) ? "    [added by this game]" : ""));
             if ("REAL-WORLD COUNTERPART".equals(section.getKey())) {
-                out.add("       status: " + page.status().label() + " — " + page.status().explanation());
+                out.add("       status: " + page.status().label() + " — "
+                        + page.status().explanation());
                 out.add("");
             }
             for (String line : section.getValue().split("\n")) {
@@ -99,7 +100,8 @@ public final class ManCommands {
                     if (inSection.isEmpty()) {
                         continue;
                     }
-                    out.add("  section " + section + " — " + inSection.getFirst().sectionMeaning());
+                    out.add("  section " + section + " — "
+                            + inSection.getFirst().sectionMeaning());
                     for (TermPage page : inSection) {
                         out.add("      " + page.id());
                     }
@@ -144,8 +146,9 @@ public final class ManCommands {
             if (query.isBlank()) {
                 return Output.usage(name + " <text>");
             }
-            List<TermPage> hits =
-                    exact ? terms.whatis(query) : terms.apropos(query, invocation.stage().hasFlag("all"));
+            List<TermPage> hits = exact
+                    ? terms.whatis(query)
+                    : terms.apropos(query, invocation.stage().hasFlag("all"));
             if (hits.isEmpty()) {
                 return new Output(List.of(name + ": nothing appropriate."), ExitStatus.REFUSED);
             }

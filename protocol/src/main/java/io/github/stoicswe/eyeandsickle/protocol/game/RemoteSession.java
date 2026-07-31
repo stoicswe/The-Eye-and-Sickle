@@ -23,13 +23,7 @@ import java.time.Instant;
  * @param cycles compute this session is holding for as long as it stays open
  * @param self whether this is the player's own rig, which is always reachable and never a foothold
  */
-public record RemoteSession(
-        String address,
-        String label,
-        String cwd,
-        Instant openedAt,
-        long cycles,
-        boolean self) {
+public record RemoteSession(String address, String label, String cwd, Instant openedAt, long cycles, boolean self) {
 
     /** What the session's prompt and window title show. Falls back to the address, never to blank. */
     public String displayName() {

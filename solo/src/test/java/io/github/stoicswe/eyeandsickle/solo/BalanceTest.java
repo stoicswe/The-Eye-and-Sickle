@@ -121,8 +121,7 @@ class BalanceTest {
                 assertThat(Balance.netDefendedChance(depth)).isGreaterThan(Balance.netDefendedChance(depth - 1));
                 assertThat(Balance.netHoneypotChance(depth)).isGreaterThan(Balance.netHoneypotChance(depth - 1));
                 assertThat(Balance.netDocumentChance(depth)).isGreaterThan(Balance.netDocumentChance(depth - 1));
-                assertThat(Balance.netCounterHackChance(depth))
-                        .isGreaterThan(Balance.netCounterHackChance(depth - 1));
+                assertThat(Balance.netCounterHackChance(depth)).isGreaterThan(Balance.netCounterHackChance(depth - 1));
             }
             // Home is where the game teaches. A tarpit surcharges every action, which is exactly the
             // defence that punishes a player still learning to read a board.
@@ -260,8 +259,7 @@ class BalanceTest {
             assertThat(Balance.NET_SWEEP_WIDE_PRICE).isGreaterThan(Balance.ec("15"));
             assertThat(Balance.NET_SWEEP_WIDE_PRICE).isLessThan(Balance.PRICE_MID_TIER_MIN);
             // Squarely inside the mid-tier band — about one cautious session.
-            assertThat(Balance.NET_SWEEP_DEEP_PRICE)
-                    .isBetween(Balance.PRICE_MID_TIER_MIN, Balance.PRICE_MID_TIER_MAX);
+            assertThat(Balance.NET_SWEEP_DEEP_PRICE).isBetween(Balance.PRICE_MID_TIER_MIN, Balance.PRICE_MID_TIER_MAX);
 
             // Inside docs/design/07-recon-tools.md §1's established 2–14 recon compute range, and
             // rising — the cycles ARE the noise, so this ordering is also the noise ordering.
@@ -286,8 +284,7 @@ class BalanceTest {
             assertThat(Balance.NET_SERVER_DEEPEN_BIAS).isBetween(0.0d, 1.0d);
             assertThat(Balance.NET_SERVER_CHORD_CHANCE).isBetween(0.0d, 1.0d);
             assertThat(Balance.NET_INTRA_CHORD_CHANCE).isBetween(0.0d, 1.0d);
-            assertThat(Balance.NET_HOME_SEED_NEIGHBOURS)
-                    .isGreaterThan(Balance.NET_HOME_GUARANTEED_CONTACTS);
+            assertThat(Balance.NET_HOME_SEED_NEIGHBOURS).isGreaterThan(Balance.NET_HOME_GUARANTEED_CONTACTS);
         }
     }
 }

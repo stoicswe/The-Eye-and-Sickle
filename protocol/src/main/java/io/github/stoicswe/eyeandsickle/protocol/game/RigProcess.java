@@ -100,8 +100,7 @@ public record RigProcess(
         // both would let a player kill a process the rig cannot run without by picking the other
         // menu item — the guard would be in one place and the bug in the other.
         if (killable && restartable) {
-            throw new IllegalArgumentException(
-                    "a process is killable or restartable, never both: " + name);
+            throw new IllegalArgumentException("a process is killable or restartable, never both: " + name);
         }
     }
 

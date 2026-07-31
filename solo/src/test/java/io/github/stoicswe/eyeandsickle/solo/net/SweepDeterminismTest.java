@@ -54,7 +54,8 @@ class SweepDeterminismTest {
 
     /** What one tier finds, on a world nothing has swept yet. */
     private static Set<String> detected(long seed, SweepTier tier) {
-        return new HashSet<>(NetTestKit.sweep(equipped(seed), tier, NetTestKit.T0).foundAddresses());
+        return new HashSet<>(
+                NetTestKit.sweep(equipped(seed), tier, NetTestKit.T0).foundAddresses());
     }
 
     @Nested
@@ -70,7 +71,9 @@ class SweepDeterminismTest {
                 SweepReport second = NetTestKit.sweep(save, SweepTier.BASE, NetTestKit.T0.plusSeconds(60));
 
                 assertThat(first.found()).isPositive();
-                assertThat(second.found()).as("second sweep on seed %d", seed(i)).isZero();
+                assertThat(second.found())
+                        .as("second sweep on seed %d", seed(i))
+                        .isZero();
                 // The number in range does NOT drop — that is the point of publishing it. The player
                 // learns their instrument's sensitivity ("nine in range, I have four"), which is the
                 // one aggregate that carries no address, type, tier or value.
@@ -86,7 +89,8 @@ class SweepDeterminismTest {
         void settlementIsPure() {
             for (int i = 0; i < SAMPLE; i++) {
                 SoloSave save = NetTestKit.world(seed(i));
-                TaskState task = NetRules.beginSweep(save, SweepTier.BASE, NetTestKit.T0).orElseThrow();
+                TaskState task =
+                        NetRules.beginSweep(save, SweepTier.BASE, NetTestKit.T0).orElseThrow();
                 long afterBegin = save.rngSeed;
 
                 NetRules.settleSweep(save, task, NetTestKit.T0.plusSeconds(20));
@@ -102,7 +106,8 @@ class SweepDeterminismTest {
         @DisplayName("a sweep's whole result is frozen at begin, and reading it back changes nothing")
         void theReportIsFrozen() {
             SoloSave save = NetTestKit.world(seed(5));
-            TaskState task = NetRules.beginSweep(save, SweepTier.BASE, NetTestKit.T0).orElseThrow();
+            TaskState task =
+                    NetRules.beginSweep(save, SweepTier.BASE, NetTestKit.T0).orElseThrow();
 
             SweepReport a = NetRules.report(task);
             SweepReport b = NetRules.report(task);
@@ -115,8 +120,8 @@ class SweepDeterminismTest {
         @Test
         @DisplayName("a sweep from a build that predates the encoding reports nothing rather than guessing")
         void anUnreadableOutcomeIsHonest() {
-            TaskState legacy = new TaskState(
-                    "sweep", "sweep", "alloc", 2L, NetTestKit.T0, NetTestKit.T0.plusSeconds(20));
+            TaskState legacy =
+                    new TaskState("sweep", "sweep", "alloc", 2L, NetTestKit.T0, NetTestKit.T0.plusSeconds(20));
             legacy.outcome = "some older shape entirely";
 
             SweepReport report = NetRules.report(legacy);
@@ -140,8 +145,12 @@ class SweepDeterminismTest {
                 Set<String> wide = detected(seed(i), SweepTier.WIDE);
                 Set<String> deep = detected(seed(i), SweepTier.DEEP);
 
-                assertThat(wide).as("wide keeps everything base found, seed %d", seed(i)).containsAll(base);
-                assertThat(deep).as("deep keeps everything wide found, seed %d", seed(i)).containsAll(wide);
+                assertThat(wide)
+                        .as("wide keeps everything base found, seed %d", seed(i))
+                        .containsAll(base);
+                assertThat(deep)
+                        .as("deep keeps everything wide found, seed %d", seed(i))
+                        .containsAll(wide);
             }
         }
 
@@ -225,7 +234,8 @@ class SweepDeterminismTest {
 
             assertThat(NetRules.connect(save, "10.99.99.99", NetTestKit.T0)).isFalse();
             // Home is always reachable — a player can never strand themselves off their own rig.
-            assertThat(NetRules.connect(save, save.topology.playerAddress, NetTestKit.T0)).isTrue();
+            assertThat(NetRules.connect(save, save.topology.playerAddress, NetTestKit.T0))
+                    .isTrue();
         }
 
         @Test
@@ -267,7 +277,8 @@ class SweepDeterminismTest {
                     // ⚠ NodeState's class javadoc calls this rule load-bearing rather than tidy: the
                     // virtual namespace, tab completion and `ls /net/` are all built from this list,
                     // so a node that has not been paid for cannot leak through any of them.
-                    assertThat(NetTestKit.host(save.topology, node.address).discovered).isTrue();
+                    assertThat(NetTestKit.host(save.topology, node.address).discovered)
+                            .isTrue();
                 }
 
                 var map = NetRules.view(save);
@@ -279,7 +290,8 @@ class SweepDeterminismTest {
                 }
                 // Every link the map publishes has both ends in the map — no stub, no placeholder, no
                 // "three contacts nearby".
-                List<String> addresses = map.sightings().stream().map(s -> s.address()).toList();
+                List<String> addresses =
+                        map.sightings().stream().map(s -> s.address()).toList();
                 for (var link : map.links()) {
                     assertThat(addresses).contains(link.fromAddress(), link.toAddress());
                 }

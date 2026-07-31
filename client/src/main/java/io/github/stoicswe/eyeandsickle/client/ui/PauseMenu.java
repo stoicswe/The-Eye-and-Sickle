@@ -101,12 +101,10 @@ public final class PauseMenu extends StackPane {
         // Same 18px notch as every other panel. Recomputed on resize for the same reason
         // WindowFrame does it: -fx-shape would scale the cut instead of holding it (§7.2).
         framed.layoutBoundsProperty().addListener((obs, was, now) -> {
-            framed.setClip(new Polygon(
-                    io.github.stoicswe.eyeandsickle.client.ui.chrome.WindowFrame.notchPoints(
-                            now.getWidth(), now.getHeight())));
-            inner.setClip(new Polygon(
-                    io.github.stoicswe.eyeandsickle.client.ui.chrome.WindowFrame.notchPoints(
-                            now.getWidth() - 2 * UiTokens.HAIR, now.getHeight() - 2 * UiTokens.HAIR)));
+            framed.setClip(new Polygon(io.github.stoicswe.eyeandsickle.client.ui.chrome.WindowFrame.notchPoints(
+                    now.getWidth(), now.getHeight())));
+            inner.setClip(new Polygon(io.github.stoicswe.eyeandsickle.client.ui.chrome.WindowFrame.notchPoints(
+                    now.getWidth() - 2 * UiTokens.HAIR, now.getHeight() - 2 * UiTokens.HAIR)));
         });
         return framed;
     }
@@ -135,25 +133,26 @@ public final class PauseMenu extends StackPane {
     }
 
     private void showDefaultActions() {
-        buttons.getChildren().setAll(
-                item("Save now", () -> {
-                    actions.save();
-                    // Confirmed in words, in place. A save that reports nothing is indistinguishable
-                    // from a save that did not happen, and this game autosaves on a timer — so the
-                    // player has no other way to tell whether pressing this did anything.
-                    status.setText(Ui.upper("saved"));
-                }),
-                item("Settings", () -> {
-                    // Opens the Settings TOOL on the desk rather than inside this overlay. Settings
-                    // is a window in the catalogue with an id, an accelerator and a switcher entry;
-                    // duplicating it here would be a second copy of controls that write the same
-                    // profile, and the two would drift.
-                    close();
-                    actions.openSettings();
-                }),
-                item("Quit to menu", actions::quitToMenu),
-                item("Quit game", this::confirmQuit),
-                item("Resume", this::close));
+        buttons.getChildren()
+                .setAll(
+                        item("Save now", () -> {
+                            actions.save();
+                            // Confirmed in words, in place. A save that reports nothing is indistinguishable
+                            // from a save that did not happen, and this game autosaves on a timer — so the
+                            // player has no other way to tell whether pressing this did anything.
+                            status.setText(Ui.upper("saved"));
+                        }),
+                        item("Settings", () -> {
+                            // Opens the Settings TOOL on the desk rather than inside this overlay. Settings
+                            // is a window in the catalogue with an id, an accelerator and a switcher entry;
+                            // duplicating it here would be a second copy of controls that write the same
+                            // profile, and the two would drift.
+                            close();
+                            actions.openSettings();
+                        }),
+                        item("Quit to menu", actions::quitToMenu),
+                        item("Quit game", this::confirmQuit),
+                        item("Resume", this::close));
     }
 
     private void confirmQuit() {
@@ -161,7 +160,9 @@ public final class PauseMenu extends StackPane {
         question.setWrapText(true);
         question.getStyleClass().add("es-note-text");
 
-        VBox confirm = new VBox(UiTokens.SPACE_2, question,
+        VBox confirm = new VBox(
+                UiTokens.SPACE_2,
+                question,
                 item("Yes, quit", actions::quitGame),
                 item("No, go back", this::showDefaultActions));
         buttons.getChildren().setAll(confirm);
@@ -189,8 +190,7 @@ public final class PauseMenu extends StackPane {
         });
         io.github.stoicswe.eyeandsickle.client.ui.cursors.Cursors.shared().clickable(row);
         row.setOnKeyPressed(e -> {
-            if (e.getCode() == javafx.scene.input.KeyCode.SPACE
-                    || e.getCode() == javafx.scene.input.KeyCode.ENTER) {
+            if (e.getCode() == javafx.scene.input.KeyCode.SPACE || e.getCode() == javafx.scene.input.KeyCode.ENTER) {
                 e.consume();
                 action.run();
             }

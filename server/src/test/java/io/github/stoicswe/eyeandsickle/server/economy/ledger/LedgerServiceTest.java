@@ -51,13 +51,15 @@ class LedgerServiceTest {
                 character.accountDid(),
                 character.slot(),
                 Ethecoin.ofWei(java.math.BigInteger.valueOf(balanceMinor)
-                        .multiply(Ethecoin.WEI_PER_ETHECOIN).divide(java.math.BigInteger.valueOf(100))),
+                        .multiply(Ethecoin.WEI_PER_ETHECOIN)
+                        .divide(java.math.BigInteger.valueOf(100))),
                 java.math.BigDecimal.ZERO,
                 0L);
     }
 
     private java.math.BigInteger localSupply() {
-        return accounts.balanceOf(ALICE).wei()
+        return accounts.balanceOf(ALICE)
+                .wei()
                 .add(accounts.currentByCharacter(BOB)
                         .map(a -> a.balance().wei())
                         .orElse(java.math.BigInteger.ZERO));
@@ -173,8 +175,8 @@ class LedgerServiceTest {
         @DisplayName("a self-directed transfer is refused")
         void selfTransferRejected() {
             accounts.with(account(ALICE, 1_000));
-            assertThatThrownBy(() ->
-                            service.transfer(ALICE, ALICE, Ethecoin.ofDecimal("0.01"), LedgerEntryType.TRADE, true, null))
+            assertThatThrownBy(() -> service.transfer(
+                            ALICE, ALICE, Ethecoin.ofDecimal("0.01"), LedgerEntryType.TRADE, true, null))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("two distinct parties");
             assertThat(ledger.appended).isEmpty();
@@ -253,8 +255,8 @@ class LedgerServiceTest {
         void transferBetweenOwnCharacters() {
             accounts.with(account(ALICE, 1_000)).with(account(ALICE_SLOT_2, 0));
 
-            LedgerTransaction row = service.transfer(
-                    ALICE, ALICE_SLOT_2, Ethecoin.ofDecimal("3"), LedgerEntryType.TRADE, true, null);
+            LedgerTransaction row =
+                    service.transfer(ALICE, ALICE_SLOT_2, Ethecoin.ofDecimal("3"), LedgerEntryType.TRADE, true, null);
 
             // Only reachable because the two characters are distinct money holders: the debit lands on one,
             // the credit on the other, and the ledger records the character DIDs as the two parties.

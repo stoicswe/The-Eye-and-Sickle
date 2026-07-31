@@ -1,11 +1,11 @@
 package io.github.stoicswe.eyeandsickle.solo.breach;
 
-import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachAction;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachActionKind;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachOutcome;
 import io.github.stoicswe.eyeandsickle.protocol.game.BreachTarget;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeConsumer;
+import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
 import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.net.NodeReports;
@@ -100,9 +100,10 @@ public final class BreachRules {
             // carry out again. It reads as the game refusing to let them try the same target twice.
             // The outcome slate is deliberately not self-clearing (docs/design/05 §1 constraint 4:
             // a loss has to stay readable), so the correct answer names the control that clears it.
-            return BreachResult.refused(save.activeBreach.outcome.isEmpty()
-                    ? "a breach is already open; abort it first"
-                    : "the last attempt is still on screen; dismiss it to start another");
+            return BreachResult.refused(
+                    save.activeBreach.outcome.isEmpty()
+                            ? "a breach is already open; abort it first"
+                            : "the last attempt is still on screen; dismiss it to start another");
         }
         if (target == null) {
             return BreachResult.refused("no such target");
@@ -142,7 +143,9 @@ public final class BreachRules {
 
         save.activeBreach = breach;
         int budget = breach.layers.isEmpty() ? 0 : breach.layers.getFirst().budget;
-        EventLog.notice(save, "breach",
+        EventLog.notice(
+                save,
+                "breach",
                 "breach opened on " + breach.targetLabel + ": tier " + breach.difficultyTier + ", "
                         + breach.layers.size() + " layer(s), " + budget + " attention.",
                 now);
@@ -282,8 +285,7 @@ public final class BreachRules {
      */
     private static void spikeOnAbandon(SoloSave save, boolean minerCrack, Instant now) {
         Rng rng = Rng.of(save);
-        long span = Balance.BREACH_ABANDON_SPIKE_MAX_SECONDS
-                - Balance.BREACH_ABANDON_SPIKE_MIN_SECONDS + 1;
+        long span = Balance.BREACH_ABANDON_SPIKE_MAX_SECONDS - Balance.BREACH_ABANDON_SPIKE_MIN_SECONDS + 1;
         long seconds = Balance.BREACH_ABANDON_SPIKE_MIN_SECONDS + rng.nextInt((int) span);
         rng.commit(save);
 
@@ -292,9 +294,11 @@ public final class BreachRules {
         }
         save.noiseSpikeCycles = Balance.BREACH_ABANDON_SPIKE_CYCLES;
         save.noiseSpikeUntil = now.plusSeconds(seconds);
-        EventLog.notice(save, "breach",
-                "disengaged mid-session — the dropped connection is radiating for about "
-                        + seconds + "s. You are easier to find until it settles.",
+        EventLog.notice(
+                save,
+                "breach",
+                "disengaged mid-session — the dropped connection is radiating for about " + seconds
+                        + "s. You are easier to find until it settles.",
                 now);
     }
 
@@ -370,11 +374,16 @@ public final class BreachRules {
      */
     private static void matrixActions(BreachState breach, LayerState layer, List<BreachAction> out) {
         boolean room = layer.matrixBuffer.size() < layer.matrixBufferSize;
-        out.add(action(MatrixRules.PICK, BreachActionKind.PROBE, "TAKE CODE",
+        out.add(action(
+                MatrixRules.PICK,
+                BreachActionKind.PROBE,
+                "TAKE CODE",
                 layer.matrixRowTurn
                         ? "the path is in row " + layer.matrixCursorRow + " this pick"
                         : "the path is in column " + layer.matrixCursorColumn + " this pick",
-                surcharged(breach, Balance.ATTENTION_PROBE), "row:column", room,
+                surcharged(breach, Balance.ATTENTION_PROBE),
+                "row:column",
+                room,
                 "the buffer is full - nothing more can be taken"));
     }
 
@@ -391,19 +400,36 @@ public final class BreachRules {
      */
     private static void cipherActions(BreachState breach, LayerState layer, List<BreachAction> out) {
         int last = Math.max(0, layer.cipherObserved.size() - 1);
-        out.add(action(OffsetRules.TYPE, BreachActionKind.PROBE, "TYPE OFFSET",
+        out.add(action(
+                OffsetRules.TYPE,
+                BreachActionKind.PROBE,
+                "TYPE OFFSET",
                 "writes an offset under a byte; free, and reversible until you commit",
-                0, "index:value, e.g. 0:-9", true, ""));
+                0,
+                "index:value, e.g. 0:-9",
+                true,
+                ""));
 
         boolean full = layer.cipherEntered.stream().noneMatch(java.util.Objects::isNull);
-        out.add(action(OffsetRules.COMMIT, BreachActionKind.PROBE, "COMMIT",
+        out.add(action(
+                OffsetRules.COMMIT,
+                BreachActionKind.PROBE,
+                "COMMIT",
                 "submits every offset; a wrong one is a strike, and it only tells you which",
-                surcharged(breach, Balance.ATTENTION_PROBE), "", full,
+                surcharged(breach, Balance.ATTENTION_PROBE),
+                "",
+                full,
                 "every cell needs an offset before you can commit"));
 
-        out.add(action(OffsetRules.CARRY, BreachActionKind.LOUD_TOOL, "CARRY",
+        out.add(action(
+                OffsetRules.CARRY,
+                BreachActionKind.LOUD_TOOL,
+                "CARRY",
                 "solves one byte for you, loudly",
-                surcharged(breach, Balance.ATTENTION_LOUD_TOOL), "index 0-" + last, true, ""));
+                surcharged(breach, Balance.ATTENTION_LOUD_TOOL),
+                "index 0-" + last,
+                true,
+                ""));
     }
 
     /**
@@ -425,9 +451,14 @@ public final class BreachRules {
     private static BreachAction bypassAction(SoloSave save, BreachState breach, LayerState layer) {
         boolean owned = Targets.owns(save, "overflow-kit");
         boolean spent = breach.layers.stream().anyMatch(l -> "BYPASSED".equals(l.state));
-        return action("bypass", BreachActionKind.BYPASS, "OVERFLOW KIT",
+        return action(
+                "bypass",
+                BreachActionKind.BYPASS,
+                "OVERFLOW KIT",
                 "clears this layer outright, once per attempt; the cost is the point",
-                surcharged(breach, bypassCost(layer)), "", owned && !spent,
+                surcharged(breach, bypassCost(layer)),
+                "",
+                owned && !spent,
                 !owned
                         ? "requires the Overflow Kit, which is proof-of-skill gated - solve this class first"
                         : "the overflow kit is spent; one layer per attempt");
@@ -545,7 +576,9 @@ public final class BreachRules {
         if (!move.consequence().isEmpty()) {
             breach.consequences.add(move.consequence());
         }
-        EventLog.warning(save, "breach",
+        EventLog.warning(
+                save,
+                "breach",
                 "alarm on " + breach.targetLabel + ": " + layer.strikes + " of " + layer.strikeLimit
                         + " strikes on layer " + layer.index + ".",
                 now);
@@ -557,7 +590,9 @@ public final class BreachRules {
             if ("PENDING".equals(layer.state)) {
                 layer.state = "ACTIVE";
                 breach.activeLayer = layer.index;
-                EventLog.notice(save, "breach",
+                EventLog.notice(
+                        save,
+                        "breach",
                         "layer " + layer.index + " open on " + breach.targetLabel + ": "
                                 + layer.puzzleClass.toLowerCase(Locale.ROOT) + ", " + layer.budget + " attention.",
                         now);
@@ -623,9 +658,8 @@ public final class BreachRules {
             return;
         }
         io.github.stoicswe.eyeandsickle.solo.rules.IntrusionRules.plantCounterHack(save, depth, now);
-        breach.consequences.add(
-                "the machine answered: something of theirs is running on your rig now. "
-                        + "You were loud enough to be worth it.");
+        breach.consequences.add("the machine answered: something of theirs is running on your rig now. "
+                + "You were loud enough to be worth it.");
     }
 
     /**
@@ -686,8 +720,8 @@ public final class BreachRules {
         save.resolutions.add(record);
         breach.resolvedSchematicMaterial = SalvageRules.award(save, record);
         if (breach.resolvedSchematicMaterial > 0) {
-            breach.consequences.add("recovered " + breach.resolvedSchematicMaterial
-                    + " unit of schematic material (" + SalvageRules.remainingForUnlock(save) + " more for an unlock)");
+            breach.consequences.add("recovered " + breach.resolvedSchematicMaterial + " unit of schematic material ("
+                    + SalvageRules.remainingForUnlock(save) + " more for an unlock)");
         }
 
         if (outcome == BreachOutcome.ABORTED) {
@@ -703,8 +737,8 @@ public final class BreachRules {
         breach.outcome = outcome.name();
         breach.activeLayer = -1;
 
-        String summary = breach.targetLabel + ": " + outcome.name().toLowerCase(Locale.ROOT)
-                + ", noise " + noise + (breach.resolvedHeat > 0 ? ", heat +" + breach.resolvedHeat : ", no heat");
+        String summary = breach.targetLabel + ": " + outcome.name().toLowerCase(Locale.ROOT) + ", noise " + noise
+                + (breach.resolvedHeat > 0 ? ", heat +" + breach.resolvedHeat : ", no heat");
         if (outcome == BreachOutcome.BREACHED) {
             EventLog.notice(save, "breach", summary, now);
         } else {
@@ -785,8 +819,8 @@ public final class BreachRules {
                 breach.consequences.add("a canary token on the target tagged your handle");
             }
             if (breach.resolvedHeat > 0) {
-                breach.consequences.add("personal heat rose by " + breach.resolvedHeat
-                        + "; laying low or self-mining is the way down");
+                breach.consequences.add(
+                        "personal heat rose by " + breach.resolvedHeat + "; laying low or self-mining is the way down");
             }
         }
     }
@@ -840,5 +874,4 @@ public final class BreachRules {
         }
         return null;
     }
-
 }

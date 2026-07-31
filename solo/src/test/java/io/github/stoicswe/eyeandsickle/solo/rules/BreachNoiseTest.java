@@ -95,8 +95,7 @@ class BreachNoiseTest {
             // buffer, so it ends either way in a handful of picks; the cipher lets a player sit and
             // subtract for as long as they like. What answers "why not take all day" is that all day
             // is spent on somebody else's wire.
-            assertThat(NoiseRules.outwardCycles(cipher, T0))
-                    .isGreaterThan(NoiseRules.outwardCycles(grid, T0));
+            assertThat(NoiseRules.outwardCycles(cipher, T0)).isGreaterThan(NoiseRules.outwardCycles(grid, T0));
         }
 
         @Test

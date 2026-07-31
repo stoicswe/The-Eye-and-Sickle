@@ -1,6 +1,7 @@
 package io.github.stoicswe.eyeandsickle.protocol.game;
 
 import java.math.BigInteger;
+
 /**
  * What an upgrade sitting on somebody else's machine actually is, and how it compares to yours.
  *
@@ -55,11 +56,33 @@ public record UpgradeOffer(
 
     /** The shape before firmware existed — ordinary software, no schematic, nothing blocking. */
     public UpgradeOffer(
-            String itemType, String displayName, String summary, UpgradeVersion version,
-            UpgradeVersion yourVersion, Standing standing, UnlockGate gate, long sizeBytes,
-            BigInteger resaleWei, boolean sellable, long equippedCycles) {
-        this(itemType, displayName, summary, version, yourVersion, standing, gate, sizeBytes,
-                resaleWei, sellable, equippedCycles, UpgradeKind.SOFTWARE, "", true, "");
+            String itemType,
+            String displayName,
+            String summary,
+            UpgradeVersion version,
+            UpgradeVersion yourVersion,
+            Standing standing,
+            UnlockGate gate,
+            long sizeBytes,
+            BigInteger resaleWei,
+            boolean sellable,
+            long equippedCycles) {
+        this(
+                itemType,
+                displayName,
+                summary,
+                version,
+                yourVersion,
+                standing,
+                gate,
+                sizeBytes,
+                resaleWei,
+                sellable,
+                equippedCycles,
+                UpgradeKind.SOFTWARE,
+                "",
+                true,
+                "");
     }
 
     public UpgradeOffer {

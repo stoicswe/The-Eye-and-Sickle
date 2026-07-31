@@ -38,10 +38,8 @@ class BalanceReadoutTest {
             Platform.startup(up::countDown);
         } catch (IllegalStateException alreadyRunning) {
             up.countDown();
-        } catch (UnsupportedOperationException | NoClassDefFoundError
-                | ExceptionInInitializerError headless) {
-            Assumptions.abort("no display — the JavaFX toolkit cannot start here: "
-                    + headless.getMessage());
+        } catch (UnsupportedOperationException | NoClassDefFoundError | ExceptionInInitializerError headless) {
+            Assumptions.abort("no display — the JavaFX toolkit cannot start here: " + headless.getMessage());
         }
         if (!up.await(20, TimeUnit.SECONDS)) {
             Assumptions.abort("the JavaFX toolkit did not start within 20s");

@@ -60,7 +60,9 @@ class PublishingTest {
     }
 
     private static List<String> types(LocalGameSession session) {
-        return session.events().recorder().events().stream().map(CloudEvent::shortType).toList();
+        return session.events().recorder().events().stream()
+                .map(CloudEvent::shortType)
+                .toList();
     }
 
     @Test
@@ -140,7 +142,9 @@ class PublishingTest {
         session.tick();
 
         long moved = game.chainHeight() - before;
-        assertThat(moved).as("two hours must produce blocks, or this test proves nothing").isPositive();
+        assertThat(moved)
+                .as("two hours must produce blocks, or this test proves nothing")
+                .isPositive();
         List<CloudEvent> blocks = session.events().recorder().events().stream()
                 .filter(event -> event.shortType().equals("chain.block"))
                 .toList();

@@ -19,7 +19,6 @@ import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Tooltip;
-import javafx.scene.input.KeyCode;
 import javafx.scene.input.KeyEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -116,13 +115,14 @@ public final class CalcView {
         wordRow.getChildren().add(Ui.label("Width"));
         for (WordSize size : WordSize.values()) {
             BreachView.Chip chip = key(size.label());
-            chip.setAccessibleText("Work in " + size.bits() + " bits, also called a "
-                    + size.traditionalName() + ".");
-            tip(chip, "A " + size.bits() + "-bit register" + " (" + size.traditionalName() + ").\n\n"
-                    + "Every result is folded back into this width, so narrowing it throws away the "
-                    + "bits that no longer fit — which is exactly what storing a value in a narrower "
-                    + "variable does. Largest value it holds: 0x"
-                    + Long.toHexString(size.max()).toUpperCase(Locale.ROOT) + ".");
+            chip.setAccessibleText("Work in " + size.bits() + " bits, also called a " + size.traditionalName() + ".");
+            tip(
+                    chip,
+                    "A " + size.bits() + "-bit register" + " (" + size.traditionalName() + ").\n\n"
+                            + "Every result is folded back into this width, so narrowing it throws away the "
+                            + "bits that no longer fit — which is exactly what storing a value in a narrower "
+                            + "variable does. Largest value it holds: 0x"
+                            + Long.toHexString(size.max()).toUpperCase(Locale.ROOT) + ".");
             chip.onInvoke(() -> {
                 calc.setWord(size);
                 repaint[0].run();
@@ -133,7 +133,8 @@ public final class CalcView {
 
         BreachView.Chip signKey = key("Signed");
         signKey.setAccessibleText("Read the decimal row as a two's complement signed number.");
-        tip(signKey,
+        tip(
+                signKey,
                 "Read the decimal row as two's complement.\n\n"
                         + "It changes no bits at all — only what they are taken to mean. 0xFF is 255 "
                         + "and it is also -1, and which one it is was decided by whatever code is "
@@ -163,8 +164,7 @@ public final class CalcView {
 
         // ---------------------------------------------------------------- the bit grid
         VBox grid = new VBox(UiTokens.SPACE_1);
-        grid.setAccessibleText(
-                "The bits of the current value, most significant first. Click one to flip it.");
+        grid.setAccessibleText("The bits of the current value, most significant first. Click one to flip it.");
 
         // ---------------------------------------------------------------- the keys
         VBox keypad = keypad(calc, repaint);
@@ -179,16 +179,14 @@ public final class CalcView {
         zeros.setAccessibleText("Zeros above the highest set bit, and below the lowest.");
         bigEndian.setAccessibleText("The bytes stored most significant first.");
         littleEndian.setAccessibleText("The same bytes stored least significant first.");
-        chars.setAccessibleText(
-                "Each byte as a printable character, a dot where it is not one. The convention every "
-                        + "hex dump uses.");
+        chars.setAccessibleText("Each byte as a printable character, a dot where it is not one. The convention every "
+                + "hex dump uses.");
         HBox facts = new HBox(UiTokens.SPACE_5, setBits, zeros, bigEndian, littleEndian, chars);
         facts.setAlignment(Pos.CENTER_LEFT);
 
-        Label note = Ui.small(
-                "Type digits, a-f, the operator symbols, Enter for =, Backspace and Escape. "
-                        + "Keys apply left to right with no precedence, like every desk calculator: "
-                        + "2 + 3 * 4 is 20. Click any bit to flip it.");
+        Label note = Ui.small("Type digits, a-f, the operator symbols, Enter for =, Backspace and Escape. "
+                + "Keys apply left to right with no precedence, like every desk calculator: "
+                + "2 + 3 * 4 is 20. Click any bit to flip it.");
         note.setWrapText(true);
 
         // ---------------------------------------------------------------- assembly
@@ -279,9 +277,13 @@ public final class CalcView {
             for (CalcOp op : group.getValue()) {
                 BreachView.Chip chip = key(op.label());
                 chip.setAccessibleText(op.gloss());
-                tip(chip, Ui.upper(op.label()) + "\n\n" + op.gloss()
-                        + (op.shift() ? "\n\nThe second number is a count of bits, not a value. A "
-                                + "count of the register width or more gives zero." : ""));
+                tip(
+                        chip,
+                        Ui.upper(op.label()) + "\n\n" + op.gloss()
+                                + (op.shift()
+                                        ? "\n\nThe second number is a count of bits, not a value. A "
+                                                + "count of the register width or more gives zero."
+                                        : ""));
                 chip.onInvoke(() -> {
                     calc.operator(op);
                     repaint[0].run();
@@ -298,14 +300,20 @@ public final class CalcView {
         Label unaryName = Ui.label("Single");
         unaryName.setMinWidth(56);
         unary.getChildren().add(unaryName);
-        unary.getChildren().addAll(
-                action("NOT", "Invert every bit. On a signed reading that is also minus x, minus one.",
-                        calc::not, repaint),
-                action("NEG", "Two's complement negation: invert the bits and add one.",
-                        calc::negate, repaint),
-                action("SWAP", "Reverse the byte order. The bytes are the same set; only the order "
-                                + "they are stored in changes, which is the whole of endianness.",
-                        calc::swapBytes, repaint));
+        unary.getChildren()
+                .addAll(
+                        action(
+                                "NOT",
+                                "Invert every bit. On a signed reading that is also minus x, minus one.",
+                                calc::not,
+                                repaint),
+                        action("NEG", "Two's complement negation: invert the bits and add one.", calc::negate, repaint),
+                        action(
+                                "SWAP",
+                                "Reverse the byte order. The bytes are the same set; only the order "
+                                        + "they are stored in changes, which is the whole of endianness.",
+                                calc::swapBytes,
+                                repaint));
         pad.getChildren().add(unary);
 
         // Digits. Rows of three in the conventional arrangement, with the hex letters beneath.
@@ -327,12 +335,12 @@ public final class CalcView {
             digits.getChildren().add(row);
         }
 
-        VBox commands = new VBox(UiTokens.SPACE_2,
+        VBox commands = new VBox(
+                UiTokens.SPACE_2,
                 action("=", "Complete the pending operation.", calc::equals, repaint),
                 action("BKSP", "Drop the lowest digit.", calc::backspace, repaint),
                 action("CE", "Clear the number, keep the pending operation.", calc::clearEntry, repaint),
-                action("C", "Clear everything. Base, width and sign are settings and stay.",
-                        calc::clear, repaint));
+                action("C", "Clear everything. Base, width and sign are settings and stay.", calc::clear, repaint));
 
         HBox bottom = new HBox(UiTokens.SPACE_5, digits, commands);
         bottom.setAlignment(Pos.TOP_LEFT);
@@ -402,9 +410,11 @@ public final class CalcView {
         cell.setMinWidth(11);
         cell.setAlignment(Pos.CENTER);
         cell.setAccessibleText("Bit " + index + " is " + (on ? "1" : "0") + ". Click to flip it.");
-        Tooltip.install(cell, quickTip("BIT " + index + "\n\nWorth "
-                + (index < 63 ? "0x" + Long.toHexString(1L << index).toUpperCase(Locale.ROOT) : "the sign bit")
-                + ". Click to flip it."));
+        Tooltip.install(
+                cell,
+                quickTip("BIT " + index + "\n\nWorth "
+                        + (index < 63 ? "0x" + Long.toHexString(1L << index).toUpperCase(Locale.ROOT) : "the sign bit")
+                        + ". Click to flip it."));
         Cursors.shared().clickable(cell);
         cell.setOnMouseClicked(event -> {
             event.consume();
@@ -442,7 +452,7 @@ public final class CalcView {
             // ⚠ NOT Escape. Escape is the deck's pause menu and is installed as a scene filter, so
             // it never reaches here anyway — claiming it would be a control that silently does not
             // work. `C` is the clear key, which is also what the on-screen key says.
-            default -> { }
+            default -> {}
         }
         String typed = event.getText();
         if (typed == null || typed.isEmpty()) {
@@ -517,14 +527,17 @@ public final class CalcView {
     }
 
     private static String baseTip(Radix in) {
-        String extra = switch (in) {
-            case HEX -> "One hex digit is exactly four bits, which is why an address, a colour and a "
-                    + "byte are all written this way.";
-            case DEC -> "The only row here that says nothing about the bits.";
-            case OCT -> "One octal digit is exactly three bits — which is the whole reason Unix file "
-                    + "modes look the way they do.";
-            case BIN -> "The bits themselves, spelled out.";
-        };
+        String extra =
+                switch (in) {
+                    case HEX ->
+                        "One hex digit is exactly four bits, which is why an address, a colour and a "
+                                + "byte are all written this way.";
+                    case DEC -> "The only row here that says nothing about the bits.";
+                    case OCT ->
+                        "One octal digit is exactly three bits — which is the whole reason Unix file "
+                                + "modes look the way they do.";
+                    case BIN -> "The bits themselves, spelled out.";
+                };
         return "BASE " + in.base() + "\n\n" + extra
                 + "\n\nSwitching base moves nothing. It is the same value, written differently.";
     }

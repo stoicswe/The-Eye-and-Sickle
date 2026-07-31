@@ -67,8 +67,7 @@ public final class MenuSnapshot {
         Platform.exit();
     }
 
-    private static void render(
-            Path out, double width, double height, boolean populated, List<ThemeId> palettes)
+    private static void render(Path out, double width, double height, boolean populated, List<ThemeId> palettes)
             throws Exception {
 
         String tag = populated ? "menu" : "menu-firstrun";
@@ -83,8 +82,10 @@ public final class MenuSnapshot {
         CharacterSlots slots = new CharacterSlots(profile);
         if (populated) {
             // Two characters and one empty slot, so one render shows every face state there is.
-            SoloGame.open(new SaveStore(slots.saveFile(1)), "halflight", Clock.systemUTC()).persist();
-            SoloGame.open(new SaveStore(slots.saveFile(2)), "kestrel", Clock.systemUTC()).persist();
+            SoloGame.open(new SaveStore(slots.saveFile(1)), "halflight", Clock.systemUTC())
+                    .persist();
+            SoloGame.open(new SaveStore(slots.saveFile(2)), "kestrel", Clock.systemUTC())
+                    .persist();
         }
 
         MainMenuView.Actions actions = new MainMenuView.Actions() {
@@ -117,8 +118,8 @@ public final class MenuSnapshot {
 
             WritableImage image = scene.snapshot(null);
             write(image, out.resolve(tag + "-" + id.id() + ".png").toFile());
-            System.out.println("wrote " + tag + "-" + id.id() + ".png  "
-                    + (int) image.getWidth() + "x" + (int) image.getHeight());
+            System.out.println(
+                    "wrote " + tag + "-" + id.id() + ".png  " + (int) image.getWidth() + "x" + (int) image.getHeight());
         }
     }
 

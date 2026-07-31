@@ -158,8 +158,7 @@ class BreachPuzzleWeightingTest {
             BreachRules.begin(informed, nodeTarget(informed), T0);
 
             assertThat(informed.activeBreach.layers).hasSameSizeAs(blind.activeBreach.layers);
-            assertThat(informed.activeBreach.difficultyTier)
-                    .isEqualTo(blind.activeBreach.difficultyTier);
+            assertThat(informed.activeBreach.difficultyTier).isEqualTo(blind.activeBreach.difficultyTier);
             assertThat(informed.activeBreach.reservedCycles)
                     .as("a breach costs what it costs")
                     .isEqualTo(blind.activeBreach.reservedCycles);

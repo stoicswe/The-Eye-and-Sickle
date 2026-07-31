@@ -39,7 +39,6 @@ package io.github.stoicswe.eyeandsickle.protocol.game;
  * strictly correct every time and there would be no choice to make.
  */
 public enum PortScanTarget {
-
     FIREWALL("Firewall posture", "what is filtered, and how hard", 1),
     OS_VERSION("OS and version", "banner and stack fingerprint", 2),
     CYCLE_CAPABILITY("Cycle capability", "how big the machine is", 3),

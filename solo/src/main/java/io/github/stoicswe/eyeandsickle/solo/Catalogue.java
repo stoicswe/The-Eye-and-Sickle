@@ -1,8 +1,8 @@
 package io.github.stoicswe.eyeandsickle.solo;
 
-import java.math.BigInteger;
 import io.github.stoicswe.eyeandsickle.protocol.game.UnlockGate;
 import io.github.stoicswe.eyeandsickle.protocol.game.UpgradeKind;
+import java.math.BigInteger;
 import java.util.List;
 
 /**
@@ -62,10 +62,14 @@ public final class Catalogue {
 
         /** An ordinary software offering — the shape every entry had before firmware existed. */
         public Offering(
-                String id, String name, String description, UnlockGate gate,
-                BigInteger priceWei, long equippedCycles, String gateRequirement) {
-            this(id, name, description, gate, priceWei, equippedCycles, gateRequirement,
-                    UpgradeKind.SOFTWARE, "", "");
+                String id,
+                String name,
+                String description,
+                UnlockGate gate,
+                BigInteger priceWei,
+                long equippedCycles,
+                String gateRequirement) {
+            this(id, name, description, gate, priceWei, equippedCycles, gateRequirement, UpgradeKind.SOFTWARE, "", "");
         }
 
         public Offering {
@@ -77,8 +81,7 @@ public final class Catalogue {
             // gated. No EC path. No exceptions."). Enforced rather than documented, because the
             // tempting edit is exactly to add a firmware entry and leave this blank.
             if (kind == UpgradeKind.FIRMWARE && requiresSchematic.isBlank()) {
-                throw new IllegalArgumentException(
-                        "firmware must name the schematic that authorises it: " + id);
+                throw new IllegalArgumentException("firmware must name the schematic that authorises it: " + id);
             }
         }
 

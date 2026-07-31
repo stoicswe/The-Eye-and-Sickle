@@ -1,6 +1,5 @@
 package io.github.stoicswe.eyeandsickle.solo.rules;
 
-import java.math.BigInteger;
 import static io.github.stoicswe.eyeandsickle.solo.support.Money.ec;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
@@ -14,6 +13,7 @@ import io.github.stoicswe.eyeandsickle.solo.Pools;
 import io.github.stoicswe.eyeandsickle.solo.SoloGame;
 import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
+import java.math.BigInteger;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -114,7 +114,8 @@ class MempoolTest {
             // renders would make the explorer's own two readouts disagree.
             assertThat(again.hash()).isEqualTo(first.hash());
             assertThat(again.transactions()).isEqualTo(first.transactions());
-            assertThat(again.body().getFirst().hash()).isEqualTo(first.body().getFirst().hash());
+            assertThat(again.body().getFirst().hash())
+                    .isEqualTo(first.body().getFirst().hash());
         }
 
         @Test
@@ -235,9 +236,7 @@ class MempoolTest {
                     // If the NPC population could routinely pay more than the most a player can, the
                     // top tier would buy nothing and the mechanic would read as broken rather than
                     // competitive — FeeTier's promise failing from the other side.
-                    assertThat(tx.feeWei())
-                            .as("block %d tx fee", height)
-                            .isLessThanOrEqualTo(priority);
+                    assertThat(tx.feeWei()).as("block %d tx fee", height).isLessThanOrEqualTo(priority);
                 }
             }
         }
@@ -245,10 +244,8 @@ class MempoolTest {
         @Test
         @DisplayName("a higher tier costs more and promises sooner")
         void tiersAreOrdered() {
-            assertThat(Balance.feeFor(FeeTier.ECONOMY))
-                    .isLessThan(Balance.feeFor(FeeTier.STANDARD));
-            assertThat(Balance.feeFor(FeeTier.STANDARD))
-                    .isLessThan(Balance.feeFor(FeeTier.PRIORITY));
+            assertThat(Balance.feeFor(FeeTier.ECONOMY)).isLessThan(Balance.feeFor(FeeTier.STANDARD));
+            assertThat(Balance.feeFor(FeeTier.STANDARD)).isLessThan(Balance.feeFor(FeeTier.PRIORITY));
             for (FeeTier tier : FeeTier.values()) {
                 assertThat(tier.promise()).as("%s", tier).isNotBlank();
             }
@@ -387,8 +384,7 @@ class MempoolTest {
             // LedgerEntryState refuses to stamp a block number on it either.
             assertThat(payout.coinbase()).isFalse();
             assertThat(payout.from()).isNotEqualTo(ChainTransaction.ZERO_ADDRESS);
-            assertThat(payout.from())
-                    .isEqualTo(ChainExplorer.addressOf(Pools.byId(Pools.DEFAULT_ID)));
+            assertThat(payout.from()).isEqualTo(ChainExplorer.addressOf(Pools.byId(Pools.DEFAULT_ID)));
             // And the ledger prints the name rather than the hex, because this is the row a player
             // most needs to recognise. The address is still carried, so §3.1's audit still works.
             assertThat(payout.counterpartyLabel())
@@ -400,8 +396,7 @@ class MempoolTest {
         void strangersGetNoLabel(@TempDir Path dir) {
             Rig rig = new Rig(dir);
             rig.game.credit(Balance.ec("500"), "TEST", "seed");
-            rig.game.debit(Balance.ec("1"), "TRANSFER", "to a stranger", FeeTier.STANDARD,
-                    "0x" + "ab".repeat(20));
+            rig.game.debit(Balance.ec("1"), "TRANSFER", "to a stranger", FeeTier.STANDARD, "0x" + "ab".repeat(20));
             ChainTransaction sent = rig.game.chainTransactions(10).stream()
                     .filter(tx -> "TRANSFER".equals(tx.kind()))
                     .findFirst()
@@ -429,9 +424,7 @@ class MempoolTest {
             // player catches a hidden miner, so these two surfaces must be incapable of disagreeing.
             for (int i = 0; i < chain.size(); i++) {
                 var entry = ledger.get(ledger.size() - 1 - i);
-                assertThat(chain.get(i).valueWei())
-                        .as("row %d value", i)
-                        .isEqualTo(entry.deltaWei.abs());
+                assertThat(chain.get(i).valueWei()).as("row %d value", i).isEqualTo(entry.deltaWei.abs());
                 assertThat(chain.get(i).balanceAfterWei())
                         .as("row %d balance", i)
                         .isEqualTo(entry.balanceAfterWei);
@@ -456,8 +449,7 @@ class MempoolTest {
             java.math.BigInteger before = rig.game.balance().wei();
             java.math.BigInteger was = pendingOn(rig).feeWei();
 
-            var boost = MempoolRules.boost(
-                    rig.game.state(), pendingOn(rig).hash(), FeeTier.PRIORITY, rig.game.now());
+            var boost = MempoolRules.boost(rig.game.state(), pendingOn(rig).hash(), FeeTier.PRIORITY, rig.game.now());
 
             assertThat(boost.ok()).isTrue();
             java.math.BigInteger difference = Balance.FEE_PRIORITY_WEI.subtract(was);
@@ -507,8 +499,7 @@ class MempoolTest {
             java.math.BigInteger before = rig.game.balance().wei();
 
             for (FeeTier down : new FeeTier[] {FeeTier.ECONOMY, FeeTier.STANDARD, FeeTier.PRIORITY}) {
-                var boost = MempoolRules.boost(
-                        rig.game.state(), pendingOn(rig).hash(), down, rig.game.now());
+                var boost = MempoolRules.boost(rig.game.state(), pendingOn(rig).hash(), down, rig.game.now());
                 assertThat(boost.ok()).as("%s", down).isFalse();
                 assertThat(boost.refusal()).isEqualTo(MempoolRules.BoostRefusal.NOT_HIGHER);
             }
@@ -540,8 +531,7 @@ class MempoolTest {
             rig.game.debit(Balance.ec("0"), "TRANSFER", "Sent", FeeTier.ECONOMY, "0xabc");
             java.math.BigInteger before = rig.game.balance().wei();
 
-            var boost = MempoolRules.boost(
-                    rig.game.state(), pendingOn(rig).hash(), FeeTier.PRIORITY, rig.game.now());
+            var boost = MempoolRules.boost(rig.game.state(), pendingOn(rig).hash(), FeeTier.PRIORITY, rig.game.now());
             assertThat(boost.refusal()).isEqualTo(MempoolRules.BoostRefusal.CANNOT_AFFORD);
             assertThat(rig.game.balance().wei()).isEqualTo(before);
             assertThat(pendingOn(rig).feeWei()).isEqualTo(Balance.FEE_ECONOMY_WEI);
@@ -576,8 +566,7 @@ class MempoolTest {
             ChainMempool pool = rig.game.mempool();
             // 3–5 since 2026-07-29, derived from chain state. How far a queue can honestly be read
             // ahead is a property of the queue, and a fixed three claimed otherwise.
-            assertThat(pool.projected().size())
-                    .isBetween(MempoolRules.MIN_PROJECTIONS, MempoolRules.MAX_PROJECTIONS);
+            assertThat(pool.projected().size()).isBetween(MempoolRules.MIN_PROJECTIONS, MempoolRules.MAX_PROJECTIONS);
             for (int i = 0; i < pool.projected().size(); i++) {
                 ChainMempool.ProjectedBlock p = pool.projected().get(i);
                 assertThat(p.index()).isEqualTo(i);
@@ -690,9 +679,7 @@ class MempoolTest {
                 seen.add(MempoolRules.projectionDepth(rig.game.state()));
                 rig.game.state().chain.height++;
             }
-            assertThat(seen)
-                    .as("every depth in the range is reachable")
-                    .containsExactlyInAnyOrder(3, 4, 5);
+            assertThat(seen).as("every depth in the range is reachable").containsExactlyInAnyOrder(3, 4, 5);
         }
 
         @Test
@@ -703,7 +690,9 @@ class MempoolTest {
             rig.game.debit(Balance.ec("1"), "TRANSFER", "urgent", FeeTier.PRIORITY, "0x" + "ef".repeat(20));
 
             ChainMempool pool = rig.game.mempool();
-            int placed = pool.projected().stream().mapToInt(ChainMempool.ProjectedBlock::yours).sum();
+            int placed = pool.projected().stream()
+                    .mapToInt(ChainMempool.ProjectedBlock::yours)
+                    .sum();
             // It is in one of the projections rather than nowhere. FeeTier promises every tier gets
             // in eventually, and a projection set that never contained a paying transaction would
             // mean the queue could strand it.
@@ -741,8 +730,7 @@ class MempoolTest {
             for (ChainMempool.ProjectedBlock p : pool.projected()) {
                 assertThat(p.etaAt())
                         .as("projection %d", p.index())
-                        .isEqualTo(last.plusSeconds(
-                                Balance.CHAIN_TARGET_BLOCK_SECONDS * (p.index() + 1L)));
+                        .isEqualTo(last.plusSeconds(Balance.CHAIN_TARGET_BLOCK_SECONDS * (p.index() + 1L)));
             }
         }
 
@@ -784,12 +772,11 @@ class MempoolTest {
             // to the next block are (target − done) × mean and sitting right there. Publishing it
             // would make "overdue" a fact a player could read, which is precisely the gambler's
             // fallacy ChainState exists to refuse to teach.
-            double mean = ChainRules.expectedSeconds(
-                    rig.save().chain.difficulty, rig.save().chain.networkHashrate);
-            double trueRemaining =
-                    (rig.save().chain.networkWorkTarget - rig.save().chain.networkWorkDone) * mean;
+            double mean = ChainRules.expectedSeconds(rig.save().chain.difficulty, rig.save().chain.networkHashrate);
+            double trueRemaining = (rig.save().chain.networkWorkTarget - rig.save().chain.networkWorkDone) * mean;
             long published = Duration.between(
-                    rig.now, rig.game.mempool().projected().getFirst().etaAt()).toSeconds();
+                            rig.now, rig.game.mempool().projected().getFirst().etaAt())
+                    .toSeconds();
 
             assertThat(published).isEqualTo(Balance.CHAIN_TARGET_BLOCK_SECONDS);
             // The draw is exponential, so agreeing with the mean to the second would be a one-in-a-
@@ -821,7 +808,8 @@ class MempoolTest {
             ChainMempool.Queued q = pool.queued().getFirst();
             assertThat(q.beyondProjection()).isFalse();
             // Its estimate is its projected block's, because that is what it is actually waiting for.
-            assertThat(q.etaAt()).isEqualTo(pool.projected().get(q.projectedIndex()).etaAt());
+            assertThat(q.etaAt())
+                    .isEqualTo(pool.projected().get(q.projectedIndex()).etaAt());
             assertThat(pool.pending().getFirst()).isSameAs(q.tx());
         }
     }

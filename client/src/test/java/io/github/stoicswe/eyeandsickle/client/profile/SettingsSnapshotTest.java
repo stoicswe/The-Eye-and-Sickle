@@ -37,8 +37,8 @@ import org.junit.jupiter.api.Test;
  */
 class SettingsSnapshotTest {
 
-    private static final Path WIZARD = Path.of(
-            "src/main/java/io/github/stoicswe/eyeandsickle/client/view/SetupWizardView.java");
+    private static final Path WIZARD =
+            Path.of("src/main/java/io/github/stoicswe/eyeandsickle/client/view/SetupWizardView.java");
 
     @Nested
     @DisplayName("round trip")
@@ -112,8 +112,7 @@ class SettingsSnapshotTest {
         // Every `profile.settings().<field> = ` in the assistant. Assignment only: a READ is how a
         // pane seeds itself from the current value, which is the behaviour we want and not a write.
         String body = stripComments(source);
-        Matcher assignment = Pattern
-                .compile("profile\\.settings\\(\\)\\.([A-Za-z0-9_]+)\\s*=[^=]")
+        Matcher assignment = Pattern.compile("profile\\.settings\\(\\)\\.([A-Za-z0-9_]+)\\s*=[^=]")
                 .matcher(body);
         Set<String> written = new LinkedHashSet<>();
         while (assignment.find()) {
@@ -124,8 +123,7 @@ class SettingsSnapshotTest {
         // and writes them on the caller's behalf, so a pane that goes through it is invisible to the
         // scan above — which is exactly the idiom the motion pane uses. Each mediated write is
         // declared here; a THIRD one that nobody adds to this map is the gap that reopens.
-        Map<String, String> mediated = Map.of(
-                "themes.setReducedMotionOverride(", "reducedMotionOverride");
+        Map<String, String> mediated = Map.of("themes.setReducedMotionOverride(", "reducedMotionOverride");
         mediated.forEach((call, field) -> {
             if (body.contains(call)) {
                 written.add(field);

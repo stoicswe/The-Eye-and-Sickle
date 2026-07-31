@@ -186,11 +186,12 @@ public final class MatrixGrid extends VBox {
 
     private void buildGrid(MatrixBoard next) {
         rows.getChildren().clear();
-        turnLine.setText(Ui.upper(next.bufferRemaining() == 0
-                ? "buffer full"
-                : next.rowTurn()
-                        ? "take from row " + next.cursorRow()
-                        : "take from column " + next.cursorColumn()));
+        turnLine.setText(Ui.upper(
+                next.bufferRemaining() == 0
+                        ? "buffer full"
+                        : next.rowTurn()
+                                ? "take from row " + next.cursorRow()
+                                : "take from column " + next.cursorColumn()));
 
         for (int row = 0; row < next.size(); row++) {
             HBox line = new HBox(UiTokens.HAIR);
@@ -246,8 +247,8 @@ public final class MatrixGrid extends VBox {
             cells.add("__");
         }
         bufferLine.setText(String.join(" ", cells));
-        bufferLine.setAccessibleText("Buffer: " + next.buffer().size()
-                + " of " + next.bufferSize() + " used. " + String.join(", ", next.buffer()));
+        bufferLine.setAccessibleText("Buffer: " + next.buffer().size() + " of " + next.bufferSize() + " used. "
+                + String.join(", ", next.buffer()));
     }
 
     /**
@@ -262,9 +263,11 @@ public final class MatrixGrid extends VBox {
         goals.getChildren().clear();
         for (MatrixBoard.Goal goal : next.goals()) {
             Label line = new Label(String.join(" ", goal.codes())
-                    + (goal.solved() ? "   UPLOADED" : "   " + goal.matched() + "/" + goal.codes().size()));
-            line.getStyleClass().addAll("es-matrix-goal",
-                    goal.solved() ? "es-matrix-goal-done" : "es-matrix-goal-open");
+                    + (goal.solved()
+                            ? "   UPLOADED"
+                            : "   " + goal.matched() + "/" + goal.codes().size()));
+            line.getStyleClass()
+                    .addAll("es-matrix-goal", goal.solved() ? "es-matrix-goal-done" : "es-matrix-goal-open");
             line.setAccessibleText(goal.label() + ": " + String.join(", ", goal.codes())
                     + (goal.solved()
                             ? ", uploaded"

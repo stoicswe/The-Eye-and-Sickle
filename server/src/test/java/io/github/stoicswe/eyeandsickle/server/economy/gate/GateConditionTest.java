@@ -127,7 +127,8 @@ class GateConditionTest {
         void storesATierNotACount() {
             // Invariant I7: because the parameter is a single tier, there is nowhere to put "solve it N
             // times". The type itself is what forbids count-gating.
-            ProofOfSkillRequirement requirement = new ProofOfSkillRequirement(PuzzleClass.OFFSET_CIPHER, DifficultyTier.of(3));
+            ProofOfSkillRequirement requirement =
+                    new ProofOfSkillRequirement(PuzzleClass.OFFSET_CIPHER, DifficultyTier.of(3));
             assertThat(requirement.minimumTier()).isEqualTo(DifficultyTier.of(3));
         }
     }

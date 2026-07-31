@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.stoicswe.eyeandsickle.client.session.GameSession;
 import io.github.stoicswe.eyeandsickle.client.session.LocalGameSession;
-import io.github.stoicswe.eyeandsickle.solo.SoloGame;
 import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import io.github.stoicswe.eyeandsickle.solo.state.NodeState;
 import java.nio.file.Path;
@@ -95,8 +94,10 @@ class ShellTest {
         @Test
         @DisplayName("long flags take a value either way round")
         void longFlagValues() {
-            assertThat(CommandLine.parse("mine --allocate=40").first().flag("allocate")).contains("40");
-            assertThat(CommandLine.parse("mine --allocate 40").first().flag("allocate")).contains("40");
+            assertThat(CommandLine.parse("mine --allocate=40").first().flag("allocate"))
+                    .contains("40");
+            assertThat(CommandLine.parse("mine --allocate 40").first().flag("allocate"))
+                    .contains("40");
         }
 
         @Test
@@ -111,12 +112,14 @@ class ShellTest {
         @Test
         @DisplayName("quotes hold a value together, and both kinds are literal")
         void quoting() {
-            CommandLine.Stage stage = CommandLine.parse("mv \"Old Ledger Dump\" vault").first();
+            CommandLine.Stage stage =
+                    CommandLine.parse("mv \"Old Ledger Dump\" vault").first();
             assertThat(stage.arguments()).containsExactly("Old Ledger Dump", "vault");
 
             // Deliberate divergence from a real shell, stated on quoting(7)'s CAVEATS: there is
             // nothing to interpolate because §3.1 rule 4 forbids expansion entirely.
-            assertThat(CommandLine.parse("verify \"$HOME\"").first().arguments()).containsExactly("$HOME");
+            assertThat(CommandLine.parse("verify \"$HOME\"").first().arguments())
+                    .containsExactly("$HOME");
         }
 
         @Test
@@ -148,7 +151,8 @@ class ShellTest {
         void invert(@TempDir Path dir) {
             Shell s = shell(dir);
             s.session().allocateSelfMining(40);
-            assertThat(s.run("ps | grep -v self").lines()).noneMatch(l -> l.toLowerCase().contains("self_mining"));
+            assertThat(s.run("ps | grep -v self").lines())
+                    .noneMatch(l -> l.toLowerCase().contains("self_mining"));
         }
 
         @Test
@@ -200,8 +204,7 @@ class ShellTest {
         @Test
         @DisplayName("the root lists the four documented trees")
         void rootLayout(@TempDir Path dir) {
-            assertThat(Namespace.list(shell(dir).session(), "/"))
-                    .containsExactly("rig/", "net/", "ledger/", "man/");
+            assertThat(Namespace.list(shell(dir).session(), "/")).containsExactly("rig/", "net/", "ledger/", "man/");
         }
     }
 
