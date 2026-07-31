@@ -72,6 +72,19 @@ public final class VisualSettings {
     public int crtCurvature = 0;
 
     /** §9.3's opt-in. Off by default — the shipped client is square-cornered. */
+    /**
+     * Whether the focused window gets an outline, and what colour.
+     *
+     * <p>Off by default. The deck already marks focus by lightening the strip and accenting the
+     * title — quiet on purpose, because a dozen panels each shouting about their own focus state
+     * competes with the readouts inside them. This is for players for whom that cue is not enough.
+     * See {@code ui/chrome/FocusRing}.
+     */
+    public boolean focusRing = false;
+
+    /** Which {@code FocusRing} — an id, tolerant on read. Defaults to the palette's own accent. */
+    public String focusRingColor = "theme";
+
     public boolean roundedWindows = false;
 
     /** {@code system} | {@code macos} | {@code windows} — ORDER of a desk window's buttons only. */
@@ -89,6 +102,8 @@ public final class VisualSettings {
         copy.crtGlitch = crtGlitch;
         copy.crtCurvature = crtCurvature;
         copy.roundedWindows = roundedWindows;
+        copy.focusRing = focusRing;
+        copy.focusRingColor = focusRingColor;
         copy.subwindowControlOrder = subwindowControlOrder;
         return copy;
     }

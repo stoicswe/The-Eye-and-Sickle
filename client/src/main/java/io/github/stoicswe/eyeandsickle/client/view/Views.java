@@ -32,7 +32,6 @@ import java.util.Locale;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Button;
-import javafx.scene.control.CheckBox;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
@@ -1438,7 +1437,7 @@ public final class Views {
                 ? wantedScale
                 : io.github.stoicswe.eyeandsickle.client.ui.UiScale.DEFAULT_PERCENT);
 
-        CheckBox fullScreen = new CheckBox("Full screen");
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch fullScreen = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Full screen");
         fullScreen.setSelected(profile.settings().fullScreen);
 
         Label note = new Label();
@@ -2348,7 +2347,7 @@ public final class Views {
         // never seeing their own operating system", and this hands the OS its frame back. Offered
         // for the same reason §9.1 and §9.3 are: it is the player's machine. Off by default, so the
         // shipped game still looks like the game.
-        CheckBox nativeBorder = new CheckBox("Use the system window border");
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch nativeBorder = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Use the system window border");
         nativeBorder.setSelected(profile.settings().nativeWindowBorder);
         nativeBorder.selectedProperty().addListener((o, was, now) -> {
             profile.settings().nativeWindowBorder = now;
@@ -2386,7 +2385,7 @@ public final class Views {
             }
         });
 
-        CheckBox rounded = new CheckBox("Rounded window corners");
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch rounded = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Rounded window corners");
         rounded.setSelected(profile.appearance().roundedWindows);
         rounded.selectedProperty().addListener((o, was, now) -> {
             profile.appearance().roundedWindows = now;
@@ -2396,8 +2395,68 @@ public final class Views {
             }
         });
 
+        // ── the focused-window outline (opt-in) ──────────────────────────────────────────────
+        //
+        // The deck already marks focus by lightening the strip and accenting the title, quietly on
+        // purpose. This is for players for whom that is not enough — a low-contrast strip change is
+        // exactly the cue that vanishes on a dim screen. Off by default; see ui/chrome/FocusRing.
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch focusRing = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Outline the focused window");
+        focusRing.setSelected(profile.appearance().focusRing);
+
+        HBox swatches = new HBox(UiTokens.SPACE_2);
+        swatches.setAlignment(Pos.CENTER_LEFT);
+        java.util.List<Region> chips = new java.util.ArrayList<>();
+        Runnable[] markSelected = new Runnable[1];
+        for (var ring : io.github.stoicswe.eyeandsickle.client.ui.chrome.FocusRing.selectable()) {
+            Region chip = new Region();
+            chip.getStyleClass().addAll("es-swatch", "es-swatch-" + ring.id(), "es-focusable");
+            // ⚠ Named, not just coloured. A swatch row is the one control where colour IS the
+            // content, so the label has to reach a screen reader and a tooltip — §4.4 and
+            // docs/client/07 §5.2 both.
+            chip.setAccessibleText(ring.label());
+            javafx.scene.control.Tooltip.install(
+                    chip, new javafx.scene.control.Tooltip(ring.label()));
+            io.github.stoicswe.eyeandsickle.client.ui.cursors.Cursors.shared().clickable(chip);
+            chip.setOnMouseClicked(e -> {
+                profile.appearance().focusRingColor = ring.id();
+                profile.save();
+                markSelected[0].run();
+                if (onDeskSettingsChanged != null) {
+                    onDeskSettingsChanged.run();
+                }
+            });
+            chips.add(chip);
+            swatches.getChildren().add(chip);
+        }
+        markSelected[0] = () -> {
+            var chosen = io.github.stoicswe.eyeandsickle.client.ui.chrome.FocusRing
+                    .byId(profile.appearance().focusRingColor);
+            var all = io.github.stoicswe.eyeandsickle.client.ui.chrome.FocusRing.selectable();
+            for (int i = 0; i < chips.size(); i++) {
+                chips.get(i).getStyleClass().remove("es-swatch-on");
+                if (all.get(i) == chosen) {
+                    chips.get(i).getStyleClass().add("es-swatch-on");
+                }
+            }
+        };
+        markSelected[0].run();
+
+        focusRing.selectedProperty().addListener((o, was, now) -> {
+            profile.appearance().focusRing = now;
+            profile.save();
+            if (onDeskSettingsChanged != null) {
+                onDeskSettingsChanged.run();
+            }
+        });
+        // ⚠ The swatches stay ENABLED with the ring off. Greying them would make choosing a colour
+        // impossible until the feature is already on, which is backwards: a player deciding whether
+        // they want this wants to see what it would look like first.
+        Label swatchNote = secondary("The first is your palette's own accent, so it follows the "
+                + "theme. The rest are fixed.");
+        swatchNote.setWrapText(true);
+
         // §11 question 1, shipped as a choice rather than settled by fiat. See DeskManager.
-        CheckBox freeDrag = new CheckBox("Drag windows freely");
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch freeDrag = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Drag windows freely");
         freeDrag.setSelected(profile.settings().freeDragWindows);
         freeDrag.selectedProperty().addListener((o, was, now) -> {
             profile.settings().freeDragWindows = now;
@@ -2405,7 +2464,7 @@ public final class Views {
             onDeskSettingsChanged.run();
         });
 
-        CheckBox bandwidthCap = new CheckBox("Bandwidth limits open windows  [PROPOSAL]");
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch bandwidthCap = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Bandwidth limits open windows  [PROPOSAL]");
         bandwidthCap.setSelected(profile.settings().bandwidthCapsWindows);
         bandwidthCap.selectedProperty().addListener((o, was, now) -> {
             profile.settings().bandwidthCapsWindows = now;
@@ -2481,7 +2540,7 @@ public final class Views {
             }
         });
 
-        CheckBox scanlines = new CheckBox("CRT scanlines");
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch scanlines = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("CRT scanlines");
         scanlines.setSelected(profile.appearance().crtScanlines);
         scanlines.selectedProperty().addListener((o, was, now) -> {
             profile.appearance().crtScanlines = now;
@@ -2489,7 +2548,7 @@ public final class Views {
             onDeskSettingsChanged.run();
         });
 
-        CheckBox aberration = new CheckBox("Chromatic aberration");
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch aberration = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Chromatic aberration");
         aberration.setSelected(profile.appearance().crtAberration);
         aberration.selectedProperty().addListener((o, was, now) -> {
             profile.appearance().crtAberration = now;
@@ -2513,7 +2572,7 @@ public final class Views {
             onDeskSettingsChanged.run();
         });
 
-        CheckBox glitch = new CheckBox("Signal glitch");
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch glitch = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Signal glitch");
         glitch.setSelected(profile.appearance().crtGlitch);
         glitch.selectedProperty().addListener((o, was, now) -> {
             profile.appearance().crtGlitch = now;
@@ -2547,7 +2606,7 @@ public final class Views {
             }
         });
 
-        CheckBox notify = new CheckBox("Show slide-in notices");
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch notify = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Show slide-in notices");
         notify.setSelected(profile.settings().notificationsEnabled);
         notify.selectedProperty().addListener((o, was, now) -> {
             profile.settings().notificationsEnabled = now;
@@ -2589,7 +2648,7 @@ public final class Views {
 
         VBox facilities = new VBox(2);
         for (String facility : List.of("mining", "defense", "scan", "compute", "storage", "rig", "desk")) {
-            CheckBox box = new CheckBox(facility);
+            io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch box = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch(facility);
             box.setSelected(!profile.settings().mutedFacilities.contains(facility));
             box.selectedProperty().addListener((o, was, now) -> {
                 if (now) {
@@ -2602,7 +2661,7 @@ public final class Views {
             facilities.getChildren().add(box);
         }
 
-        CheckBox reducedMotion = new CheckBox("Reduce motion");
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch reducedMotion = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Reduce motion");
         reducedMotion.setSelected(themes.reducedMotion());
         reducedMotion.selectedProperty().addListener((o, was, now) -> {
             themes.setReducedMotionOverride(now);
@@ -2732,6 +2791,14 @@ public final class Views {
                 window));
 
         pages.put("Desk", settingsPage(
+                focusRing,
+                wrapped("The deck already marks the focused window by lightening its strip and "
+                        + "accenting its title. This adds an outline as well, for when that is not "
+                        + "enough to find at a glance. Off by default; takes effect immediately, on "
+                        + "windows that are already open."),
+                swatches,
+                swatchNote,
+                new Separator(),
                 freeDrag,
                 wrapped("Off: windows snap to a grid, and tile when dragged against an edge of "
                         + "the desk — a side fills that half, a corner that quarter. On: they go "

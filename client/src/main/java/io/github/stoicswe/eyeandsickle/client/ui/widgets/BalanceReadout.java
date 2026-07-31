@@ -65,7 +65,46 @@ public final class BalanceReadout extends HBox {
         value.getStyleClass().add("es-balance-value");
         delta.getStyleClass().add("es-balance-delta");
         delta.setVisible(false);
+        // ⚠ The exact figure lives in a tooltip on the WHOLE readout, not on the number alone: the
+        // strip's cells are small and a player reaching for "Balance" should get the same answer as
+        // one reaching for the digits.
+        exact.setShowDelay(javafx.util.Duration.millis(200));
+        javafx.scene.control.Tooltip.install(this, exact);
         getChildren().addAll(key, value, delta);
+    }
+
+    /**
+     * How many decimals the strip shows.
+     *
+     * <h2>⚠ This ROUNDS a held amount, which {@code Ethecoin.formatApprox} otherwise forbids</h2>
+     *
+     * That rule exists because a rounded balance is a lie the player cannot detect. The exception is
+     * earned here by the tooltip: the exact wei figure is one hover away and updates with the
+     * balance, so nothing is hidden — it is abbreviated, with the full value on demand.
+     *
+     * <p>Four places, because at eighteen a real balance renders as
+     * {@code 1234.905777539252303541 EC} and pushes every other cell off the top strip. The strip is
+     * a glanceable readout; the LEDGER is where an exact amount is read, and it is still exact.
+     */
+    private static final int STRIP_DECIMALS = 4;
+
+    /** The exact amount, for the hover. Never abbreviated. */
+    private final javafx.scene.control.Tooltip exact = new javafx.scene.control.Tooltip();
+
+    /**
+     * Renders the counting figure short, and points the tooltip at the true one.
+     *
+     * <p>⚠ The tooltip tracks {@link #targetWei}, not {@link #shownWei}. Mid-count the shown figure
+     * is a step on the way to the balance rather than the balance, and a hover that reported it
+     * would be exact about a number that is not the player's.
+     */
+    private void render() {
+        value.setText(Ethecoin.formatApprox(shownWei, STRIP_DECIMALS));
+        String full = Ethecoin.format(targetWei);
+        exact.setText(full);
+        // Screen readers get the exact figure too: the abbreviation is a space constraint on the
+        // strip, and a reader has no strip.
+        value.setAccessibleText("Balance " + full);
     }
 
     /** The label the strip marks live when income is flowing. */
@@ -85,7 +124,7 @@ public final class BalanceReadout extends HBox {
             seeded = true;
             shownWei = wei;
             targetWei = wei;
-            value.setText(Ethecoin.format(wei));
+            render();
             return;
         }
         if (wei.equals(targetWei)) {
@@ -97,7 +136,7 @@ public final class BalanceReadout extends HBox {
 
         if (Pulse.shared().reducedMotion()) {
             shownWei = targetWei;
-            value.setText(Ethecoin.format(shownWei));
+            render();
             return;
         }
         startCount();
@@ -125,13 +164,13 @@ public final class BalanceReadout extends HBox {
             java.math.BigDecimal span = new java.math.BigDecimal(targetWei.subtract(startedFrom));
             shownWei = startedFrom.add(span.multiply(java.math.BigDecimal.valueOf(progress))
                     .setScale(0, java.math.RoundingMode.HALF_UP).toBigIntegerExact());
-            value.setText(Ethecoin.format(shownWei));
+            render();
             if (progress >= 1.0d) {
                 // Pinned to the target rather than left on the rounded step. A readout a minor unit
                 // off the ledger is the exact disagreement docs/design/04 §3.1 teaches players to
                 // read as evidence of an intruder.
                 shownWei = targetWei;
-                value.setText(Ethecoin.format(shownWei));
+                render();
                 stop(counter);
                 counter = null;
             }

@@ -8,7 +8,6 @@ import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
-import javafx.scene.control.CheckBox;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
@@ -88,7 +87,7 @@ public final class LogView {
             }
         });
 
-        CheckBox follow = new CheckBox("Follow");
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch follow = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Follow");
         follow.setSelected(true);
         follow.setAccessibleText("Scroll to the newest entry as it arrives, like tail -f");
         follow.setTooltip(new javafx.scene.control.Tooltip(

@@ -994,6 +994,9 @@ public final class DeckShell {
         // above the deck. EyeAndSickleClient.applyRootRounding owns it, and putting it here would
         // have clipped the deck while the scale holder painted the corners back in.
         desk.setRoundedCorners(rounded);
+        // The focused-window outline, same shape: static flag plus a walk of the live frames.
+        desk.setFocusRing(
+                profile.appearance().focusRing, profile.appearance().focusRingColor);
     }
 
     /** Applies the desk-window control order (order only; never the side). */

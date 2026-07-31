@@ -85,6 +85,41 @@ public final class WindowFrame extends Pane {
                 getStyleClass().add("es-window-focused");
             }
         });
+        applyFocusRing();
+    }
+
+    // ── the focus ring (opt-in, §4.4-safe: it SUPPLEMENTS the strip cue, never replaces it) ─────
+
+    /** Whether frames draw an outline when focused. Static: it is one setting for the whole deck. */
+    private static boolean ringEnabled;
+
+    /** Which colour, as a {@link FocusRing} id. */
+    private static String ringColor = FocusRing.THEME.id();
+
+    /**
+     * Points every frame at a new ring setting.
+     *
+     * <p>⚠ Static state plus a walk of the live windows, exactly like {@link #setRounded} and
+     * {@link #setControlOrder}. A flag read only in the constructor makes a setting that appears to
+     * work solely for windows opened afterwards — the failure {@code CLAUDE.md} records three times
+     * over, and the reason {@link DeskManager#setFocusRing} exists to do the walking.
+     */
+    public static void setFocusRing(boolean enabled, String color) {
+        ringEnabled = enabled;
+        ringColor = color == null ? FocusRing.THEME.id() : color;
+    }
+
+    /** Re-applies the ring classes to this frame. Called on every live frame when the setting moves. */
+    public void applyFocusRing() {
+        // ⚠ Every possible colour class is removed before one is added. Toggling between two colours
+        // otherwise leaves both on the node, and which one wins is stylesheet order rather than the
+        // player's choice.
+        getStyleClass().removeAll(FocusRing.allStyleClasses());
+        getStyleClass().remove("es-focus-ring");
+        if (ringEnabled) {
+            getStyleClass().add("es-focus-ring");
+            getStyleClass().add(FocusRing.byId(ringColor).styleClass());
+        }
     }
 
     /** The strip is the drag handle. {@link DeskManager} needs it by identity, not by lookup. */

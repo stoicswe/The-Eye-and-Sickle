@@ -327,6 +327,70 @@
 .es-strip-ctl-max:hover { -fx-text-fill: -es-gain; }
 
 /* The focused window's strip is brighter. Depth from brightness, never shadow (§2.1). */
+/* The on/off switch — this deck's replacement for a checkbox (2026-07-30).
+   ⚠ SQUARE. §9's radius ban is unamended and UiContractTest scans this file, so the obvious lozenge
+   is only available under the rounded-windows opt-in, below. ⚠ Never colour alone (§4.4): the knob's
+   POSITION is the primary cue and the fill is secondary, so a player who cannot separate the two
+   fills still reads left-vs-right. ⚠ Two-class selectors on the text fill — theme.css's late
+   `.label` rule beats a one-class one at equal specificity. */
+.es-switch-track {
+    -fx-background-color: -es-dim-3;
+    -fx-border-color: -es-rule-hi;
+    -fx-border-width: 1;
+    -fx-padding: 1;
+}
+.es-switch-track.es-switch-on { -fx-background-color: -es-amber-low; -fx-border-color: -es-amber; }
+.es-switch-knob { -fx-background-color: -es-dim-1; }
+.es-switch-track.es-switch-on .es-switch-knob { -fx-background-color: -es-amber; }
+.es-switch .es-switch-label { -fx-text-fill: -es-text; }
+/* Keyboard focus has to be visible on the control itself: the row is the hit target, so a focus
+   ring on the track alone would point at the wrong thing. */
+.es-switch:focused .es-switch-track { -fx-border-color: -es-text-hi; }
+.es-switch:focused .es-switch-label { -fx-text-fill: -es-text-hi; }
+/* §9.3's opt-in: a soft switch only when the player has asked for soft corners everywhere.
+   ⚠ It is a control, not a measurement — the rounded-corner test's second half refuses a radius on
+   anything a value is read off, and a switch reports a state rather than a figure. */
+.es-rounded .es-switch-track { -fx-background-radius: 8; -fx-border-radius: 8; }
+.es-rounded .es-switch-knob  { -fx-background-radius: 6; }
+
+/* The focused-window outline (opt-in, Settings → Desk; off by default).
+   ⚠ It paints the frame's EDGE region, which is the 1px band already drawn behind the panel and is
+   clipped to the same polygon as everything else — a border on the frame itself would be cut by that
+   clip and appear to do nothing, which is exactly how the first rounded-corners attempt failed.
+   ⚠ These hues do NOT enter the palette's semantic vocabulary (§2.1). A ring colour means nothing;
+   it says "the window you chose the colour for". They are confined to these selectors and used
+   nowhere else, and §4.4 is untouched because the strip cue below still marks focus on its own.
+   ⚠ THEME resolves -es-amber rather than a literal, so it follows all five palettes without
+   knowing about any of them. */
+.es-ring-cyan   { -fx-background-color: #35C6D8; }
+.es-ring-violet { -fx-background-color: #9A7BE8; }
+.es-ring-green  { -fx-background-color: #56C36B; }
+.es-ring-rose   { -fx-background-color: #E06A8C; }
+
+.es-window-focused.es-focus-ring .es-panel-edge { -fx-background-color: -es-amber; }
+.es-window-focused.es-focus-ring.es-focus-ring-theme  .es-panel-edge { -fx-background-color: -es-amber; }
+.es-window-focused.es-focus-ring.es-focus-ring-cyan   .es-panel-edge { -fx-background-color: #35C6D8; }
+.es-window-focused.es-focus-ring.es-focus-ring-violet .es-panel-edge { -fx-background-color: #9A7BE8; }
+.es-window-focused.es-focus-ring.es-focus-ring-green  .es-panel-edge { -fx-background-color: #56C36B; }
+.es-window-focused.es-focus-ring.es-focus-ring-rose   .es-panel-edge { -fx-background-color: #E06A8C; }
+.es-window-focused.es-focus-ring.es-focus-ring-white  .es-panel-edge { -fx-background-color: -es-text-hi; }
+
+/* The Settings swatches. ⚠ Square: §9's radius ban is unamended, and a swatch is a sample of the
+   thing it selects — a rounded sample of a square outline misrepresents it. */
+.es-swatch {
+    -fx-min-width: 26; -fx-min-height: 18;
+    -fx-border-color: -es-rule; -fx-border-width: 1;
+}
+.es-swatch-theme  { -fx-background-color: -es-amber; }
+.es-swatch-cyan   { -fx-background-color: #35C6D8; }
+.es-swatch-violet { -fx-background-color: #9A7BE8; }
+.es-swatch-green  { -fx-background-color: #56C36B; }
+.es-swatch-rose   { -fx-background-color: #E06A8C; }
+.es-swatch-white  { -fx-background-color: -es-text-hi; }
+/* ⚠ Selection is a BORDER, never colour alone (§4.4): the swatches differ only by hue, so the
+   chosen one has to be marked by something a player who cannot separate them can still see. */
+.es-swatch-on { -fx-border-color: -es-text-hi; -fx-border-width: 2; }
+
 .es-window-focused > .es-strip { -fx-background-color: -es-panel-hi; }
 .es-window-focused .es-strip-label { -fx-text-fill: -es-amber; }
 

@@ -13,7 +13,6 @@ import java.util.Map;
 import java.util.Optional;
 import javafx.geometry.Pos;
 import javafx.geometry.Side;
-import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
@@ -289,7 +288,7 @@ public final class NodeShellView {
             row.setAlignment(Pos.CENTER_LEFT);
             switch (option.kind()) {
                 case FLAG -> {
-                    CheckBox box = new CheckBox(option.name());
+                    io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch box = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch(option.name());
                     box.selectedProperty().addListener((o, was, now) -> refresh.run());
                     controls.put(option, box);
                     row.getChildren().add(box);
@@ -371,7 +370,12 @@ public final class NodeShellView {
         controls.forEach((option, control) -> {
             switch (option.kind()) {
                 case FLAG -> {
-                    if (control instanceof CheckBox box && box.isSelected()) {
+                    // ⚠ Switch, not CheckBox. The pattern match compiles either way and simply
+                    // stops matching when the widget type changes — so the flag would silently never
+                    // be appended, and the command menu would build a line without the option the
+                    // player had just turned on. Nothing fails; the wrong command runs.
+                    if (control instanceof io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch box
+                            && box.isSelected()) {
                         out.append(' ').append(option.name());
                     }
                 }

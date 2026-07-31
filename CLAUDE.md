@@ -177,6 +177,34 @@ preferred height. Settings had exactly this: the grow call was present and obvio
 pane sat in the top third of the window. Invisible in review. Also: an unstyled `ScrollPane` paints
 Modena's **white** viewport over a dark theme.
 
+**Every checkbox is a `ui/widgets/Switch` now (2026-07-30)** — a horizontal toggle, because these
+settings take effect on change and there is no submit. ⚠ **Square**, pill only under `.es-rounded`
+(§9 unamended). ⚠ **The knob SNAPS** — a slide is a tween and a stepped one is a `Timeline` in a
+widget; both fail `UiContractTest`, and it makes Reduce motion free. ⚠ **Position is the primary cue,
+fill the secondary** (§4.4). ⚠ **It announces the ORIGINAL text** — `Ui.label` uppercases and readers
+spell all-caps runs out letter by letter. ⚠ **API-compatible with `CheckBox`** (`selectedProperty`,
+`isSelected`, `setSelected`, `setTooltip`) so the 15 call sites changed only a type name.
+⚠ **`instanceof CheckBox` in `NodeShellView` silently stopped matching** — a pattern match compiles
+fine when the widget type moves, so a switched-on flag never reached the command line and the wrong
+command ran. Grep for the old type after a widget swap; the build will not tell you.
+
+**The focused window can carry an outline, in a colour the player picks (2026-07-30).** Settings →
+Desk, **off by default**; `ui/chrome/FocusRing`, per character. The deck already marks focus by
+lightening the strip and accenting the title — quiet on purpose — and this is for players for whom
+that is not enough.
+
+- ⚠ **The hues do NOT join the palette's semantic vocabulary (§2.1).** A ring colour *means nothing*;
+  it says "the window you chose the colour for". Confined to `.es-focus-ring-*`, used nowhere else.
+  **§4.4 holds** because the strip cue is still there — the ring is never the only marker.
+- ⚠ **THEME is first and default**: it resolves `-es-amber`, so it follows all five palettes.
+- ⚠ **It paints the frame's `edge` REGION, not a border on the frame.** Frames are clipped to a
+  `Polygon` for the notch, so a border would be cut away and appear to do nothing — silently, CSS
+  applying correctly. Same trap as the first rounded-corners attempt; rendered to confirm.
+- ⚠ **`VisualSettingsTest`'s hook rule was amended.** It required every `VisualSettings` field to have
+  a legacy `@JsonProperty` hook — true when every field was a migrated one, false for a NEW appearance
+  field, and a hook for one would read a key no save ever contained. The legacy set is now a literal
+  list; a round-trip test covers what the rule was standing in for.
+
 ⚠ **Any global appearance flag must reach LIVE objects, not just new ones.** This has now bitten
 three times — rounded corners (frames kept their birth clip), and control order (frames kept their
 birth layout). `DeskManager.setRoundedCorners` and `setControlOrder` both walk every open window.
@@ -551,6 +579,14 @@ no slice: the panel claimed 84 and accounted for 80. ⚠ **That reads as a paras
 teaches "the numbers do not add up" as how you detect one — so opening a shell faked the game's own
 intrusion evidence. `RigLegendCoversEveryConsumerTest` walks the **enum**, not a hand-kept list, so a
 new consumer without a legend entry fails the build.
+
+⚠ **The top strip's balance is abbreviated to 4 decimals with the exact figure on HOVER (2026-07-30),
+and that is the ONE licensed exception to the rule below.** At 18 places a balance reads
+`1234.905777539252303541 EC` and pushes every other cell off the strip. What earns the exception is
+not the lack of room — it is that the exact amount stays reachable (tooltip + `accessibleText`, and
+the LEDGER is always exact). So the rule is *sharper*: **a held amount may be abbreviated only where
+the exact figure is one hover away.** ⚠ The tooltip tracks the **target**, not the counting figure —
+mid-count the shown value is not the player's balance.
 
 ⚠ **`Ethecoin.formatApprox(wei, n)` ROUNDS and is a separate method for that reason.** Derived,
 *labelled* approximations only — `~40 EC/hr`, a projected payout. **Never** a balance, ledger delta,

@@ -10,7 +10,6 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import javafx.geometry.Pos;
-import javafx.scene.control.CheckBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListCell;
 import javafx.scene.control.ListView;
@@ -64,7 +63,7 @@ public final class EventLogView {
         search.setPromptText("Filter by type, subject or payload");
         HBox.setHgrow(search, Priority.ALWAYS);
 
-        CheckBox follow = new CheckBox("Follow");
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch follow = new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Follow");
         follow.setSelected(true);
         follow.setAccessibleText("Scroll to the newest event as it arrives");
 

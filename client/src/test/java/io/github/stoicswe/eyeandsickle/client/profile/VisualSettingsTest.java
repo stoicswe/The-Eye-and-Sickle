@@ -228,11 +228,32 @@ class VisualSettingsTest {
                 "windowSize", "fullScreen");
     }
 
+    /**
+     * The ten keys that lived on {@code Settings} before appearance became per-character.
+     *
+     * <h2>⚠ A literal list, and it must stay one</h2>
+     *
+     * This is a <b>historical fact</b>: it is the set of keys a pre-split {@code settings.json} can
+     * actually contain, and nothing that happens from here changes it. Deriving it from
+     * {@code VisualSettings.class.getFields()} — which is what this test used to do — quietly asserted
+     * something else: that every appearance field ever added must also have a legacy hook. That was
+     * true on the day it was written, because every field was a migrated one, and it became false the
+     * first time an appearance setting was added that had never lived on {@code Settings}.
+     *
+     * <p>⚠ A hook for a brand-new field would be worse than none. It would read a legacy key that no
+     * save has ever contained, which is exactly the dead code the second half of this test refuses.
+     */
+    private static final List<String> LEGACY_KEYS = List.of(
+            "themeId", "cursorSkin", "wallpaper", "bezel",
+            "crtScanlines", "crtAberration", "crtGlitch", "crtCurvature",
+            "roundedWindows", "subwindowControlOrder");
+
     @Test
     @DisplayName("every legacy key has a migration hook, and every hook names a real field")
     void migrationHooksMatchTheFields() throws IOException {
-        // Both directions. A VisualSettings field with no hook loses its value on upgrade; a hook
-        // for a field that no longer exists is dead code that reads as coverage.
+        // Both directions. A legacy key with no hook loses its value on upgrade — the mapper has
+        // FAIL_ON_UNKNOWN_PROPERTIES off, so it is dropped in silence; a hook naming a field that no
+        // longer exists is dead code that reads as coverage.
         String source = Files.readString(Path.of(
                 "src/main/java/io/github/stoicswe/eyeandsickle/client/profile/ClientProfile.java"));
 
@@ -243,13 +264,37 @@ class VisualSettingsTest {
             hooked.add(hooks.group(1));
         }
 
+        assertThat(hooked)
+                .as("a legacy key with no hook loses its value when a player upgrades")
+                .containsExactlyInAnyOrderElementsOf(LEGACY_KEYS);
+
         List<String> fields = new ArrayList<>();
         for (var field : VisualSettings.class.getFields()) {
             fields.add(field.getName());
         }
+        assertThat(fields)
+                .as("every hook names a field that still exists")
+                .containsAll(LEGACY_KEYS);
+    }
 
-        assertThat(hooked)
-                .as("a VisualSettings field with no legacy hook loses its value when a player upgrades")
-                .containsExactlyInAnyOrderElementsOf(fields);
+    /**
+     * ⚠ A new appearance field needs no hook, but it DOES need to survive a round trip.
+     *
+     * <p>That is the guarantee the hook rule was standing in for, and it is the one that actually
+     * matters: whatever the reason a field is on {@link VisualSettings}, saving and reloading must
+     * not lose it. This checks it directly rather than by proxy, so it holds for legacy and new
+     * fields alike.
+     */
+    @Test
+    @DisplayName("a new appearance field round-trips without a migration hook")
+    void newFieldsRoundTrip(@TempDir Path dir) {
+        ClientProfile profile = new ClientProfile(dir);
+        profile.appearance().focusRing = true;
+        profile.appearance().focusRingColor = "violet";
+        profile.save();
+
+        ClientProfile reloaded = new ClientProfile(dir);
+        assertThat(reloaded.appearance().focusRing).isTrue();
+        assertThat(reloaded.appearance().focusRingColor).isEqualTo("violet");
     }
 }

@@ -978,6 +978,46 @@ Record resolutions here when they land (date — question — outcome — where 
 
   ⚠ **Two defects the render caught, neither visible to a compile.** `-es-accent` is not a token — JavaFX does not fail on an unknown looked-up value, it warns to stdout and **drops the declaration**, so the progress bar rendered with no fill and looked like a scan making no progress. And `ScrollPane.setVvalue(1.0)` in the same frame the labels are added is clamped against a content height the pane does not know yet, leaving the newest line — the only one a player is watching for — off the bottom.
 
+- 2026-07-30 — **The top strip's balance is abbreviated to four decimals, with the exact figure on hover** — on explicit direction — recorded in `client/ui/widgets/BalanceReadout`, `BalanceReadoutTest`, and an amendment to `Ethecoin.formatApprox`'s own rule.
+
+  At eighteen places a real balance renders as `1234.905777539252303541 EC` and pushes every other cell off the strip. An unreadable exact figure is not more honest than a readable abbreviated one.
+
+  ⚠ **This is an exception to a rule written three changes earlier, and the exception is narrower than it looks.** `Ethecoin.formatApprox` said outright: never a balance, because a rounded amount somebody holds is a lie the player cannot detect. What earns the exception is **not** that the strip is short of room — it is that the exact amount is still reachable. `BalanceReadout` carries the full figure in a tooltip and in its `accessibleText`, and the LEDGER shows every amount exactly. The rule is therefore **sharper** than it was: *a held amount may be abbreviated only where the exact figure is one hover away.* Abbreviating one with no route back to the real number is still forbidden, and that is what the original wording was reaching for.
+
+  ⚠ **The tooltip tracks the TARGET, not the counting figure.** `BalanceReadout` steps toward a new balance over ~520ms; mid-count the shown value is a step on the way to the balance rather than the balance, and a hover that reported it would be exact about a number that is not the player's.
+
+  ⚠ **A screen reader gets the full amount**, because it has no strip and no hover. The abbreviation is a space constraint on one readout, not a decision about how much a player is allowed to know. `BalanceReadoutTest` holds all three halves — short strip, exact tooltip, exact accessible text — and was verified to fail when the tooltip is removed, which is the failure that would turn the abbreviation into the lie the rule was written about.
+
+- 2026-07-30 — **An opt-in outline on the focused window, with a colour the player picks** — on explicit direction — recorded in `client/ui/chrome/FocusRing`, `VisualSettings.focusRing`/`focusRingColor`, and Settings → Desk.
+
+  **Why it is an opt-in and not a change to the default.** The deck already marks focus: the strip lightens and the title takes the accent. That is quiet deliberately, because the desk holds a dozen panels and a loud marker on one competes with the readouts inside all of them. It is also, for some players, not enough — a low-contrast strip change is exactly the cue that disappears on a dim screen. So: off by default, and the colour is theirs.
+
+  ⚠ **These hues do NOT enter the palette's semantic vocabulary**, and the distinction is worth stating precisely. `ui-design-language.md` §2.1 bans a semantic colour system because a colour here means something specific and there are very few. **A ring colour means nothing** — it is not encoding a state, a severity or a category; it says "the window you chose the colour for". Every value is confined to `.es-focus-ring-*`, none is used elsewhere, and **§4.4 is untouched** because the strip cue it supplements is still there: the ring is never the only thing marking focus.
+
+  ⚠ **THEME is first and is the default** because it resolves `-es-amber` rather than pinning a hue, so it follows all five palettes without knowing about any of them. The other five are fixed.
+
+  ⚠ **It paints the frame's EDGE region, not a border on the frame.** Every frame is clipped to a `Polygon` for the 18px notch, so a border on the frame itself would be cut away and appear to do nothing — silently, with the CSS applying correctly. That is exactly how the first rounded-corners attempt failed, and it is why this was rendered rather than reasoned about.
+
+  ⚠ **Static flag plus a walk of the live frames** (`DeskManager.setFocusRing`), like rounded corners and control order before it. A flag read only in the constructor makes a setting that appears to work solely for windows opened afterwards — the failure `CLAUDE.md` now records four times.
+
+  **A guard test had to be amended, and it was over-broad rather than wrong.** `VisualSettingsTest.migrationHooksMatchTheFields` asserted that *every* `VisualSettings` field has a legacy `@JsonProperty` hook. That held when written — every field then was one migrated out of `Settings` during the per-character split — and became false the moment an appearance field was added that had never lived on `Settings`. ⚠ A hook for a brand-new field would read a legacy key **no save has ever contained**, which is the dead code the same test's other half refuses. The legacy set is now a literal list, which is the honest representation of a historical fact, and a new test checks the guarantee the hook rule was standing in for directly: a new appearance field round-trips through save and reload.
+
+- 2026-07-30 — **Every checkbox became a horizontal switch** — on explicit direction — recorded in `client/ui/widgets/Switch`, `SwitchTest`, and `theme.css`'s `.es-switch-*` block.
+
+  A tick box is a form control: it means "include this in what I am about to submit". Every one of these settings takes effect the moment it changes — there is no submit — and a switch is the control that says so. It also keeps Modena's own checkbox skin off the screen, which is §0's argument about window chrome applied one level down.
+
+  ⚠ **Square, with a pill only under `.es-rounded`.** The obvious switch is a lozenge and §9's radius ban is unamended, so the soft shape is something the player opts into along with everything else — the same treatment the block cards' miner pill got. Both shapes were rendered.
+
+  ⚠ **The knob SNAPS.** §5 permits no easing and rations continuous motion by filename, so a sliding knob would fail the contract test either as a tween or as a `Timeline` in a widget. It also makes Reduce motion free rather than a special case: there is no motion to reduce.
+
+  ⚠ **Position first, colour second (§4.4).** On and off differ by which side the knob is on — which is what a switch *is* — and by fill after that.
+
+  ⚠ **It announces the ORIGINAL text, not the displayed text.** `Ui.label` uppercases, and several screen readers spell an all-caps run out letter by letter, so announcing the display text would turn "Signal glitch" into thirteen letters. The caps are a look; the words are the content. Caught by a test asserting the spoken string.
+
+  ⚠ **A silent regression this nearly shipped.** `NodeShellView` built the shell's command line with `control instanceof CheckBox box && box.isSelected()`. A pattern match compiles unchanged when the widget type moves and simply **stops matching** — so a flag the player had switched on would never reach the command, with nothing failing and the wrong command running. Found by grepping the remaining `CheckBox` references after the build was already green, which is the only reason it was found at all.
+
+  **API-compatible on purpose.** `Switch` exposes `selectedProperty`, `isSelected`, `setSelected` and `setTooltip`, so fifteen call sites changed only their type name. A restyle that forces unrelated edits is a restyle that introduces unrelated bugs.
+
 ## 4. How to use this doc
 
 - Before starting design work on any system, check here for its open questions.

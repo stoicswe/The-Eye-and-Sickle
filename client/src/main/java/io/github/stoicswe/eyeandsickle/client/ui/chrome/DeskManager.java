@@ -292,6 +292,21 @@ public final class DeskManager {
         }
     }
 
+    /**
+     * Turns the focused-window outline on or off for every window on the desk, open ones included.
+     *
+     * <p>⚠ Walks the live frames. The class is applied in {@code WindowFrame}'s constructor too, so
+     * without this the setting would take effect only on windows opened afterwards — which reads as
+     * a broken toggle rather than a lazy one, and is the same trap rounded corners and control order
+     * both fell into.
+     */
+    public void setFocusRing(boolean enabled, String color) {
+        WindowFrame.setFocusRing(enabled, color);
+        for (DeskWindow window : windows.values()) {
+            window.frame().applyFocusRing();
+        }
+    }
+
     public void setRoundedCorners(boolean rounded) {
         WindowFrame.setRounded(rounded);
         for (DeskWindow window : windows.values()) {

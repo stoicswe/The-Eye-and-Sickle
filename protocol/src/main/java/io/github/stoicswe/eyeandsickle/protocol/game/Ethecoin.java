@@ -247,10 +247,24 @@ public record Ethecoin(BigInteger wei) implements Comparable<Ethecoin> {
      *
      * <h2>⚠ Where this may be used</h2>
      *
-     * Only where the number is already an approximation and is <em>labelled</em> as one — the rig
-     * monitor's {@code ~40 EC/hr}, a projected payout, an expected yield. ⚠ Never on a balance, a
-     * ledger delta, a fee actually charged, or a resale price: those are amounts somebody holds, and
-     * a rounded rendering of one is a lie the player cannot detect.
+     * Where the number is already an approximation and is <em>labelled</em> as one — the rig
+     * monitor's {@code ~40 EC/hr}, a projected payout, an expected yield. ⚠ Never on a ledger delta,
+     * a fee actually charged, or a resale price: those are amounts somebody holds, and a rounded
+     * rendering of one is a lie the player cannot detect.
+     *
+     * <h2>⚠ The one exception, and what earns it (amended 2026-07-30)</h2>
+     *
+     * The rule above said "never a balance" outright. The top strip is now an exception: at eighteen
+     * places a real balance renders as {@code 1234.905777539252303541 EC} and pushes every other cell
+     * off the strip, and an unreadable exact figure is not more honest than a readable abbreviated
+     * one.
+     *
+     * <p>What makes it legitimate is <b>not</b> that the strip is short of room — it is that the
+     * exact amount is still reachable. {@code BalanceReadout} carries the full figure in a tooltip
+     * and in its accessible text, and the LEDGER shows every amount exactly. So the rule is sharper
+     * than it was rather than weaker: <b>a held amount may be abbreviated only where the exact figure
+     * is one hover away.</b> Abbreviating one with no route back to the real number is still
+     * forbidden, and that is the case the original wording was reaching for.
      *
      * <p>Trailing zeros are still trimmed after the cap, so {@code 40.0000} renders as {@code 40}.
      *
