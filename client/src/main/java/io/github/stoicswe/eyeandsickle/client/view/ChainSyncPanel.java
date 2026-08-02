@@ -74,8 +74,8 @@ public final class ChainSyncPanel {
      * Builds the panel, or an empty one when the chain had nothing to catch up.
      *
      * @param sync what the load filled in
-     * @param onDone run when the replay finishes — the LEDGER window refreshes its cards there, so
-     *     the block strip behind this panel is not repainted mid-fill under the player's eyes
+     * @param onDone run when the replay finishes and the summary appears. The banner starts its dwell
+     *     here rather than at the open, so the reading time is spent on the part that can be read
      * @return the panel and its subscription, which the caller must close on detach
      */
     public static Built build(ChainSync sync, Runnable onDone) {

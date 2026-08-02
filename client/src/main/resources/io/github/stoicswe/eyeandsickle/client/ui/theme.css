@@ -1865,6 +1865,14 @@
  * ⚠ Bordered on the LEADING EDGE ONLY. A full box would read as a fifth block card in a column
  * that already has three kinds of bordered box, and this is not a block — it is a note about all
  * of them. The rule is the same convention the log's severity gutter uses. */
+/* Hanging under the balance cell (ui/SyncBanner). Ruled on the two open sides — it sits over the
+   desk and needs an edge, and the strip above it already supplies the third. No shadow: §9 lists
+   drop shadows as build-blocking, and a rule is what every other floating surface here uses. */
+.es-sync-banner .es-sync {
+    -fx-border-color: -es-amber-mid -es-rule-hi -es-rule-hi -es-amber-mid;
+    -fx-border-width: 0 1 1 2;
+}
+
 .es-sync {
     -fx-background-color: -es-void;
     -fx-border-color: -es-amber-mid;
@@ -1913,6 +1921,16 @@
  * The steady figure keeps the amber it has always had — §2.1 reserves it for money, and this IS
  * money. Only the transient delta beside it takes a state hue, and only while it is on screen. */
 .es-balance-value { -fx-text-fill: -es-amber; }
+/* The movement chip, hanging under the balance cell (ui/BalanceDelta). An overlay rather than a
+   cell child: as a child it widened the strip while it showed and wrapped the chrome onto two rows
+   every time the player earned anything. Opaque, because it sits over the desk. */
+.es-balance-pop {
+    -fx-background-color: -es-void;
+    -fx-border-color: transparent -es-rule-hi -es-rule-hi -es-rule-hi;
+    -fx-border-width: 0 1 1 1;
+    -fx-padding: 4 10 4 10;
+}
+
 .es-balance-delta { -fx-font-size: 10px; }
 .es-balance-delta.es-balance-gain { -fx-text-fill: -es-gain; }
 .es-balance-delta.es-balance-loss { -fx-text-fill: -es-alarm; }
@@ -2249,6 +2267,17 @@
  */
 .es-spark-cell { -fx-background-color: -es-rule; }
 .es-spark-on   { -fx-background-color: -es-dim-2; }
+/* Load intensity, by how far up the column a cell sits (widgets/Sparkline).
+   ⚠ The AMBER LADDER, not a traffic light. §2.1 bans a semantic colour system and §2.1a's carve-out
+   is fenced to two named sites, so green/amber/red is not available here — and amber is the right
+   answer anyway, because §2.1 already spends it on "cycles doing work", which is what load is.
+   ⚠ `alarm` is deliberately not the top step: §2.1 reserves it for loss and hostile state and
+   rations it to twice a screen, and a busy rig is not a hostile one.
+   ⚠ Two classes, because theme.css has a late one-class rule these would lose to at equal
+   specificity — the trap documented in CLAUDE.md. */
+.es-spark-cell.es-spark-s1 { -fx-background-color: -es-amber-low; }
+.es-spark-cell.es-spark-s2 { -fx-background-color: -es-amber-mid; }
+.es-spark-cell.es-spark-s3 { -fx-background-color: -es-amber; }
 /* "Now". Amber only because load and recovery are cycles doing work, which is the one thing §2.1
    lets the accent mean. */
 .es-spark-now  { -fx-background-color: -es-amber; }

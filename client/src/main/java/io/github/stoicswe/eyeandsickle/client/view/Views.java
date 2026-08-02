@@ -1163,20 +1163,13 @@ public final class Views {
         };
         refreshData.run();
 
-        // ⚠ takeChainSync, not chainSync — and built once, outside refreshData.
-        //
-        // Two different repeats, both of which shipped as replays of a finished fill. Rebuilding
-        // inside refreshData restarted the animation every time a block landed; reading the report
-        // rather than taking it restarted it every time the player opened the window, because a
-        // closed tool window keeps no state and DeskManager calls this factory afresh. A
-        // synchronisation is a transition and is announceable exactly once — after that the rig log
-        // carries the same facts, which is where history belongs.
-        ChainSyncPanel.Built sync = ChainSyncPanel.build(session.takeChainSync(), refreshData);
-
+        // ⚠ The SYNCHRONIZING panel is NOT here any more (2026-08-02). It drops out from under the
+        // balance cell on load instead — DeckShell.showChainSync. The report is about a number that
+        // is on screen at all times, and putting it on a tab of a window nobody had to open meant a
+        // player only saw it by chance. ChainSyncPanel itself is unchanged and still builds it.
         chainPane
                 .getChildren()
                 .addAll(
-                        sync.node(),
                         new Label(t("ui.views.chain-2", "CHAIN")),
                         chainLine,
                         new Label(t("ui.views.mempool-next-blocks", "MEMPOOL — NEXT BLOCKS")),
@@ -1262,7 +1255,7 @@ public final class Views {
                         ledgerPane,
                         contributorPane);
         Region scrolled = scrollable(root);
-        releaseOnDetach(root, onSession, clock, () -> sync.release().run());
+        releaseOnDetach(root, onSession, clock);
         return scrolled;
     }
 

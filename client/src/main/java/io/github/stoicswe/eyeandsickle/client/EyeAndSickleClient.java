@@ -647,6 +647,10 @@ public class EyeAndSickleClient extends Application {
         showBootSequence(() -> {
             startDeck(stage);
             startHeartbeat();
+            // ⚠ AFTER the deck exists, and only here. The report hangs off the balance cell's bounds,
+            // which are zero until the strip has laid out — and this is the one moment a load has to
+            // announce itself. Consuming it also means the LEDGER window will not repeat it.
+            deck.showChainSync();
         });
     }
 

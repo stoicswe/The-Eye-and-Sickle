@@ -47,14 +47,21 @@ public final class BalanceReadout extends HBox {
     private static final double FLASH_HOLD_MS = 1400;
 
     private final Label value = Ui.value("—");
-    private final Label delta = Ui.micro("");
 
     private java.math.BigInteger shownWei = java.math.BigInteger.ZERO;
     private java.math.BigInteger targetWei = java.math.BigInteger.ZERO;
     private boolean seeded;
 
     private AutoCloseable counter;
-    private AutoCloseable flash;
+
+    /**
+     * Where a movement goes to be drawn. Does nothing until the deck wires it up.
+     *
+     * <p>A sink rather than a reference to the overlay, so this widget stays buildable on its own —
+     * a hard dependency on a node that lives in the deck's overlay layer would make it untestable
+     * without a whole deck around it.
+     */
+    private java.util.function.Consumer<java.math.BigInteger> onDelta = change -> {};
 
     public BalanceReadout() {
         super(UiTokens.SPACE_3);
@@ -62,14 +69,12 @@ public final class BalanceReadout extends HBox {
         Label key = Ui.label("Balance");
         key.getStyleClass().add("es-kv-key");
         value.getStyleClass().add("es-balance-value");
-        delta.getStyleClass().add("es-balance-delta");
-        delta.setVisible(false);
         // ⚠ The exact figure lives in a tooltip on the WHOLE readout, not on the number alone: the
         // strip's cells are small and a player reaching for "Balance" should get the same answer as
         // one reaching for the digits.
         exact.setShowDelay(javafx.util.Duration.millis(200));
         javafx.scene.control.Tooltip.install(this, exact);
-        getChildren().addAll(key, value, delta);
+        getChildren().addAll(key, value);
     }
 
     /**
@@ -177,37 +182,23 @@ public final class BalanceReadout extends HBox {
         });
     }
 
-    /** Shows the movement beside the balance, then steps it away. */
+    /**
+     * Hands the movement to whoever is drawing it.
+     *
+     * <h2>⚠ The delta is NOT a child of this row any more (2026-08-02)</h2>
+     *
+     * It was, and that made the balance cell wider for as long as it showed — which pushed the top
+     * strip past its width budget and wrapped it onto a second row every time the player earned
+     * anything, then sprang back a second and a half later. Nothing transient may occupy space in the
+     * strip. {@code ui/BalanceDelta} draws it as an overlay hanging under the cell instead, so the
+     * strip's width no longer depends on whether money has moved recently.
+     *
+     * <p>The counting animation stayed here, because that is this readout doing its job: the figure
+     * still steps to its new value on {@link Pulse}, and where the delta chip is drawn has nothing to
+     * do with it.
+     */
     private void showDelta(java.math.BigInteger change) {
-        stop(flash);
-        delta.setVisible(true);
-        delta.setOpacity(1);
-        delta.setText((change.signum() >= 0 ? "+" : "−") + Ethecoin.format(change.abs()));
-        delta.getStyleClass().removeAll("es-balance-gain", "es-balance-loss");
-        delta.getStyleClass().add(change.signum() >= 0 ? "es-balance-gain" : "es-balance-loss");
-
-        if (Pulse.shared().reducedMotion()) {
-            // Held, not faded. See the class comment: which way the money went is information.
-            return;
-        }
-        int[] frame = {0};
-        int hold = (int) Math.round(FLASH_HOLD_MS / UiTokens.FRAME_MS);
-        flash = Pulse.shared().animate(UiTokens.FRAME_MS, () -> {
-            frame[0]++;
-            if (frame[0] <= hold) {
-                return;
-            }
-            int step = frame[0] - hold;
-            // Nine steps down, the same ladder Motion uses. Whole steps, never a tween.
-            double opacity = 1 - step / (double) UiTokens.REVEAL_STEPS;
-            if (opacity <= 0) {
-                delta.setVisible(false);
-                stop(flash);
-                flash = null;
-                return;
-            }
-            delta.setOpacity(opacity);
-        });
+        onDelta.accept(change);
     }
 
     private static void stop(AutoCloseable handle) {
@@ -222,11 +213,14 @@ public final class BalanceReadout extends HBox {
         }
     }
 
-    /** Stops both drivers. Called by {@code DeckShell.dispose}. */
+    /** Points movements at the overlay that draws them. */
+    public void setOnDelta(java.util.function.Consumer<java.math.BigInteger> sink) {
+        this.onDelta = sink == null ? change -> {} : sink;
+    }
+
+    /** Stops the counter. Called by {@code DeckShell.dispose}. */
     public void dispose() {
         stop(counter);
-        stop(flash);
         counter = null;
-        flash = null;
     }
 }

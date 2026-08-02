@@ -184,6 +184,30 @@ public final class DeckSnapshot {
             // openStartingWindows defers tiling to runLater, which never fires in a synchronous
             // render. Tiling directly here is the same call it would have made.
             deck.desk().tileAll();
+            // ⚠ Opt-in: the chain-sync report only exists after a real absence, so a deck built from
+            // a fresh save has nothing to show. `-Ddeck.sync=1` feeds it a literal one through
+            // DeckShell's seam, which is the only way to render the banner without doctoring a save's
+            // timestamps and hoping the rules read them the way this meant.
+            if (System.getProperty("deck.sync") != null) {
+                deck.showChainSync(new io.github.stoicswe.eyeandsickle.protocol.game.ChainSync(
+                        java.time.Instant.parse("2026-07-29T12:00:00Z"),
+                        java.time.Instant.parse("2026-08-02T12:00:00Z"),
+                        4 * 24 * 3600,
+                        4 * 3600,
+                        4412,
+                        4823,
+                        411,
+                        102,
+                        2,
+                        3,
+                        new java.math.BigInteger("324000000000000000000"),
+                        1,
+                        344.18,
+                        352.90,
+                        1,
+                        false));
+            }
+
             scene.getRoot().applyCss();
             deck.root().layout();
 

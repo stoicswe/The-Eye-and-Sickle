@@ -93,6 +93,24 @@ public final class DeckShell {
     /** Smallest node that counts as having an edge. Below this the effect degenerates into static. */
     private static final double GLITCH_MIN_EDGE = 14;
 
+    /**
+     * How big a bump a paid block puts in the load chart, as a fraction of full scale.
+     *
+     * <p>Deliberately partial. A block is an event with no duration, so any figure here is a
+     * presentation choice rather than a measurement — and one that pinned the chart to the top would
+     * be indistinguishable from the rig genuinely being saturated, which is a reading the player
+     * makes decisions on.
+     */
+    private static final double SPIKE = 0.35;
+
+    /**
+     * How long the chain-sync report stays after its summary lands.
+     *
+     * <p>Longer than a notice's eleven seconds, because this is several lines of figures rather than
+     * one sentence, and it is shown exactly once per session. A click puts it away sooner.
+     */
+    private static final double SYNC_DWELL_MS = 14000;
+
     private final GameSession session;
     private final Shell shell;
     private final ClientProfile profile;
@@ -114,6 +132,26 @@ public final class DeckShell {
      */
     private final io.github.stoicswe.eyeandsickle.client.ui.widgets.WrapStrip topStrip =
             new io.github.stoicswe.eyeandsickle.client.ui.widgets.WrapStrip();
+
+    /**
+     * The strip cell the chain-sync report drops from.
+     *
+     * <p>Held because the report is about the balance and hangs off it — see {@link SyncBanner}. It
+     * is the cell rather than the {@code BalanceReadout} inside it, so the panel lines up with the
+     * cell's edge and its divider rather than with the text.
+     */
+    private Region balanceCell;
+
+    /** The chain-sync report, when a load had one to make. Empty the rest of the time. */
+    private final SyncBanner syncBanner = new SyncBanner();
+
+    /**
+     * The money that just moved, drawn under the balance rather than inside it.
+     *
+     * <p>⚠ An overlay because it is transient: as a cell child it widened the strip while it showed
+     * and wrapped the whole thing onto two rows. See {@link BalanceDelta}.
+     */
+    private final BalanceDelta balanceDelta = new BalanceDelta();
 
     private final VBox rail = new VBox(UiTokens.SPACE_6);
     private final VBox launcher = new VBox(3);
@@ -167,6 +205,17 @@ public final class DeckShell {
     private final ThermoMeter thermo = new ThermoMeter();
     private final NoiseMeter noise = new NoiseMeter();
     private final Sparkline load = new Sparkline("Load");
+
+    /**
+     * The newest block this rig contributed to, so a new one can be spotted.
+     *
+     * <p>⚠ {@code -1} means "not looked yet", which is distinct from height 0. Seeding it from the
+     * first tick rather than from zero is what stops a freshly-loaded character spiking for a block
+     * that landed before they arrived — the chain runs while the client does not, so on any load the
+     * newest contribution is almost always older than the session.
+     */
+    private long lastContributionHeight = -1;
+
     private final Sparkline thermal = new Sparkline("Thermal recovery");
     private final io.github.stoicswe.eyeandsickle.client.ui.widgets.BalanceReadout balance =
             new io.github.stoicswe.eyeandsickle.client.ui.widgets.BalanceReadout();
@@ -291,7 +340,10 @@ public final class DeckShell {
         // deck. That is the whole point of it: it is the screen the interface is being displayed on,
         // and an artefact that stopped at the edge of a dialog would give the dialog away as not
         // being part of the same picture. It is mouse-transparent, or it would eat every click.
-        root.getChildren().addAll(deckRoot, notices, pause, bezel, crt);
+        // ⚠ Above the desk and BELOW the pause menu, in the same band as the notices. It hangs off
+        // a strip cell, so it has to paint over any window tiled under the strip; and a player who
+        // hits Escape mid-report should get the pause menu on top of it rather than behind it.
+        root.getChildren().addAll(deckRoot, notices, balanceDelta, syncBanner, pause, bezel, crt);
 
         buildRail();
         applyPlacementSetting();
@@ -447,7 +499,10 @@ public final class DeckShell {
         topStrip.setSpacer(spacer);
         topStrip.add(spacer);
         topStrip.add(HazardBand.top(96));
-        topStrip.add(cell(stacked(balance, income)));
+        balanceCell = cell(stacked(balance, income));
+        topStrip.add(balanceCell);
+        balanceDelta.anchorTo(balanceCell, topStrip);
+        balance.setOnDelta(balanceDelta::show);
         // ⚠ The two figures a player glances at, and the two they occasionally want, split by how
         // often they are wanted. Session and local time are always on; uptime and UTC live in the
         // tooltip, because a cell with four times in it is a cell nobody reads.
@@ -658,6 +713,41 @@ public final class DeckShell {
         commandGreeble.setAgitation(status.personalHeat() / 100.0d);
     }
 
+    /**
+     * Bumps the load chart when this rig's mining pays out.
+     *
+     * <h2>Why the contribution list and not the ledger</h2>
+     *
+     * A ledger credit is any money arriving — a sale, a collection, a transfer — and spiking the LOAD
+     * chart for those would be saying the rig did work it did not do. {@code BlockContribution} is
+     * exactly "a block this rig put hashrate into", which is the thing being drawn.
+     *
+     * <p>⚠ Solo and pooled pay differently and both count. A solo miner is paid only when it
+     * {@code won}; a share pool pays for accepted shares, so its rows credit whether or not that
+     * block was the pool's. Testing {@code won} alone would leave a pooled player's chart flat while
+     * their balance climbed.
+     */
+    private void noteMinedBlocks() {
+        var recent = session.contributions(1);
+        if (recent.isEmpty()) {
+            return;
+        }
+        var newest = recent.getFirst();
+        long height = newest.height();
+        if (lastContributionHeight < 0) {
+            // First look. Seed and spike nothing — see the field comment.
+            lastContributionHeight = height;
+            return;
+        }
+        if (height == lastContributionHeight) {
+            return;
+        }
+        lastContributionHeight = height;
+        if (newest.won() || newest.creditedWei().signum() > 0) {
+            load.spike(SPIKE);
+        }
+    }
+
     private void tickClock() {
         // One sample a second, for every history chart on the strip. Sampling here rather than in
         // refreshTop keeps the two charts on the same beat — two time series drifting apart would
@@ -666,6 +756,9 @@ public final class DeckShell {
         long total = status.budget().total().cycles();
         long free = status.budget().available().cycles();
         long recovering = status.budget().recovering().cycles();
+        // ⚠ Spiked BEFORE the sample is pushed, so the bump lands on this tick's column rather than
+        // the next one — a block and its spike a second apart would read as two events.
+        noteMinedBlocks();
         load.push(status.load(), (total - free) + "/" + total + "C");
         thermal.push(total == 0 ? 0 : recovering / (double) total, recovering + "C");
 
@@ -944,6 +1037,44 @@ public final class DeckShell {
     /** The toast stack, so the shell can report things the rig itself did not log. */
     public Notifications notices() {
         return notices;
+    }
+
+    /**
+     * Drops the chain-sync report out from under the balance, if this load had one to make.
+     *
+     * <h2>⚠ This CONSUMES the report — see {@code GameSession.takeChainSync}</h2>
+     *
+     * A synchronisation is a transition and is announceable exactly once. It used to be taken by the
+     * LEDGER window, which meant the player only saw it if they happened to open that window, and
+     * then only on its CHAIN tab. Taking it here means it is shown once, unprompted, next to the
+     * number it explains — and the rig log still carries the same facts afterwards, which is where
+     * history belongs.
+     *
+     * <p>⚠ Called after the deck is on screen, not from the constructor: the banner hangs off the
+     * balance cell's bounds and those are all zero until the strip has laid out.
+     */
+    public void showChainSync() {
+        showChainSync(session.takeChainSync());
+    }
+
+    /**
+     * The same, for a report that has already been taken.
+     *
+     * <p>⚠ The seam exists so a render harness can show a real load's report without doctoring a save
+     * file's timestamps and hoping the rules read them the way the test meant. {@link #showChainSync()}
+     * is the only caller in the client.
+     */
+    public void showChainSync(io.github.stoicswe.eyeandsickle.protocol.game.ChainSync report) {
+        if (!report.any() || balanceCell == null) {
+            return;
+        }
+        // ⚠ The dwell starts when the SUMMARY lands, which is what onDone fires on — not when the
+        // panel opens. The replay is 1.8s of theatre the player cannot read; starting the clock at
+        // the open would spend a third of the reading time on it.
+        var built = io.github.stoicswe.eyeandsickle.client.view.ChainSyncPanel.build(
+                report, () -> syncBanner.dismissAfter(SYNC_DWELL_MS));
+        syncBanner.show(
+                balanceCell, topStrip, built.node(), () -> built.release().run());
     }
 
     public void focusCommandLine() {
@@ -1337,6 +1468,8 @@ public final class DeckShell {
         substrate.dispose();
         crt.dispose();
         bezel.dispose();
+        syncBanner.dismiss();
+        balanceDelta.dispose();
         balance.dispose();
         notices.detach();
         pause.dispose();

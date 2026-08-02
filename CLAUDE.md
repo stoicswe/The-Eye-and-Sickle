@@ -877,6 +877,91 @@ hand, and now it changes what the breach *is*.
 - ⚠ **Staleness deliberately does not count against a report.** A week-old finding still counts; its
   age is already on screen, and discounting it silently would move the odds with nothing changing.
 
+**Nothing transient may occupy space in the top strip (2026-08-02).** The balance delta was a third
+`Label` inside `BalanceReadout`'s row, so the cell got **wider for as long as it showed** — pushing
+the strip past its width budget and wrapping the chrome onto two rows every time the player earned
+anything, then springing back 1.4s later. It is now `ui/BalanceDelta`, an overlay under the cell.
+Same defect class as the empty refusal cell, same rule.
+
+- ⚠ **The counting animation did NOT move.** `BalanceReadout` still steps the figure to its new value
+  on `Pulse`; only where the delta *chip* is drawn changed. It reports movements through a
+  `Consumer<BigInteger>` sink so the widget stays buildable without a deck around it.
+- ⚠ **`ui/Anchoring` is shared by both overlays**, because getting one on screen cost four debugging
+  rounds and none of them produced an error message: `getLayoutBounds()` vs `getBoundsInLocal()`, an
+  unmanaged node never being resized, both bounds properties on both anchors, and `applyCss()` before
+  measuring. Its class comment is the list.
+
+**The LOAD sparkline has four intensity steps and spikes on a paid block (2026-08-02).**
+
+- ⚠ **The AMBER LADDER, not a traffic light.** §2.1 bans a semantic colour system and §2.1a's
+  carve-out is fenced to two named sites (balance delta, network nodes), so green/amber/red was not
+  available — and amber is the right answer anyway: §2.1 already spends it on "cycles doing work",
+  which is exactly what load is. `dim-2 → amber-low → amber-mid → amber`.
+- ⚠ **`alarm` is deliberately NOT the top step.** §2.1 reserves it for loss and hostile state and
+  rations it to twice a screen; a busy rig is not a hostile one.
+- ⚠ **Intensity is the cell's HEIGHT in the column, not the sample's value** — how hard the rig is
+  working is already read off how far up the column goes, so colouring by value would say nothing the
+  height did not.
+- ⚠ **The spike is added to the DRAWN fraction only.** A block is instantaneous and has no load to
+  sample, so nothing would ever appear in a history chart of load without this. The reading beside the
+  label stays the real `n/100C`, because that is a measurement.
+- ⚠ **Driven by `BlockContribution`, not the ledger.** A ledger credit is any money arriving — a sale,
+  a collection — and spiking LOAD for those claims work the rig did not do. ⚠ **Both `won` and a
+  positive credit count**: a share pool pays for accepted shares whether or not that block was the
+  pool's, so testing `won` alone leaves a pooled player's chart flat while their balance climbs.
+- ⚠ **`lastContributionHeight` seeds from the first tick, not from zero.** The chain runs while the
+  client does not, so on any load the newest contribution is almost always older than the session — a
+  zero seed spikes for a block that landed before the player arrived.
+
+**The chain-sync report drops from the BALANCE cell, not the LEDGER window (2026-08-02).**
+`ui/SyncBanner` hangs `view/ChainSyncPanel`'s node under the top strip on load. `ChainSyncPanel` is
+unchanged — only the caller moved. `DeckShell.showChainSync()` consumes `takeChainSync()`; the ledger
+no longer does, so it cannot repeat it.
+
+- **Why it moved:** the report is about the balance, which is on screen always, and it used to sit on
+  a tab of a window nobody was prompted to open. A once-per-session announcement behind two clicks is
+  one most players never saw.
+- ⚠ **It emerges from BEHIND the strip, and the CLIP is what does that.** This layer paints *above*
+  `deckRoot`, so sliding from `translateY = -height` would draw the panel over the readouts on the way
+  past. The container sits at its final place and is clipped; the **content** moves inside it.
+- ⚠ **`getLayoutBounds()`, NOT `getBoundsInLocal()`.** On a `Parent`, `boundsInLocal` is the union of
+  its **children's** bounds — the top strip reported **957px** tall on a 900px window, putting the
+  panel off the bottom of the screen while every number in the calculation looked plausible.
+- ⚠ **An UNMANAGED node is never resized by its parent.** `setManaged(false)` is what lets the banner
+  be placed by translate, and it also means `setPrefSize` is a request to a layout pass that will
+  never run on it — `getWidth()` stayed 0, the content laid out into nothing, and the clip cropped the
+  remainder. It must `resize()` itself. Same family as `DeskManager`'s managed-child trap, from the
+  other side.
+- ⚠ **Two anchors, not one.** X follows the balance **cell** (right-aligned; the panel is far wider
+  than the cell); Y follows the **strip**. A cell is centred in a taller strip, so anchoring Y to the
+  cell puts a few pixels of panel over the readouts — measured at 27 against 31. It looked right, and
+  was right by luck.
+- ⚠ **Positioning is LAYOUT-driven, never `Platform.runLater`.** A deferred call is a hope that one
+  layout pass has happened; it fires too early on a slow first paint and never at all in a synchronous
+  render. Listens to `layoutBounds` **and** `boundsInParent` on both anchors and the parent — the two
+  report different things (size vs position) and both are needed.
+- ⚠ **`applyCss()` the panel before measuring it.** Its padding, font and border are all stylesheet,
+  so `prefWidth(-1)` on a node that has never had CSS applied is **zero**.
+- ⚠ **The dwell starts when the SUMMARY lands** (`onDone`), not when the panel opens — the 1.8s replay
+  is theatre the player cannot read, and starting the clock at the open spends a third of the reading
+  time on it. Click dismisses sooner.
+- ⚠ **`DeckShell.showChainSync(ChainSync)` is a render seam.** The report only exists after a real
+  absence, so a snapshot needs to feed one in rather than doctor a save's timestamps.
+  `DeckSnapshot -Ddeck.sync=1`.
+- ⚠ **A stand-in strip in a focused harness LIED** — it reported the anchor misaligned when the real
+  deck was fine, and would have sent the fix the wrong way. Deleted; the real-deck flag replaced it.
+- ⚠ **THE PANEL IS NOT A FIXED SIZE, and the clip has to follow it.** `ChainSyncPanel` adds its
+  summary lines when the replay finishes, ~2s after the banner opens. Measuring once at build time
+  left the clip at the pre-summary height and **cut the report off mid-sentence** — with the part the
+  player actually needs below the cut. Two causes, both needed fixing: the holder was a plain `Pane`,
+  which computes its preferred size from where children *are* rather than what they *want*, and
+  nothing watched the content for growth. Holder is a `StackPane` now, plus a `layoutBounds` listener
+  on the panel.
+- ⚠ **A SNAPSHOT CANNOT CATCH THAT.** Render harnesses run under reduced motion, where the panel
+  paints its finished state on the first call — the content never grows and every frame looks right.
+  `SyncBannerTest` grows the content after placement instead; verified against the unfixed code
+  (clip stayed at 90).
+
 **Commands declare their own schema, and there is now ONE way to declare a command (2026-07-31).**
 `shell/Commands` is a builder; `shell/CommandSpec` is what a command takes; `shell/CommandCategory`
 is which drawer it sits in; `i18n/Messages` supplies the prose. All 51 registrations across the four
