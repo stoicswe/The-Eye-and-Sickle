@@ -247,7 +247,14 @@ public final class ClientCommands {
                     if (mode.isEmpty()) {
                         // 64 EX_USAGE with the accepted values, never a bare "invalid argument" —
                         // a refusal that does not say what would have worked teaches nothing.
-                        return Command.Output.usage("wallpaper: expected off, still or drift");
+                        // ⚠ Built from the enum, never retyped. This read "off, still or drift"
+                        // and stayed that way when two modes were added — a refusal that names a
+                        // shorter list than the one the parser accepts teaches the player that
+                        // modes they can actually use do not exist.
+                        return Command.Output.usage("wallpaper: expected "
+                                + io.github.stoicswe.eyeandsickle.client.ui.WallpaperMode.selectable().stream()
+                                        .map(io.github.stoicswe.eyeandsickle.client.ui.WallpaperMode::id)
+                                        .collect(java.util.stream.Collectors.joining(", ")));
                     }
                     profile.appearance().wallpaper = mode.get().id();
                     profile.save();

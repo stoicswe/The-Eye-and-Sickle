@@ -156,8 +156,8 @@ public final class DeckShell {
     private final VBox rail = new VBox(UiTokens.SPACE_6);
     private final VBox launcher = new VBox(3);
     private final Greeble commandGreeble = new Greeble(28);
-    private final io.github.stoicswe.eyeandsickle.client.ui.widgets.Substrate substrate =
-            new io.github.stoicswe.eyeandsickle.client.ui.widgets.Substrate();
+    private final io.github.stoicswe.eyeandsickle.client.ui.widgets.Wallpaper substrate =
+            new io.github.stoicswe.eyeandsickle.client.ui.widgets.Wallpaper();
     private final CrtOverlay crt = new CrtOverlay();
 
     /**
@@ -1250,6 +1250,7 @@ public final class DeckShell {
 
         substrate.setMode(WallpaperMode.byId(profile.appearance().wallpaper).orElse(WallpaperMode.DRIFT));
         substrate.setAberration(profile.appearance().crtAberration);
+        substrate.setChromatic(profile.appearance().wallpaperChromatic);
         crt.setEdgeSource(this::glitchEdges);
         crt.setCurvature(profile.appearance().crtCurvature / 100.0d);
         crt.setScanlines(profile.appearance().crtScanlines);

@@ -27,7 +27,10 @@ import java.util.Optional;
 public enum WallpaperMode {
     OFF("off", "Off", "Bare desk. No texture behind the windows at all."),
     STILL("still", "Still", "The texture is drawn once and never moves."),
-    DRIFT("drift", "Drifting", "The texture drifts a character at a time, slowly.");
+    DRIFT("drift", "Drifting", "The texture drifts a character at a time, slowly."),
+    RING("ring", "Ring", "The lit ring from the power-on screen, held still behind the desk."),
+    RING_GLITCH(
+            "ring-glitch", "Ring, breaking up", "The ring, with a fault that slowly develops and then settles again.");
 
     private final String id;
     private final String label;
@@ -65,5 +68,22 @@ public enum WallpaperMode {
 
     public static List<WallpaperMode> selectable() {
         return List.of(values());
+    }
+
+    /** Whether this mode draws the emblem rather than the character texture. */
+    public boolean isRing() {
+        return this == RING || this == RING_GLITCH;
+    }
+
+    /**
+     * Whether the wallpaper moves.
+     *
+     * <p>⚠ What this enum exists for: <b>WCAG 2.2.2</b> requires that content which moves for more
+     * than five seconds can be stopped. Every mode that moves needs a still counterpart, so
+     * {@link #RING} is to {@link #RING_GLITCH} what {@link #STILL} is to {@link #DRIFT} — not a
+     * lesser version of it, the pause for it.
+     */
+    public boolean moves() {
+        return this == DRIFT || this == RING_GLITCH;
     }
 }

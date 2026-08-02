@@ -2771,6 +2771,78 @@
 .es-poweron-glow-7 { -fx-stroke: rgba(255, 255, 255, 0.220); -fx-stroke-width: 4; }
 .es-poweron-glow-8 { -fx-stroke: rgba(255, 255, 255, 0.100); -fx-stroke-width: 5; }
 
+/* ── The ring wallpaper (widgets/RingField) ────────────────────────────────────────────────────
+   The power-on emblem at desk scale. Same GlowRing recipe, different palette.
+
+   ⚠ NEVER IN AMBER. §2.1 reserves amber for cycles doing work and income, and the design language
+   says the reservation "matters most on the largest surface in the client" — the character
+   wallpaper is held to dim-3 for exactly this reason. A glowing amber ring the size of the desk
+   would spend the whole accent budget on decoration.
+
+   ⚠ `-es-text-hi`, and that is what makes uOS Classic invert FOR FREE. The palette runs its ramp
+   the other way, so this same token is near-white on the dark decks and black on the light one —
+   a faint lit ring in one and a faint drawn ring in the other. A literal colour here would be
+   invisible in one palette or permanently glaring in the other; the trap DiskLamp documents.
+
+   ⚠ `-fx-opacity` per node rather than rgba(). JavaFX CSS cannot apply an alpha to a LOOKED-UP
+   colour — rgba() takes literal numbers only — and hard-coding the channels is what we are
+   avoiding. Each halo circle is its own node, so node opacity gives the same accumulating falloff
+   the splash gets from its alphas. Same rule as the splash: the widths are wide relative to the
+   gaps, so consecutive strokes OVERLAP and the ramp is a falloff rather than banding. */
+.es-ringfield { -fx-background-color: transparent; }
+
+/* The tear's colour fringes, off unless the player asks for them (§9.1).
+   ⚠ LITERAL rgba, and deliberately outside the palette — the same licence `.es-substrate-warm`
+   takes and for the same reason: a convergence error is a property of the phosphor, not of the
+   design system, so borrowing -es-alarm for the warm side would make the wallpaper look like it
+   was reporting a loss. This is not the semantic colour system §2.1 bans; it is an artefact.
+   ⚠ Fill transparent. A fringe is an EDGE, so it is a stroke — filling the circle would put a
+   coloured disc behind every window on the desk.
+   ⚠ NO -fx-opacity. RingField drives it every tick so the colour intensifies and falls back on its
+   own period, and CSS cannot be driven on a clock — a value declared here would also overwrite the
+   Java one at the next applyCss. Same split as the stroke widths. */
+.es-ringfield-warm {
+    -fx-fill: transparent;
+    -fx-stroke: rgba(228, 62, 128, 0.55);
+}
+.es-ringfield-cool {
+    -fx-fill: transparent;
+    -fx-stroke: rgba( 58, 214, 214, 0.55);
+}
+
+.es-ringfield-ring {
+    -fx-fill: transparent;
+    -fx-stroke: -es-text-hi;
+    /* ⚠ Atmosphere, not a focal point. The first cut ran the splash's alphas straight through and
+       the ring competed with the windows in front of it — §4 budgets texture 10–15% of pixels, and
+       the existing wallpaper sits at dim-3 for the same reason. Halved from there. */
+    -fx-opacity: 0.15;
+}
+.es-ringfield-glow-1,
+.es-ringfield-glow-2,
+.es-ringfield-glow-3,
+.es-ringfield-glow-4,
+.es-ringfield-glow-5,
+.es-ringfield-glow-6,
+.es-ringfield-glow-7,
+.es-ringfield-glow-8 { -fx-fill: transparent; -fx-stroke: -es-text-hi; }
+
+/* Outermost (1) to innermost (8). Scaled down from the splash's ramp: that one sits on pure black
+   with nothing in front of it, this one sits behind every window on the desk.
+   ⚠ NO -fx-stroke-width here. GlowRing sets it in Java for this variant, scaled with the radius —
+   a size, which this repo keeps out of the stylesheet, and a property CSS would overwrite on the
+   next applyCss if it declared it too. Fixed widths at desk scale stop the strokes overlapping and
+   the glow bands into eight separate concentric circles. */
+.es-ringfield-glow-1 { -fx-opacity: 0.008; }
+.es-ringfield-glow-2 { -fx-opacity: 0.014; }
+.es-ringfield-glow-3 { -fx-opacity: 0.022; }
+.es-ringfield-glow-4 { -fx-opacity: 0.036; }
+.es-ringfield-glow-5 { -fx-opacity: 0.054; }
+.es-ringfield-glow-6 { -fx-opacity: 0.078; }
+/* Two inside the ring as well — light spills both ways (GlowRing). */
+.es-ringfield-glow-7 { -fx-opacity: 0.058; }
+.es-ringfield-glow-8 { -fx-opacity: 0.026; }
+
 /* The bar. Continuous, which §4.1 permits HERE and nowhere else — it measures nothing, and the ban
    exists to keep a countable quantity countable. Its rounded ends are a Rectangle arc in Java, not a
    radius: §9.3 gates -fx-background-radius and this is not one. */

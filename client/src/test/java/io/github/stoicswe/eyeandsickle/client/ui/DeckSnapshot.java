@@ -100,6 +100,16 @@ public final class DeckSnapshot {
         profile.appearance().crtAberration = true;
         profile.appearance().crtGlitch = true;
         profile.appearance().crtCurvature = 100;
+        // ⚠ Opt-in so the default frames keep showing the character wallpaper. `-Ddeck.wallpaper=ring`
+        // or `ring-glitch` renders the emblem instead — the only way to see it, since a wallpaper is
+        // the change a green build most readily reports as done while drawing nothing.
+        if (System.getProperty("deck.chromatic") != null) {
+            profile.appearance().wallpaperChromatic = true;
+        }
+        String wallpaper = System.getProperty("deck.wallpaper");
+        if (wallpaper != null) {
+            profile.appearance().wallpaper = wallpaper;
+        }
         ThemeManager themes = new ThemeManager(profile);
 
         var game = SoloGame.open(new SaveStore(profileDir.resolve("save.json")), "halflight", Clock.systemUTC());
@@ -206,6 +216,29 @@ public final class DeckSnapshot {
                         352.90,
                         1,
                         false));
+            }
+
+            // ⚠ The glitch cycle starts at rest and no Pulse tick runs in a synchronous render, so
+            // without this every ring-glitch frame is a clean ring — the harness reporting the effect
+            // as working by photographing the one state that looks identical to it being broken.
+            String phase = System.getProperty("deck.glitchPhase");
+            if (phase != null) {
+                for (var node : deck.root().lookupAll(".es-ringfield")) {
+                    if (node instanceof io.github.stoicswe.eyeandsickle.client.ui.widgets.RingField field) {
+                        field.seekForRender(Double.parseDouble(phase));
+                    }
+                }
+            }
+
+            // ⚠ Reproduces the switch, not the start-up state. A deck built straight into `drift`
+            // renders it correctly; the defect only appears when this layer has been OFF for the
+            // whole of its life so far and is then asked to draw — which is what selecting a ring
+            // wallpaper and then going back does.
+            if (System.getProperty("deck.wallpaperSwitch") != null) {
+                profile.appearance().wallpaper = System.getProperty("deck.wallpaperSwitch");
+                deck.applyScreenSettings();
+                scene.getRoot().applyCss();
+                deck.root().layout();
             }
 
             scene.getRoot().applyCss();

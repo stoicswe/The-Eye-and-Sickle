@@ -47,20 +47,78 @@ public final class GlowRing extends StackPane {
     /** Matches {@code .es-poweron-ring}'s stroke width — the layout box has to allow for it. */
     private static final double CORE_STROKE = 3;
 
+    /**
+     * The halo's stroke widths, outermost first, at {@link #REFERENCE_RADIUS}.
+     *
+     * <h2>⚠ Scaled with the offsets, or the glow bands</h2>
+     *
+     * The offsets above are scaled by the radius and these have to be scaled by the same factor,
+     * because <b>the glow is the overlap between them</b>. Leave the widths fixed and blow the radius
+     * up to desk scale and the strokes stop touching — which draws eight separate concentric circles,
+     * the exact "banding, not glow" failure this class was written to avoid. Seen on the first cut of
+     * the ring wallpaper at eight times the reference radius.
+     *
+     * <p>⚠ They live here rather than in the stylesheet because a stroke width is a <b>size</b>, and
+     * this repo splits on exactly that line: colours in {@code theme.css}, sizes in Java. The splash
+     * still sets its widths in CSS and is left alone — it is drawn at the reference radius, so its
+     * scale factor is 1 and there is nothing to scale.
+     */
+    private static final double[] GLOW_STROKES = {9, 8, 7, 6, 5, 4, 4, 5};
+
     private final Group halo = new Group();
 
     public GlowRing(double radius) {
+        this(radius, "es-poweron", false);
+    }
+
+    /**
+     * The same emblem in another palette.
+     *
+     * <h2>⚠ Why a style base rather than a second widget</h2>
+     *
+     * The eight offsets and the eight alphas that go with them are <b>tuned as a set</b> — the whole
+     * class comment above is about why they are the values they are. A second copy for the wallpaper
+     * would drift from this one the first time either was touched, which is exactly what extracting
+     * this class was meant to prevent. So the geometry is shared and only the tokens differ.
+     *
+     * <p>⚠ The two palettes are not interchangeable. {@code es-poweron}'s colours are declared as
+     * literal white and black and <b>resolve nowhere else</b>, because firmware runs before anything
+     * knows who the player is. A wallpaper is the opposite case: it is the largest surface in the
+     * client and has to follow the theme, so it resolves palette tokens.
+     *
+     * @param styleBase the class prefix — {@code <base>-ring} for the core, {@code <base>-glow-1..8}
+     *     for the halo, outermost first
+     */
+    public GlowRing(double radius, String styleBase) {
+        this(radius, styleBase, true);
+    }
+
+    /**
+     * @param scaleStrokes whether to scale the stroke widths with the radius. True for anything drawn
+     *     far from {@link #REFERENCE_RADIUS} — see {@link #GLOW_STROKES}. The splash passes false and
+     *     keeps its widths in the stylesheet, because at the reference radius the factor is 1
+     */
+    public GlowRing(double radius, String styleBase, boolean scaleStrokes) {
         double scale = radius / REFERENCE_RADIUS;
         // Outermost first, so the bright core paints last and stays crisp. The offsets shrink and
         // the stylesheet's alphas rise toward it — that ramp IS the glow.
         for (int i = 0; i < HALO_OFFSETS.length; i++) {
             Circle ring = new Circle(radius + HALO_OFFSETS[i] * scale);
-            ring.getStyleClass().add("es-poweron-glow-" + (i + 1));
+            ring.getStyleClass().add(styleBase + "-glow-" + (i + 1));
+            if (scaleStrokes) {
+                // ⚠ Set here and NOT in the stylesheet for this variant. A styleable property that
+                // CSS also declares is overwritten on the next applyCss, so the two cannot both
+                // specify it — `.es-ringfield-glow-*` deliberately declares colour and opacity only.
+                ring.setStrokeWidth(GLOW_STROKES[i] * scale);
+            }
             halo.getChildren().add(ring);
         }
 
         Circle core = new Circle(radius);
-        core.getStyleClass().add("es-poweron-ring");
+        core.getStyleClass().add(styleBase + "-ring");
+        if (scaleStrokes) {
+            core.setStrokeWidth(CORE_STROKE * scale);
+        }
 
         getChildren().add(new Group(halo, core));
         double span = radius * 2 + CORE_STROKE * scale;
@@ -75,6 +133,16 @@ public final class GlowRing extends StackPane {
      * <p>The core never dims — a ring that faded out entirely would read as a thing switching off
      * rather than as a thing glowing.
      */
+    /**
+     * The core stroke width this class would use at {@code radius}.
+     *
+     * <p>Exposed so a caller drawing something that has to sit exactly on the bright ring — the
+     * wallpaper's colour fringes — gets the same width rather than guessing one that nearly matches.
+     */
+    public static double coreStrokeFor(double radius) {
+        return CORE_STROKE * (radius / REFERENCE_RADIUS);
+    }
+
     public void setGlow(double amount) {
         halo.setOpacity(Math.max(0, Math.min(1, amount)));
     }

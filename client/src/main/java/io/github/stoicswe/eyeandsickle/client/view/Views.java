@@ -2678,6 +2678,16 @@ public final class Views {
             onDeskSettingsChanged.run();
         });
 
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch chromatic =
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch(
+                        t("settings.screen.chromatic", "Shift the wallpaper's colours"));
+        chromatic.setSelected(profile.appearance().wallpaperChromatic);
+        chromatic.selectedProperty().addListener((o, was, now) -> {
+            profile.appearance().wallpaperChromatic = now;
+            profile.save();
+            onDeskSettingsChanged.run();
+        });
+
         ChoiceBox<io.github.stoicswe.eyeandsickle.client.ui.cursors.CursorSkin> cursor = new ChoiceBox<>();
         cursor.getItems().addAll(io.github.stoicswe.eyeandsickle.client.ui.cursors.CursorSkin.selectable());
         cursor.setValue(
@@ -2977,6 +2987,14 @@ public final class Views {
                         new Separator(),
                         Ui.label(t("settings.screen.wallpaper", "Wallpaper")),
                         wallpaper,
+                        chromatic,
+                        wrapped(t(
+                                "settings.screen.chromatic.note",
+                                "Pulls the wallpaper's colour channels apart and back on a slow "
+                                        + "cycle. On the ring it fringes the tears; on the character "
+                                        + "texture it separates the field itself. It holds still in "
+                                        + "the paused wallpaper modes, because a shift that kept "
+                                        + "moving there would be motion you had already stopped.")),
                         wrapped(t(
                                 "settings.screen.wallpaper.note",
                                 "Machine texture behind every window — the same alphabet as the greeble "

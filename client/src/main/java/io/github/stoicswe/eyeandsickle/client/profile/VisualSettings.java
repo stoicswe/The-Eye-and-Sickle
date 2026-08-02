@@ -68,6 +68,30 @@ public final class VisualSettings {
 
     public boolean crtGlitch = false;
 
+    /**
+     * Whether the wallpaper's colour separation <b>shifts</b> rather than sitting still.
+     *
+     * <p>Applies to whichever wallpaper is on: it fringes the ring's tears, and it makes the
+     * character texture's warm and cool layers pull apart and come back on their own slow period.
+     *
+     * <p>⚠ Off by default, like every other artefact (§9.1): an effect the player switches on is a
+     * costume; one welded to the interface is a claim about fidelity the interface then has to keep
+     * making. Distinct from {@link #crtAberration}, which is a <em>static</em> convergence error on
+     * the whole screen — this one moves, which is why it holds still in a paused wallpaper mode.
+     *
+     * <p>⚠ Renamed from {@code ringChromatic} once it stopped being ring-only. The hook below is why
+     * a profile written before the rename still loads: Jackson has {@code FAIL_ON_UNKNOWN_PROPERTIES}
+     * off, so without it the old key would be <b>silently dropped</b> and the player's choice would
+     * quietly revert.
+     */
+    public boolean wallpaperChromatic = false;
+
+    /** Reads the pre-rename key. See {@link #wallpaperChromatic}. */
+    @com.fasterxml.jackson.annotation.JsonProperty("ringChromatic")
+    public void setLegacyRingChromatic(boolean value) {
+        this.wallpaperChromatic = value;
+    }
+
     /** How far the rim aberration ramps towards the corners, 0–100. */
     public int crtCurvature = 0;
 
@@ -100,6 +124,7 @@ public final class VisualSettings {
         copy.crtScanlines = crtScanlines;
         copy.crtAberration = crtAberration;
         copy.crtGlitch = crtGlitch;
+        copy.wallpaperChromatic = wallpaperChromatic;
         copy.crtCurvature = crtCurvature;
         copy.roundedWindows = roundedWindows;
         copy.focusRing = focusRing;

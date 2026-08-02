@@ -105,6 +105,24 @@ public final class Substrate extends Region {
     /** Channel separation, in pixels, when aberration is on. One. See {@link #setAberration}. */
     private static final double ABERRATION_OFFSET = 1;
 
+    /** Extra separation the colour shift adds at full strength, on top of the static offset. */
+    private static final double CHROMA_SPREAD = 5;
+
+    /** How strong the fringes get at full colour. */
+    private static final double CHROMA_OPACITY = 0.52;
+
+    /** The quietest the colour gets. Never zero while it is switched on. */
+    private static final double CHROMA_FLOOR = 0.15;
+
+    /**
+     * Drift steps in one colour-shift cycle.
+     *
+     * <p>⚠ Deliberately not a round multiple of anything else here, so the colour and the drift do
+     * not repeat together — two effects on one clock read as one effect and make the loop obvious.
+     * The same reasoning {@code RingField.CHROMA_CYCLE_STEPS} records.
+     */
+    private static final int CHROMA_CYCLE = 397;
+
     private final Label field = new Label();
 
     /**
@@ -134,6 +152,8 @@ public final class Substrate extends Region {
     private double cellHeight;
 
     private WallpaperMode mode = WallpaperMode.DRIFT;
+    private boolean aberration;
+    private boolean chromatic;
     private AutoCloseable ticker;
 
     public Substrate() {
@@ -163,8 +183,57 @@ public final class Substrate extends Region {
      * about motion, and a convergence error is not motion.
      */
     public void setAberration(boolean on) {
-        warm.setVisible(on);
-        cool.setVisible(on);
+        this.aberration = on;
+        applyChroma();
+    }
+
+    /**
+     * Whether the channel separation <b>breathes</b> rather than sitting still.
+     *
+     * <p>The same option that fringes the ring wallpaper's tears, applied to this one's elements: the
+     * warm and cool layers pull apart and come back on their own slow period, so the texture shifts
+     * colour instead of holding one convergence error.
+     *
+     * <h2>⚠ It only moves in a mode that already moves</h2>
+     *
+     * {@link WallpaperMode#STILL} is <b>WCAG 2.2.2's pause</b> for this wallpaper. Colour that kept
+     * breathing there would be moving content the player has explicitly stopped — so in a still mode
+     * the shift holds at its midpoint, which is a look rather than an animation. Only {@code DRIFT}
+     * actually cycles.
+     *
+     * <p>⚠ It also implies the separation is visible at all: asking for a colour shift and getting
+     * nothing because a second, differently-named setting is off would be a control that silently
+     * does nothing.
+     */
+    public void setChromatic(boolean on) {
+        this.chromatic = on;
+        applyChroma();
+    }
+
+    /** Puts the current colour state onto the two fringe layers. */
+    private void applyChroma() {
+        boolean visible = aberration || chromatic;
+        warm.setVisible(visible);
+        cool.setVisible(visible);
+        if (!visible) {
+            return;
+        }
+        // A still mode holds the midpoint — see setChromatic. Without the shift on, the layers sit
+        // where layoutChildren put them and keep the stylesheet's own opacity.
+        double amount = !chromatic ? 0 : mode == WallpaperMode.DRIFT ? chromaEnvelope() : 0.5;
+        warm.setTranslateX(-CHROMA_SPREAD * amount);
+        cool.setTranslateX(CHROMA_SPREAD * amount);
+        if (chromatic) {
+            warm.setOpacity(CHROMA_OPACITY * amount);
+            cool.setOpacity(CHROMA_OPACITY * amount);
+        }
+    }
+
+    /** A triangle over its own period: the colour climbs, peaks once, and falls back. */
+    private double chromaEnvelope() {
+        double phase = (step % CHROMA_CYCLE) / (double) CHROMA_CYCLE;
+        double ramp = phase < 0.5 ? phase * 2 : (1 - phase) * 2;
+        return CHROMA_FLOOR + (1 - CHROMA_FLOOR) * ramp;
     }
 
     /** Off, still, or drifting. Safe to call repeatedly with the same value. */
@@ -180,6 +249,21 @@ public final class Substrate extends Region {
             // profile that starts in STILL would show a bare desk until something forced a layout.
             repaint();
         }
+        // ⚠ ASK FOR A LAYOUT when there is something to draw, or a substrate that has never been
+        // laid out in a drawing mode stays empty for the rest of the session.
+        //
+        // layoutChildren() early-returns while the mode is OFF, so it is the only thing that ever
+        // computes `cols` and `rows` — and both advance() and repaint() bail when those are zero.
+        // Nothing else requests a layout on a mode change, because the node's SIZE has not changed.
+        // The result was a permanently black desk for anyone who started the client on a wallpaper
+        // that leaves this layer off (either of the ring modes) and then switched back to the
+        // character texture: the ticker ran, every frame returned immediately, and no error appeared
+        // anywhere.
+        if (this.mode != WallpaperMode.OFF) {
+            requestLayout();
+        }
+        // A still mode holds the colour at its midpoint rather than wherever the drift left it.
+        applyChroma();
     }
 
     public WallpaperMode mode() {
@@ -292,6 +376,7 @@ public final class Substrate extends Region {
                 phase[r] = (phase[r] + 1) % cols;
             }
         }
+        applyChroma();
         if (step % CHURN_EVERY == 0) {
             int r = random.nextInt(rows.length);
             rows[r] = makeRow();

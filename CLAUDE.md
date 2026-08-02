@@ -877,6 +877,94 @@ hand, and now it changes what the breach *is*.
 - ⚠ **Staleness deliberately does not count against a report.** A week-old finding still counts; its
   age is already on screen, and discounting it silently would move the odds with nothing changing.
 
+**Two ring wallpapers (2026-08-02)** — `ring` and `ring-glitch`, the power-on emblem at desk scale.
+`ui/widgets/RingField` draws it, `ui/widgets/Wallpaper` is the container `DeskManager.setBackdrop`
+now gets (one backdrop node, two layers inside), and `GlowRing` gained a style-base parameter so the
+splash and the wallpaper share one tuned recipe.
+
+- ⚠ **NEVER IN AMBER.** §2.1 reserves amber for cycles doing work and income, and the design language
+  says the reservation "matters most on the largest surface in the client" — the character wallpaper
+  is held to `dim-3` for exactly this. The ring resolves **`-es-text-hi`**, which is also what makes
+  **uOS Classic invert for free**: that palette runs the ramp the other way (`-es-void` `#A8A8A8`,
+  `-es-text-hi` `#000000`), so the same token is a faint lit ring on the dark decks and a faint drawn
+  one on the light. A literal colour is invisible in one or glaring in the other — the `DiskLamp` trap.
+- ⚠ **SCALING THE OFFSETS WITHOUT THE STROKE WIDTHS BANDS THE GLOW** — the exact failure `GlowRing`'s
+  own comment warns about, hit again at eight times the reference radius. The glow *is* the overlap
+  between consecutive strokes, so both scale together. The widths therefore moved to Java for this
+  variant (`GLOW_STROKES`) — a stroke width is a **size**, which this repo keeps out of the
+  stylesheet, and a property CSS also declares would overwrite it on the next `applyCss`.
+- ⚠ **`-fx-opacity` per node, not `rgba()`.** JavaFX CSS cannot apply an alpha to a **looked-up**
+  colour — `rgba()` takes literal numbers only — and hard-coding channels is what the token exists to
+  avoid. Each halo circle is its own node, so node opacity gives the same accumulating falloff.
+- ⚠ **The glitch is SLICED GEOMETRY, not a filter.** §9 makes blur and drop shadows build-blocking, so
+  the datamosh look comes from structure: the ring is drawn 26 times, each copy clipped to one
+  horizontal band, and bands are displaced sideways. **At intensity zero the copies line up into one
+  clean ring** — "no glitch" is this path at rest, not a second path that can drift from it.
+- ⚠ **A triangle envelope, never a sine.** §5 permits no easing anywhere and an eased envelope is an
+  easing curve however it is spelled. Slips come from a **fixed seed** so a render can be compared
+  against the last one.
+- **It never fully rests and the axis turns (2026-08-02).** The fault runs continuously between a
+  `FLOOR` of 0.10 and a peak, and the slice axis flips **horizontal ↔ vertical** every cycle.
+  ⚠ **The flip is a ROTATION of the whole stack**, not a second set of slices — the ring is a circle,
+  so slicing it horizontally and turning it a quarter *is* slicing it vertically, and building both
+  would double a node count already at 234 circles. ⚠ **Rotated about the DESK's centre**: a `Group`'s
+  bounds are whatever its children occupy, so pivoting on those swings the ring across the screen
+  instead of turning it in place. ⚠ **The slices therefore cover a SQUARE** of the longer edge — a
+  band region shaped like the desk leaves two uncovered wedges the moment it turns. ⚠ **It flips at
+  the floor**, because flipping mid-tear snaps every displaced slice across the screen at once.
+- ⚠ **Displacement goes as `EXTREMITY` (2.2) power of the envelope, not linearly.** A linear ramp with
+  the same peak spends most of its life visibly wobbling behind text, which is a legibility problem
+  rather than an effect. At envelope 0.3 a slice moves ~7% of its full distance.
+- **72 slices at a 70ms tick (2026-08-02).** ⚠ **Smoothness comes from a FINER LADDER, never from
+  interpolation** — §5 permits no easing and §9 makes it build-blocking, so stepped motion is made to
+  read as continuous by making the steps small, exactly as `UiTokens.REVEAL_STEPS` does everywhere
+  else. ⚠ **`BANDS` is the expensive number**: each slice is its own nine-circle emblem plus two
+  fringes, so nodes go as `BANDS × 11` (792). ⚠ The **per-tick** cost is not — a tick sets one
+  translate per band, because the copy is a `Group` and the transform is on the group.
+⚠ **A SUBSTRATE THAT HAS NEVER BEEN LAID OUT IN A DRAWING MODE STAYS BLACK FOREVER (2026-08-02).**
+`Substrate.layoutChildren` early-returns while the mode is `OFF`, and it is the only thing that ever
+computes `cols`/`rows` — which `advance()` and `repaint()` both bail on when zero. `setMode` requested
+no layout, because the node's **size** had not changed. So starting the client on a ring wallpaper and
+switching back to the character texture gave a permanently black desk: the ticker ran, every frame
+returned immediately, and nothing anywhere reported a problem. `setMode` now `requestLayout()`s
+whenever there is something to draw. ⚠ Reproduced with `DeckSnapshot -Ddeck.wallpaper=ring
+-Ddeck.wallpaperSwitch=drift` — a deck built **straight into** drift renders it correctly, so the
+switch is the whole bug and a start-up-state test would have passed.
+
+- **Colour shift is `wallpaperChromatic`, off by default (§9.1), and applies to BOTH wallpapers.** ⚠ **Literal `rgba` outside the
+  palette**, taking the same licence `.es-substrate-warm` already documents: a convergence error is a
+  property of the phosphor, not of the design system, so borrowing `-es-alarm` would make the
+  wallpaper look like it was reporting a loss. Not the semantic colour system §2.1 bans — an artefact.
+  ⚠ **The fringes are the CORE circle only**, never a whole halo: a fringe is an edge artefact, and
+  giving each one the nine-circle emblem triples the node count. ⚠ **Stroke, never fill** — a filled
+  circle puts a coloured disc behind every window. ⚠ It **scales with the slice's own displacement**,
+  so colour appears where the ring has torn and nowhere else — and on top of that it **intensifies
+  and falls back on its OWN period** (`CHROMA_CYCLE_STEPS`, co-prime with the tear cycle, so the two
+  drift in and out of phase; two effects locked to one clock read as one effect and make the loop
+  obvious). ⚠ Its **opacity is driven from Java, not CSS**: it changes every tick, CSS cannot be
+  driven on a clock, and a value declared in the stylesheet would overwrite the Java one at the next
+  `applyCss`. Same split as the stroke widths.
+- ⚠ **On the character texture it drives the aberration layers**, pulling them apart and back on
+  their own period — one setting for whichever wallpaper is on, because a per-wallpaper duplicate is
+  two controls that look identical and do the same thing. ⚠ **It holds still in a paused mode**:
+  `STILL` is WCAG 2.2.2's pause, and colour that kept breathing there would be motion the player had
+  explicitly stopped. Only `DRIFT` cycles; `STILL` holds the midpoint.
+- ⚠ **Renamed from `ringChromatic` once it stopped being ring-only**, with a setter hook for the old
+  key — Jackson has `FAIL_ON_UNKNOWN_PROPERTIES` off, so without it the old key is silently dropped
+  and the player's choice quietly reverts.
+- ⚠ **`WallpaperMode.moves()` is WCAG 2.2.2 made checkable.** `RING` is to `RING_GLITCH` what `STILL`
+  is to `DRIFT` — not a lesser version, the pause. ⚠ `ScreenArtefactTest` asserted `values()).hasSize(3)`
+  for this; a **count is not the rule** and fails on any new mode whether or not it obeys 2.2.2. It now
+  asserts every moving mode has a still counterpart.
+- ⚠ **The ticker follows the SCENE, not the setting.** A `Pulse` subscription on an off-screen layer is
+  work with no observer — and because `Pulse` needs a live toolkit, subscribing from a plain setter
+  made the widget untestable without starting one, which this repo keeps to a single file.
+- ⚠ **Rendering it needs BOTH flags.** `-Ddeck.wallpaper=ring-glitch` alone photographs the clean ring:
+  the cycle starts at rest and no `Pulse` tick runs in a synchronous render, so the harness reports the
+  effect as working by capturing the one state indistinguishable from it being broken.
+  `-Ddeck.glitchPhase=0.775` is the peak. Only the **bare-desk** frame shows any of it — every other
+  snapshot tiles windows edge to edge.
+
 **Nothing transient may occupy space in the top strip (2026-08-02).** The balance delta was a third
 `Label` inside `BalanceReadout`'s row, so the cell got **wider for as long as it showed** — pushing
 the strip past its width budget and wrapping the chrome onto two rows every time the player earned

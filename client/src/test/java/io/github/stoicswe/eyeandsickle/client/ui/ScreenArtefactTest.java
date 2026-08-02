@@ -53,12 +53,28 @@ class ScreenArtefactTest {
         }
 
         @Test
-        @DisplayName("STILL exists as its own state — WCAG 2.2.2 needs a pause, not just an off")
-        void pauseIsDistinctFromOff() {
+        @DisplayName("every wallpaper that moves has a still counterpart — WCAG 2.2.2")
+        void everyMovingModeHasAPause() {
             // Folding pause into "off" would satisfy the letter of Pause, Stop, Hide and lose the
-            // point: the player who wants texture without movement would have to give up both.
-            assertThat(WallpaperMode.values()).hasSize(3);
+            // point: the player who wants the wallpaper without the movement would have to give up
+            // both.
+            //
+            // ⚠ This asserted `values()).hasSize(3)` until the ring modes landed. A count is not the
+            // rule — it is a proxy that fails the moment somebody adds a mode, and it fails whether
+            // or not the new mode obeys 2.2.2. What the rule actually says is that nothing moves
+            // without a way to stop it, so that is what is checked.
             assertThat(WallpaperMode.STILL).isNotEqualTo(WallpaperMode.OFF);
+            assertThat(WallpaperMode.DRIFT.moves()).isTrue();
+            assertThat(WallpaperMode.STILL.moves()).isFalse();
+            assertThat(WallpaperMode.RING_GLITCH.moves()).isTrue();
+            assertThat(WallpaperMode.RING.moves()).isFalse();
+
+            // And the general form: a moving mode is never the only way to have a wallpaper.
+            assertThat(java.util.Arrays.stream(WallpaperMode.values())
+                            .filter(m -> !m.moves() && m != WallpaperMode.OFF)
+                            .toList())
+                    .as("at least one wallpaper the player can stop")
+                    .isNotEmpty();
         }
     }
 
