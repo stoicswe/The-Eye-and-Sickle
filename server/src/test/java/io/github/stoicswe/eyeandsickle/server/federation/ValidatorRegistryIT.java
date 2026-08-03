@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.within;
 
 import io.github.stoicswe.eyeandsickle.server.federation.sampling.SampledValidator;
-import io.github.stoicswe.eyeandsickle.server.persistence.PostgresIntegrationTestBase;
+import io.github.stoicswe.eyeandsickle.server.persistence.DatabaseIntegrationTestBase;
 import io.github.stoicswe.eyeandsickle.server.persistence.Timestamps;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -27,7 +27,7 @@ import org.springframework.dao.OptimisticLockingFailureException;
  * last line of defence, so what matters is that it refuses a reputation outside {@code [0, 1]}, a
  * malformed DID, and a stale version — not merely that it stores a valid row.
  */
-class ValidatorRegistryIT extends PostgresIntegrationTestBase {
+class ValidatorRegistryIT extends DatabaseIntegrationTestBase {
 
     private static final String DID = "did:plc:validator0000000000a";
     private static final Instant NOW = Instant.parse("2026-07-24T12:00:00Z");

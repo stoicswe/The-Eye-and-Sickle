@@ -113,6 +113,13 @@ public class PlayerRepository {
 
     // ------------------------------------------------------------------ creation
 
+    // ⚠ `SELECT ... FROM FINAL TABLE (INSERT ...)` is the SQL:2011 delta-table form, and it is what
+    // replaced PostgreSQL's `INSERT ... RETURNING` here. Both read back the row the engine actually
+    // wrote, in one statement, so the schema defaults (`row_version`, timestamps) come from the row
+    // rather than being predicted by this class — which is the property worth keeping. Splitting it
+    // into an INSERT and a follow-up SELECT would be two statements a concurrent writer can get
+    // between, and would report a row this call did not necessarily create.
+
     /**
      * Creates a new DID-bound character at a specific slot, active and empty.
      *
@@ -132,14 +139,12 @@ public class PlayerRepository {
         Objects.requireNonNull(did, "did");
         Objects.requireNonNull(now, "now");
         return jdbcClient
-                .sql("""
-                        INSERT INTO players (player_id, did, slot, handle, status, faction, personal_heat,
-                                             ethecoin_balance_wei, created_at, last_seen_at, row_version)
-                        VALUES (:playerId, :did, :slot, :handle, :status, 'none', 0, 0, :now, :now, 0)
-                        RETURNING """
-                        // Explicit space: a text block strips trailing whitespace from each line, so
-                        // "RETURNING " would lose its space and fuse into the columns as "RETURNINGplayer_id".
-                        + " " + PlayerRows.COLUMNS)
+                .sql("SELECT " + PlayerRows.COLUMNS + """
+                         FROM FINAL TABLE (
+                              INSERT INTO players (player_id, did, slot, handle, status, faction, personal_heat,
+                                                   ethecoin_balance_wei, created_at, last_seen_at, row_version)
+                              VALUES (:playerId, :did, :slot, :handle, :status, 'none', 0, 0, :now, :now, 0))
+                        """)
                 .param("playerId", UUID.randomUUID())
                 .param("did", did.value())
                 .param("slot", slot)
@@ -165,11 +170,12 @@ public class PlayerRepository {
     public Player createLocalCharacter(String handle, Instant now) {
         Objects.requireNonNull(now, "now");
         return jdbcClient
-                .sql("""
-                        INSERT INTO players (player_id, did, slot, handle, status, faction, personal_heat,
-                                             ethecoin_balance_wei, created_at, last_seen_at, row_version)
-                        VALUES (:playerId, NULL, NULL, :handle, :status, 'none', 0, 0, :now, :now, 0)
-                        RETURNING """ + " " + PlayerRows.COLUMNS)
+                .sql("SELECT " + PlayerRows.COLUMNS + """
+                         FROM FINAL TABLE (
+                              INSERT INTO players (player_id, did, slot, handle, status, faction, personal_heat,
+                                                   ethecoin_balance_wei, created_at, last_seen_at, row_version)
+                              VALUES (:playerId, NULL, NULL, :handle, :status, 'none', 0, 0, :now, :now, 0))
+                        """)
                 .param("playerId", UUID.randomUUID())
                 .param("handle", handle)
                 .param("status", CharacterStatus.ACTIVE.dbValue())

@@ -12,7 +12,24 @@ spring:
   datasource:
     # All game state lives here (Invariant I14). No game data is ever written to
     # a player's AT Protocol PDS.
-    url: ${EYEANDSICKLE_DB_URL:jdbc:postgresql://localhost:5432/eyeandsickle}
+    #
+    # H2, EMBEDDED, file-backed. Replaced PostgreSQL entirely on 2026-08-02: a
+    # self-hoster now needs a JVM and nothing else — no database to install, no
+    # container to run, no connection string to get wrong. That is the whole
+    # point, since the pitch is a spare box.
+    #
+    # ⚠ AUTO_SERVER=TRUE lets a second process (a console, a backup script) open
+    # the same file while the server is running. Without it the file is locked to
+    # one JVM and an operator cannot look at their own database while the game is
+    # up, which is exactly when they want to.
+    #
+    # ⚠ MODE=PostgreSQL is not decoration: the schema is written in PostgreSQL's
+    # dialect and the migrations were ported against this mode. Removing it breaks
+    # them, and it breaks them at startup rather than subtly.
+    #
+    # ⚠ DB_CLOSE_ON_EXIT=FALSE — Spring closes the pool on shutdown; letting H2
+    # also close on JVM exit races with that and logs alarming errors on a clean stop.
+    url: ${EYEANDSICKLE_DB_URL:jdbc:h2:file:./data/eyeandsickle;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;AUTO_SERVER=TRUE;DB_CLOSE_ON_EXIT=FALSE}
     username: ${EYEANDSICKLE_DB_USER:eyeandsickle}
     password: ${EYEANDSICKLE_DB_PASSWORD:}
     hikari:

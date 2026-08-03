@@ -55,7 +55,7 @@ public class LedgerRepository {
                 .sql("""
                         INSERT INTO ledger_transactions
                             (tx_id, from_did, to_did, amount_wei, tx_type, traceable, memo, created_at)
-                        VALUES (:txId, :fromDid, :toDid, :amount, :txType, :traceable, :memo::jsonb, :createdAt)
+                        VALUES (:txId, :fromDid, :toDid, :amount, :txType, :traceable, :memo FORMAT JSON, :createdAt)
                         """)
                 .param("txId", transaction.txId())
                 .param("fromDid", transaction.fromDid())

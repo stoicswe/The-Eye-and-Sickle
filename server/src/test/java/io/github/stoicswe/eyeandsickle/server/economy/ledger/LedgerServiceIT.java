@@ -8,7 +8,7 @@ import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.server.economy.account.Account;
 import io.github.stoicswe.eyeandsickle.server.economy.account.AccountRepository;
 import io.github.stoicswe.eyeandsickle.server.economy.account.AccountRepositoryTestSupport;
-import io.github.stoicswe.eyeandsickle.server.persistence.PostgresIntegrationTestBase;
+import io.github.stoicswe.eyeandsickle.server.persistence.DatabaseIntegrationTestBase;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -29,7 +29,7 @@ import org.junit.jupiter.api.Test;
  * the {@code SELECT ... FOR UPDATE} row locks and the balance/ledger atomicity that {@code @Transactional}
  * would provide in production are present here too.
  */
-class LedgerServiceIT extends PostgresIntegrationTestBase {
+class LedgerServiceIT extends DatabaseIntegrationTestBase {
 
     private static final String ALICE_ACCOUNT = "did:plc:alice000000000000000000";
     private static final String BOB_ACCOUNT = "did:plc:bob00000000000000000000";
@@ -47,7 +47,7 @@ class LedgerServiceIT extends PostgresIntegrationTestBase {
     @Test
     @DisplayName("mint credits the balance and writes the ledger row atomically")
     void mintCreditsAndRecords() {
-        insertPlayer(ALICE_ACCOUNT, 1, 1_000L);
+        insertPlayer(ALICE_ACCOUNT, 1, "10");
 
         transactions().executeWithoutResult(status -> service.mint(ALICE, Ethecoin.ofDecimal("2.5"), null));
 
@@ -64,8 +64,8 @@ class LedgerServiceIT extends PostgresIntegrationTestBase {
     @Test
     @DisplayName("a transfer between two local characters conserves total supply — it moves, it never mints")
     void transferConservesSupply() {
-        insertPlayer(ALICE_ACCOUNT, 1, 1_000L);
-        insertPlayer(BOB_ACCOUNT, 1, 400L);
+        insertPlayer(ALICE_ACCOUNT, 1, "10");
+        insertPlayer(BOB_ACCOUNT, 1, "4");
         java.math.BigInteger before = balanceOf(ALICE).wei().add(balanceOf(BOB).wei());
 
         transactions()
@@ -87,8 +87,8 @@ class LedgerServiceIT extends PostgresIntegrationTestBase {
     @DisplayName("a transfer between two characters of ONE account moves ethecoin between their separate balances")
     void transferBetweenTwoCharactersOfOneAccount() {
         // Same account DID, two slots: two characters, two balances (09 §9).
-        insertPlayer(ALICE_ACCOUNT, 1, 1_000L);
-        insertPlayer(ALICE_ACCOUNT, 2, 0L);
+        insertPlayer(ALICE_ACCOUNT, 1, "10");
+        insertPlayer(ALICE_ACCOUNT, 2, "0");
 
         transactions()
                 .executeWithoutResult(status -> service.transfer(
@@ -111,7 +111,7 @@ class LedgerServiceIT extends PostgresIntegrationTestBase {
     @Test
     @DisplayName("a crack seizure from a non-local host credits the local payee as a transfer, not a mint")
     void crackSeizureIsATransferNotAMint() {
-        insertPlayer(BOB_ACCOUNT, 1, 100L);
+        insertPlayer(BOB_ACCOUNT, 1, "1");
 
         transactions()
                 .executeWithoutResult(status -> service.transfer(
@@ -130,8 +130,8 @@ class LedgerServiceIT extends PostgresIntegrationTestBase {
     @Test
     @DisplayName("the faucet type is refused by transfer — minting has exactly one door")
     void transferRefusesFaucetType() {
-        insertPlayer(ALICE_ACCOUNT, 1, 1_000L);
-        insertPlayer(BOB_ACCOUNT, 1, 0L);
+        insertPlayer(ALICE_ACCOUNT, 1, "10");
+        insertPlayer(BOB_ACCOUNT, 1, "0");
 
         assertThatThrownBy(() -> transactions()
                         .executeWithoutResult(status -> service.transfer(
@@ -146,8 +146,8 @@ class LedgerServiceIT extends PostgresIntegrationTestBase {
     @Test
     @DisplayName("an unaffordable transfer is refused and leaves no trace — no debit, no ledger row")
     void insufficientFundsRollsBack() {
-        insertPlayer(ALICE_ACCOUNT, 1, 100L);
-        insertPlayer(BOB_ACCOUNT, 1, 0L);
+        insertPlayer(ALICE_ACCOUNT, 1, "1");
+        insertPlayer(BOB_ACCOUNT, 1, "0");
 
         assertThatThrownBy(() -> transactions()
                         .executeWithoutResult(status -> service.transfer(
@@ -162,7 +162,7 @@ class LedgerServiceIT extends PostgresIntegrationTestBase {
     @Test
     @DisplayName("a purchase from a non-local vendor is a sink: the buyer is debited and the ethecoin leaves")
     void purchaseToNpcVendorIsASink() {
-        insertPlayer(ALICE_ACCOUNT, 1, 500L);
+        insertPlayer(ALICE_ACCOUNT, 1, "5");
 
         transactions()
                 .executeWithoutResult(status -> service.transfer(
@@ -177,8 +177,8 @@ class LedgerServiceIT extends PostgresIntegrationTestBase {
     @Test
     @DisplayName("a Dead Drop is recorded, hidden from an anonymous investigator, visible to a counterparty")
     void deadDropVisibility() {
-        insertPlayer(ALICE_ACCOUNT, 1, 500L);
-        insertPlayer(BOB_ACCOUNT, 1, 0L);
+        insertPlayer(ALICE_ACCOUNT, 1, "5");
+        insertPlayer(BOB_ACCOUNT, 1, "0");
 
         transactions()
                 .executeWithoutResult(status ->
@@ -194,7 +194,14 @@ class LedgerServiceIT extends PostgresIntegrationTestBase {
         return accounts.findByCharacterDid(characterDid).map(Account::balance).orElseThrow();
     }
 
-    private void insertPlayer(String accountDid, int slot, long balanceMinor) {
+    /**
+     * ⚠ Balance in <strong>ethecoin</strong>, converted here — never a raw column value. The seeds
+     * were bare {@code long} hundredths from before {@code V6__ethecoin_wei}; the column was rescaled
+     * by 10^16 and these were not, so a fixture that meant 10 EC seeded 0.000000000000001 EC and every
+     * transfer failed for insufficient funds. Going through {@link Ethecoin} is what stops the fixture
+     * and the column disagreeing again.
+     */
+    private void insertPlayer(String accountDid, int slot, String balanceEthecoin) {
         jdbcClient()
                 .sql("""
                         INSERT INTO players (player_id, did, slot, handle, ethecoin_balance_wei)
@@ -203,7 +210,7 @@ class LedgerServiceIT extends PostgresIntegrationTestBase {
                 .param("id", UUID.randomUUID())
                 .param("did", accountDid)
                 .param("slot", slot)
-                .param("balance", balanceMinor)
+                .param("balance", Ethecoin.ofDecimal(balanceEthecoin).wei())
                 .update();
     }
 }

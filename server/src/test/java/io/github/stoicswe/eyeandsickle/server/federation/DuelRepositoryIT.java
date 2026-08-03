@@ -6,7 +6,7 @@ import static org.assertj.core.api.Assertions.within;
 
 import io.github.stoicswe.eyeandsickle.server.federation.sampling.SampledCommittee;
 import io.github.stoicswe.eyeandsickle.server.federation.sampling.SampledValidator;
-import io.github.stoicswe.eyeandsickle.server.persistence.PostgresIntegrationTestBase;
+import io.github.stoicswe.eyeandsickle.server.persistence.DatabaseIntegrationTestBase;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -22,7 +22,7 @@ import org.springframework.dao.OptimisticLockingFailureException;
  * {@code docs/architecture/04} §7 step 1 checkable, the resolved-pair and resolution-time constraints,
  * and the version-checked resolution that stops two adjudications both closing one duel.
  */
-class DuelRepositoryIT extends PostgresIntegrationTestBase {
+class DuelRepositoryIT extends DatabaseIntegrationTestBase {
 
     private static final Instant OPENED = Instant.parse("2026-07-24T12:00:00Z");
     private static final Instant RESOLVED = Instant.parse("2026-07-24T12:05:00Z");
@@ -145,7 +145,7 @@ class DuelRepositoryIT extends PostgresIntegrationTestBase {
         assertThatThrownBy(() -> jdbcClient()
                         .sql("""
                                 INSERT INTO duels (duel_id, participants, sampled_validators, committee_size, outcome)
-                                VALUES (:duelId, :participants::jsonb, :sampled::jsonb, 1, :outcome::jsonb)
+                                VALUES (:duelId, :participants FORMAT JSON, :sampled FORMAT JSON, 1, :outcome FORMAT JSON)
                                 """)
                         .param("duelId", UUID.randomUUID())
                         .param("participants", "[\"did:plc:pa000000000000000000a\",\"did:plc:pb000000000000000000a\"]")

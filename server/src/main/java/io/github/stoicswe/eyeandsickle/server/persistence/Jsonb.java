@@ -10,31 +10,35 @@ import tools.jackson.databind.json.JsonMapper;
 /**
  * Reading and writing {@code jsonb} columns.
  *
- * <h2>⚠ Every jsonb parameter must be cast in the SQL: {@code :param::jsonb} ⚠</h2>
+ * <h2>⚠ Every JSON parameter needs {@code FORMAT JSON} in the SQL — and {@code CAST} IS WRONG ⚠</h2>
  *
  * This is the single most common way to get a runtime failure out of this schema, so it is stated
- * first. The PostgreSQL driver sends a {@code String} parameter as {@code varchar}, and PostgreSQL
- * will not implicitly coerce {@code varchar} to {@code jsonb} in an INSERT or UPDATE. Without the
- * cast you get:
- *
- * <pre>{@code column "item_attrs" is of type jsonb but expression is of type character varying}</pre>
- *
- * So:
+ * first. A {@code String} parameter arrives as {@code varchar}, and {@code varchar} is not
+ * {@code JSON}. The SQL standard spelling that <em>parses</em> the text is a {@code FORMAT JSON}
+ * qualifier on the value:
  *
  * {@snippet lang = java:
  * jdbcClient
  *         .sql("""
  *              INSERT INTO items (item_id, item_type, item_attrs, holder_did, storage_tier)
- *              VALUES (:itemId, :itemType, :attrs::jsonb, :holderDid, :tier)
+ *              VALUES (:itemId, :itemType, :attrs FORMAT JSON, :holderDid, :tier)
  *              """)
  *         .param("attrs", Jsonb.writeObject(itemAttrs))
  *         // ...
  *         .update();
  *}
  *
- * The alternative — configuring the driver with {@code stringtype=unspecified} — makes every string
- * parameter in the application loosely typed to fix one column type, and turns a class of typos into
- * silently accepted values. The explicit cast stays local to the column that needs it.
+ * <p>⚠ <strong>A cast is not a synonym for it, and the difference is silent.</strong> This used to be
+ * PostgreSQL's {@code :attrs::jsonb}, and H2 accepts that spelling without complaint — it just means
+ * something else. {@code CAST('{"a":1}' AS JSON)} produces the JSON <em>string</em>
+ * {@code "{\"a\":1}"}, one scalar whose content happens to look like an object, rather than the
+ * object. Nothing fails at the cast. What fails is the column's shape constraint, several frames
+ * later, reporting {@code ck_items_attrs_object} against a document the caller is looking at and can
+ * see is an object. Measured on H2 2.3.232; forty rows in the integration suite failed this way
+ * during the port.
+ *
+ * <p>The alternative — loosening the column to {@code varchar} so any string binds — would remove the
+ * one check that caught this, on the surface where a signed document is stored.
  *
  * <h2>What belongs in jsonb, and what does not</h2>
  *
@@ -65,17 +69,20 @@ public final class Jsonb {
     /** Thread-safe once built, so one instance serves the whole process. */
     private static final ObjectMapper MAPPER = JsonMapper.builder().build();
 
-    /** The empty object, matching the {@code DEFAULT '{}'::jsonb} the schema uses. */
+    /** The empty object, matching the {@code DEFAULT JSON '{}'} the schema uses. */
     public static final String EMPTY_OBJECT = "{}";
 
-    /** The empty array, matching the {@code DEFAULT '[]'::jsonb} the schema uses. */
+    /** The empty array, matching the {@code DEFAULT JSON '[]'} the schema uses. */
     public static final String EMPTY_ARRAY = "[]";
 
     /**
-     * The cast every jsonb parameter needs. Provided as a constant so it can be concatenated into a
-     * generated fragment without re-deriving the spelling, and so it is greppable.
+     * The qualifier every JSON parameter needs. Provided as a constant so it can be concatenated into
+     * a generated fragment without re-deriving the spelling, and so it is greppable.
+     *
+     * <p>⚠ Leading space included, deliberately: it follows a placeholder rather than binding to it
+     * as {@code ::jsonb} did, so {@code ":attrs" + CAST} has to produce {@code :attrs FORMAT JSON}.
      */
-    public static final String CAST = "::jsonb";
+    public static final String CAST = " FORMAT JSON";
 
     /** Upper bound on a written document, in UTF-8 bytes. A DoS bound, not a game rule. */
     public static final int MAX_BYTES = 1 << 20;
@@ -93,7 +100,7 @@ public final class Jsonb {
      * that names the constraint rather than the mistake.
      *
      * @param value a map or a record; must not be {@code null}
-     * @return JSON text to bind to a {@code :param::jsonb} placeholder
+     * @return JSON text to bind to a {@code :param FORMAT JSON} placeholder
      * @throws IllegalArgumentException if the value does not serialize to an object, or exceeds
      *     {@link #MAX_BYTES}
      */
@@ -111,7 +118,7 @@ public final class Jsonb {
      * Serializes a value that must be a JSON <em>array</em> — a signature list, a sampled committee.
      *
      * @param value a list or an array; must not be {@code null}
-     * @return JSON text to bind to a {@code :param::jsonb} placeholder
+     * @return JSON text to bind to a {@code :param FORMAT JSON} placeholder
      * @throws IllegalArgumentException if the value does not serialize to an array, or exceeds
      *     {@link #MAX_BYTES}
      */

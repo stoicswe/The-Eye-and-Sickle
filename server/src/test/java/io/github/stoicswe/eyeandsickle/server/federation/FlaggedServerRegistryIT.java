@@ -3,7 +3,7 @@ package io.github.stoicswe.eyeandsickle.server.federation;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import io.github.stoicswe.eyeandsickle.server.persistence.PostgresIntegrationTestBase;
+import io.github.stoicswe.eyeandsickle.server.persistence.DatabaseIntegrationTestBase;
 import java.time.Instant;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,7 +18,7 @@ import org.springframework.dao.OptimisticLockingFailureException;
  * allows at most one active flag per server, the idempotent flag it enables, and the auditable clear
  * that never deletes a flag ({@code docs/architecture/03} §4).
  */
-class FlaggedServerRegistryIT extends PostgresIntegrationTestBase {
+class FlaggedServerRegistryIT extends DatabaseIntegrationTestBase {
 
     private static final String SERVER = "did:plc:rogueserver00000000a";
     private static final Instant NOW = Instant.parse("2026-07-24T12:00:00Z");

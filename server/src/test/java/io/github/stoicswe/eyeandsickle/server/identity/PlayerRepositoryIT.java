@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.protocol.game.Faction;
-import io.github.stoicswe.eyeandsickle.server.persistence.PostgresIntegrationTestBase;
+import io.github.stoicswe.eyeandsickle.server.persistence.DatabaseIntegrationTestBase;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -22,7 +22,7 @@ import org.springframework.dao.OptimisticLockingFailureException;
  * slot-bound CHECKs, the {@code status} CHECK, and the version-checked mutations a lost write must fail
  * rather than clobber. The failures are tested hardest.
  */
-class PlayerRepositoryIT extends PostgresIntegrationTestBase {
+class PlayerRepositoryIT extends DatabaseIntegrationTestBase {
 
     private static final Did DID = Did.of("did:plc:aaaaaaaaaaaaaaaaaaaaaaaa");
     private static final Did OTHER = Did.of("did:plc:bbbbbbbbbbbbbbbbbbbbbbbb");

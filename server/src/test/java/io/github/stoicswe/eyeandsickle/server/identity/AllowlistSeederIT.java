@@ -3,7 +3,7 @@ package io.github.stoicswe.eyeandsickle.server.identity;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import io.github.stoicswe.eyeandsickle.server.persistence.PostgresIntegrationTestBase;
+import io.github.stoicswe.eyeandsickle.server.persistence.DatabaseIntegrationTestBase;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
  * DIDs into the durable table: idempotent on re-run, closed when there is nothing to seed, and — the
  * point of having a runtime table — it never un-revokes a DID an operator has since revoked.
  */
-class AllowlistSeederIT extends PostgresIntegrationTestBase {
+class AllowlistSeederIT extends DatabaseIntegrationTestBase {
 
     private static final String DID_A = "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa";
     private static final String DID_B = "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb";

@@ -34,7 +34,7 @@ import org.springframework.stereotype.Component;
  * <h2>Eviction</h2>
  *
  * ⚠ Bounded, because the key is a character id and a busy server would otherwise hold every character
- * that ever connected. An evicted engine is simply reloaded from Postgres on the next request; its
+ * that ever connected. An evicted engine is simply reloaded from the database on the next request; its
  * state is in the database, not in this map. The map is a <em>cache</em>, never the source of truth,
  * which is what makes eviction free.
  */
@@ -54,10 +54,13 @@ public class EngineSessions {
     private final PlayerRepository players;
     private final Clock clock;
 
-    public EngineSessions(JdbcClient jdbcClient, PlayerRepository players) {
-        this(jdbcClient, players, Clock.systemUTC());
-    }
-
+    /**
+     * ⚠ ONE constructor, deliberately. There used to be a no-clock convenience overload defaulting to
+     * {@link Clock#systemUTC()}, and with two constructors and no {@code @Autowired} Spring could not
+     * choose — the whole context failed to start with "No default constructor found", which names
+     * neither the class's real problem nor the fix. The application's own {@code @Primary Clock} bean
+     * fills this parameter, and a test passes a fixed one, so the overload bought nothing.
+     */
     public EngineSessions(JdbcClient jdbcClient, PlayerRepository players, Clock clock) {
         this.jdbcClient = jdbcClient;
         this.players = players;
@@ -94,11 +97,11 @@ public class EngineSessions {
     private Session open(UUID characterId) {
         if (live.size() >= MAX_LIVE_ENGINES) {
             // ⚠ Crude, and safe precisely because this is a cache: every evicted engine's state is
-            // already in Postgres, so the worst case is a reload. An LRU would need a second
+            // already in the database, so the worst case is a reload. An LRU would need a second
             // structure and a lock to protect its ordering, for no correctness gain.
             live.clear();
         }
-        PostgresSaveStore store = PostgresSaveStore.forCharacter(jdbcClient, characterId, clock::instant);
+        JdbcSaveStore store = JdbcSaveStore.forCharacter(jdbcClient, characterId, clock::instant);
 
         // ⚠ The character's REAL handle, not null. SoloGame.open falls back to a default handle when
         // it is creating fresh state and is given none — so passing null would name every character on

@@ -73,14 +73,28 @@ public class CharacterDirectoryRepository {
     public int insertNew(CharacterHomeRecord record, Instant now) {
         return jdbcClient
                 .sql("""
-                        INSERT INTO character_directory
-                            (entry_id, account_did, character_id, slot, home_server_did, home_endpoint,
-                             home_transport_public_key, signing_key_id, sequence_number, signature,
-                             first_seen_at, last_seen_at)
-                        VALUES
-                            (:entryId, :accountDid, :characterId, :slot, :homeServerDid, :homeEndpoint,
-                             :key, :signingKeyId, :seq, :signature, :now, :now)
-                        ON CONFLICT (account_did, slot) DO NOTHING
+                        MERGE INTO character_directory AS t
+                        USING (VALUES (CAST(:entryId AS uuid), CAST(:accountDid AS varchar),
+                                       CAST(:characterId AS uuid), CAST(:slot AS int),
+                                       CAST(:homeServerDid AS varchar), CAST(:homeEndpoint AS varchar),
+                                       -- ⚠ VARBINARY for both. These are bytea columns; a character
+                                       -- cast UTF-8-decodes them and every byte >= 0x80 becomes
+                                       -- U+FFFD, silently, so the key and the signature that must
+                                       -- verify against it are both destroyed on write.
+                                       CAST(:key AS varbinary), CAST(:signingKeyId AS varchar),
+                                       CAST(:seq AS bigint), CAST(:signature AS varbinary),
+                                       CAST(:now AS timestamp with time zone)))
+                              AS s(entry_id, account_did, character_id, slot, home_server_did, home_endpoint,
+                                   home_transport_public_key, signing_key_id, sequence_number, signature, now)
+                           ON t.account_did = s.account_did AND t.slot = s.slot
+                         WHEN NOT MATCHED THEN INSERT
+                              (entry_id, account_did, character_id, slot, home_server_did, home_endpoint,
+                               home_transport_public_key, signing_key_id, sequence_number, signature,
+                               first_seen_at, last_seen_at)
+                              VALUES
+                              (s.entry_id, s.account_did, s.character_id, s.slot, s.home_server_did,
+                               s.home_endpoint, s.home_transport_public_key, s.signing_key_id,
+                               s.sequence_number, s.signature, s.now, s.now)
                         """)
                 .param("entryId", UUID.randomUUID())
                 .param("accountDid", record.accountDid())

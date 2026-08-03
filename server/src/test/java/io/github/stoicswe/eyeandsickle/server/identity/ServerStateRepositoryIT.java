@@ -2,7 +2,7 @@ package io.github.stoicswe.eyeandsickle.server.identity;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.github.stoicswe.eyeandsickle.server.persistence.PostgresIntegrationTestBase;
+import io.github.stoicswe.eyeandsickle.server.persistence.DatabaseIntegrationTestBase;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
  * always succeeds and never has to cope with an absent row; a fresh server has zero server-heat and no
  * DID yet (it is provisioned before the first mint, not at install).
  */
-class ServerStateRepositoryIT extends PostgresIntegrationTestBase {
+class ServerStateRepositoryIT extends DatabaseIntegrationTestBase {
 
     @Test
     @DisplayName("the seeded singleton reads back with zero heat and no server DID")

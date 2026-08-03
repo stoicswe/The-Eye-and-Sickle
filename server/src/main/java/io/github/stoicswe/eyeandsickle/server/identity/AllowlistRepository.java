@@ -63,12 +63,17 @@ public class AllowlistRepository {
     /**
      * Adds an entry if the DID has none, and reports whether it was added.
      *
-     * <p>Idempotent by DID: {@code ON CONFLICT (did) DO NOTHING} means seeding the same configuration
-     * twice, or an operator re-adding an existing DID, is a harmless no-op rather than a duplicate-key
-     * failure. The boolean lets the seeder log "added" versus "already present" honestly. Note a
-     * consequence worth stating: because the conflict target is the unique DID, re-adding a
-     * <em>revoked</em> DID does nothing — un-revoking is a separate, deliberate action, not a silent
-     * side effect of an add.
+     * <p>Idempotent by DID: a {@code MERGE} with only a {@code WHEN NOT MATCHED} branch means seeding
+     * the same configuration twice, or an operator re-adding an existing DID, is a harmless no-op
+     * rather than a duplicate-key failure. The boolean lets the seeder log "added" versus "already
+     * present" honestly. Note a consequence worth stating: because the match is on the unique DID,
+     * re-adding a <em>revoked</em> DID does nothing — un-revoking is a separate, deliberate action,
+     * not a silent side effect of an add.
+     *
+     * <p>⚠ This was {@code ON CONFLICT (did) DO NOTHING}. The H2 spelling with a {@code WHEN MATCHED}
+     * branch added — a plain upsert — would <strong>overwrite</strong> the existing row, which here
+     * means re-stamping {@code added_at} and {@code added_by_did} for an operator who merely re-ran
+     * the seed. Omitting that branch is what keeps this an add-if-absent.
      *
      * @param did the identity to allow
      * @param addedBy the DID performing the addition, or {@code null} for a configuration seed
@@ -81,9 +86,14 @@ public class AllowlistRepository {
         Objects.requireNonNull(now, "now");
         int inserted = jdbcClient
                 .sql("""
-                        INSERT INTO allowlist_entries (entry_id, did, added_at, added_by_did, note)
-                        VALUES (:entryId, :did, :now, :addedBy, :note)
-                        ON CONFLICT (did) DO NOTHING
+                        MERGE INTO allowlist_entries AS t
+                        USING (VALUES (CAST(:entryId AS uuid), CAST(:did AS varchar),
+                                       CAST(:now AS timestamp with time zone),
+                                       CAST(:addedBy AS varchar), CAST(:note AS varchar)))
+                              AS s(entry_id, did, added_at, added_by_did, note)
+                           ON t.did = s.did
+                         WHEN NOT MATCHED THEN INSERT (entry_id, did, added_at, added_by_did, note)
+                              VALUES (s.entry_id, s.did, s.added_at, s.added_by_did, s.note)
                         """)
                 .param("entryId", UUID.randomUUID())
                 .param("did", did.value())

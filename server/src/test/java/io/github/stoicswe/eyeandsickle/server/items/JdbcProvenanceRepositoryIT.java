@@ -8,7 +8,7 @@ import io.github.stoicswe.eyeandsickle.protocol.provenance.ProvenanceEnvelope;
 import io.github.stoicswe.eyeandsickle.protocol.provenance.ProvenanceEventType;
 import io.github.stoicswe.eyeandsickle.protocol.provenance.ProvenanceJson;
 import io.github.stoicswe.eyeandsickle.protocol.provenance.ProvenancePayload;
-import io.github.stoicswe.eyeandsickle.server.persistence.PostgresIntegrationTestBase;
+import io.github.stoicswe.eyeandsickle.server.persistence.DatabaseIntegrationTestBase;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -30,7 +30,7 @@ import org.springframework.dao.DataAccessException;
  * position-uniqueness and foreign-key guards surface as {@link DataAccessException}s through the
  * repository rather than as silent no-ops.
  */
-class JdbcProvenanceRepositoryIT extends PostgresIntegrationTestBase {
+class JdbcProvenanceRepositoryIT extends DatabaseIntegrationTestBase {
 
     private static final Instant RECORDED_AT = Instant.parse("2026-08-01T12:00:00Z");
 

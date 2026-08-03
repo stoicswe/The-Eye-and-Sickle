@@ -8,7 +8,7 @@ A distributed, federated online hacking game involving the "Eye" and the "Sickle
 
 A puzzle-centric hacking game set in a surveillance dystopia. Play as an operator in **The Sickle**, a decentralized resistance, against **The Eye**, the surveillance state. Compute — not money — is the master scarcity, and the core hacking minigame is the game; every other system exists to give it stakes. Single-player by default, with opt-in, real-loss multiplayer over a self-hostable, federated server network.
 
-**Stack:** JavaFX multi-window desktop client · Spring Boot + PostgreSQL self-hostable servers (Docker Compose) · AT Protocol identity (auth-only) · federated anti-cheat via validator quorum + signed item provenance.
+**Stack:** JavaFX multi-window desktop client · Spring Boot + embedded H2 self-hostable servers (Docker Compose optional) · AT Protocol identity (auth-only) · federated anti-cheat via validator quorum + signed item provenance.
 
 ## Documentation
 
@@ -31,7 +31,7 @@ mvn verify
 | Module | What it is |
 |---|---|
 | [`protocol/`](protocol) | Wire types shared by both sides, the item-provenance verifier (detached JWS over JCS/RFC 8785, Ed25519), and the DID-authenticated encrypted transport (X25519 + HKDF-SHA256 + AES-256-GCM). No Spring, no JavaFX, no game rules, and no third-party crypto. |
-| [`server/`](server) | The self-hostable home server. Spring Boot + PostgreSQL. Authoritative for all game state. |
+| [`server/`](server) | The self-hostable home server. Spring Boot + **embedded H2** — no database to install. Authoritative for all game state. |
 | [`client/`](client) | The JavaFX desktop client. One OS window per tool. Renders; never decides. |
 
 ### Running it
@@ -47,7 +47,7 @@ For the server, [`deploy/`](deploy) has a Docker Compose stack — copy `deploy/
 ### Other build targets
 
 ```bash
-mvn -Pit verify                     # + Testcontainers integration tests (needs Docker)
+mvn -Pit verify                     # + schema-backed integration tests (embedded H2, no Docker)
 mvn -Pquality spotless:apply        # format with palantir-java-format
 ```
 

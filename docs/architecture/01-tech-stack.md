@@ -51,23 +51,42 @@
 
 > **[PROPOSAL]** Packaging: `jlink`/`jpackage` to ship a self-contained runtime image per platform (no "install a JRE first" friction), keeping the "lightweight" promise at the distribution layer. Confirm at build-tooling time.
 
-## 2. Home server — Spring Boot + PostgreSQL
+## 2. Home server — Spring Boot + embedded H2
 
-**Decision:** a **Spring Boot** service backed by **PostgreSQL**, deployed via **Docker Compose**, self-hostable Minecraft-style with **allowlists**.
+**Decision:** a **Spring Boot** service backed by **embedded H2**, self-hostable Minecraft-style with
+**allowlists**. Docker Compose is offered but is no longer required.
+
+> ⚠ **AMENDED 2026-08-02 — this said PostgreSQL, and PostgreSQL is gone.** The reasoning below for a
+> relational, transactional store is unchanged and is why H2 was chosen over a document or key-value
+> store. What changed is that the database is now *inside the server process*: a self-hoster needs a
+> JVM and nothing else — no database to install, no container to run, no connection string to get
+> wrong. That is a direct win for "anyone can run a server", which `03` §1 calls a core requirement
+> rather than a nicety.
+>
+> ⚠ **The port was not free and the cost is recorded in code, not just here.** PostgreSQL's PL/pgSQL
+> enforcement — the append-only ledger and provenance guards, and the anti-rollback guard `08` §2
+> relies on — became **Java triggers** (`persistence/AppendOnlyTrigger`, `MonotonicSequenceTrigger`).
+> They still fire *inside* the engine on every write, so the guarantee survives; but they are our code
+> now and earn the same scrutiny the originals had. The DID shape check moved the other way and came
+> out **better**: it is an H2 ALIAS onto `Did.isWellFormed`, so the constraint and the Java validator
+> are one implementation where they used to be two copies with a warning to keep them in step.
+>
+> ⚠ **H2 is a COMPILE dependency, not a driver.** The schema's enforcement is written against its API,
+> so the server's code is coupled to H2 rather than merely configured for it.
 
 ### Why
 
 - **Spring Boot** — batteries-included JVM server framework; same language ecosystem as the client (Java), so the team maintains one toolchain. Mature OAuth support helps the AT Proto integration (`02`).
-- **PostgreSQL** — the authoritative store for **all game state** (Invariant I14): player inventories, EC balances, rig configs, the public ledger, deployed-miner records, home-server-local PvP resolution. Relational fits the heavily-cross-referenced item/economy model (`06`).
-- **Docker Compose** — one-command self-hosting (`docker compose up`), the "anyone can run a server" requirement. Bundles the Spring Boot app + Postgres + any support services.
+- **Embedded H2** — the authoritative store for **all game state** (Invariant I14): player inventories, EC balances, rig configs, the public ledger, deployed-miner records, home-server-local PvP resolution. Relational fits the heavily-cross-referenced item/economy model (`06`), and it keeps one transaction spanning the rules engine's state and the ledger — a split store could produce a balance and a ledger that disagree, which `../design/04-mining.md` §3.1 teaches players to read as evidence of an intruder.
+- **Docker Compose** — still offered for one-command self-hosting, but **optional** now: with the database embedded, `java -jar` is a complete server. The compose file no longer has a `db` service, and the game state lives in a single mounted volume that should be backed up like a save file, because that is what it now is.
 - **Allowlists** — Minecraft-style access control so a self-hosted server is private-by-default; the operator chooses who joins. Pairs with the opt-in federation model (`03`) — private servers are the single-player/friends experience, federated public servers are the real-loss multiplayer experience (`../design/13` §5).
 
 ### Server responsibilities
 
 - Own and validate all game state for its players.
-- Resolve **home-server-local** PvP (raids, miner cracks) directly in Postgres — no federation needed for these (`../design/13` §3).
+- Resolve **home-server-local** PvP (raids, miner cracks) directly in its own database — no federation needed for these (`../design/13` §3).
 - Participate in federation when opted in: serve non-adversarial directory data, act as a validator when sampled (`05`), verify item provenance on cross-server transfers (`04`).
-- Enforce the public ledger (`../design/01` §2.2) as queryable Postgres data.
+- Enforce the public ledger (`../design/01` §2.2) as queryable, **append-only** relational data — the append-only part is a database trigger, not a convention.
 
 ## 3. Deployment & topology
 

@@ -5,11 +5,11 @@ import io.github.stoicswe.eyeandsickle.protocol.game.GameSnapshot;
 import io.github.stoicswe.eyeandsickle.protocol.game.IntentOutcome;
 import io.github.stoicswe.eyeandsickle.server.audit.OperatorLog;
 import java.math.BigDecimal;
-import java.time.Instant;
+import java.time.Clock;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Supplier;
+
 import org.springframework.stereotype.Service;
 
 /**
@@ -18,7 +18,7 @@ import org.springframework.stereotype.Service;
  * <h2>⚠ ONE engine, two places to keep its state</h2>
  *
  * This does not reimplement anything. It drives {@code SoloGame} — the same engine single player runs
- * — against state held in <em>this server's</em> Postgres ({@link PostgresSaveStore}). A balance
+ * — against state held in <em>this server's own database</em> ({@link JdbcSaveStore}). A balance
  * change in {@code design/03} therefore lands in every mode at once and cannot drift between them,
  * which is what the old "second implementation of a subset of the rules" warning in {@code CLAUDE.md}
  * was about.
@@ -45,14 +45,19 @@ public class GameSessionService {
     private final AtomicLong revision = new AtomicLong(1);
 
     private final EngineSessions engines;
-    private final Supplier<Instant> clock;
+    private final Clock clock;
     private final OperatorLog operatorLog;
 
-    public GameSessionService(EngineSessions engines, OperatorLog operatorLog) {
-        this(engines, Instant::now, operatorLog);
-    }
-
-    public GameSessionService(EngineSessions engines, Supplier<Instant> clock, OperatorLog operatorLog) {
+    /**
+     * ⚠ ONE constructor, and a {@link Clock} rather than a {@code Supplier<Instant>}.
+     *
+     * <p>There used to be two — a convenience overload defaulting to {@code Instant::now}. Spring
+     * cannot choose between two unannotated constructors, and the symptom is the whole context
+     * failing with "No default constructor found", which names neither the class nor the fix.
+     * {@code Clock} is the type the application already publishes as a {@code @Primary} bean, so this
+     * autowires and a test still injects a fixed one.
+     */
+    public GameSessionService(EngineSessions engines, Clock clock, OperatorLog operatorLog) {
         this.engines = Objects.requireNonNull(engines, "engines");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.operatorLog = Objects.requireNonNull(operatorLog, "operatorLog");
@@ -72,7 +77,7 @@ public class GameSessionService {
                         revision.get(),
                         // ⚠ The SERVER's clock. Every deadline is measured against it, and the client's clock
                         // is a value a cheater controls.
-                        clock.get(),
+                        clock.instant(),
                         game.computeBudget(),
                         game.balance(),
                         // The engine carries heat as an int today; the wire type is BigDecimal so a later

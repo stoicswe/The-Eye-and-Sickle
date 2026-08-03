@@ -9,59 +9,28 @@
 # why adversarial servers exist by design, and why the federation layer has to
 # make cheating not work without any central authority.
 #
-# VERIFIED: the `db` service was brought up, written to, torn down with
-# `docker compose down`, and brought back — the data survived. That test exists
-# because the volume mount path is a real trap; see the note on it below.
-# The `server` service's image build has NOT been exercised yet.
+# ⚠ There is NO database service. As of 2026-08-02 the server embeds H2 and
+# writes to a file under the `gamedata` volume, so a self-hoster needs a JVM and
+# nothing else. The old `db` service, its healthcheck and its POSTGRES_* settings
+# are gone; `.env.example` no longer needs credentials for them.
+#
+# NOT YET VERIFIED after the H2 migration: neither this compose file nor the
+# image build has been exercised since the database was removed. The previous
+# note recorded a real round-trip test of the Postgres volume; that test no
+# longer describes this file.
 # ---------------------------------------------------------------------------
 name: eyeandsickle
 
 services:
-  db:
-    image: postgres:18-alpine
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
-      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
-      # Deterministic collation, so ORDER BY on player handles does not depend
-      # on the host's locale. Changing this later means reindexing.
-      POSTGRES_INITDB_ARGS: "--locale-provider=icu --icu-locale=en-US"
-    volumes:
-      # /var/lib/postgresql — NOT /var/lib/postgresql/data.
-      #
-      # PostgreSQL 18's official images moved PGDATA to
-      # /var/lib/postgresql/18/docker and moved the declared VOLUME up to
-      # /var/lib/postgresql. Mounting the old 17-and-earlier path silently
-      # "works": the container starts, the named volume stays empty, and the
-      # real cluster goes to an anonymous volume that `docker compose down`
-      # orphans. Every player's inventory and balance would vanish on the first
-      # container recreate, with no error anywhere.
-      - pgdata:/var/lib/postgresql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-    # Not published to the host by default. The database holds every player's
-    # inventory and balance on this server; it has no business being reachable
-    # from outside the compose network.
-    expose:
-      - "5432"
-
   server:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
     restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
     environment:
-      EYEANDSICKLE_DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
-      EYEANDSICKLE_DB_USER: ${POSTGRES_USER}
-      EYEANDSICKLE_DB_PASSWORD: ${POSTGRES_PASSWORD}
+      # H2, embedded and file-backed, under the mounted volume. There is no
+      # database service any more — the server IS the database (2026-08-02).
+      EYEANDSICKLE_DB_URL: "jdbc:h2:file:/data/eyeandsickle;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;AUTO_SERVER=TRUE;DB_CLOSE_ON_EXIT=FALSE"
       EYEANDSICKLE_PORT: 8080
       # Minecraft-style allowlist. Empty means nobody joins — closed by default
       # is the right default for a server that holds real losable player state.
@@ -80,5 +49,12 @@ services:
       retries: 5
       start_period: 60s
 
+    # ⚠ The game state lives here and NOWHERE else. Losing this volume is
+    # losing every character on the server; there is no second copy and no
+    # database service holding one. Back it up like a save file, because that
+    # is now exactly what it is.
+    volumes:
+      - gamedata:/data
+
 volumes:
-  pgdata:
+  gamedata:

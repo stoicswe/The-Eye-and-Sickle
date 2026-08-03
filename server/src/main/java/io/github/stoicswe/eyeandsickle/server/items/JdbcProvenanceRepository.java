@@ -15,7 +15,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
  * <p>The range query (§6.1) leans on {@code UNIQUE (item_id, chain_depth)}, which already indexes
  * {@code item_id} as a leading column, so no separate {@code item_id} index is needed (the schema
  * comment says as much). {@code payload}, {@code envelope} and {@code signatures} are written with the
- * {@code ::jsonb} cast, from the one {@link StoredProvenanceRecord} the caller built from a single
+ * {@code  FORMAT JSON} cast, from the one {@link StoredProvenanceRecord} the caller built from a single
  * parse — the three columns cannot drift because they are never derived independently.
  */
 // @Component, not @Repository — see JdbcItemRepository: @Repository's translation proxy cannot
@@ -40,8 +40,8 @@ public final class JdbcProvenanceRepository implements ProvenanceStore {
                              payload_timestamp, recorded_at)
                         VALUES
                             (:recordId, :itemId, :chainDepth, :recordHash, :prevRecordHash, :eventType,
-                             :holderDid, :issuerDid, :recordVersion, :payload::jsonb, :envelope::jsonb,
-                             :signatures::jsonb, :payloadTimestamp, :recordedAt)
+                             :holderDid, :issuerDid, :recordVersion, :payload FORMAT JSON, :envelope FORMAT JSON,
+                             :signatures FORMAT JSON, :payloadTimestamp, :recordedAt)
                         """)
                 .param("recordId", record.recordId())
                 .param("itemId", record.itemId())

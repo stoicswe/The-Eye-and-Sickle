@@ -16,7 +16,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
  * (open question A-4, resolved; {@code server/pom.xml}).
  *
  * <p>Reads select the explicit {@link ItemRows#COLUMNS} projection, never {@code SELECT *}; the {@code
- * item_attrs} jsonb parameter is bound with the {@code ::jsonb} cast the driver requires ({@code
+ * item_attrs} jsonb parameter is bound with the {@code  FORMAT JSON} cast the driver requires ({@code
  * io.github.stoicswe.eyeandsickle.server.persistence.Jsonb}); and the holder update is version-checked,
  * turning a concurrent transfer into a retryable {@code OptimisticLockingFailureException} rather than a
  * silently lost write.
@@ -77,7 +77,7 @@ public final class JdbcItemRepository implements ItemStore {
                             (item_id, item_type, item_attrs, holder_did, storage_tier, socketed_in,
                              acquired_at, row_version)
                         VALUES
-                            (:itemId, :itemType, :attrs::jsonb, :holderDid, :storageTier, :socketedIn,
+                            (:itemId, :itemType, :attrs FORMAT JSON, :holderDid, :storageTier, :socketedIn,
                              :acquiredAt, :rowVersion)
                         """)
                 .param("itemId", item.itemId())

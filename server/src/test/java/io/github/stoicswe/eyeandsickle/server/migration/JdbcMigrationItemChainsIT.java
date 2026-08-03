@@ -16,7 +16,7 @@ import io.github.stoicswe.eyeandsickle.server.items.ProvenanceVerificationServic
 import io.github.stoicswe.eyeandsickle.server.items.ServerIssuerAuthority;
 import io.github.stoicswe.eyeandsickle.server.items.ServerRecognition;
 import io.github.stoicswe.eyeandsickle.server.migration.MigrationItemImporter.ItemImportOutcome;
-import io.github.stoicswe.eyeandsickle.server.persistence.PostgresIntegrationTestBase;
+import io.github.stoicswe.eyeandsickle.server.persistence.DatabaseIntegrationTestBase;
 import java.time.Clock;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -36,7 +36,7 @@ import org.junit.jupiter.api.Test;
  * exportable either: the anti-cheat model holds end to end, on the migration path exactly as on the
  * federation edge.
  */
-class JdbcMigrationItemChainsIT extends PostgresIntegrationTestBase {
+class JdbcMigrationItemChainsIT extends DatabaseIntegrationTestBase {
 
     private final MigrationTestChains chains = new MigrationTestChains();
 

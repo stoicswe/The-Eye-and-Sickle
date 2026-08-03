@@ -58,7 +58,7 @@ public class ComputeLedgerRepository {
                         INSERT INTO rigs (rig_id, player_id, total_cycles, thermal_budget_tier,
                                           bandwidth, memory_buffer, installed_modules, created_at, row_version)
                         VALUES (:rigId, :playerId, :totalCycles, :thermalTier,
-                                :bandwidth, :memoryBuffer, :installedModules::jsonb, :createdAt, :rowVersion)
+                                :bandwidth, :memoryBuffer, :installedModules FORMAT JSON, :createdAt, :rowVersion)
                         """)
                 .param("rigId", rig.rigId())
                 .param("playerId", rig.playerId())

@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.stoicswe.eyeandsickle.protocol.game.CharacterDid;
 import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
-import io.github.stoicswe.eyeandsickle.server.persistence.PostgresIntegrationTestBase;
+import io.github.stoicswe.eyeandsickle.server.persistence.DatabaseIntegrationTestBase;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -22,7 +22,7 @@ import org.springframework.dao.OptimisticLockingFailureException;
  * (the lost-update guard) and a multi-character lock returning only the characters that resolve to a
  * local player.
  */
-class AccountRepositoryIT extends PostgresIntegrationTestBase {
+class AccountRepositoryIT extends DatabaseIntegrationTestBase {
 
     private static final String ALICE_ACCOUNT = "did:plc:alice000000000000000000";
     private static final String BOB_ACCOUNT = "did:plc:bob00000000000000000000";
@@ -37,7 +37,7 @@ class AccountRepositoryIT extends PostgresIntegrationTestBase {
     @Test
     @DisplayName("findByCharacter reads back the balance and personal heat, and misses an unknown character")
     void findByCharacter() {
-        insertPlayer(ALICE_ACCOUNT, 1, 4_200L, "37.5000");
+        insertPlayer(ALICE_ACCOUNT, 1, "42", "37.5000");
 
         Optional<Account> found = repository.findByCharacter(ALICE);
         assertThat(found).isPresent();
@@ -57,8 +57,8 @@ class AccountRepositoryIT extends PostgresIntegrationTestBase {
     @Test
     @DisplayName("two characters of ONE account resolve to SEPARATE balances — the >1-character lookup never throws")
     void twoCharactersOfOneAccountAreSeparate() {
-        insertPlayer(ALICE_ACCOUNT, 1, 1_000L, "10");
-        insertPlayer(ALICE_ACCOUNT, 2, 250L, "90");
+        insertPlayer(ALICE_ACCOUNT, 1, "10", "10");
+        insertPlayer(ALICE_ACCOUNT, 2, "2.5", "90");
 
         // The old findByDid(account) matched BOTH rows and threw on .optional(); naming the slot resolves
         // exactly one character, so each of the account's two characters has its own balance and heat.
@@ -75,8 +75,8 @@ class AccountRepositoryIT extends PostgresIntegrationTestBase {
     @Test
     @DisplayName("lockForUpdate returns only the characters that resolve to a local player")
     void lockForUpdateSkipsNonLocalCharacters() {
-        insertPlayer(ALICE_ACCOUNT, 1, 100L, "0");
-        insertPlayer(BOB_ACCOUNT, 1, 200L, "0");
+        insertPlayer(ALICE_ACCOUNT, 1, "1", "0");
+        insertPlayer(BOB_ACCOUNT, 1, "2", "0");
 
         // FOR UPDATE holds the lock to commit, so it must run inside a transaction.
         List<Account> locked =
@@ -90,8 +90,8 @@ class AccountRepositoryIT extends PostgresIntegrationTestBase {
     @Test
     @DisplayName("lockForUpdate locks the named character, not every character of its account")
     void lockForUpdateIsPerCharacter() {
-        insertPlayer(ALICE_ACCOUNT, 1, 100L, "0");
-        insertPlayer(ALICE_ACCOUNT, 2, 999L, "0");
+        insertPlayer(ALICE_ACCOUNT, 1, "1", "0");
+        insertPlayer(ALICE_ACCOUNT, 2, "9.99", "0");
 
         List<Account> locked = transactions().execute(status -> repository.lockForUpdate(List.of(ALICE)));
 
@@ -111,7 +111,7 @@ class AccountRepositoryIT extends PostgresIntegrationTestBase {
     @Test
     @DisplayName("a version-checked write applies against the current version and bumps it")
     void writeBalanceApplies() {
-        insertPlayer(ALICE_ACCOUNT, 1, 1_000L, "0");
+        insertPlayer(ALICE_ACCOUNT, 1, "10", "0");
         Account before = repository.findByCharacter(ALICE).orElseThrow();
 
         transactions()
@@ -126,7 +126,7 @@ class AccountRepositoryIT extends PostgresIntegrationTestBase {
     @Test
     @DisplayName("a write against a stale version matches nothing and is reported as a conflict")
     void writeBalanceStaleVersionConflicts() {
-        insertPlayer(ALICE_ACCOUNT, 1, 1_000L, "0");
+        insertPlayer(ALICE_ACCOUNT, 1, "10", "0");
         UUID playerId = repository.findByCharacter(ALICE).orElseThrow().playerId();
 
         // First writer moves the version from 0 to 1.
@@ -142,7 +142,14 @@ class AccountRepositoryIT extends PostgresIntegrationTestBase {
         assertThat(repository.findByCharacter(ALICE).orElseThrow().balance()).isEqualTo(Ethecoin.ofDecimal("15"));
     }
 
-    private void insertPlayer(String accountDid, int slot, long balanceMinor, String heat) {
+    /**
+     * ⚠ The balance is given in <strong>ethecoin</strong>, not in raw column units, and the fixture
+     * converts. It used to bind a bare {@code long} named {@code balanceMinor} — hundredths, from
+     * before {@code V6__ethecoin_wei}. The column was rescaled by 10^16 and this was not, so seeding
+     * 4200 and asserting 42 EC compared 42 EC against 0.0000000000000042 EC. Binding through
+     * {@link Ethecoin} means the fixture cannot drift from the column again.
+     */
+    private void insertPlayer(String accountDid, int slot, String balanceEthecoin, String heat) {
         jdbcClient()
                 .sql("""
                         INSERT INTO players (player_id, did, slot, handle, ethecoin_balance_wei, personal_heat)
@@ -151,7 +158,7 @@ class AccountRepositoryIT extends PostgresIntegrationTestBase {
                 .param("id", UUID.randomUUID())
                 .param("did", accountDid)
                 .param("slot", slot)
-                .param("balance", balanceMinor)
+                .param("balance", Ethecoin.ofDecimal(balanceEthecoin).wei())
                 .param("heat", heat)
                 .update();
     }

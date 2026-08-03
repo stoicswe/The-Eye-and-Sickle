@@ -56,7 +56,7 @@ public class FlaggedServerRegistry {
             int inserted = jdbcClient
                     .sql("""
                             INSERT INTO flagged_servers (flag_id, server_did, reason, evidence, raised_by_did, flagged_at)
-                            VALUES (:flagId, :serverDid, :reason, :evidence::jsonb, :raisedByDid, :now)
+                            VALUES (:flagId, :serverDid, :reason, :evidence FORMAT JSON, :raisedByDid, :now)
                             """)
                     .param("flagId", flagId)
                     .param("serverDid", serverDid)

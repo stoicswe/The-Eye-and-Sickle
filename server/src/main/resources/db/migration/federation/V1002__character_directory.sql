@@ -80,8 +80,8 @@ CREATE TABLE character_directory (
     -- re-verify the binding it was served, and so an equal-sequence re-announcement
     -- can be told apart from an equal-sequence CONFLICT by comparing signatures.
     signature                  bytea       NOT NULL,
-    first_seen_at              timestamptz NOT NULL DEFAULT now(),
-    last_seen_at               timestamptz NOT NULL DEFAULT now(),
+    first_seen_at              TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    last_seen_at               TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
     row_version                bigint      NOT NULL DEFAULT 0,
 
     -- One home binding per (account, slot). Two rows for the same slot would let a
@@ -90,7 +90,10 @@ CREATE TABLE character_directory (
     CONSTRAINT uq_character_directory_account_slot UNIQUE (account_did, slot),
     CONSTRAINT ck_character_directory_account_did  CHECK (is_did(account_did)),
     CONSTRAINT ck_character_directory_home_did     CHECK (is_did(home_server_did)),
-    CONSTRAINT ck_character_directory_endpoint     CHECK (home_endpoint ~ '^https?://[^[:space:]]+$'
+    -- \S, NOT [^[:space:]] — see the same constraint on federation_peers in V1001. `~` runs a
+    -- Java regex, which has no POSIX bracket expressions, and the POSIX spelling refused every
+    -- endpoint rather than only the malformed ones.
+    CONSTRAINT ck_character_directory_endpoint     CHECK (home_endpoint ~ '^https?://\S+$'
                                                           AND length(home_endpoint) <= 2048),
     CONSTRAINT ck_character_directory_slot         CHECK (slot BETWEEN 1 AND 16),
     CONSTRAINT ck_character_directory_key          CHECK (octet_length(home_transport_public_key) BETWEEN 32 AND 256),
@@ -127,23 +130,8 @@ CREATE INDEX ix_character_directory_account ON character_directory (account_did,
 -- equal-sequence CONFLICT (a different signature at the same sequence), and it
 -- never issues an UPDATE for the latter.
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION character_directory_sequence_is_monotonic() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-    IF NEW.sequence_number < OLD.sequence_number THEN
-        RAISE EXCEPTION
-            'character_directory.sequence_number must not go backwards for (account %, slot %) (stored %, offered %)',
-            OLD.account_did, OLD.slot, OLD.sequence_number, NEW.sequence_number
-            USING ERRCODE = 'restrict_violation';
-    END IF;
-    RETURN NEW;
-END;
-$$;
 
-COMMENT ON FUNCTION character_directory_sequence_is_monotonic() IS
-    'Anti-rollback guard: refuses a replayed older home binding (docs/architecture/09 §4, §6.1).';
 
-CREATE TRIGGER character_directory_no_sequence_rollback
-    BEFORE UPDATE ON character_directory
-    FOR EACH ROW EXECUTE FUNCTION character_directory_sequence_is_monotonic();
+
+
+CREATE TRIGGER character_directory_no_sequence_rollback BEFORE UPDATE ON character_directory FOR EACH ROW CALL "io.github.stoicswe.eyeandsickle.server.persistence.MonotonicSequenceTrigger";

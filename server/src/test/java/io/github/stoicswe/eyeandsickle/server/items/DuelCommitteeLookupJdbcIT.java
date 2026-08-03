@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.within;
 
 import io.github.stoicswe.eyeandsickle.protocol.provenance.QuorumCommittee;
 import io.github.stoicswe.eyeandsickle.server.persistence.Jsonb;
-import io.github.stoicswe.eyeandsickle.server.persistence.PostgresIntegrationTestBase;
+import io.github.stoicswe.eyeandsickle.server.persistence.DatabaseIntegrationTestBase;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
  * and a handful of freshly generated keys are indistinguishable, so an unknown duel is a rejection —
  * exactly as unrecognizable as a forged one.
  */
-class DuelCommitteeLookupJdbcIT extends PostgresIntegrationTestBase {
+class DuelCommitteeLookupJdbcIT extends DatabaseIntegrationTestBase {
 
     private static final String V1 = "did:plc:validator1";
     private static final String V2 = "did:plc:validator2";
@@ -47,7 +47,7 @@ class DuelCommitteeLookupJdbcIT extends PostgresIntegrationTestBase {
         jdbcClient()
                 .sql("""
                         INSERT INTO duels (duel_id, participants, sampled_validators, committee_size)
-                        VALUES (:id, :participants::jsonb, :sample::jsonb, :size)
+                        VALUES (:id, :participants FORMAT JSON, :sample FORMAT JSON, :size)
                         """)
                 .param("id", id)
                 .param("participants", Jsonb.writeArray(List.of(PARTICIPANT_A, PARTICIPANT_B)))

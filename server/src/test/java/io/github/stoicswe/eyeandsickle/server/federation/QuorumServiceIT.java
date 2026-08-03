@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 
 import io.github.stoicswe.eyeandsickle.protocol.provenance.SigningKeyDirectory;
-import io.github.stoicswe.eyeandsickle.server.persistence.PostgresIntegrationTestBase;
+import io.github.stoicswe.eyeandsickle.server.persistence.DatabaseIntegrationTestBase;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -26,7 +26,7 @@ import org.junit.jupiter.api.Test;
  * inside the base's {@link #transactions()} template — which is also what makes the {@code SELECT ...
  * FOR UPDATE} in the reputation update a real lock rather than an autocommit read.
  */
-class QuorumServiceIT extends PostgresIntegrationTestBase {
+class QuorumServiceIT extends DatabaseIntegrationTestBase {
 
     private static final Instant NOW = Instant.parse("2026-07-24T12:00:00Z");
     private static final String A = FederationFixture.HOLDER_A;

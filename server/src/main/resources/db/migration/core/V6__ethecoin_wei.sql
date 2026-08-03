@@ -34,9 +34,11 @@
 -- players.ethecoin_balance_ec_minor → ethecoin_balance_wei
 ALTER TABLE players
     DROP CONSTRAINT ck_players_balance_non_negative;
-ALTER TABLE players
-    ALTER COLUMN ethecoin_balance_ec_minor TYPE numeric(78, 0)
-        USING (ethecoin_balance_ec_minor::numeric * 10 ^ 16);
+ALTER TABLE players ALTER COLUMN ethecoin_balance_ec_minor SET DATA TYPE numeric(78, 0);
+-- ⚠ H2 has no USING clause, so the rescale is a separate statement rather than part of the widening.
+-- Same result, and the ORDER matters: widen first, or the multiply overflows the bigint it is
+-- leaving. On a fresh database this updates zero rows, which is correct rather than skippable.
+UPDATE players SET ethecoin_balance_ec_minor = ethecoin_balance_ec_minor * 10000000000000000;
 ALTER TABLE players
     RENAME COLUMN ethecoin_balance_ec_minor TO ethecoin_balance_wei;
 ALTER TABLE players
@@ -48,9 +50,11 @@ COMMENT ON COLUMN players.ethecoin_balance_wei IS
 -- ledger_transactions.amount_ec_minor → amount_wei
 ALTER TABLE ledger_transactions
     DROP CONSTRAINT ck_ledger_amount;
-ALTER TABLE ledger_transactions
-    ALTER COLUMN amount_ec_minor TYPE numeric(78, 0)
-        USING (amount_ec_minor::numeric * 10 ^ 16);
+ALTER TABLE ledger_transactions ALTER COLUMN amount_ec_minor SET DATA TYPE numeric(78, 0);
+-- ⚠ H2 has no USING clause, so the rescale is a separate statement rather than part of the widening.
+-- Same result, and the ORDER matters: widen first, or the multiply overflows the bigint it is
+-- leaving. On a fresh database this updates zero rows, which is correct rather than skippable.
+UPDATE ledger_transactions SET amount_ec_minor = amount_ec_minor * 10000000000000000;
 ALTER TABLE ledger_transactions
     RENAME COLUMN amount_ec_minor TO amount_wei;
 ALTER TABLE ledger_transactions
@@ -59,9 +63,11 @@ ALTER TABLE ledger_transactions
 -- deployed_miners.buffer_ec_minor → buffer_wei
 ALTER TABLE deployed_miners
     DROP CONSTRAINT ck_deployed_miners_buffer;
-ALTER TABLE deployed_miners
-    ALTER COLUMN buffer_ec_minor TYPE numeric(78, 0)
-        USING (buffer_ec_minor::numeric * 10 ^ 16);
+ALTER TABLE deployed_miners ALTER COLUMN buffer_ec_minor SET DATA TYPE numeric(78, 0);
+-- ⚠ H2 has no USING clause, so the rescale is a separate statement rather than part of the widening.
+-- Same result, and the ORDER matters: widen first, or the multiply overflows the bigint it is
+-- leaving. On a fresh database this updates zero rows, which is correct rather than skippable.
+UPDATE deployed_miners SET buffer_ec_minor = buffer_ec_minor * 10000000000000000;
 ALTER TABLE deployed_miners
     RENAME COLUMN buffer_ec_minor TO buffer_wei;
 ALTER TABLE deployed_miners

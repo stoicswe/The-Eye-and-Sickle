@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.stoicswe.eyeandsickle.protocol.game.Faction;
 import io.github.stoicswe.eyeandsickle.protocol.game.FactionReputation;
-import io.github.stoicswe.eyeandsickle.server.persistence.PostgresIntegrationTestBase;
+import io.github.stoicswe.eyeandsickle.server.persistence.DatabaseIntegrationTestBase;
 import java.time.Instant;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,7 +18,7 @@ import org.springframework.dao.DataIntegrityViolationException;
  * {@code standing = standing + :delta} upsert (so two adjustments both land), the ability to hold
  * standing with both sides at once before the binary commitment, and the foreign key to {@code players}.
  */
-class FactionReputationRepositoryIT extends PostgresIntegrationTestBase {
+class FactionReputationRepositoryIT extends DatabaseIntegrationTestBase {
 
     private static final Did DID = Did.of("did:plc:aaaaaaaaaaaaaaaaaaaaaaaa");
     private static final Instant NOW = Instant.parse("2026-07-24T10:00:00Z");

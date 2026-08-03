@@ -8,27 +8,23 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.transaction.support.TransactionTemplate;
-import org.testcontainers.postgresql.PostgreSQLContainer;
-import org.testcontainers.utility.DockerImageName;
 
 /**
- * Base class for every test that touches real SQL: one shared, Flyway-migrated PostgreSQL for the
- * whole test run.
+ * Base class for every test that touches real SQL: one shared, Flyway-migrated database for the whole
+ * test run.
  *
  * <h2>How to use it</h2>
  *
  * Extend it and <strong>name your class {@code SomethingIT}</strong>. Failsafe's default include
  * pattern picks up class names ending in {@code IT}, so such a class runs under
- * {@code mvn -Pit verify} and is invisible to the default {@code mvn verify}. That separation is
- * load-bearing: {@code mvn verify} must never require Docker, or a contributor who only wants to work
- * on the JavaFX client is blocked by a daemon they have no reason to run.
+ * {@code mvn -Pit verify} and is invisible to the default {@code mvn verify}.
  *
  * <p>This class is deliberately named neither {@code ...IT} nor {@code ...Test} — it is abstract and
  * matches neither surefire's nor failsafe's include patterns, so neither runner will ever try to
  * execute it on its own.
  *
  * {@snippet lang = java:
- * class LedgerRepositoryIT extends PostgresIntegrationTestBase {
+ * class LedgerRepositoryIT extends DatabaseIntegrationTestBase {
  *
  *     // annotate with org.junit.jupiter.api.Test
  *     void writesAndReadsBack() {
@@ -37,17 +33,19 @@ import org.testcontainers.utility.DockerImageName;
  * }
  *}
  *
- * <h2>One container, not six</h2>
+ * <h2>⚠ No Docker, and the {@code -Pit} split is now about SPEED rather than about Docker</h2>
  *
- * The container starts in a static initializer and is never stopped. That is the documented
- * Testcontainers singleton pattern, and the reason is arithmetic: six test classes each with their
- * own {@code @Container} field means six PostgreSQL starts, six Flyway runs, and a test suite that
- * takes minutes instead of seconds. Testcontainers' Ryuk sidecar removes the container when the JVM
- * exits, so nothing leaks — calling {@code stop()} in a shutdown hook would only race Ryuk.
+ * These were Testcontainers tests, and the profile existed because "a real database" meant a
+ * PostgreSQL container — {@code mvn verify} must never require a daemon a client-only contributor has
+ * no reason to run. Since the database moved to embedded H2 (2026-08-02) that reason is gone: the
+ * whole suite runs wherever the build does. The split is kept because these tests migrate a schema
+ * and truncate it between every test, which is not what belongs in the fast loop.
  *
- * <p>The image tag is pinned. An unpinned tag means the schema is validated against whatever
- * PostgreSQL happens to be current on the machine that ran the build, which is how a migration that
- * works locally fails in CI.
+ * <p>⚠ <strong>These tests earn their keep and are not a formality.</strong> The port to H2 was green
+ * on {@code mvn verify} while the schema was, in fact, broken: an {@code IN}-list CHECK constraint
+ * that could not evaluate at all, a URL constraint that refused every URL, and a partial unique index
+ * that had quietly become a total one. Every one of those is invisible to a unit test, because every
+ * one of them is a property of the database rather than of the code that talks to it.
  *
  * <h2>Both migration locations, always</h2>
  *
@@ -66,30 +64,34 @@ import org.testcontainers.utility.DockerImageName;
  * <p>The table list is discovered from the catalogue rather than hardcoded, so a table added by a
  * later migration is cleaned up without anyone having to remember to add it here.
  */
-public abstract class PostgresIntegrationTestBase {
+public abstract class DatabaseIntegrationTestBase {
 
     /**
-     * Pinned on purpose. Bump deliberately, and re-run the suite when you do — a migration is exactly
-     * the kind of code whose behaviour can depend on the server version.
+     * ⚠ Embedded H2, shared by every repository test — no Docker, no container, no daemon.
+     *
+     * <p>These were Testcontainers tests behind {@code -Pit} because "a real database" meant a real
+     * PostgreSQL. Since the database moved to embedded H2 (2026-08-02) they run wherever the build
+     * does, which is the biggest practical gain of the migration for this codebase.
+     *
+     * <p>⚠ {@code DB_CLOSE_DELAY=-1} keeps the in-memory database alive for the life of the JVM. H2
+     * drops one when its LAST connection closes, so without it the schema would vanish between tests
+     * that happen to leave no connection open — intermittently, and dependent on pool timing.
+     *
+     * <p>⚠ {@code MODE=PostgreSQL} and {@code DATABASE_TO_LOWER} must match {@code application.yml}.
+     * A suite running against a different dialect than production proves nothing about production.
      */
-    private static final DockerImageName IMAGE = DockerImageName.parse("postgres:17-alpine");
+    private static final String URL =
+            "jdbc:h2:mem:eyeandsickle_it;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1";
 
-    private static final PostgreSQLContainer CONTAINER;
     private static final DataSource DATA_SOURCE;
     private static final JdbcClient JDBC_CLIENT;
     private static final TransactionTemplate TRANSACTIONS;
 
     static {
-        CONTAINER = new PostgreSQLContainer(IMAGE)
-                .withDatabaseName("eyeandsickle")
-                .withUsername("eyeandsickle")
-                .withPassword("eyeandsickle");
-        CONTAINER.start();
-
         DriverManagerDataSource dataSource = new DriverManagerDataSource();
-        dataSource.setUrl(CONTAINER.getJdbcUrl());
-        dataSource.setUsername(CONTAINER.getUsername());
-        dataSource.setPassword(CONTAINER.getPassword());
+        dataSource.setUrl(URL);
+        dataSource.setUsername("sa");
+        dataSource.setPassword("");
         DATA_SOURCE = dataSource;
 
         // Exactly the locations application.yml configures for a federating server. Deliberately not
@@ -108,7 +110,7 @@ public abstract class PostgresIntegrationTestBase {
     /**
      * The migrated database.
      *
-     * @return a {@code JdbcClient} on the shared container
+     * @return a {@code JdbcClient} on the shared database
      */
     protected static JdbcClient jdbcClient() {
         return JDBC_CLIENT;
@@ -146,27 +148,41 @@ public abstract class PostgresIntegrationTestBase {
     @BeforeEach
     protected void resetDatabase() {
         // Discovered from the catalogue, not hardcoded: a table added by a later migration gets
-        // cleaned up without anyone remembering to update this method. quote_ident is applied in SQL
-        // rather than trusted from Java, since these names are concatenated into a statement.
+        // cleaned up without anyone remembering to update this method.
+        //
+        // information_schema, not pg_tables. The Postgres catalogue views and quote_ident() went with
+        // PostgreSQL; information_schema is the SQL standard and both engines have it, so this is the
+        // portable spelling rather than an H2-specific one.
         List<String> tables = JDBC_CLIENT.sql("""
-                        SELECT quote_ident(tablename)
-                          FROM pg_tables
-                         WHERE schemaname = current_schema()
-                           AND tablename <> 'flyway_schema_history'
-                         ORDER BY tablename
+                        SELECT table_name
+                          FROM information_schema.tables
+                         WHERE table_schema = 'public'
+                           AND table_type = 'BASE TABLE'
+                           AND table_name <> 'flyway_schema_history'
+                         ORDER BY table_name
                         """).query(String.class).list();
 
         if (!tables.isEmpty()) {
-            JDBC_CLIENT
-                    .sql("TRUNCATE TABLE " + String.join(", ", tables) + " RESTART IDENTITY CASCADE")
-                    .update();
+            // Referential integrity is disabled for the truncation ONLY. H2 has no CASCADE on
+            // TRUNCATE, so without this the order of the table list decides whether the reset works,
+            // and it would break the first time a migration added a foreign key.
+            JDBC_CLIENT.sql("SET REFERENTIAL_INTEGRITY FALSE").update();
+            try {
+                for (String table : tables) {
+                    JDBC_CLIENT
+                            .sql("TRUNCATE TABLE \"" + table + "\" RESTART IDENTITY")
+                            .update();
+                }
+            } finally {
+                JDBC_CLIENT.sql("SET REFERENTIAL_INTEGRITY TRUE").update();
+            }
         }
 
         // V2 seeds this row so that "read the server state" never has to handle an absent singleton.
         // Truncation removes it, so the harness puts it back rather than leaving every test to
         // discover the difference.
         JDBC_CLIENT
-                .sql("INSERT INTO server_state (only_row) VALUES (true) ON CONFLICT DO NOTHING")
+                .sql("MERGE INTO server_state (only_row) KEY (only_row) VALUES (true)")
                 .update();
     }
 }

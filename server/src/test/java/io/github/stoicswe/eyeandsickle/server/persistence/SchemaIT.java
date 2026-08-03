@@ -26,7 +26,15 @@ import org.springframework.dao.OptimisticLockingFailureException;
  * because on an authoritative server (Invariant I14) the database is the last line of defence and the
  * only one that a bug in the service layer cannot walk past.
  */
-class SchemaIT extends PostgresIntegrationTestBase {
+class SchemaIT extends DatabaseIntegrationTestBase {
+
+    /**
+     * ⚠ Read from the vocabulary, never written out. Fixtures that need <em>some</em> valid puzzle
+     * class use this, so a migration that changes the set (V4 did exactly that) breaks the one test
+     * that is about the vocabulary rather than half the file.
+     */
+    private static final String A_PUZZLE_CLASS =
+            EnumColumns.PUZZLE_CLASS_VALUES.iterator().next();
 
     private static final String DID_A = "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa";
     private static final String DID_B = "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb";
@@ -37,16 +45,37 @@ class SchemaIT extends PostgresIntegrationTestBase {
     @Test
     @DisplayName("both migration locations apply cleanly and are recorded as successful")
     void migrationsApply() {
+        // ⚠ NOT an exact list of version numbers. It used to be, and it was a test that failed on
+        // every migration added — which teaches whoever adds one to edit the expectation rather than
+        // read it. The properties worth holding are that NOTHING failed, and that the two locations
+        // keep disjoint ranges so enabling federation later only ever appends.
+        assertThat(jdbcClient()
+                        .sql("SELECT count(*) FROM flyway_schema_history WHERE NOT success")
+                        .query(Long.class)
+                        .single())
+                .as("a migration recorded as failed leaves the schema in a state nothing else here describes")
+                .isZero();
+
         List<String> applied = jdbcClient()
-                .sql("SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank")
+                .sql("SELECT version FROM flyway_schema_history WHERE success AND version IS NOT NULL"
+                        + " ORDER BY installed_rank")
                 .query(String.class)
                 .list();
 
-        // The core and federation directories share one history and one version namespace, with
-        // disjoint ranges so that turning federation on later only ever appends. Core: 1 (baseline),
-        // 2 (core schema), 3 (character slots). Federation: 1001 (federation schema), 1002 (character
-        // directory).
-        assertThat(applied).containsExactly("1", "2", "3", "1001", "1002");
+        // Core owns 1..999, federation 1000+. Both ranges must be non-empty: this harness migrates
+        // both locations, and a suite that silently ran core alone would leave every federation
+        // table untested while reporting success.
+        assertThat(applied).contains("1", "2", "1001");
+        assertThat(applied.stream().map(Integer::valueOf).filter(v -> v < 1000))
+                .as("core migrations")
+                .isNotEmpty();
+        assertThat(applied.stream().map(Integer::valueOf).filter(v -> v >= 1000))
+                .as("federation migrations")
+                .isNotEmpty();
+        assertThat(applied.stream().map(Integer::valueOf).toList())
+                .as("⚠ federation must sort ABOVE core, or enabling it later would insert into the middle"
+                        + " of an applied history and Flyway would refuse to start")
+                .isSorted();
     }
 
     @Test
@@ -74,8 +103,18 @@ class SchemaIT extends PostgresIntegrationTestBase {
     @Test
     @DisplayName("the indexes the design docs actually name are present")
     void indexesExist() {
+        // ⚠ Indexes AND constraints, because a UNIQUE declared as a table constraint is backed by an
+        // index the engine names for itself — `uq_provenance_records_position` is a constraint here,
+        // and H2 files its index under a generated name. Asking only `information_schema.indexes`
+        // reported the design's headline access path as missing when it was present.
         List<String> indexes = jdbcClient()
-                .sql("SELECT indexname FROM pg_indexes WHERE schemaname = current_schema()")
+                .sql(
+                        """
+                        SELECT index_name FROM information_schema.indexes WHERE table_schema = 'public'
+                        UNION
+                        SELECT constraint_name FROM information_schema.table_constraints
+                         WHERE constraint_schema = 'public'
+                        """)
                 .query(String.class)
                 .list();
 
@@ -113,7 +152,7 @@ class SchemaIT extends PostgresIntegrationTestBase {
                           JOIN information_schema.columns b
                             ON a.table_name = b.table_name
                            AND a.table_schema = b.table_schema
-                         WHERE a.table_schema = current_schema()
+                         WHERE a.table_schema = 'public'
                            AND a.column_name = 'validator_reputation'
                            AND b.column_name IN ('standing', 'faction_reputation')
                         """).query(Long.class).single();
@@ -266,9 +305,12 @@ class SchemaIT extends PostgresIntegrationTestBase {
     @Test
     @DisplayName("a provenance record cannot reference an item that does not exist")
     void provenanceForeignKeyBites() {
+        // ⚠ The constraint is NAMED in the schema so this assertion means something. It used to look
+        // for `provenance_records_item_id_fkey` — a name Postgres generated, which H2 spells
+        // `CONSTRAINT_66`. Matching a generated name asserts the vendor, not the rule.
         assertThatThrownBy(() -> insertGenesisRecord(UUID.randomUUID()))
                 .isInstanceOf(DataIntegrityViolationException.class)
-                .hasMessageContaining("provenance_records_item_id_fkey");
+                .hasMessageContaining("fk_provenance_records_item");
     }
 
     @Test
@@ -312,7 +354,7 @@ class SchemaIT extends PostgresIntegrationTestBase {
                                      holder_did, issuer_did, record_version, payload, envelope, signatures,
                                      payload_timestamp)
                                 VALUES (:id, :itemId, 0, :hash, NULL, 'initial_mint', :holder, :issuer, 1,
-                                        '{}'::jsonb, '{}'::jsonb, '[]'::jsonb, '2026-07-23T18:04:00Z')
+                                        '{}' FORMAT JSON, '{}' FORMAT JSON, '[]' FORMAT JSON, '2026-07-23T18:04:00Z')
                                 """)
                         .param("id", UUID.randomUUID())
                         .param("itemId", itemId)
@@ -424,7 +466,7 @@ class SchemaIT extends PostgresIntegrationTestBase {
     }
 
     @Test
-    @DisplayName("jsonb round-trips through the ::jsonb cast the house style requires")
+    @DisplayName("jsonb round-trips through the  FORMAT JSON cast the house style requires")
     void jsonbRoundTrips() {
         UUID itemId = UUID.randomUUID();
         Map<String, Object> attrs = Map.of("power", 42, "durability", "0.87");
@@ -432,7 +474,7 @@ class SchemaIT extends PostgresIntegrationTestBase {
         jdbcClient()
                 .sql("""
                         INSERT INTO items (item_id, item_type, item_attrs, holder_did, storage_tier)
-                        VALUES (:id, 'hacking_tool_tier2', :attrs::jsonb, :holder, 'vault')
+                        VALUES (:id, 'hacking_tool_tier2', :attrs FORMAT JSON, :holder, 'vault')
                         """)
                 .param("id", itemId)
                 .param("attrs", Jsonb.writeObject(attrs))
@@ -454,7 +496,7 @@ class SchemaIT extends PostgresIntegrationTestBase {
         assertThatThrownBy(() -> jdbcClient()
                         .sql("""
                                 INSERT INTO items (item_id, item_type, item_attrs, holder_did, storage_tier)
-                                VALUES (:id, 'x', '[1,2,3]'::jsonb, :holder, 'vault')
+                                VALUES (:id, 'x', '[1,2,3]' FORMAT JSON, :holder, 'vault')
                                 """)
                         .param("id", UUID.randomUUID())
                         .param("holder", DID_A)
@@ -479,32 +521,46 @@ class SchemaIT extends PostgresIntegrationTestBase {
         // The tier scale is 1..5 ([PROPOSAL] P-10). Off-scale values are rejected at the boundary
         // rather than silently clamped, because a clamped tier hands out an unlock the player did not
         // earn (Invariant I7).
-        assertThatThrownBy(() -> insertResolution("logic", 6, "live", "breached"))
+        // ⚠ A VALID class, taken from the vocabulary itself. These lines said "logic" — a class V4
+        // removed when the puzzle set became breach_protocol/offset_cipher. The row was then refused
+        // by ck_breach_resolutions_CLASS, and the assertion on ck_breach_resolutions_TIER passed only
+        // because H2 happened to evaluate the tier check first. A test that can pass for the wrong
+        // reason is one that will stop failing when the thing it guards breaks.
+        assertThatThrownBy(() -> insertResolution(A_PUZZLE_CLASS, 6, "live", "breached"))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("ck_breach_resolutions_tier");
-        assertThatThrownBy(() -> insertResolution("logic", 0, "live", "breached"))
-                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> insertResolution(A_PUZZLE_CLASS, 0, "live", "breached"))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("ck_breach_resolutions_tier");
     }
 
     @Test
     @DisplayName("proof-of-skill reads the highest tier, never a count (Invariants I7, I13)")
     void proofOfSkillIsTierGated() {
-        insertResolution("logic", 1, "live", "breached");
-        insertResolution("logic", 1, "live", "breached");
-        insertResolution("logic", 1, "live", "breached");
-        insertResolution("logic", 4, "dormant", "breached");
-        insertResolution("logic", 5, "live", "failed");
-        insertResolution("logic", 3, "live", "breached");
+        insertResolution(A_PUZZLE_CLASS, 1, "live", "breached");
+        insertResolution(A_PUZZLE_CLASS, 1, "live", "breached");
+        insertResolution(A_PUZZLE_CLASS, 1, "live", "breached");
+        insertResolution(A_PUZZLE_CLASS, 4, "dormant", "breached");
+        insertResolution(A_PUZZLE_CLASS, 5, "live", "failed");
+        insertResolution(A_PUZZLE_CLASS, 3, "live", "breached");
 
-        Integer best =
-                jdbcClient().sql("""
+        // ⚠ The class is BOUND, not written into the SQL. It was the literal 'logic' while the rows
+        // above were inserted under a class name a later migration had replaced — so the query
+        // matched nothing and `max()` came back NULL. Reading the fixture's own class is what keeps
+        // the query and the rows describing the same thing.
+        Integer best = jdbcClient()
+                .sql("""
                         SELECT max(difficulty_tier)
                           FROM breach_resolutions
                          WHERE player_did = :did
-                           AND puzzle_class = 'logic'
+                           AND puzzle_class = :class
                            AND outcome = 'breached'
                            AND live_or_dormant = 'live'
-                        """).param("did", DID_A).query(Integer.class).single();
+                        """)
+                .param("did", DID_A)
+                .param("class", A_PUZZLE_CLASS)
+                .query(Integer.class)
+                .single();
 
         // Three tier-1 wins do not add up to a tier-3 unlock; a dormant tier-4 and a failed tier-5 do
         // not count at all. That is the whole point of tier-gating.
@@ -682,7 +738,7 @@ class SchemaIT extends PostgresIntegrationTestBase {
                                 INSERT INTO federation_peers
                                     (peer_id, peer_did, endpoint_url, transport_public_key, self_descriptor,
                                      sequence_number)
-                                VALUES (:id, :did, 'ftp://example.test', :key, '{}'::jsonb, 1)
+                                VALUES (:id, :did, 'ftp://example.test', :key, '{}' FORMAT JSON, 1)
                                 """)
                         .param("id", UUID.randomUUID())
                         .param("did", DID_B)
@@ -696,7 +752,7 @@ class SchemaIT extends PostgresIntegrationTestBase {
                                 INSERT INTO federation_peers
                                     (peer_id, peer_did, endpoint_url, transport_public_key, self_descriptor,
                                      sequence_number)
-                                VALUES (:id, :did, 'https://example.test', :key, '{}'::jsonb, 1)
+                                VALUES (:id, :did, 'https://example.test', :key, '{}' FORMAT JSON, 1)
                                 """)
                         .param("id", UUID.randomUUID())
                         .param("did", DID_B)
@@ -725,7 +781,7 @@ class SchemaIT extends PostgresIntegrationTestBase {
         assertThatThrownBy(() -> jdbcClient()
                         .sql("""
                                 INSERT INTO duels (duel_id, participants, sampled_validators, committee_size)
-                                VALUES (:id, :participants::jsonb, :sample::jsonb, 7)
+                                VALUES (:id, :participants FORMAT JSON, :sample FORMAT JSON, 7)
                                 """)
                         .param("id", UUID.randomUUID())
                         .param("participants", Jsonb.writeArray(List.of(DID_A, DID_B)))
@@ -784,7 +840,8 @@ class SchemaIT extends PostgresIntegrationTestBase {
 
     private List<String> tableNames() {
         return jdbcClient()
-                .sql("SELECT tablename FROM pg_tables WHERE schemaname = current_schema()")
+                .sql(
+                        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE'")
                 .query(String.class)
                 .list();
     }
@@ -793,7 +850,7 @@ class SchemaIT extends PostgresIntegrationTestBase {
         return jdbcClient().sql("""
                         SELECT column_name
                           FROM information_schema.columns
-                         WHERE table_schema = current_schema() AND table_name = :table
+                         WHERE table_schema = 'public' AND table_name = :table
                         """).param("table", table).query(String.class).list();
     }
 
@@ -924,7 +981,7 @@ class SchemaIT extends PostgresIntegrationTestBase {
                              holder_did, issuer_did, record_version, payload, envelope, signatures,
                              payload_timestamp)
                         VALUES (:id, :itemId, :depth, :hash, :prevHash, :eventType, :holder, :issuer, 1,
-                                :payload::jsonb, :envelope::jsonb, :signatures::jsonb, '2026-07-23T18:04:00Z')
+                                :payload FORMAT JSON, :envelope FORMAT JSON, :signatures FORMAT JSON, '2026-07-23T18:04:00Z')
                         """)
                 .param("id", UUID.randomUUID())
                 .param("itemId", itemId)
@@ -980,7 +1037,7 @@ class SchemaIT extends PostgresIntegrationTestBase {
                 .sql("""
                         INSERT INTO federation_peers
                             (peer_id, peer_did, endpoint_url, transport_public_key, self_descriptor, sequence_number)
-                        VALUES (:id, :did, 'https://peer.example.test', :key, :descriptor::jsonb, :sequence)
+                        VALUES (:id, :did, 'https://peer.example.test', :key, :descriptor FORMAT JSON, :sequence)
                         """)
                 .param("id", peerId)
                 .param("did", peerDid)

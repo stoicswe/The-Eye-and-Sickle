@@ -46,8 +46,8 @@ public class DuelRepository {
                 .sql("""
                         INSERT INTO duels (duel_id, participants, sampled_validators, committee_size,
                                            outcome, signatures, opened_at, resolved_at, row_version)
-                        VALUES (:duelId, :participants::jsonb, :sampled::jsonb, :committeeSize,
-                                NULL, '[]'::jsonb, :openedAt, NULL, 0)
+                        VALUES (:duelId, :participants FORMAT JSON, :sampled FORMAT JSON, :committeeSize,
+                                NULL, '[]' FORMAT JSON, :openedAt, NULL, 0)
                         """)
                 .param("duelId", duelId)
                 .param("participants", Jsonb.writeArray(participants))
@@ -97,8 +97,8 @@ public class DuelRepository {
         int affected = jdbcClient
                 .sql("""
                         UPDATE duels
-                           SET outcome = :outcome::jsonb,
-                               signatures = :signatures::jsonb,
+                           SET outcome = :outcome FORMAT JSON,
+                               signatures = :signatures FORMAT JSON,
                                resolved_at = :resolvedAt,
                                row_version = row_version + 1
                          WHERE duel_id = :duelId

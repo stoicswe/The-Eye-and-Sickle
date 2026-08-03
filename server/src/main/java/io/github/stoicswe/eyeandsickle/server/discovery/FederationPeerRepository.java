@@ -71,14 +71,31 @@ public class FederationPeerRepository {
     public int insertNew(ServerDescriptor descriptor, Instant now) {
         return jdbcClient
                 .sql("""
-                        INSERT INTO federation_peers
-                            (peer_id, peer_did, endpoint_url, transport_public_key, transport_key_id,
-                             transport_key_not_before, transport_key_not_after, self_descriptor, sequence_number,
-                             first_seen_at, last_seen_at)
-                        VALUES
-                            (:peerId, :did, :endpoint, :key, :keyId, :notBefore, :notAfter, :descriptor::jsonb, :seq,
-                             :now, :now)
-                        ON CONFLICT (peer_did) DO NOTHING
+                        MERGE INTO federation_peers AS t
+                        -- ⚠ :key is VARBINARY, never varchar. `transport_public_key` is bytea, and
+                        -- casting it through a character type UTF-8-decodes it: every byte >= 0x80
+                        -- becomes U+FFFD and a 32-byte key reads back as 64 bytes of replacement
+                        -- characters. It stores and reads without an error — the key is simply not
+                        -- the key any more, and the first thing to notice would be a peer whose
+                        -- signatures never verify.
+                        USING (VALUES (CAST(:peerId AS uuid), CAST(:did AS varchar), CAST(:endpoint AS varchar),
+                                       CAST(:key AS varbinary), CAST(:keyId AS varchar),
+                                       CAST(:notBefore AS timestamp with time zone),
+                                       CAST(:notAfter AS timestamp with time zone),
+                                       :descriptor FORMAT JSON, CAST(:seq AS bigint),
+                                       CAST(:now AS timestamp with time zone)))
+                              AS s(peer_id, peer_did, endpoint_url, transport_public_key, transport_key_id,
+                                   transport_key_not_before, transport_key_not_after, self_descriptor,
+                                   sequence_number, now)
+                           ON t.peer_did = s.peer_did
+                         WHEN NOT MATCHED THEN INSERT
+                              (peer_id, peer_did, endpoint_url, transport_public_key, transport_key_id,
+                               transport_key_not_before, transport_key_not_after, self_descriptor,
+                               sequence_number, first_seen_at, last_seen_at)
+                              VALUES
+                              (s.peer_id, s.peer_did, s.endpoint_url, s.transport_public_key, s.transport_key_id,
+                               s.transport_key_not_before, s.transport_key_not_after, s.self_descriptor,
+                               s.sequence_number, s.now, s.now)
                         """)
                 .param("peerId", UUID.randomUUID())
                 .param("did", descriptor.peerDid())
@@ -109,7 +126,7 @@ public class FederationPeerRepository {
                                transport_key_id = :keyId,
                                transport_key_not_before = :notBefore,
                                transport_key_not_after = :notAfter,
-                               self_descriptor = :descriptor::jsonb,
+                               self_descriptor = :descriptor FORMAT JSON,
                                sequence_number = :seq,
                                last_seen_at = :now,
                                row_version = row_version + 1

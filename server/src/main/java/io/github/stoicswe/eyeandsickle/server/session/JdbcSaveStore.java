@@ -13,12 +13,12 @@ import tools.jackson.databind.cfg.DateTimeFeature;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * The engine's state, in <em>this server's</em> Postgres — the second driver for one rules engine.
+ * The engine's state, in <em>this server's own database</em> — the second driver for one rules engine.
  *
  * <h2>⚠ This is what makes Invariant I14 true rather than aspirational</h2>
  *
  * I14: game state never lives in a player's PDS or player-controlled infrastructure — only in the
- * server's Postgres. A {@link io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore} on the player's
+ * server's own database. A {@link io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore} on the player's
  * disk is fine for single player precisely because nothing downstream trusts it and a solo character
  * can never federate. The moment other players are involved, the same engine has to run against state
  * the server holds — and that is all this class is.
@@ -43,7 +43,7 @@ import tools.jackson.databind.json.JsonMapper;
  * state to another. {@link #forCharacter} builds one bound to a single id, and the caller's lifetime
  * is the session's.
  */
-public final class PostgresSaveStore implements SaveStore {
+public final class JdbcSaveStore implements SaveStore {
 
     /**
      * ⚠ Configured identically to the file store's mapper, and that is a requirement rather than a
@@ -58,14 +58,14 @@ public final class PostgresSaveStore implements SaveStore {
     private final UUID characterId;
     private final Supplier<Instant> clock;
 
-    private PostgresSaveStore(JdbcClient jdbcClient, UUID characterId, Supplier<Instant> clock) {
+    private JdbcSaveStore(JdbcClient jdbcClient, UUID characterId, Supplier<Instant> clock) {
         this.jdbcClient = Objects.requireNonNull(jdbcClient, "jdbcClient");
         this.characterId = Objects.requireNonNull(characterId, "characterId");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
-    public static PostgresSaveStore forCharacter(JdbcClient jdbcClient, UUID characterId, Supplier<Instant> clock) {
-        return new PostgresSaveStore(jdbcClient, characterId, clock);
+    public static JdbcSaveStore forCharacter(JdbcClient jdbcClient, UUID characterId, Supplier<Instant> clock) {
+        return new JdbcSaveStore(jdbcClient, characterId, clock);
     }
 
     @Override
@@ -119,16 +119,23 @@ public final class PostgresSaveStore implements SaveStore {
     public void save(SoloSave save) {
         jdbcClient
                 .sql("""
-                        INSERT INTO character_game_state (character_id, state, format, updated_at)
-                        VALUES (:id, :state, :format, :updatedAt)
-                        ON CONFLICT (character_id)
-                        DO UPDATE SET state = :state, format = :format, updated_at = :updatedAt
+                        MERGE INTO character_game_state AS t
+                        USING (VALUES (CAST(:id AS uuid), CAST(:state AS text), CAST(:format AS int),
+                                       CAST(:updatedAt AS timestamp with time zone)))
+                              AS s(character_id, state, format, updated_at)
+                           ON t.character_id = s.character_id
+                         WHEN MATCHED THEN UPDATE
+                              SET state = s.state, format = s.format, updated_at = s.updated_at
+                         WHEN NOT MATCHED THEN INSERT (character_id, state, format, updated_at)
+                              VALUES (s.character_id, s.state, s.format, s.updated_at)
                         """)
                 .param("id", characterId)
                 .param("state", MAPPER.writeValueAsString(save))
                 .param("format", save.format)
-                // ⚠ Timestamps.at, never a bare Instant — the Postgres driver refuses one
-                // ("Can't infer the SQL type"), and only the -Pit repository tests catch a raw bind.
+                // ⚠ Timestamps.at, never a bare Instant. This began as a Postgres driver rule
+                // ("Can't infer the SQL type") and survives the move to H2 as a house rule: the read
+                // side (Row.instant) returns OffsetDateTime, so binding through Timestamps keeps one
+                // spelling on both sides. Only the -Pit repository tests catch a raw bind.
                 .param("updatedAt", Timestamps.at(clock.get()))
                 .update();
     }

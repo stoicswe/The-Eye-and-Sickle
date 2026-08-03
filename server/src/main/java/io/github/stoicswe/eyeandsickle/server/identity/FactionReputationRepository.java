@@ -76,12 +76,17 @@ public class FactionReputationRepository {
         Objects.requireNonNull(now, "now");
         jdbcClient
                 .sql("""
-                        INSERT INTO faction_reputations (player_id, faction, standing, updated_at, row_version)
-                        VALUES (:playerId, :faction, :delta, :now, 0)
-                        ON CONFLICT (player_id, faction) DO UPDATE
-                           SET standing    = faction_reputations.standing + :delta,
-                               updated_at  = :now,
-                               row_version = faction_reputations.row_version + 1
+                        MERGE INTO faction_reputations AS t
+                        USING (VALUES (CAST(:playerId AS uuid), CAST(:faction AS varchar),
+                                       CAST(:delta AS bigint), CAST(:now AS timestamp with time zone)))
+                              AS s(player_id, faction, delta, now)
+                           ON t.player_id = s.player_id AND t.faction = s.faction
+                         WHEN MATCHED THEN UPDATE
+                              SET standing    = t.standing + s.delta,
+                                  updated_at  = s.now,
+                                  row_version = t.row_version + 1
+                         WHEN NOT MATCHED THEN INSERT (player_id, faction, standing, updated_at, row_version)
+                              VALUES (s.player_id, s.faction, s.delta, s.now, 0)
                         """)
                 .param("playerId", playerId)
                 .param("faction", EnumColumns.faction(faction))
@@ -106,12 +111,17 @@ public class FactionReputationRepository {
         Objects.requireNonNull(now, "now");
         jdbcClient
                 .sql("""
-                        INSERT INTO faction_reputations (player_id, faction, standing, updated_at, row_version)
-                        VALUES (:playerId, :faction, :standing, :now, 0)
-                        ON CONFLICT (player_id, faction) DO UPDATE
-                           SET standing    = :standing,
-                               updated_at  = :now,
-                               row_version = faction_reputations.row_version + 1
+                        MERGE INTO faction_reputations AS t
+                        USING (VALUES (CAST(:playerId AS uuid), CAST(:faction AS varchar),
+                                       CAST(:standing AS bigint), CAST(:now AS timestamp with time zone)))
+                              AS s(player_id, faction, standing, now)
+                           ON t.player_id = s.player_id AND t.faction = s.faction
+                         WHEN MATCHED THEN UPDATE
+                              SET standing    = s.standing,
+                                  updated_at  = s.now,
+                                  row_version = t.row_version + 1
+                         WHEN NOT MATCHED THEN INSERT (player_id, faction, standing, updated_at, row_version)
+                              VALUES (s.player_id, s.faction, s.standing, s.now, 0)
                         """)
                 .param("playerId", playerId)
                 .param("faction", EnumColumns.faction(faction))

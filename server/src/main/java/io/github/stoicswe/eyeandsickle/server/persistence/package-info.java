@@ -52,7 +52,7 @@
  * <h2>jsonb</h2>
  *
  * {@link io.github.stoicswe.eyeandsickle.server.persistence.Jsonb}, and note its first line: every
- * jsonb parameter must be cast in the SQL — {@code :attrs::jsonb} — because the driver sends a
+ * jsonb parameter must be cast in the SQL — {@code :attrs FORMAT JSON} — because the driver sends a
  * {@code String} as {@code varchar} and PostgreSQL will not coerce it.
  *
  * <p>jsonb is for genuinely document-shaped data only: signed provenance payloads and envelopes, item
@@ -127,7 +127,7 @@
  * <h2>Testing</h2>
  *
  * Anything that touches SQL gets a Testcontainers integration test named {@code *IT.java}, extending
- * {@code PostgresIntegrationTestBase}, so failsafe runs it under {@code mvn -Pit verify} and the
+ * {@code DatabaseIntegrationTestBase}, so failsafe runs it under {@code mvn -Pit verify} and the
  * default build stays Docker-free. Everything that does not touch SQL — mapping, vocabulary,
  * validation, arithmetic — gets a plain JUnit test that runs in {@code mvn verify}. The second kind
  * should be the bulk.

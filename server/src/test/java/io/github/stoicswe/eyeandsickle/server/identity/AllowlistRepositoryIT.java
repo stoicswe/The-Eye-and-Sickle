@@ -3,7 +3,7 @@ package io.github.stoicswe.eyeandsickle.server.identity;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import io.github.stoicswe.eyeandsickle.server.persistence.PostgresIntegrationTestBase;
+import io.github.stoicswe.eyeandsickle.server.persistence.DatabaseIntegrationTestBase;
 import java.time.Instant;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
  * the {@code ON CONFLICT (did)} idempotency, the soft-revoke that keeps the row, the partial index's
  * "active entry" semantics, and the consequence that re-adding a revoked DID does NOT un-revoke it.
  */
-class AllowlistRepositoryIT extends PostgresIntegrationTestBase {
+class AllowlistRepositoryIT extends DatabaseIntegrationTestBase {
 
     private static final Did DID = Did.of("did:plc:aaaaaaaaaaaaaaaaaaaaaaaa");
     private static final Did OTHER = Did.of("did:plc:bbbbbbbbbbbbbbbbbbbbbbbb");

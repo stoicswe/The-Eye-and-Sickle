@@ -203,7 +203,9 @@ class SchemaVocabularyTest {
         for (String sql : List.of(PUZZLE_CLASSES_SQL, SHELL_SESSIONS_SQL, ETHECOIN_WEI_SQL)) {
             String body = stripComments(sql);
             Matcher retyped = Pattern.compile(
-                            "ALTER\\s+COLUMN\\s+(\\w+)\\s+TYPE\\s+([a-z]+(?:\\s*\\([^)]*\\))?)",
+                            // ⚠ H2 spells the widening "SET DATA TYPE"; Postgres spelled it "TYPE".
+                            // Both are accepted so this replay keeps working across the migration.
+                            "ALTER\\s+COLUMN\\s+(\\w+)\\s+(?:SET\\s+DATA\\s+)?TYPE\\s+([a-z]+(?:\\s*\\([^)]*\\))?)",
                             Pattern.CASE_INSENSITIVE)
                     .matcher(body);
             while (retyped.find()) {
@@ -256,7 +258,10 @@ class SchemaVocabularyTest {
     @Test
     @DisplayName("every DID column is shape-checked through the one shared function")
     void didShapeHasOneAuthority() {
-        assertThat(CORE_SQL).contains("CREATE FUNCTION is_did(value text)");
+        // ⚠ Since the H2 migration this is stronger than it was. The rule used to be written TWICE —
+        // as a PL/pgSQL regex here and as a Pattern in Did.java — with a comment warning that the two
+        // must be kept in step. It is now one implementation: the CHECK constraints call Did itself.
+        assertThat(CORE_SQL).contains("CREATE ALIAS is_did FOR").contains("Did.isWellFormed");
         // The federation file depends on the core file's function, which only holds because the two
         // migration directories share one history and 2 < 1001. Do not renumber them.
         assertThat(FEDERATION_SQL).contains("is_did(");
@@ -270,7 +275,10 @@ class SchemaVocabularyTest {
                 .contains("CREATE TRIGGER provenance_records_append_only")
                 // A ROW trigger on UPDATE/DELETE only, so TRUNCATE still works and the test harness
                 // needs no privileged escape hatch that would then exist in production too.
-                .contains("BEFORE UPDATE OR DELETE ON ledger_transactions");
+                // ⚠ H2 spells the event list "UPDATE, DELETE"; the guarantee is unchanged, and it is
+                // still enforced INSIDE the engine rather than in the service layer.
+                .contains("BEFORE UPDATE, DELETE ON ledger_transactions")
+                .contains("AppendOnlyTrigger");
     }
 
     @Test

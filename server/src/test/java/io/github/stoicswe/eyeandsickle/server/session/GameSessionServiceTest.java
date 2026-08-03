@@ -8,7 +8,9 @@ import io.github.stoicswe.eyeandsickle.protocol.game.IntentOutcome;
 import io.github.stoicswe.eyeandsickle.server.audit.OperatorLog;
 import java.lang.reflect.RecordComponent;
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
@@ -37,8 +39,10 @@ class GameSessionServiceTest {
      * that the mock behaves like the mock, which is the {@code reconcileFootholds} failure shape
      * {@code CLAUDE.md} records: two correct halves and a defect in the join.
      */
-    private final GameSessionService service =
-            new GameSessionService(org.mockito.Mockito.mock(EngineSessions.class), () -> NOW, new OperatorLog());
+    private final GameSessionService service = new GameSessionService(
+            org.mockito.Mockito.mock(EngineSessions.class),
+            Clock.fixed(NOW, ZoneOffset.UTC),
+            new OperatorLog());
 
     @Test
     @DisplayName("a null intent is refused rather than throwing")

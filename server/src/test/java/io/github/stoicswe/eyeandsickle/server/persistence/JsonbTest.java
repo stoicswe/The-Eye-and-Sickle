@@ -141,7 +141,7 @@ class JsonbTest {
     void emptyConstantsMatchTheSchema() {
         assertThat(Jsonb.EMPTY_OBJECT).isEqualTo("{}");
         assertThat(Jsonb.EMPTY_ARRAY).isEqualTo("[]");
-        assertThat(Jsonb.CAST).isEqualTo("::jsonb");
+        assertThat(Jsonb.CAST).isEqualTo(" FORMAT JSON");
     }
 
     @Test

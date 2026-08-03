@@ -6,7 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.stoicswe.eyeandsickle.protocol.channel.CharacterHomeRecord;
 import io.github.stoicswe.eyeandsickle.protocol.crypto.X25519KeyExchange;
-import io.github.stoicswe.eyeandsickle.server.persistence.PostgresIntegrationTestBase;
+import io.github.stoicswe.eyeandsickle.server.persistence.DatabaseIntegrationTestBase;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -25,7 +25,7 @@ import org.springframework.dao.DataAccessException;
  * constraint makes a duplicate a no-op rather than a double home; that two accounts may share a slot but
  * one account may not; and that the ordering and bounds of the reads hold as the design names them.
  */
-class CharacterDirectoryRepositoryIT extends PostgresIntegrationTestBase {
+class CharacterDirectoryRepositoryIT extends DatabaseIntegrationTestBase {
 
     private static final String ACCOUNT_A = "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa";
     private static final String ACCOUNT_B = "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb";

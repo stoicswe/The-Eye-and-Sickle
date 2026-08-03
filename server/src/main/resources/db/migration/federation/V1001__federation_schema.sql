@@ -64,9 +64,9 @@ CREATE TABLE validators (
     -- Rolling availability, decayed separately on a no-show (§4, gamma).
     uptime               numeric(9, 8) NOT NULL DEFAULT 1,
     is_new               boolean     NOT NULL DEFAULT true,
-    enrolled_at          timestamptz NOT NULL DEFAULT now(),
-    last_sampled_at      timestamptz NULL,
-    last_vote_at         timestamptz NULL,
+    enrolled_at          TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    last_sampled_at      TIMESTAMP WITH TIME ZONE NULL,
+    last_vote_at         TIMESTAMP WITH TIME ZONE NULL,
     -- Counters, not a rate: a rate cannot be updated concurrently without losing
     -- one of the two updates, and these are written from the duel-resolution path
     -- where concurrency is the normal case.
@@ -91,8 +91,7 @@ COMMENT ON COLUMN validators.uptime IS
 -- Sampling is weighted-random over reputation * uptime (§2.2, A-Res), which
 -- reads every eligible candidate. This index keeps that scan off the rows that
 -- are ineligible anyway.
-CREATE INDEX ix_validators_eligible ON validators (validator_reputation DESC, uptime DESC)
-    WHERE validator_reputation > 0;
+CREATE INDEX ix_validators_eligible ON validators (validator_reputation DESC, uptime DESC);
 
 
 -- ---------------------------------------------------------------------------
@@ -104,7 +103,7 @@ CREATE INDEX ix_validators_eligible ON validators (validator_reputation DESC, up
 -- server could accept signatures from validators it invented afterwards, and
 -- Invariant I15 would hold only on paper.
 --
--- The committee is stored as jsonb rather than a join table because it is a
+-- The committee is stored as JSON rather than a join table because it is a
 -- snapshot of weights AT SAMPLING TIME. Reputation moves after every duel, so a
 -- foreign key into `validators` would resolve to today's weight and silently
 -- re-adjudicate old duels with new numbers.
@@ -116,25 +115,25 @@ CREATE INDEX ix_validators_eligible ON validators (validator_reputation DESC, up
 CREATE TABLE duels (
     duel_id            uuid        PRIMARY KEY,
     -- Array of participant DIDs.
-    participants       jsonb       NOT NULL,
+    participants       JSON       NOT NULL,
     -- Array of {did, reputation, uptime, weight} as sampled. A snapshot, frozen.
-    sampled_validators jsonb       NOT NULL,
+    sampled_validators JSON       NOT NULL,
     committee_size     integer     NOT NULL,
     -- The agreed outcome document, NULL until the threshold is reached.
-    outcome            jsonb       NULL,
+    outcome            JSON       NULL,
     -- Validator signature blocks over the outcome (docs/architecture/04 §3.1).
-    signatures         jsonb       NOT NULL DEFAULT '[]'::jsonb,
-    opened_at          timestamptz NOT NULL DEFAULT now(),
-    resolved_at        timestamptz NULL,
+    signatures         JSON       NOT NULL DEFAULT JSON '[]',
+    opened_at          TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    resolved_at        TIMESTAMP WITH TIME ZONE NULL,
     row_version        bigint      NOT NULL DEFAULT 0,
 
-    CONSTRAINT ck_duels_participants  CHECK (jsonb_typeof(participants) = 'array'
-                                             AND jsonb_array_length(participants) >= 2),
-    CONSTRAINT ck_duels_committee     CHECK (jsonb_typeof(sampled_validators) = 'array'),
+    CONSTRAINT ck_duels_participants  CHECK (is_json_array(participants)
+                                             AND json_array_length(participants) >= 2),
+    CONSTRAINT ck_duels_committee     CHECK (is_json_array(sampled_validators)),
     CONSTRAINT ck_duels_committee_size CHECK (committee_size > 0
-                                              AND committee_size = jsonb_array_length(sampled_validators)),
-    CONSTRAINT ck_duels_signatures    CHECK (jsonb_typeof(signatures) = 'array'),
-    CONSTRAINT ck_duels_outcome_object CHECK (outcome IS NULL OR jsonb_typeof(outcome) = 'object'),
+                                              AND committee_size = json_array_length(sampled_validators)),
+    CONSTRAINT ck_duels_signatures    CHECK (is_json_array(signatures)),
+    CONSTRAINT ck_duels_outcome_object CHECK (outcome IS NULL OR is_json_object(outcome)),
     -- An outcome without a resolution time, or a resolution time without an
     -- outcome, is a half-written duel. Both markers agree or the row is refused.
     CONSTRAINT ck_duels_resolved_pair CHECK ((outcome IS NULL) = (resolved_at IS NULL)),
@@ -146,7 +145,7 @@ COMMENT ON TABLE duels IS
     'Cross-server adjudications with their frozen sampling record (docs/architecture/05 §2, §5). '
     'The sampling record is what makes docs/architecture/04 §7 step 1 checkable.';
 
-CREATE INDEX ix_duels_unresolved ON duels (opened_at) WHERE resolved_at IS NULL;
+CREATE INDEX ix_duels_unresolved ON duels (opened_at);
 
 
 -- ---------------------------------------------------------------------------
@@ -157,7 +156,7 @@ CREATE INDEX ix_duels_unresolved ON duels (opened_at) WHERE resolved_at IS NULL;
 -- refused by honest servers. There is no authority to ban it; it simply gets
 -- ignored, which makes its fraudulent items worthless outside its own walls.
 --
--- `reason` is free text and `evidence` is jsonb because the flagging MECHANISM
+-- `reason` is free text and `evidence` is JSON because the flagging MECHANISM
 -- is explicitly [PROPOSAL] (§4): equivocation is cryptographic and automatic —
 -- both contradicting signatures exist, so `evidence` carries them — but the
 -- softer fraud cases are unspecified, and so is who propagates a flag. Encoding
@@ -174,16 +173,27 @@ CREATE TABLE flagged_servers (
     -- The proof, where a proof exists. For equivocation this is the two
     -- conflicting signed outcomes (docs/architecture/05 §3.3) — self-contained,
     -- so any peer can re-verify the flag instead of trusting whoever raised it.
-    evidence      jsonb       NOT NULL DEFAULT '{}'::jsonb,
+    evidence      JSON       NOT NULL DEFAULT JSON '{}',
     raised_by_did text        NULL,
-    flagged_at    timestamptz NOT NULL DEFAULT now(),
-    cleared_at    timestamptz NULL,
+    flagged_at    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    cleared_at    TIMESTAMP WITH TIME ZONE NULL,
     cleared_note  text        NULL,
+
+    -- The UNIQUENESS KEY FOR LIVE FLAGS ONLY, and it exists because H2 has no partial index.
+    -- In Postgres this rule was `CREATE UNIQUE INDEX ... WHERE cleared_at IS NULL`. Dropping the
+    -- WHERE during the port turned "one live flag per server" into "one flag per server, EVER" —
+    -- so a server that was flagged and then cleared could never be flagged again. Nothing failed
+    -- at migration time; `FlaggedServerRegistryIT.reflaggableAfterClear` is what caught it.
+    --
+    -- Generated, never written: it is `server_did` while the flag is live and NULL once cleared,
+    -- and a unique index treats NULLs as distinct, so any number of cleared rows coexist. Derived
+    -- from the two columns it depends on, so it cannot disagree with them.
+    active_server_did text GENERATED ALWAYS AS (CASE WHEN cleared_at IS NULL THEN server_did END),
 
     CONSTRAINT ck_flagged_servers_did      CHECK (is_did(server_did)),
     CONSTRAINT ck_flagged_servers_raiser   CHECK (raised_by_did IS NULL OR is_did(raised_by_did)),
     CONSTRAINT ck_flagged_servers_reason   CHECK (length(btrim(reason)) > 0),
-    CONSTRAINT ck_flagged_servers_evidence CHECK (jsonb_typeof(evidence) = 'object'),
+    CONSTRAINT ck_flagged_servers_evidence CHECK (is_json_object(evidence)),
     CONSTRAINT ck_flagged_servers_cleared  CHECK (cleared_at IS NULL OR cleared_at >= flagged_at)
 );
 
@@ -192,8 +202,9 @@ COMMENT ON TABLE flagged_servers IS
     'deliberately open — the flagging mechanism is [PROPOSAL].';
 
 -- A server is flagged or it is not; two live flags for the same server would let
--- one be cleared while the other silently keeps it non-recognised.
-CREATE UNIQUE INDEX uq_flagged_servers_active ON flagged_servers (server_did) WHERE cleared_at IS NULL;
+-- one be cleared while the other silently keeps it non-recognised. Over the generated
+-- column, so it constrains LIVE flags only — see the column's own note.
+CREATE UNIQUE INDEX uq_flagged_servers_active ON flagged_servers (active_server_did);
 
 
 -- ---------------------------------------------------------------------------
@@ -232,23 +243,23 @@ CREATE TABLE federation_peers (
     transport_key_id           text        NULL,
     -- Not before / not after from the attestation, so an expired transport key is
     -- detectable without re-parsing the descriptor on every dial.
-    transport_key_not_before   timestamptz NULL,
-    transport_key_not_after    timestamptz NULL,
+    transport_key_not_before   TIMESTAMP WITH TIME ZONE NULL,
+    transport_key_not_after    TIMESTAMP WITH TIME ZONE NULL,
     -- The peer's signed self-descriptor, exactly as received: the descriptor
     -- document AND its signature, one self-contained blob, the same pattern as a
     -- provenance envelope. Stored verbatim because the signature covers specific
     -- bytes; splitting it into columns and reassembling it later is how a
     -- signature stops verifying for reasons nobody can reproduce.
-    self_descriptor            jsonb       NOT NULL,
+    self_descriptor            JSON       NOT NULL,
     -- Monotonic per peer. See the anti-rollback note above.
     sequence_number            bigint      NOT NULL,
-    first_seen_at              timestamptz NOT NULL DEFAULT now(),
-    last_seen_at               timestamptz NOT NULL DEFAULT now(),
+    first_seen_at              TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+    last_seen_at               TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
     -- Distinct from last_seen_at: a peer can be ANNOUNCED by a third party in the
     -- directory (seen) without this server ever having completed a handshake with
     -- it (contacted). Collapsing the two would let a peer that has never once
     -- answered look healthy.
-    last_successful_contact_at timestamptz NULL,
+    last_successful_contact_at TIMESTAMP WITH TIME ZONE NULL,
     -- Liveness as two counters rather than one ratio, for the same reason
     -- validators.uptime is separate from validators.validator_reputation: a rate
     -- cannot be updated concurrently without losing an update, and the derived
@@ -260,10 +271,15 @@ CREATE TABLE federation_peers (
 
     CONSTRAINT uq_federation_peers_did       UNIQUE (peer_did),
     CONSTRAINT ck_federation_peers_did_shape CHECK (is_did(peer_did)),
-    CONSTRAINT ck_federation_peers_endpoint  CHECK (endpoint_url ~ '^https?://[^[:space:]]+$'
+    -- \S, NOT [^[:space:]]. `~` runs a JAVA regex here, and Java has no POSIX bracket
+    -- expressions: it reads [^[:space:]] as "not one of : s p a c e", so the constraint
+    -- refused every URL containing an `s`, an `e` or a `.` — i.e. all of them. It parsed,
+    -- applied, and looked right. Verified both ways: this accepts https://peer.example.test
+    -- and http://localhost:8080, and still refuses ftp://, an embedded space, and `notaurl`.
+    CONSTRAINT ck_federation_peers_endpoint  CHECK (endpoint_url ~ '^https?://\S+$'
                                                     AND length(endpoint_url) <= 2048),
     CONSTRAINT ck_federation_peers_key       CHECK (octet_length(transport_public_key) BETWEEN 32 AND 256),
-    CONSTRAINT ck_federation_peers_descriptor CHECK (jsonb_typeof(self_descriptor) = 'object'),
+    CONSTRAINT ck_federation_peers_descriptor CHECK (is_json_object(self_descriptor)),
     CONSTRAINT ck_federation_peers_sequence  CHECK (sequence_number >= 0),
     CONSTRAINT ck_federation_peers_key_window CHECK (transport_key_not_before IS NULL
                                                      OR transport_key_not_after IS NULL
@@ -299,23 +315,8 @@ CREATE INDEX ix_federation_peers_liveness ON federation_peers (last_successful_c
 -- Equality is allowed: a re-announcement of the SAME descriptor is a normal
 -- directory refresh and must not fail, so liveness counters can still be bumped.
 -- ---------------------------------------------------------------------------
-CREATE FUNCTION federation_peers_sequence_is_monotonic() RETURNS trigger
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-    IF NEW.sequence_number < OLD.sequence_number THEN
-        RAISE EXCEPTION
-            'federation_peers.sequence_number must not go backwards for peer % (stored %, offered %)',
-            OLD.peer_did, OLD.sequence_number, NEW.sequence_number
-            USING ERRCODE = 'restrict_violation';
-    END IF;
-    RETURN NEW;
-END;
-$$;
 
-COMMENT ON FUNCTION federation_peers_sequence_is_monotonic() IS
-    'Anti-rollback guard: refuses a replayed older self-descriptor (docs/architecture/03 §2).';
 
-CREATE TRIGGER federation_peers_no_sequence_rollback
-    BEFORE UPDATE ON federation_peers
-    FOR EACH ROW EXECUTE FUNCTION federation_peers_sequence_is_monotonic();
+
+
+CREATE TRIGGER federation_peers_no_sequence_rollback BEFORE UPDATE ON federation_peers FOR EACH ROW CALL "io.github.stoicswe.eyeandsickle.server.persistence.MonotonicSequenceTrigger";

@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.stoicswe.eyeandsickle.protocol.game.CharacterDid;
 import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
-import io.github.stoicswe.eyeandsickle.server.persistence.PostgresIntegrationTestBase;
+import io.github.stoicswe.eyeandsickle.server.persistence.DatabaseIntegrationTestBase;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
@@ -20,11 +20,11 @@ import org.springframework.dao.OptimisticLockingFailureException;
  * only ever written from a verified record (Invariant I14).
  *
  * <p>The raw {@code items} constraints are proved in {@code SchemaIT}; this test proves the repository
- * <em>code</em>: the {@code ::jsonb}-cast insert, the explicit-projection read that round-trips an item
+ * <em>code</em>: the {@code  FORMAT JSON}-cast insert, the explicit-projection read that round-trips an item
  * intact, and — the load-bearing one — the version-checked holder update that turns two concurrent
  * transfers into a retryable conflict rather than a lost write.
  */
-class JdbcItemRepositoryIT extends PostgresIntegrationTestBase {
+class JdbcItemRepositoryIT extends DatabaseIntegrationTestBase {
 
     private static final String HOLDER = "did:plc:holder00000000000000";
     private static final String OTHER_HOLDER = "did:plc:holder11111111111111";

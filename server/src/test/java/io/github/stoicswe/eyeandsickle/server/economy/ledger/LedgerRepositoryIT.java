@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
 import io.github.stoicswe.eyeandsickle.server.economy.ledger.LedgerQuery.Direction;
-import io.github.stoicswe.eyeandsickle.server.persistence.PostgresIntegrationTestBase;
+import io.github.stoicswe.eyeandsickle.server.persistence.DatabaseIntegrationTestBase;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -22,7 +22,7 @@ import org.springframework.dao.DataIntegrityViolationException;
  * one visible only to its own counterparties, decided by the viewer argument and never by a
  * client-supplied filter (Invariant I14).
  */
-class LedgerRepositoryIT extends PostgresIntegrationTestBase {
+class LedgerRepositoryIT extends DatabaseIntegrationTestBase {
 
     private static final String A = "did:plc:aaaa000000000000000000";
     private static final String B = "did:plc:bbbb000000000000000000";

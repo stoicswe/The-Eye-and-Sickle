@@ -6,7 +6,7 @@ import io.github.stoicswe.eyeandsickle.protocol.game.CharacterDid;
 import io.github.stoicswe.eyeandsickle.protocol.game.DifficultyTier;
 import io.github.stoicswe.eyeandsickle.protocol.game.Faction;
 import io.github.stoicswe.eyeandsickle.protocol.game.PuzzleClass;
-import io.github.stoicswe.eyeandsickle.server.persistence.PostgresIntegrationTestBase;
+import io.github.stoicswe.eyeandsickle.server.persistence.DatabaseIntegrationTestBase;
 import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,7 +21,7 @@ import org.junit.jupiter.api.Test;
  * live-and-breached tier and <em>nothing else</em> — never a count, never a dormant or failed attempt
  * (Invariant I7) — with {@code player_did} now holding the character DID.
  */
-class GateStateRepositoryIT extends PostgresIntegrationTestBase {
+class GateStateRepositoryIT extends DatabaseIntegrationTestBase {
 
     private static final CharacterDid CHARACTER = new CharacterDid("did:plc:operator00000000000000", 1);
     private static final CharacterDid CHARACTER_SLOT_2 = new CharacterDid("did:plc:operator00000000000000", 2);

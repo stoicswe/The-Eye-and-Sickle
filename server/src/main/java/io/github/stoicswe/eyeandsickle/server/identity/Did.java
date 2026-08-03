@@ -70,6 +70,32 @@ public record Did(String value) {
     }
 
     /**
+     * The shape check, as a plain predicate — <strong>and the database's copy of it</strong>.
+     *
+     * <h2>⚠ This is bound as an H2 ALIAS and called by every DID CHECK constraint</h2>
+     *
+     * {@code db/migration/core/V2__core_schema.sql} registers
+     * {@code CREATE ALIAS is_did FOR "…Did.isWellFormed"}, so the constraint that guards a dozen
+     * columns across two schemas runs <em>this exact method</em>.
+     *
+     * <p>That closes a drift risk this class's own comment used to warn about: the rule was written
+     * twice — here as a {@link java.util.regex.Pattern}, and again as a PL/pgSQL regex in the
+     * migration — with a note that "if the schema's rule ever changes, this must change with it".
+     * Two copies of a validation rule stay identical only for as long as somebody remembers. Now
+     * there is one.
+     *
+     * @param value a candidate DID, possibly null
+     * @return whether it is well-shaped; null is <em>valid</em>, because {@code players.did} is
+     *     nullable for local-only play and a CHECK must not refuse an absent value
+     */
+    public static boolean isWellFormed(String value) {
+        if (value == null) {
+            return true;
+        }
+        return value.length() <= MAX_LENGTH && SHAPE.matcher(value).matches();
+    }
+
+    /**
      * Parses an optional DID.
      *
      * <p>Exists because {@code players.did} is nullable for local-only solo play

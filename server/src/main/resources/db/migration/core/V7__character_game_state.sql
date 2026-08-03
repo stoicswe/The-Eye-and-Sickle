@@ -1,8 +1,8 @@
 -- The rules engine's state, one row per character.
 --
--- ⚠ WHY `text` AND NOT `jsonb`.
+-- ⚠ WHY `text` AND NOT `JSON`.
 --
--- jsonb would let SQL read inside a character's state, and that is precisely the reason not to use
+-- JSON would let SQL read inside a character's state, and that is precisely the reason not to use
 -- it. The engine owns this document; a query that reached into it would be a SECOND way to read game
 -- state, able to disagree with the first — and the disagreement would be invisible, because both
 -- would look authoritative. Anything the server needs to answer in SQL (balance, heat, status) is
@@ -14,7 +14,7 @@ CREATE TABLE character_game_state (
     character_id uuid PRIMARY KEY REFERENCES players (player_id) ON DELETE CASCADE,
     state        text        NOT NULL,
     format       integer     NOT NULL,
-    updated_at   timestamptz NOT NULL
+    updated_at   TIMESTAMP WITH TIME ZONE NOT NULL
 );
 
 COMMENT ON TABLE character_game_state IS

@@ -12,7 +12,7 @@ The complete technology stack, decided end-to-end. Each layer has its own doc; t
 | Layer | Choice | Doc |
 |---|---|---|
 | **Client** | Java + JavaFX (AtlantaFX theming), multi-window via one `Stage` per tool | `01` |
-| **Home server** | Spring Boot service + PostgreSQL | `01` |
+| **Home server** | Spring Boot service + embedded H2 | `01` |
 | **Deployment** | Docker Compose, self-hostable, Minecraft-style with allowlists | `01`, `03` |
 | **Identity / auth** | AT Protocol OAuth, authentication-only; player DID = portable ID | `02` |
 | **Federation directory** | Opt-in list of public servers; non-adversarial data only | `03` |
@@ -29,7 +29,7 @@ The complete technology stack, decided end-to-end. Each layer has its own doc; t
                    │  authenticates with AT Proto DID (authn-only)
                    │  game traffic ↓
    ┌───────────────▼─────────────────────────────┐
-   │  HOME SERVER  (Spring Boot + PostgreSQL)     │
+   │  HOME SERVER  (Spring Boot + embedded H2)    │
    │  self-hosted · Docker Compose · allowlist    │
    │  owns all game state for its players         │
    └───────────────┬─────────────────────────────┘
@@ -62,7 +62,7 @@ External dependency, identity only:
 
 The single most important architectural boundary (Invariant I14):
 
-> **Game state lives in the server's PostgreSQL. AT Protocol is used *only* to prove "you are player X." No game data is ever written to a player's PDS.**
+> **Game state lives in the server's own database (embedded H2). AT Protocol is used *only* to prove "you are player X." No game data is ever written to a player's PDS.**
 
 Rationale (from Tech Chat 1): AT Proto's repository model would *technically* allow writing custom item records into a player's own PDS via Lexicons — but that puts a player's vault contents in infrastructure *they control*, which is the exact self-hosted-cheating problem the quorum/provenance system exists to solve, just moved down a layer. Identity is safe to decentralize to the player; adversarial state is not.
 
@@ -76,4 +76,4 @@ Rationale (from Tech Chat 1): AT Proto's repository model would *technically* al
 
 **Decided (Tech Chats 1 & 2):** client, server, deployment, identity scope, federation shape, provenance schema (per-item, detached JWS), validator sampling (weighted-random, N=7), reputation update math, equivocation slashing.
 
-**Deferred / open:** stake-bonding layer for validators (explicitly optional, not v1 — `05`); COSE/CBOR envelope alternative (only if wire size matters — `04`); concrete Postgres schema (`06` is a proposal); offline/local-play identity handling (`02` §4).
+**Deferred / open:** stake-bonding layer for validators (explicitly optional, not v1 — `05`); COSE/CBOR envelope alternative (only if wire size matters — `04`); concrete schema (`06` is a proposal); offline/local-play identity handling (`02` §4).

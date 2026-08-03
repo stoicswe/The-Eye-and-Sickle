@@ -6,7 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeAllocation;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeConsumer;
 import io.github.stoicswe.eyeandsickle.protocol.game.Cycles;
-import io.github.stoicswe.eyeandsickle.server.persistence.PostgresIntegrationTestBase;
+import io.github.stoicswe.eyeandsickle.server.persistence.DatabaseIntegrationTestBase;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -29,7 +29,7 @@ import org.springframework.dao.OptimisticLockingFailureException;
  * silent no-op. Pure arithmetic and rule logic are tested against the fake in {@code
  * ComputeLedgerServiceTest} — not re-tested here through the database.
  */
-class ComputeLedgerRepositoryIT extends PostgresIntegrationTestBase {
+class ComputeLedgerRepositoryIT extends DatabaseIntegrationTestBase {
 
     private static final Instant CREATED = Instant.parse("2026-07-24T12:00:00Z");
 

@@ -6,7 +6,7 @@ import io.github.stoicswe.eyeandsickle.protocol.game.Faction;
 import io.github.stoicswe.eyeandsickle.protocol.game.FactionReputation;
 import io.github.stoicswe.eyeandsickle.server.identity.IdentityProperties.DevSignin;
 import io.github.stoicswe.eyeandsickle.server.identity.IdentityProperties.Operator;
-import io.github.stoicswe.eyeandsickle.server.persistence.PostgresIntegrationTestBase;
+import io.github.stoicswe.eyeandsickle.server.persistence.DatabaseIntegrationTestBase;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Duration;
@@ -23,7 +23,7 @@ import org.junit.jupiter.api.Test;
  * the schema agree. The finer branch logic is covered with fakes in {@link FactionServiceTest}; this
  * confirms the wiring end to end.
  */
-class FactionServiceIT extends PostgresIntegrationTestBase {
+class FactionServiceIT extends DatabaseIntegrationTestBase {
 
     private static final Did DID = Did.of("did:plc:aaaaaaaaaaaaaaaaaaaaaaaa");
     private static final Instant NOW = Instant.parse("2026-07-24T10:00:00Z");

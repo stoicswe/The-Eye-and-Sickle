@@ -43,6 +43,48 @@
         <type>pom</type>
         <scope>import</scope>
       </dependency>
+
+      <!--
+        ⚠ H2 IS PINNED BELOW WHAT SPRING BOOT MANAGES, AND THIS IS NOT A STYLE
+        CHOICE. Boot 4.1's BOM brings H2 2.4.240, which has a regression that
+        makes every CHECK constraint in this schema permanently dead:
+
+          h2database/h2database#4291 (dup #4292, #4320, #4342)
+
+        2.4.240 evaluates a CHECK against the session that PARSED it, not the
+        session doing the write — `ConditionInConstantSet` keeps the parsing
+        SessionLocal as its TreeSet comparator. Flyway applies the migrations on
+        its own connection and closes it, so from that moment on every insert
+        into `players`, `items`, `ledger_transactions`, `breach_resolutions` and
+        `provenance_records` fails with
+
+          [23514] Check constraint invalid: "ck_players_faction: "
+
+        ⚠ The failure mode is worse than it looks. 23514 is "check constraint
+        INVALID", not 23513 "violated" — the constraint did not reject the row,
+        it could not be evaluated — and H2 drops the cause, so the message names
+        a constraint the row satisfies perfectly. It is not confined to `IN`
+        lists either: `a = 'x' OR a = 'y'` and `n IN (1,2,3)` fail identically.
+        Measured on H2 2.4.240 and 2.3.232, both spellings, memory and file.
+
+        ⚠ A file database RE-PARSES its constraints when the database is next
+        opened, so the bug looks intermittent: broken from the migration until
+        a restart, fine afterwards. With a pool it is worse still — Flyway's
+        connection is returned rather than closed, so the checks work until
+        Hikari evicts that connection on idleTimeout and then stop.
+
+        2.4.240 is the newest release and the fix is unreleased, so pinning back
+        is the whole remedy. A locally-declared dependencyManagement entry beats
+        an imported BOM, which is why this works from here.
+
+        REMOVE THIS PIN when an H2 > 2.4.240 ships the fix — and re-run
+        SchemaIT, which is what catches it.
+      -->
+      <dependency>
+        <groupId>com.h2database</groupId>
+        <artifactId>h2</artifactId>
+        <version>2.3.232</version>
+      </dependency>
     </dependencies>
   </dependencyManagement>
 
@@ -95,10 +137,23 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-jdbc</artifactId>
     </dependency>
+    <!--
+      H2 — the database, embedded. Replaced PostgreSQL entirely on 2026-08-02.
+
+      ⚠ COMPILE scope, not runtime, and that is a real change in kind. A JDBC
+      driver is a runtime detail; H2 is not, because the schema's ENFORCEMENT is
+      now implemented against its API. `persistence/AppendOnlyTrigger` and
+      `MonotonicSequenceTrigger` implement org.h2.api.Trigger, and the DID and
+      JSON CHECK constraints are H2 ALIASes onto our own static methods.
+
+      So the server's code is coupled to H2, not merely its configuration. That
+      is the price of keeping the append-only and anti-rollback guarantees INSIDE
+      the engine — where they fire whatever code path issued the write — rather
+      than moving them up into the service layer where a new caller can miss them.
+    -->
     <dependency>
-      <groupId>org.postgresql</groupId>
-      <artifactId>postgresql</artifactId>
-      <scope>runtime</scope>
+      <groupId>com.h2database</groupId>
+      <artifactId>h2</artifactId>
     </dependency>
     <!--
       MUST be the STARTER, not a bare org.flywaydb:flyway-core.
@@ -114,11 +169,11 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-flyway</artifactId>
     </dependency>
-    <!-- Flyway 10+ moved per-database support into its own artifact; without
-         this one, Postgres migrations fail at runtime, not at build time. -->
+    <!-- Flyway 10+ moved per-database support into its own artifact. H2 support
+         lives in flyway-core itself, so this is the only one needed. -->
     <dependency>
       <groupId>org.flywaydb</groupId>
-      <artifactId>flyway-database-postgresql</artifactId>
+      <artifactId>flyway-core</artifactId>
       <scope>runtime</scope>
     </dependency>
 
@@ -182,24 +237,6 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <!--
-      Only exercised under `mvn -Pit verify`; needs a Docker daemon.
-
-      NOTE the artifact names. Testcontainers 2.x renamed every module to a
-      `testcontainers-` prefix, so the 1.x coordinates `org.testcontainers:postgresql`
-      and `org.testcontainers:junit-jupiter` no longer resolve. Copying a 1.x
-      snippet off the internet will fail with a bare "version is missing".
-    -->
-    <dependency>
-      <groupId>org.testcontainers</groupId>
-      <artifactId>testcontainers-postgresql</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.testcontainers</groupId>
-      <artifactId>testcontainers-junit-jupiter</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>
