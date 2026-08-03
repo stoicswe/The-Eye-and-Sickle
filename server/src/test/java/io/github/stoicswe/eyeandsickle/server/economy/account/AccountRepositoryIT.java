@@ -145,7 +145,7 @@ class AccountRepositoryIT extends DatabaseIntegrationTestBase {
     /**
      * ⚠ The balance is given in <strong>ethecoin</strong>, not in raw column units, and the fixture
      * converts. It used to bind a bare {@code long} named {@code balanceMinor} — hundredths, from
-     * before {@code V6__ethecoin_wei}. The column was rescaled by 10^16 and this was not, so seeding
+     * before the move to wei. The column was rescaled by 10^16 and this was not, so seeding
      * 4200 and asserting 42 EC compared 42 EC against 0.0000000000000042 EC. Binding through
      * {@link Ethecoin} means the fixture cannot drift from the column again.
      */

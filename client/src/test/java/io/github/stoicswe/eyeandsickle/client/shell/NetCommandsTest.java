@@ -39,7 +39,7 @@ class NetCommandsTest {
 
     private static Shell shell(Path dir) {
         GameSession session = new LocalGameSession(TestSaves.bare(
-                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")), "op", CLOCK));
+                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("s.json")), "op", CLOCK));
         Shell.CommandRegistry registry = BuiltinCommands.registry();
         NetCommands.register(registry);
         return new Shell(session, registry);
@@ -259,7 +259,7 @@ class NetCommandsTest {
             // game being broken rather than as a typo.
             GameSession session = shell(dir).session();
             for (var option : session.sweepOptions()) {
-                assertThat(io.github.stoicswe.eyeandsickle.solo.net.SweepTier.byFlag(option.flag()))
+                assertThat(io.github.stoicswe.eyeandsickle.engine.net.SweepTier.byFlag(option.flag()))
                         .as("`sweep %s` is a tier the rules know", option.flag())
                         .isPresent();
             }

@@ -28,8 +28,8 @@ import io.github.stoicswe.eyeandsickle.client.view.Views;
 import io.github.stoicswe.eyeandsickle.client.window.GlobalShortcuts;
 import io.github.stoicswe.eyeandsickle.client.window.WindowRegistry;
 import io.github.stoicswe.eyeandsickle.client.window.WindowSpec;
-import io.github.stoicswe.eyeandsickle.solo.SoloGame;
-import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
+import io.github.stoicswe.eyeandsickle.engine.GameEngine;
+import io.github.stoicswe.eyeandsickle.engine.save.SaveStore;
 import java.time.Clock;
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
@@ -45,7 +45,7 @@ import javafx.util.Duration;
  *
  * <h2>It starts offline, and that is the default rather than a fallback</h2>
  *
- * The game opens a {@link LocalGameSession} over a {@link SoloGame}: no network, no account, no
+ * The game opens a {@link LocalGameSession} over a {@link GameEngine}: no network, no account, no
  * database, no second process. {@code docs/design/00-vision-and-pillars.md} makes single player the
  * default mode, and the client honours that by being playable the moment it launches — the only I/O
  * it performs is reading and writing two JSON files in the profile directory.
@@ -503,7 +503,7 @@ public class EyeAndSickleClient extends Application {
      * Renames the solo operator.
      *
      * <p>⚠ Solo only, and the check is here rather than in the view: online, a handle comes from an
-     * AT Proto DID and the server owns it (Invariant I14). {@code SoloGame.rename} is deliberately
+     * AT Proto DID and the server owns it (Invariant I14). {@code GameEngine.rename} is deliberately
      * not on the {@code GameSession} port for the same reason — a capability that must never work
      * online is best made absent rather than guarded.
      */
@@ -679,7 +679,7 @@ public class EyeAndSickleClient extends Application {
 
     /** Opens a solo character and switches the window to the game. */
     private void startSolo(int slot, String handleIfNew) {
-        SaveStore store = new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(slots.saveFile(slot));
+        SaveStore store = slots.store(slot);
         String handle = handleIfNew != null && !handleIfNew.isBlank()
                 ? handleIfNew.trim()
                 : (profile.settings().soloHandle.isBlank() ? "operator" : profile.settings().soloHandle);
@@ -691,7 +691,7 @@ public class EyeAndSickleClient extends Application {
         profile.useCharacterAppearance(slot);
         themes.reloadAppearance();
 
-        session = new LocalGameSession(SoloGame.open(store, handle, Clock.systemUTC()));
+        session = new LocalGameSession(GameEngine.open(store, handle, Clock.systemUTC()));
 
         Shell.CommandRegistry commands = BuiltinCommands.registry();
         shell = new Shell(session, commands);

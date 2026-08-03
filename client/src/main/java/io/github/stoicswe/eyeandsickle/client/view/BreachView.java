@@ -36,7 +36,7 @@ import javafx.scene.layout.VBox;
  * <h2>Everything here is a readout of the port, and nothing here is a rule</h2>
  *
  * This view composes {@code ui/breach}'s renderers against {@link GameSession} and does not own a
- * single number the player could gain something by changing. It never asks {@code SoloGame} anything;
+ * single number the player could gain something by changing. It never asks {@code GameEngine} anything;
  * it asks {@code session.breach()} and draws what comes back. That is Invariant <b>I14</b> at the one
  * place it is easiest to break — a client that predicted an attention cost, or decided that a probe
  * was going to fail, would be authoritative over exactly the thing a cheater forges.

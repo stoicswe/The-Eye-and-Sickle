@@ -67,7 +67,19 @@
     -->
     <dependency>
       <groupId>io.github.stoicswe.eyeandsickle</groupId>
-      <artifactId>eyeandsickle-solo</artifactId>
+      <artifactId>eyeandsickle-engine</artifactId>
+    </dependency>
+    <!--
+      solo's TEST jar, for `save/TestSaves` — the shared in-memory SaveStore
+      fixture. One fixture rather than one per module; see solo/pom.xml.
+      ⚠ Test scope, so it is on no shipped classpath.
+    -->
+    <dependency>
+      <groupId>io.github.stoicswe.eyeandsickle</groupId>
+      <artifactId>eyeandsickle-engine</artifactId>
+      <version>${project.version}</version>
+      <type>test-jar</type>
+      <scope>test</scope>
     </dependency>
 
     <!--
@@ -186,9 +198,27 @@
                     is PERMITTED, for the in-process event broker and nothing
                     else — see client/events/EventBus and docs/design/15 UI-7.
                     An event multicaster does not make the client authoritative,
-                    which is the thing this rule protects; spring-web, the jdbc
-                    and orm layers, all of Boot and every data module remain
-                    banned, because those are how it would.
+                    which is the thing this rule protects.
+
+                    AMENDED 2026-08-03: H2, Flyway and spring-jdbc are PERMITTED,
+                    transitively through eyeandsickle-engine, because single player
+                    now keeps its character in a local database written by the
+                    SAME store a home server uses. One save system, one migration,
+                    one set of bytes.
+
+                    ⚠ RE-READ WHAT THIS RULE IS FOR BEFORE WIDENING IT AGAIN. It
+                    is not "the client must not touch a database" — the client has
+                    always hosted the rules engine in process for single player,
+                    so a driver changes nothing about who decides. It is that
+                    SERVER CODE MUST NOT REACH THE CLIENT: the federation logic,
+                    the ledger, the quorum, the authority tables. That is why
+                    eyeandsickle-server, spring-web and all of Spring Boot stay
+                    banned, and why the ban on those is the half that matters.
+
+                    ⚠ AND A LOCAL DATABASE IS NOT A TRUST BOUNDARY. A solo save is
+                    as editable in H2 as it was in JSON. What keeps a solo
+                    character harmless is the quarantine rule (docs/architecture/12
+                    §1) — it can never federate — and never the storage format.
 
                     The absence of a &lt;dependency&gt; element is not
                     self-defending — someone will add one. This rule is. Adding
@@ -208,7 +238,6 @@
                     <exclude>org.springframework:*</exclude>
                     <exclude>org.springframework.boot:*</exclude>
                     <exclude>org.postgresql:*</exclude>
-                    <exclude>org.flywaydb:*</exclude>
                     <exclude>org.hibernate*:*</exclude>
                   </excludes>
                   <includes>
@@ -218,6 +247,9 @@
                     <include>org.springframework:spring-aop</include>
                     <include>org.springframework:spring-expression</include>
                     <include>org.springframework:spring-jcl</include>
+                    <!-- The save system, via eyeandsickle-engine. See the message. -->
+                    <include>org.springframework:spring-jdbc</include>
+                    <include>org.springframework:spring-tx</include>
                   </includes>
                 </bannedDependencies>
               </rules>

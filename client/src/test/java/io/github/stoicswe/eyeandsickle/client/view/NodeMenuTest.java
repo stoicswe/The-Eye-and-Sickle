@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
 import io.github.stoicswe.eyeandsickle.client.session.LocalGameSession;
-import io.github.stoicswe.eyeandsickle.solo.SoloGame;
+import io.github.stoicswe.eyeandsickle.engine.GameEngine;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
@@ -113,8 +113,8 @@ class NodeMenuTest {
     @DisplayName("right-clicking a machine does not throw when the anchor is rebuilt underneath it")
     void rightClickDoesNotThrow(@TempDir Path dir) throws Exception {
         onFxThread(() -> {
-            SoloGame game = SoloGame.open(
-                    new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")),
+            GameEngine game = GameEngine.open(
+                    io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("s.json")),
                     "operator",
                     Clock.fixed(T0, ZoneOffset.UTC));
             LocalGameSession session = new LocalGameSession(game);

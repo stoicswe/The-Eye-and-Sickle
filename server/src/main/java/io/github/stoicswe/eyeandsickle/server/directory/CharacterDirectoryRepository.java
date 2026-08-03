@@ -1,7 +1,7 @@
 package io.github.stoicswe.eyeandsickle.server.directory;
 
 import io.github.stoicswe.eyeandsickle.protocol.channel.CharacterHomeRecord;
-import io.github.stoicswe.eyeandsickle.server.persistence.Timestamps;
+import io.github.stoicswe.eyeandsickle.engine.persistence.Timestamps;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;

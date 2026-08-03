@@ -183,7 +183,7 @@ jobs:
           echo "file=$raw" >> "$GITHUB_OUTPUT"
           echo "embedded $maj.$min.$pat, filename $raw"
 
-      # -am builds protocol and solo first; client-dist is not in the graph, so nothing here
+      # -am builds protocol and engine first; client-dist is not in the graph, so nothing here
       # shades five platforms' worth of jars.
       - name: Build the host-platform installer
         shell: bash

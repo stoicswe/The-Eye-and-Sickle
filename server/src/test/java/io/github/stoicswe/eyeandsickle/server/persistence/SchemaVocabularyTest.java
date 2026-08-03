@@ -32,16 +32,10 @@ import org.junit.jupiter.api.Test;
 class SchemaVocabularyTest {
 
     private static final String CORE = "db/migration/core/V2__core_schema.sql";
-    private static final String PUZZLE_CLASSES = "db/migration/core/V4__breach_puzzle_classes.sql";
-    private static final String SHELL_SESSIONS = "db/migration/core/V5__shell_sessions.sql";
-    private static final String ETHECOIN_WEI = "db/migration/core/V6__ethecoin_wei.sql";
     private static final String FEDERATION = "db/migration/federation/V1001__federation_schema.sql";
 
     private static final String CORE_SQL = read(CORE);
-    private static final String PUZZLE_CLASSES_SQL = read(PUZZLE_CLASSES);
-    private static final String SHELL_SESSIONS_SQL = read(SHELL_SESSIONS);
     private static final String FEDERATION_SQL = read(FEDERATION);
-    private static final String ETHECOIN_WEI_SQL = read(ETHECOIN_WEI);
 
     // ------------------------------------------------------------------ vocabularies
 
@@ -69,21 +63,8 @@ class SchemaVocabularyTest {
         // Invariant I6 lives in this list: control_channel (charged to the deployer) and
         // deployed_miner (charged to the host) are two consumers, never one.
         //
-        // ⚠ Read from V5, not V2. V5 rebuilt this constraint to add shell_session, and V2 must not
-        // be edited to match — Flyway checksums a migration that has already run, so a "tidied" V2
-        // fails every existing deployment on startup instead of migrating it. The effective
-        // vocabulary is whatever the LAST migration to touch the constraint declared.
-        assertThat(inRebuiltList(SHELL_SESSIONS_SQL, "consumer_type")).isEqualTo(EnumColumns.COMPUTE_CONSUMER_VALUES);
-    }
-
-    @Test
-    @DisplayName("⚠ V2's original vocabulary is left alone, because Flyway has checksummed it")
-    void theBaselineIsNotRewritten() {
-        // The tempting "fix" for the test above is to add shell_session to V2 and delete V5. That
-        // turns a green build into a startup failure on every server that has already run V2, and
-        // the failure is a checksum mismatch that says nothing about what changed. This assertion
-        // exists to make that edit fail here instead of there.
-        assertThat(inList(CORE_SQL, "compute_allocations", "consumer_type")).doesNotContain("shell_session");
+        assertThat(inList(CORE_SQL, "compute_allocations", "consumer_type"))
+                .isEqualTo(EnumColumns.COMPUTE_CONSUMER_VALUES);
     }
 
     @Test
@@ -102,11 +83,8 @@ class SchemaVocabularyTest {
     @Test
     @DisplayName("breach_resolutions lists exactly the puzzle classes, target states and outcomes")
     void breachVocabulariesMatch() {
-        // ⚠ Read from V4, not V2. V2's list is the five classes the schema shipped with and it may
-        // not be rewritten — a migration that has been applied anywhere is frozen by its checksum —
-        // so the CURRENT vocabulary is whatever the last migration to touch the constraint says.
-        // Asserting against V2 here would pass forever while the running database rejected rows.
-        assertThat(inRebuiltList(PUZZLE_CLASSES_SQL, "puzzle_class")).isEqualTo(EnumColumns.PUZZLE_CLASS_VALUES);
+        assertThat(inList(CORE_SQL, "breach_resolutions", "puzzle_class"))
+                .isEqualTo(EnumColumns.PUZZLE_CLASS_VALUES);
         assertThat(inList(CORE_SQL, "breach_resolutions", "live_or_dormant"))
                 .isEqualTo(EnumColumns.TARGET_STATE_VALUES);
         assertThat(inList(CORE_SQL, "breach_resolutions", "outcome")).isEqualTo(EnumColumns.BREACH_OUTCOME_VALUES);
@@ -199,28 +177,6 @@ class SchemaVocabularyTest {
         List<String[]> columns = new ArrayList<>();
         columns.addAll(columnDefinitions(CORE_SQL));
         columns.addAll(columnDefinitions(FEDERATION_SQL));
-
-        for (String sql : List.of(PUZZLE_CLASSES_SQL, SHELL_SESSIONS_SQL, ETHECOIN_WEI_SQL)) {
-            String body = stripComments(sql);
-            Matcher retyped = Pattern.compile(
-                            // ⚠ H2 spells the widening "SET DATA TYPE"; Postgres spelled it "TYPE".
-                            // Both are accepted so this replay keeps working across the migration.
-                            "ALTER\\s+COLUMN\\s+(\\w+)\\s+(?:SET\\s+DATA\\s+)?TYPE\\s+([a-z]+(?:\\s*\\([^)]*\\))?)",
-                            Pattern.CASE_INSENSITIVE)
-                    .matcher(body);
-            while (retyped.find()) {
-                String name = retyped.group(1);
-                String type = retyped.group(2).replaceAll("\\s+", "");
-                columns.replaceAll(c -> c[0].equals(name) ? new String[] {c[0], type} : c);
-            }
-            Matcher renamed = Pattern.compile("RENAME\\s+COLUMN\\s+(\\w+)\\s+TO\\s+(\\w+)", Pattern.CASE_INSENSITIVE)
-                    .matcher(body);
-            while (renamed.find()) {
-                String from = renamed.group(1);
-                String to = renamed.group(2);
-                columns.replaceAll(c -> c[0].equals(from) ? new String[] {to, c[1]} : c);
-            }
-        }
         return columns;
     }
 
@@ -324,35 +280,6 @@ class SchemaVocabularyTest {
         return values;
     }
 
-    /**
-     * The same, for a constraint an {@code ALTER TABLE} migration rebuilt rather than one a
-     * {@code CREATE TABLE} declared.
-     *
-     * <p>Scans the whole file: there is no table body to scope to, and a migration that rebuilds one
-     * constraint is short enough that the column name is unambiguous within it. Comments are stripped
-     * for the same reason they are stripped from a table body — this schema explains itself at length
-     * and a prose mention of the old spellings would otherwise satisfy the assertion by accident.
-     */
-    private static Set<String> inRebuiltList(String sql, String column) {
-        String body = stripComments(sql);
-        // ⚠ Anchored on CHECK. A migration that rewrites rows before rebuilding the constraint has a
-        // second `column IN (...)` in its UPDATE — the OLD spellings, which is exactly the list this
-        // must not read. Without the anchor the assertion happily checks the vocabulary being retired.
-        Matcher matcher = Pattern.compile("CHECK\\s*\\(\\s*" + Pattern.quote(column) + "\\s+IN\\s*\\(([^)]*)\\)")
-                .matcher(body);
-        assertThat(matcher.find())
-                .as("%s should be constrained by a CHECK ... IN (...)", column)
-                .isTrue();
-        Set<String> values = new LinkedHashSet<>();
-        for (String literal : matcher.group(1).split(",")) {
-            String trimmed = literal.strip();
-            if (!trimmed.isEmpty()) {
-                assertThat(trimmed).startsWith("'").endsWith("'");
-                values.add(trimmed.substring(1, trimmed.length() - 1));
-            }
-        }
-        return values;
-    }
 
     /**
      * The text between {@code CREATE TABLE name (} and the closing {@code );}, with {@code --}
@@ -381,9 +308,15 @@ class SchemaVocabularyTest {
     /** {@code {name, type}} for every four-space-indented column definition. */
     private static List<String[]> columnDefinitions(String sql) {
         List<String[]> columns = new ArrayList<>();
-        Matcher matcher = Pattern.compile("(?m)^ {4}([a-z_]+) +([a-z]+)").matcher(stripComments(sql));
+        // ⚠ The precision/scale group is part of the type and must be captured. It used to be
+        // supplied by a replay of the later ALTER statements ("SET DATA TYPE numeric(78, 0)"); once
+        // those were squashed into the baseline the type comes from the declaration, and a regex
+        // that stopped at the word `numeric` would have let a bigint ethecoin column through while
+        // still reporting a pass.
+        Matcher matcher = Pattern.compile("(?m)^ {4}([a-z_]+) +([a-z]+(?: *\\([^)]*\\))?)")
+                .matcher(stripComments(sql));
         while (matcher.find()) {
-            columns.add(new String[] {matcher.group(1), matcher.group(2)});
+            columns.add(new String[] {matcher.group(1), matcher.group(2).replaceAll("\\s+", "")});
         }
         return columns;
     }

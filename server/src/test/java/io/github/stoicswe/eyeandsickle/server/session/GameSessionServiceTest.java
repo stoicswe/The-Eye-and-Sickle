@@ -32,7 +32,7 @@ class GameSessionServiceTest {
     private static final UUID CHARACTER = UUID.fromString("11111111-2222-3333-4444-555555555555");
 
     /**
-     * ⚠ A mocked {@link EngineSessions}, and the tests below take only paths that never enter it.
+     * ⚠ A mocked {@link ServerEngineSessions}, and the tests below take only paths that never enter it.
      *
      * <p>Everything that runs the engine needs a real database, because the engine's state lives in
      * one — those checks belong in {@code -Pit}. Asserting engine behaviour over a mock would assert
@@ -40,7 +40,7 @@ class GameSessionServiceTest {
      * {@code CLAUDE.md} records: two correct halves and a defect in the join.
      */
     private final GameSessionService service = new GameSessionService(
-            org.mockito.Mockito.mock(EngineSessions.class),
+            org.mockito.Mockito.mock(ServerEngineSessions.class),
             Clock.fixed(NOW, ZoneOffset.UTC),
             new OperatorLog());
 

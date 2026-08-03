@@ -7,7 +7,7 @@ import io.github.stoicswe.eyeandsickle.client.ui.cursors.Cursors;
 import io.github.stoicswe.eyeandsickle.protocol.game.FsEntry;
 import io.github.stoicswe.eyeandsickle.protocol.game.RemoteSession;
 import io.github.stoicswe.eyeandsickle.protocol.game.Sighting;
-import io.github.stoicswe.eyeandsickle.solo.fs.VirtualFs;
+import io.github.stoicswe.eyeandsickle.engine.fs.VirtualFs;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayDeque;
@@ -317,7 +317,7 @@ public final class FileManagerView {
         // shell reaches it too, and which means an intruder standing in it can read what the owner
         // has been doing. That last part is a feature of the fiction rather than a leak in it.
         sidebar.getChildren().add(Ui.label(Views.t("ui.file-manager.recents", "Recents")));
-        Place recentsPlace = new Place("", home + "/" + io.github.stoicswe.eyeandsickle.solo.fs.Recents.DIR);
+        Place recentsPlace = new Place("", home + "/" + io.github.stoicswe.eyeandsickle.engine.fs.Recents.DIR);
         place(sidebar, "Recents", recentsPlace, here, go);
 
         // ── Favorites ────────────────────────────────────────────────────────────────────────
@@ -502,7 +502,7 @@ public final class FileManagerView {
 
             Label figures = Ui.small(Math.round(task.progress() * 100) + "%  ·  "
                     + task.remaining().toSeconds() + "s left  ·  ceiling "
-                    + (io.github.stoicswe.eyeandsickle.solo.Balance.LINK_UP_BITS / 1_000_000L)
+                    + (io.github.stoicswe.eyeandsickle.engine.Balance.LINK_UP_BITS / 1_000_000L)
                     + " Mbit/s up");
             row.getChildren().addAll(label, cells, figures);
             box.getChildren().add(row);
@@ -842,7 +842,7 @@ public final class FileManagerView {
         }
         // ⚠ The compare block goes ABOVE the text, because it answers the question the player opened
         // this for. `session.info` carries the same facts as prose so that `stat` is not the poorer
-        // surface — see SoloGame.describe — and the two must not disagree, which is why both read the
+        // surface — see GameEngine.describe — and the two must not disagree, which is why both read the
         // same UpgradeOffer rather than each deriving their own.
         showFile(
                 session,

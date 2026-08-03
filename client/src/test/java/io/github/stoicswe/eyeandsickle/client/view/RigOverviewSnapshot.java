@@ -4,7 +4,7 @@ import io.github.stoicswe.eyeandsickle.client.profile.ClientProfile;
 import io.github.stoicswe.eyeandsickle.client.session.LocalGameSession;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeId;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeManager;
-import io.github.stoicswe.eyeandsickle.solo.SoloGame;
+import io.github.stoicswe.eyeandsickle.engine.GameEngine;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.nio.file.Path;
@@ -64,8 +64,8 @@ public final class RigOverviewSnapshot {
         Path dir = out.resolve("p");
         dir.toFile().mkdirs();
         ClientProfile profile = new ClientProfile(dir);
-        SoloGame game = SoloGame.open(
-                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")),
+        GameEngine game = GameEngine.open(
+                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("s.json")),
                 "kyyrell",
                 Clock.fixed(Instant.parse("2026-07-30T09:00:00Z"), ZoneOffset.UTC));
         game.state().rig.totalCycles = 100;

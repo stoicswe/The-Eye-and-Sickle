@@ -38,11 +38,12 @@
 --     with exhaustive switches (server `persistence/EnumColumns`), so a renamed
 --     constant is a compile error and `SchemaVocabularyTest` proves the Java
 --     spellings and these CHECK lists agree.
---   * Ethecoin columns are `bigint` named `*_ec_minor` — integral hundredths,
---     per protocol `Ethecoin`. Cycle columns are named `*_cycles`. The suffixes
---     are load-bearing: `persistence/EconomyColumns` refuses to read an
---     ethecoin amount out of a cycles column, which is Invariant I1 made
---     mechanical at the persistence boundary.
+--   * Ethecoin columns are `numeric(78,0)` named `*_wei` — integral wei, 1e-18
+--     EC, per protocol `Ethecoin`. ⚠ NOT bigint: at 18 decimals a bigint tops
+--     out at 9.22 EC, less than one firmware image. Cycle columns are named
+--     `*_cycles`. The suffixes are load-bearing: `persistence/EconomyColumns`
+--     refuses to read an ethecoin amount out of a cycles column, which is
+--     Invariant I1 made mechanical at the persistence boundary.
 --   * `row_version` on every row that a concurrent request can mutate. Updates
 --     are `... SET row_version = row_version + 1 WHERE id = ? AND row_version = ?`.
 --   * JSON for genuinely document-shaped data only: signed payloads, item
@@ -199,20 +200,40 @@ CREATE TABLE players (
     -- transaction; neither is meaningful without the other. A reconciliation job
     -- comparing the two is the anti-tamper check, and it only works because both
     -- exist.
-    ethecoin_balance_ec_minor bigint      NOT NULL DEFAULT 0,
+    -- ⚠ numeric(78,0), NOT bigint. An ethecoin divides to 18 places (wei, exactly ether's
+    -- relationship to its own base unit), and at that scale a bigint tops out at 9.22 EC — less
+    -- than one firmware image.
+    ethecoin_balance_wei      numeric(78, 0) NOT NULL DEFAULT 0,
+    -- Save slot within the account (docs/architecture/09 §1). 1..16 is a structural bound for a
+    -- DID-bound character; NULL for a local, DID-less one, which is exempt from the cap. The
+    -- product cap (default 3) is enforced in the service from EYEANDSICKLE_MAX_CHARACTERS, not
+    -- here (09 §2).
+    slot                      smallint    NULL,
+    -- Character lifecycle (09 §6.1). migrated/retired are terminal shells kept for audit; a
+    -- character in either state can never be played or migrated again — no double-play.
+    status                    text        NOT NULL DEFAULT 'active',
     created_at                TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
     last_seen_at              TIMESTAMP WITH TIME ZONE NULL,
     row_version               bigint      NOT NULL DEFAULT 0,
 
-    CONSTRAINT uq_players_did              UNIQUE (did),
+    -- ⚠ (did, slot), NOT did alone. A DID is an ACCOUNT and may hold several characters
+    -- (docs/architecture/09 §1, §8), so uniqueness is per slot within the account. Two DID-less
+    -- local characters both key (NULL, NULL) and coexist, because a unique index treats NULLs as
+    -- distinct.
+    CONSTRAINT uq_players_did_slot         UNIQUE (did, slot),
     CONSTRAINT ck_players_did_shape        CHECK (did IS NULL OR is_did(did)),
+    CONSTRAINT ck_players_status           CHECK (status IN ('active', 'migrated', 'retired')),
+    -- A slot number without an account is meaningless and an account without one cannot be
+    -- addressed, so the two are present or absent together.
+    CONSTRAINT ck_players_slot_pairing     CHECK ((did IS NULL) = (slot IS NULL)),
+    CONSTRAINT ck_players_slot_bound       CHECK (slot IS NULL OR slot BETWEEN 1 AND 16),
     CONSTRAINT ck_players_faction          CHECK (faction IN ('eye', 'sickle', 'none')),
     CONSTRAINT ck_players_heat_non_negative CHECK (personal_heat >= 0),
     -- Balances never go negative. "Can they afford it" is a question asked
     -- BEFORE the subtraction, on the server; a negative balance is the shape an
     -- unchecked purchase takes, and it must not be storable. Mirrors the same
     -- rule in protocol `Ethecoin`.
-    CONSTRAINT ck_players_balance_non_negative CHECK (ethecoin_balance_ec_minor >= 0),
+    CONSTRAINT ck_players_balance_non_negative CHECK (ethecoin_balance_wei >= 0),
     CONSTRAINT ck_players_row_version      CHECK (row_version >= 0)
 );
 
@@ -222,8 +243,17 @@ COMMENT ON TABLE players IS
 COMMENT ON COLUMN players.did IS
     'AT Protocol DID — the portable, stable identity. Nullable for local-only solo play '
     '(docs/architecture/02 §4, open).';
-COMMENT ON COLUMN players.ethecoin_balance_ec_minor IS
-    'Hundredths of an ethecoin. Written in the same transaction as the matching ledger_transactions row.';
+COMMENT ON COLUMN players.ethecoin_balance_wei IS
+    'Spendable balance in wei (1e-18 EC). Materialised alongside the ledger row that moved it, in '
+    'the same transaction, so the two can never disagree.';
+COMMENT ON COLUMN players.slot IS
+    'Save slot within the account (docs/architecture/09-player-state-portability.md §1). '
+    '1..16 structural bound for a DID-bound character; NULL for a local, DID-less character (exempt from the cap). '
+    'The product cap (default 3) is enforced in the service from EYEANDSICKLE_MAX_CHARACTERS, not here (09 §2).';
+COMMENT ON COLUMN players.status IS
+    'Character lifecycle (docs/architecture/09 §6.1): active | migrated | retired. '
+    'migrated/retired are terminal shells kept for audit; a character in either state can never be played or '
+    'migrated again (no double-play).';
 
 
 -- ---------------------------------------------------------------------------
@@ -382,11 +412,8 @@ CREATE TABLE compute_allocations (
     row_version         bigint      NOT NULL DEFAULT 0,
 
     CONSTRAINT ck_compute_allocations_consumer CHECK (consumer_type IN (
-        -- ⚠ 'shell_session' is added by V5, not here. A baseline migration that has already run
-        -- somewhere must never be edited — Flyway checksums it, and a changed V2 fails every
-        -- existing deployment on startup with a checksum mismatch rather than migrating it.
         'active_tool', 'bot_frame', 'self_mining', 'control_channel',
-        'deployed_miner', 'defensive_array', 'relay_hop')),
+        'deployed_miner', 'defensive_array', 'relay_hop', 'shell_session')),
     CONSTRAINT ck_compute_allocations_state    CHECK (state IN ('active', 'recovering')),
     CONSTRAINT ck_compute_allocations_cycles   CHECK (allocated_cycles >= 0),
     -- A counterparty equal to the charged rig is not a harmless redundancy: it
@@ -617,7 +644,7 @@ CREATE TABLE ledger_transactions (
     -- Magnitude only. Direction is from_did -> to_did; a sign would encode
     -- direction a second time, in a second place, and the two would eventually
     -- disagree. Same rule as protocol `Ethecoin`.
-    amount_ec_minor bigint     NOT NULL,
+    amount_wei      numeric(78, 0) NOT NULL,
     tx_type        text        NOT NULL,
     traceable      boolean     NOT NULL DEFAULT true,
     -- Context an investigator can read: which miner, which duel, which vendor.
@@ -628,7 +655,7 @@ CREATE TABLE ledger_transactions (
     CONSTRAINT ck_ledger_from_shape   CHECK (from_did IS NULL OR is_did(from_did)),
     CONSTRAINT ck_ledger_to_shape     CHECK (is_did(to_did)),
     -- Zero-value transactions are noise in an evidence surface.
-    CONSTRAINT ck_ledger_amount       CHECK (amount_ec_minor > 0),
+    CONSTRAINT ck_ledger_amount       CHECK (amount_wei > 0),
     -- Exactly the six types docs/architecture/06 §2 names. Dead Drops are NOT a
     -- seventh type — they are `traceable = false` on the type they actually are,
     -- which is what makes them hard to spot rather than trivially filterable.
@@ -687,7 +714,7 @@ CREATE TABLE deployed_miners (
     -- column and not a constant because it is open question OQ-4 — 4 hours is a
     -- starting figure, and a starting figure that is hardcoded in fifty places is
     -- a starting figure forever.
-    buffer_ec_minor   bigint      NOT NULL DEFAULT 0,
+    buffer_wei        numeric(78, 0) NOT NULL DEFAULT 0,
     buffer_cap_hours  integer     NOT NULL,
     -- Hidden from routine scans, but NOT from manual audit (docs/design/09,
     -- docs/design/04 §3.1). This flag decides disclosure; it never decides
@@ -702,7 +729,7 @@ CREATE TABLE deployed_miners (
     CONSTRAINT ck_deployed_miners_host_type CHECK (host_type IN ('npc', 'player')),
     CONSTRAINT ck_deployed_miners_tier      CHECK (tier IN ('t1', 't2', 't3')),
     CONSTRAINT ck_deployed_miners_state     CHECK (state IN ('live', 'hijacked', 'sabotaged', 'dead')),
-    CONSTRAINT ck_deployed_miners_buffer    CHECK (buffer_ec_minor >= 0),
+    CONSTRAINT ck_deployed_miners_buffer    CHECK (buffer_wei >= 0),
     CONSTRAINT ck_deployed_miners_cap       CHECK (buffer_cap_hours > 0),
     -- The host reference must match the host type, in both directions.
     CONSTRAINT ck_deployed_miners_player_host CHECK ((host_type = 'player') = (host_rig_id IS NOT NULL)),
@@ -719,13 +746,20 @@ CREATE TABLE deployed_miners (
 COMMENT ON TABLE deployed_miners IS
     'Parasitic miners (docs/design/04-mining.md §2). Consume the HOST''s compute (Invariant I6); the '
     'only offline income source, buffer-capped (Invariant I5).';
-COMMENT ON COLUMN deployed_miners.buffer_ec_minor IS
+COMMENT ON COLUMN deployed_miners.buffer_wei IS
     'Accrued on-host yield awaiting collection. The prize in a crack (docs/design/04 §5.1) — a transfer, never a faucet.';
 
 -- "Show me my network" and the sweep roll, which is one roll against the whole
 -- NPC-hosted network per hour (docs/design/04 §4).
 CREATE INDEX ix_deployed_miners_deployer ON deployed_miners (deployer_did, state);
 -- "What is running on my machine", the query behind every scan and audit.
+-- ⚠ Redundant on H2, and kept anyway. H2 builds its own index for the foreign key on this column,
+-- so after the V3–V6 squash the table carries two indexes over `host_rig_id` where the old migration
+-- chain carried one — V6's `ALTER COLUMN ... SET DATA TYPE` rebuilt the table and consolidated them.
+-- That is the ONLY difference the squash produced (columns, constraints, check clauses, FK rules,
+-- triggers, routines and seed data all diffed identical), and the named index stays because it says
+-- what the access path is FOR: attributing a deployed miner to the rig whose compute it spends,
+-- which is Invariant I6's read. An engine-generated name documents nothing.
 CREATE INDEX ix_deployed_miners_host ON deployed_miners (host_rig_id);
 
 
@@ -767,7 +801,7 @@ CREATE TABLE breach_resolutions (
 
     CONSTRAINT ck_breach_resolutions_player  CHECK (is_did(player_did)),
     CONSTRAINT ck_breach_resolutions_class   CHECK (puzzle_class IN
-        ('enumeration', 'credential', 'logic', 'timing', 'traversal')),
+        ('breach_protocol', 'offset_cipher')),
     CONSTRAINT ck_breach_resolutions_tier    CHECK (difficulty_tier BETWEEN 1 AND 5),
     CONSTRAINT ck_breach_resolutions_target  CHECK (live_or_dormant IN ('live', 'dormant')),
     CONSTRAINT ck_breach_resolutions_outcome CHECK (outcome IN ('breached', 'failed', 'aborted'))

@@ -11,7 +11,7 @@ import io.github.stoicswe.eyeandsickle.protocol.game.MiningPool;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningSnapshot;
 import io.github.stoicswe.eyeandsickle.protocol.game.PoolScheme;
 import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
-import io.github.stoicswe.eyeandsickle.solo.Balance;
+import io.github.stoicswe.eyeandsickle.engine.Balance;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;

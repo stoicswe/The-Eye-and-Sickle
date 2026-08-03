@@ -196,7 +196,7 @@ class LedgerServiceIT extends DatabaseIntegrationTestBase {
 
     /**
      * ⚠ Balance in <strong>ethecoin</strong>, converted here — never a raw column value. The seeds
-     * were bare {@code long} hundredths from before {@code V6__ethecoin_wei}; the column was rescaled
+     * were bare {@code long} hundredths from before the move to wei; the column was rescaled
      * by 10^16 and these were not, so a fixture that meant 10 EC seeded 0.000000000000001 EC and every
      * transfer failed for insufficient funds. Going through {@link Ethecoin} is what stops the fixture
      * and the column disagreeing again.

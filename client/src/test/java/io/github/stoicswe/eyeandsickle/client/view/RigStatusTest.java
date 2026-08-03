@@ -28,15 +28,15 @@ class RigStatusTest {
 
     private static LocalGameSession session(Path dir) {
         return new LocalGameSession(io.github.stoicswe.eyeandsickle.client.support.TestSaves.bare(
-                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")), "op", CLOCK));
+                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("s.json")), "op", CLOCK));
     }
 
     /** How much a block's fees add to a reward that includes them. See MiningRules.rewardBase. */
     private static final double FEE_EXPOSURE = new java.math.BigDecimal(
-                    io.github.stoicswe.eyeandsickle.solo.Balance.BLOCK_SUBSIDY_WEI.add(
-                            io.github.stoicswe.eyeandsickle.solo.Balance.expectedBlockFeesWei()))
+                    io.github.stoicswe.eyeandsickle.engine.Balance.BLOCK_SUBSIDY_WEI.add(
+                            io.github.stoicswe.eyeandsickle.engine.Balance.expectedBlockFeesWei()))
             .divide(
-                    new java.math.BigDecimal(io.github.stoicswe.eyeandsickle.solo.Balance.BLOCK_SUBSIDY_WEI),
+                    new java.math.BigDecimal(io.github.stoicswe.eyeandsickle.engine.Balance.BLOCK_SUBSIDY_WEI),
                     java.math.MathContext.DECIMAL64)
             .doubleValue();
 

@@ -5,7 +5,7 @@ import io.github.stoicswe.eyeandsickle.client.profile.ClientProfile;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeId;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeManager;
 import io.github.stoicswe.eyeandsickle.client.view.MainMenuView;
-import io.github.stoicswe.eyeandsickle.solo.SoloGame;
+import io.github.stoicswe.eyeandsickle.engine.GameEngine;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.nio.file.Path;
@@ -81,13 +81,13 @@ public final class MenuSnapshot {
         CharacterSlots slots = new CharacterSlots(profile);
         if (populated) {
             // Two characters and one empty slot, so one render shows every face state there is.
-            SoloGame.open(
-                            new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(slots.saveFile(1)),
+            GameEngine.open(
+                            slots.store(1),
                             "halflight",
                             Clock.systemUTC())
                     .persist();
-            SoloGame.open(
-                            new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(slots.saveFile(2)),
+            GameEngine.open(
+                            slots.store(2),
                             "kestrel",
                             Clock.systemUTC())
                     .persist();

@@ -1,7 +1,7 @@
 package io.github.stoicswe.eyeandsickle.client.support;
 
-import io.github.stoicswe.eyeandsickle.solo.SoloGame;
-import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
+import io.github.stoicswe.eyeandsickle.engine.GameEngine;
+import io.github.stoicswe.eyeandsickle.engine.save.SaveStore;
 import java.time.Clock;
 import java.util.List;
 
@@ -10,7 +10,7 @@ import java.util.List;
  *
  * <h2>Why this exists</h2>
  *
- * {@code SoloGame.newCharacter} plants a foreign miner on every new rig. That is deliberate —
+ * {@code GameEngine.newCharacter} plants a foreign miner on every new rig. That is deliberate —
  * {@code docs/design/04} §5.1 makes cracking one the tutorial for the whole breach system, and
  * without it a fresh character has no reachable breach target at all, which would leave the game's
  * central pillar unreachable until the player discovers a node.
@@ -27,16 +27,16 @@ import java.util.List;
  * unrelated number and would have to be redone the day the tutorial's cost changes. Removing the
  * parasite keeps every assertion saying what it was written to say.
  *
- * <p>Tests that ARE about the tutorial must call {@link SoloGame#open} directly and assert on the
- * parasite — see {@code SoloGameTest.Breach} in the solo module.
+ * <p>Tests that ARE about the tutorial must call {@link GameEngine#open} directly and assert on the
+ * parasite — see {@code GameEngineTest.Breach} in the solo module.
  */
 public final class TestSaves {
 
     private TestSaves() {}
 
     /** A fresh character with the tutorial parasite and its host allocation removed. */
-    public static SoloGame bare(SaveStore store, String handle, Clock clock) {
-        SoloGame game = SoloGame.open(store, handle, clock);
+    public static GameEngine bare(SaveStore store, String handle, Clock clock) {
+        GameEngine game = GameEngine.open(store, handle, clock);
         var rig = game.state().rig;
         // The allocation goes with the miner. Leaving it behind would hold the cycles with nothing
         // owning them, and the compute budget would stop reconciling — which is the one readout

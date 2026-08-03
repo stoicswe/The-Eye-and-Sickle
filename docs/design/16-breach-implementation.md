@@ -2,7 +2,7 @@
 
 **Status:** Implementation record for `05-hacking-minigame.md` (Decided 2026-07-26). The *rules* here are **[PROPOSAL]** unless marked otherwise; the *structure* implements decisions `05` already made.
 **Depends on:** `05-hacking-minigame.md` (§2, §3, §4), `02-unlock-gates.md` §2.2/§2.4, `04-mining.md` §3.2/§3.2a/§5.1, `06-intrusion-tools.md`, `07-recon-tools.md`, `09-defense-and-hardening.md`, `10-botnets.md` §1a
-**Implemented in:** `solo/src/main/java/.../solo/breach/`, `solo/.../rules/ScanRules.java`, `solo/.../rules/SalvageRules.java`, `solo/Balance.java`
+**Implemented in:** `engine/src/main/java/.../engine/breach/`, `engine/.../rules/ScanRules.java`, `engine/.../rules/SalvageRules.java`, `engine/Balance.java`
 
 > **What this document is for.** `05` decided the breach's *shape* — turn-based attention, a stable resolution record — and deliberately left the content open. This is the content, written down so the next person tuning it can see what every number is anchored to.
 >
@@ -16,22 +16,22 @@ An attempt is a persisted document, not a session. It has no clock, no deadline 
 
 | Piece | Where |
 |---|---|
-| Engine — begin, act, abort, resolve, dismiss | `solo/breach/BreachRules.java` |
-| Board generation, both classes | `solo/breach/BoardFactory.java` |
-| Per-class move resolution | `solo/breach/{Matrix,Offset}Rules.java` |
-| The view the client renders | `solo/breach/BreachSnapshots.java` |
-| Target list, loadout, tutorial plant | `solo/breach/Targets.java` |
-| Seeded, persisted PRNG | `solo/breach/Rng.java` |
-| Scan false positives, Detection Array precision | `solo/rules/ScanRules.java` |
-| Schematic material | `solo/rules/SalvageRules.java` |
+| Engine — begin, act, abort, resolve, dismiss | `engine/breach/BreachRules.java` |
+| Board generation, both classes | `engine/breach/BoardFactory.java` |
+| Per-class move resolution | `engine/breach/{Matrix,Offset}Rules.java` |
+| The view the client renders | `engine/breach/BreachSnapshots.java` |
+| Target list, loadout, tutorial plant | `engine/breach/Targets.java` |
+| Seeded, persisted PRNG | `engine/breach/Rng.java` |
+| Scan false positives, Detection Array precision | `engine/rules/ScanRules.java` |
+| Schematic material | `engine/rules/SalvageRules.java` |
 
 ---
 
 ## 2. The PRNG, and why it is persisted
 
-`solo` had no randomness before this. It is described in its own module charter as "a pure function of `(save, clock)`", which is what lets `SoloGameTest` assert exact ethecoin figures and what makes a bug reproducible from a save file.
+`solo` had no randomness before this. It is described in its own module charter as "a pure function of `(save, clock)`", which is what lets `GameEngineTest` assert exact ethecoin figures and what makes a bug reproducible from a save file.
 
-A breach needs generation and a scan needs a roll, so `SoloSave.rngSeed` is a single `long` advanced by **splitmix64** and **written back to the save on every draw**.
+A breach needs generation and a scan needs a roll, so `GameSave.rngSeed` is a single `long` advanced by **splitmix64** and **written back to the save on every draw**.
 
 > ⚠ **Save scumming is the failure this exists to prevent.** A draw that is not committed is a draw the player can reroll by quitting without saving. A player who did not like their board would reload until they got one they did, and a scan that said the wrong thing would be re-run until it said the right thing — which guts `04` §3.2a's "a scan hit is a lead to corroborate, not an answer". Every rule that draws calls `Rng.commit(save)` before returning. Boards are additionally generated **once, at `begin`, and persisted**, so a mid-breach reload replays nothing at all.
 
@@ -115,7 +115,7 @@ The draw was an even coin flip. It is now weighted by **how much of the target's
 
 ## 6. The numbers, and what each is anchored to
 
-Every figure lives in `solo/Balance.java` with its citation. Summary of what is **decided** versus what this document invented:
+Every figure lives in `engine/Balance.java` with its citation. Summary of what is **decided** versus what this document invented:
 
 **Decided elsewhere, used as-is:** the per-action attention costs 1 / 2 / 6 / 0 (`05` §4's table); the tool compute figures (`06` §1, `07` §1); the 1–5 tier scale (`DifficultyTier`); scan compute and durations (`04` §3.2).
 

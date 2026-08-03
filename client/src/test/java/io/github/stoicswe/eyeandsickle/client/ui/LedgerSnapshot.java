@@ -5,8 +5,8 @@ import io.github.stoicswe.eyeandsickle.client.session.LocalGameSession;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeManager;
 import io.github.stoicswe.eyeandsickle.client.view.Views;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
-import io.github.stoicswe.eyeandsickle.solo.Balance;
-import io.github.stoicswe.eyeandsickle.solo.SoloGame;
+import io.github.stoicswe.eyeandsickle.engine.Balance;
+import io.github.stoicswe.eyeandsickle.engine.GameEngine;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.nio.file.Path;
@@ -96,8 +96,8 @@ public final class LedgerSnapshot {
         // pay-per-share, whose rows correctly credit nothing from the block — so a snapshot of only
         // that is a snapshot of the case most likely to look broken, with nothing to compare it to.
         Ticking clock = new Ticking(T0);
-        SoloGame played =
-                SoloGame.open(new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(save), "halflight", clock);
+        GameEngine played =
+                GameEngine.open(io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(save), "halflight", clock);
         played.allocateSelfMining(60);
         for (int hour = 0; hour < 14; hour++) {
             clock.advance(Duration.ofHours(1));
@@ -124,7 +124,7 @@ public final class LedgerSnapshot {
                 "TRANSFER",
                 "Sent to an address",
                 io.github.stoicswe.eyeandsickle.protocol.game.FeeTier.PRIORITY,
-                io.github.stoicswe.eyeandsickle.solo.rules.ChainExplorer.address("someone"));
+                io.github.stoicswe.eyeandsickle.engine.rules.ChainExplorer.address("someone"));
         played.persist();
 
         // ── Eight hours away. The rig runs for four of them and then spins down (I5). ──────────
@@ -133,8 +133,8 @@ public final class LedgerSnapshot {
         // able to send after the sync and then tick until it confirms — which a fixed clock cannot
         // do. The 8-hour jump is the absence; the ticks afterwards are the session.
         clock.advance(Duration.ofHours(8));
-        SoloGame reopened =
-                SoloGame.open(new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(save), "halflight", clock);
+        GameEngine reopened =
+                GameEngine.open(io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(save), "halflight", clock);
         // ⚠ A win planted directly in the strip's window, because the point of the shot is the
         // AMBER pill and a 3.5% rig wins about one block in twenty-eight — a fixture that relied on
         // the draw would render the thing under test about as often as not. blocksWon is exactly
@@ -147,13 +147,13 @@ public final class LedgerSnapshot {
                 "TRANSFER",
                 "Sent to a broker",
                 io.github.stoicswe.eyeandsickle.protocol.game.FeeTier.PRIORITY,
-                io.github.stoicswe.eyeandsickle.solo.rules.ChainExplorer.address("broker"));
+                io.github.stoicswe.eyeandsickle.engine.rules.ChainExplorer.address("broker"));
         reopened.debit(
                 Balance.ec("4"),
                 "MARKET",
                 "Bought Canary Token",
                 io.github.stoicswe.eyeandsickle.protocol.game.FeeTier.PRIORITY,
-                io.github.stoicswe.eyeandsickle.solo.rules.ChainExplorer.address("vendor"));
+                io.github.stoicswe.eyeandsickle.engine.rules.ChainExplorer.address("vendor"));
         for (int i = 0; i < 40 && reopened.state().chain.mempool.size() > 0; i++) {
             clock.advance(Duration.ofMinutes(5));
             reopened.tick();
@@ -174,7 +174,7 @@ public final class LedgerSnapshot {
                 "MARKET",
                 "Bought Noise Damper",
                 io.github.stoicswe.eyeandsickle.protocol.game.FeeTier.ECONOMY,
-                io.github.stoicswe.eyeandsickle.solo.rules.ChainExplorer.address("vendor"));
+                io.github.stoicswe.eyeandsickle.engine.rules.ChainExplorer.address("vendor"));
         System.out.println("sync: " + reopened.chainSync());
         System.out.println("contributions: " + reopened.contributions(8).size());
 

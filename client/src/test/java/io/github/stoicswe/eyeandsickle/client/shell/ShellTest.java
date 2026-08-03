@@ -4,7 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.stoicswe.eyeandsickle.client.session.GameSession;
 import io.github.stoicswe.eyeandsickle.client.session.LocalGameSession;
-import io.github.stoicswe.eyeandsickle.solo.state.NodeState;
+import io.github.stoicswe.eyeandsickle.engine.state.NodeState;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
@@ -28,7 +28,7 @@ class ShellTest {
 
     private static Shell shell(Path dir) {
         GameSession session = new LocalGameSession(io.github.stoicswe.eyeandsickle.client.support.TestSaves.bare(
-                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")), "op", CLOCK));
+                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("s.json")), "op", CLOCK));
         return new Shell(session, BuiltinCommands.registry());
     }
 
@@ -307,7 +307,7 @@ class ShellTest {
         void noFakeProvenance(@TempDir Path dir) {
             Shell s = shell(dir);
             LocalGameSession local = (LocalGameSession) s.session();
-            var item = new io.github.stoicswe.eyeandsickle.solo.state.ItemState();
+            var item = new io.github.stoicswe.eyeandsickle.engine.state.ItemState();
             item.displayName = "Overflow Kit";
             item.tier = "VAULT";
             local.game().state().items.add(item);

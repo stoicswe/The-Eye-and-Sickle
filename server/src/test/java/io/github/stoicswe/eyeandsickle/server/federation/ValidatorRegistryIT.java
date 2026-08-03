@@ -6,7 +6,7 @@ import static org.assertj.core.api.Assertions.within;
 
 import io.github.stoicswe.eyeandsickle.server.federation.sampling.SampledValidator;
 import io.github.stoicswe.eyeandsickle.server.persistence.DatabaseIntegrationTestBase;
-import io.github.stoicswe.eyeandsickle.server.persistence.Timestamps;
+import io.github.stoicswe.eyeandsickle.engine.persistence.Timestamps;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;

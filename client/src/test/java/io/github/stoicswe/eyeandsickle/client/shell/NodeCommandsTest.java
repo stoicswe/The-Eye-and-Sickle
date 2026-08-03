@@ -35,7 +35,7 @@ class NodeCommandsTest {
 
     private static GameSession session(Path dir) {
         return new LocalGameSession(TestSaves.bare(
-                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")), "op", CLOCK));
+                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("s.json")), "op", CLOCK));
     }
 
     private static String output(GameSession session, String line) {

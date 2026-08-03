@@ -78,12 +78,13 @@
         an imported BOM, which is why this works from here.
 
         REMOVE THIS PIN when an H2 > 2.4.240 ships the fix — and re-run
-        SchemaIT, which is what catches it.
+        SchemaIT, which is what catches it. The version itself lives in the
+        root pom as ${h2.version}, shared with the solo module.
       -->
       <dependency>
         <groupId>com.h2database</groupId>
         <artifactId>h2</artifactId>
-        <version>2.3.232</version>
+        <version>${h2.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
@@ -208,7 +209,7 @@
     -->
     <dependency>
       <groupId>io.github.stoicswe.eyeandsickle</groupId>
-      <artifactId>eyeandsickle-solo</artifactId>
+      <artifactId>eyeandsickle-engine</artifactId>
       <version>${project.version}</version>
     </dependency>
 

@@ -66,7 +66,7 @@ These four define the shape of a rig and gate everything else:
 >
 > ⚠ **One flash at a time.** Two concurrent writes to the same device is how it is bricked.
 >
-> ⚠ **The schematic is still recovered, and nothing in the shipped code grants it.** `SoloSave.schematics` holds it and the progression slice fills that; the catalogue entry named `firmware-implant` is the **image**, not the capability. A future edit adding a firmware entry with no schematic named is rejected at construction rather than shipping as an EC path to a ceiling.
+> ⚠ **The schematic is still recovered, and nothing in the shipped code grants it.** `GameSave.schematics` holds it and the progression slice fills that; the catalogue entry named `firmware-implant` is the **image**, not the capability. A future edit adding a firmware entry with no schematic named is rejected at construction rather than shipping as an EC path to a ceiling.
 
 **Worm Module** — deployed miners self-propagate to adjacent nodes. **Compounding returns and compounding exposure**: noise scales with spread and the player does not control where it goes. The high-risk/high-reward endgame of deployed mining — a worm can build a huge network or paint an enormous target, and you can't fully steer it. The loss-of-control is the design feature; do not add player steering.
 

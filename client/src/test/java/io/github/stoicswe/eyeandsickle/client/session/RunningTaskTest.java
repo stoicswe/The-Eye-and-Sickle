@@ -3,7 +3,7 @@ package io.github.stoicswe.eyeandsickle.client.session;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 
-import io.github.stoicswe.eyeandsickle.solo.SoloGame;
+import io.github.stoicswe.eyeandsickle.engine.GameEngine;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
@@ -64,7 +64,7 @@ class RunningTaskTest {
         // Tutorial parasite removed — these tests are about the scan's hold-then-recover arithmetic,
         // not about the miner that a new character is born with. See TestSaves.
         return new LocalGameSession(io.github.stoicswe.eyeandsickle.client.support.TestSaves.bare(
-                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")), "op", clock));
+                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("s.json")), "op", clock));
     }
 
     @Nested
@@ -177,15 +177,15 @@ class RunningTaskTest {
             // the player is away has to still be there when they return.
             Path file = dir.resolve("s.json");
             MutableClock clock = new MutableClock(T0);
-            SoloGame first = io.github.stoicswe.eyeandsickle.client.support.TestSaves.bare(
-                    new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(file), "op", clock);
+            GameEngine first = io.github.stoicswe.eyeandsickle.client.support.TestSaves.bare(
+                    io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(file), "op", clock);
             new LocalGameSession(first).scan("full");
             first.persist();
 
             MutableClock later = new MutableClock(T0.plus(Duration.ofHours(2)));
             LocalGameSession reopened =
                     new LocalGameSession(io.github.stoicswe.eyeandsickle.client.support.TestSaves.bare(
-                            new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(file), "op", later));
+                            io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(file), "op", later));
 
             reopened.tick();
             assertThat(reopened.tasks()).as("the scan finished while away").isEmpty();

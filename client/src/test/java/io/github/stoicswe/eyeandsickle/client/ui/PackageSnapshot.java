@@ -5,8 +5,8 @@ import io.github.stoicswe.eyeandsickle.client.session.LocalGameSession;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeManager;
 import io.github.stoicswe.eyeandsickle.client.view.PackageView;
 import io.github.stoicswe.eyeandsickle.protocol.game.PackageManifest;
-import io.github.stoicswe.eyeandsickle.solo.Balance;
-import io.github.stoicswe.eyeandsickle.solo.SoloGame;
+import io.github.stoicswe.eyeandsickle.engine.Balance;
+import io.github.stoicswe.eyeandsickle.engine.GameEngine;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.nio.file.Path;
@@ -72,8 +72,8 @@ public final class PackageSnapshot {
         ThemeManager themes = new ThemeManager(profile);
 
         Winding clock = new Winding(T0);
-        SoloGame game = SoloGame.open(
-                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(profileDir.resolve("save.json")),
+        GameEngine game = GameEngine.open(
+                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(profileDir.resolve("save.json")),
                 "halflight",
                 clock);
         LocalGameSession session = new LocalGameSession(game);
@@ -160,7 +160,7 @@ public final class PackageSnapshot {
                     .filter(n -> scanTarget.equals(n.address))
                     .findFirst()
                     .orElseGet(() -> {
-                        var fresh = new io.github.stoicswe.eyeandsickle.solo.state.NodeState();
+                        var fresh = new io.github.stoicswe.eyeandsickle.engine.state.NodeState();
                         fresh.address = scanTarget;
                         game.state().knownNodes.add(fresh);
                         return fresh;

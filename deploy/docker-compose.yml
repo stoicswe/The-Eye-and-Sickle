@@ -30,7 +30,7 @@ services:
     environment:
       # H2, embedded and file-backed, under the mounted volume. There is no
       # database service any more — the server IS the database (2026-08-02).
-      EYEANDSICKLE_DB_URL: "jdbc:h2:file:/data/eyeandsickle;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;AUTO_SERVER=TRUE;DB_CLOSE_ON_EXIT=FALSE"
+      EYEANDSICKLE_DB_URL: "jdbc:h2:file:/data/eyeandsickle;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_ON_EXIT=FALSE"
       EYEANDSICKLE_PORT: 8080
       # Minecraft-style allowlist. Empty means nobody joins — closed by default
       # is the right default for a server that holds real losable player state.

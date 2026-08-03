@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>io.github.stoicswe.eyeandsickle</groupId>
+    <artifactId>eyeandsickle-parent</artifactId>
+    <version>${revision}</version>
+  </parent>
+
+  <artifactId>eyeandsickle-engine</artifactId>
+  <name>The Eye and Sickle :: Rules engine</name>
+  <description>
+    THE RULES ENGINE. Not "the solo runtime" any more, despite the artifact id.
+
+    One implementation of the game's mechanics, driven two ways: the client
+    drives it in process for single player, and a home server drives it for LAN
+    and federated play. There is no second engine anywhere. Balance.java cites
+    the design doc for every number, and a re-tune lands in every mode at once
+    because there is only one place for it to land.
+
+    ⚠ THE OLD DESCRIPTION HERE WAS A WARNING THAT IS NOW FALSE, AND IT IS WORTH
+    KNOWING WHY. It said this module was "a second implementation of a subset of
+    the game's rules", that single player used "a plain JSON save file", and that
+    the module carried "no framework, no driver, no port, no daemon". The first
+    stopped being true when the server was pointed at this engine instead of
+    growing its own. The other two stopped being true on 2026-08-03, when the
+    save system was unified: state now lives in `character_game_state`, in H2,
+    written by ONE JdbcSaveStore in both modes, and this module carries an H2
+    driver, spring-jdbc and Flyway to do it.
+
+    WHAT THAT BOUGHT. The two stores were writing IDENTICAL BYTES — the state
+    column is `text` holding the engine's own JSON document, opaque to SQL on
+    purpose (see the V7 migration) — so the split bought two atomicity stories,
+    two failure modes and two places for the save format to drift, and nothing
+    else. Now: same migration, same store, same bytes, one code path.
+
+    WHAT IS STILL BANNED, AND WHY IT MATTERS MORE NOW. No Spring Boot, no
+    spring-web, no server module — see the enforcer rule below. A JDBC driver is
+    a place to put bytes; a Boot context with a web layer is a second server, and
+    the point of running the engine in-process is that single player does not
+    need one. A second JVM running Boot costs roughly 200 MB of RSS and several
+    seconds of startup, for a mode whose whole appeal is that you double-click
+    and play.
+
+    THE INVARIANT THIS PRESERVES. I14 says game state never lives on
+    player-controlled infrastructure. A solo save lives exactly there — so a solo
+    character is LOCAL-ONLY AND CAN NEVER FEDERATE. ⚠ That protection was never
+    the file format doing the work and is not weakened by the move to a database:
+    a local H2 file is exactly as editable as JSON was, merely less pleasant to
+    read. What holds the line is the quarantine rule (docs/architecture/12 §1),
+    and nothing here may ever be trusted on the grounds that it came out of a
+    database. docs/architecture/02 §4 recommends the same split ("local identity
+    for solo play; a DID is required only to join a federated server"). Going
+    online means a character created on a real home server, not an export of
+    this one.
+  </description>
+
+  <dependencies>
+    <dependency>
+      <groupId>io.github.stoicswe.eyeandsickle</groupId>
+      <artifactId>eyeandsickle-protocol</artifactId>
+    </dependency>
+
+    <!--
+      The save system, shared with the server. See the description above for what
+      this replaced and why.
+
+      spring-jdbc for JdbcClient, and NOT because a framework was wanted here:
+      the server's whole data layer is JdbcClient over hand-written SQL, and the
+      point of this change is that the store is ONE implementation. A hand-rolled
+      JDBC store here would be a second spelling of the same statements, which is
+      the drift the unification exists to remove. It brings spring-core, -beans
+      and -tx, which the client already permits for its event broker.
+
+      ⚠ H2 is COMPILE scope for the same reason it is in the server: this module's
+      schema support is written against its API, not merely configured for it.
+
+      ⚠ flyway-core, NOT spring-boot-starter-flyway. The starter exists to give
+      Boot's auto-configuration a chance to run, and there is no Boot here — the
+      migration is invoked directly by LocalDatabase. Taking the starter would
+      drag spring-boot into a module whose enforcer rule refuses it.
+    -->
+    <dependency>
+      <groupId>org.springframework</groupId>
+      <artifactId>spring-jdbc</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.h2database</groupId>
+      <artifactId>h2</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-core</artifactId>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!--
+        Publishes src/test/java as a test-jar so the CLIENT's tests can use
+        `save/TestSaves` — the shared in-memory SaveStore fixture.
+
+        ⚠ It exists so there is ONE test fixture rather than two. Both modules'
+        tests need "a place to put a character that is not a real database
+        file", and a copy in each is two things to keep in step — the same drift
+        the save system itself was just unified to remove. Test scope only:
+        nothing in either module's main code can reach it.
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>test-jar</id>
+            <goals><goal>test-jar</goal></goals>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <executions>
+          <execution>
+            <id>solo-is-not-a-server</id>
+            <goals><goal>enforce</goal></goals>
+            <configuration>
+              <rules>
+                <bannedDependencies>
+                  <message>
+                    The rules engine is a library, not a second server.
+
+                    ⚠ AMENDED 2026-08-03, AND THE AMENDMENT IS NARROW ON PURPOSE.
+                    This rule used to ban a database driver and a migration tool
+                    outright, on the grounds that "no second process, no database"
+                    was what justified the module. The save system is now shared
+                    with the server — one migration, one JdbcSaveStore, the same
+                    bytes — so H2, Flyway and spring-jdbc are permitted, and the
+                    justification is restated rather than dropped:
+
+                    NO SECOND PROCESS. That is the property that mattered, and it
+                    is the one still enforced. A driver is a place to put bytes.
+                    Spring Boot with a web layer is a second server, and the whole
+                    point of running the engine in-process is that single player
+                    does not need one — a Boot JVM costs ~200 MB of RSS and
+                    several seconds of startup for a mode whose appeal is that you
+                    double-click and play.
+
+                    So: spring-jdbc and its core are IN; all of Boot, spring-web
+                    and every HTTP stack stay OUT. The distinction is not "how
+                    much Spring" — it is whether this module could start
+                    listening on a port.
+
+                    It must also never depend on eyeandsickle-server (rules are
+                    not authority) or eyeandsickle-client (rules do not import a
+                    view layer).
+                  </message>
+                  <searchTransitive>true</searchTransitive>
+                  <excludes>
+                    <exclude>io.github.stoicswe.eyeandsickle:eyeandsickle-server</exclude>
+                    <exclude>io.github.stoicswe.eyeandsickle:eyeandsickle-client</exclude>
+                    <!--
+                      Broad ban plus explicit includes, the same shape the client
+                      rule uses: a Spring module published tomorrow is caught by
+                      the first form and invisible to a list of named bans.
+                    -->
+                    <exclude>org.springframework:*</exclude>
+                    <exclude>org.springframework.boot:*</exclude>
+                    <exclude>org.postgresql:*</exclude>
+                    <exclude>org.xerial:sqlite-jdbc</exclude>
+                    <exclude>org.hibernate*:*</exclude>
+                    <exclude>org.openjfx:*</exclude>
+                  </excludes>
+                  <includes>
+                    <include>org.springframework:spring-jdbc</include>
+                    <include>org.springframework:spring-tx</include>
+                    <include>org.springframework:spring-core</include>
+                    <include>org.springframework:spring-beans</include>
+                    <include>org.springframework:spring-jcl</include>
+                  </includes>
+                </bannedDependencies>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

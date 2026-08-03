@@ -3,7 +3,7 @@ package io.github.stoicswe.eyeandsickle.client.shell;
 import io.github.stoicswe.eyeandsickle.client.session.GameSession;
 import io.github.stoicswe.eyeandsickle.protocol.game.FsEntry;
 import io.github.stoicswe.eyeandsickle.protocol.game.FsKind;
-import io.github.stoicswe.eyeandsickle.solo.fs.VirtualFs;
+import io.github.stoicswe.eyeandsickle.engine.fs.VirtualFs;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -535,9 +535,9 @@ public final class NodeCommands {
 
     /** {@code ~/.VaultStore} for whoever this session is running as. */
     private static String vaultStore(GameSession session, String address) {
-        return session.list(address, io.github.stoicswe.eyeandsickle.solo.fs.VirtualFs.USERS).stream()
+        return session.list(address, io.github.stoicswe.eyeandsickle.engine.fs.VirtualFs.USERS).stream()
                 .findFirst()
-                .map(home -> home.path() + "/" + io.github.stoicswe.eyeandsickle.solo.fs.VirtualFs.VAULTSTORE)
+                .map(home -> home.path() + "/" + io.github.stoicswe.eyeandsickle.engine.fs.VirtualFs.VAULTSTORE)
                 .orElse("/");
     }
 
@@ -603,7 +603,7 @@ public final class NodeCommands {
     private static String userOf(GameSession session, String address, String cwd) {
         // Read off the home directory the session is in rather than stored twice. The rules put the
         // session there; deriving it back is one fact, not two.
-        String home = io.github.stoicswe.eyeandsickle.solo.fs.VirtualFs.USERS + "/";
+        String home = io.github.stoicswe.eyeandsickle.engine.fs.VirtualFs.USERS + "/";
         String path = VirtualFs.normalise(cwd);
         if (path.startsWith(home)) {
             String rest = path.substring(home.length());

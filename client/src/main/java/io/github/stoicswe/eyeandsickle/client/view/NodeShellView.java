@@ -440,14 +440,14 @@ public final class NodeShellView {
         // `cd` with no argument goes home, which is what a real shell does. The home is derived from
         // where the rules put the session, so this cannot name a directory that is not there.
         String cwd = cwdOf(session, address);
-        String users = io.github.stoicswe.eyeandsickle.solo.fs.VirtualFs.USERS + "/";
+        String users = io.github.stoicswe.eyeandsickle.engine.fs.VirtualFs.USERS + "/";
         return cwd.startsWith(users) ? users + cwd.substring(users.length()).split("/")[0] : "/";
     }
 
     /** {@code user@host:/path$} — the same shape and the same order as the deck's own prompt. */
     private static String promptText(GameSession session, String address) {
         String cwd = cwdOf(session, address);
-        String users = io.github.stoicswe.eyeandsickle.solo.fs.VirtualFs.USERS + "/";
+        String users = io.github.stoicswe.eyeandsickle.engine.fs.VirtualFs.USERS + "/";
         String user = cwd.startsWith(users) ? cwd.substring(users.length()).split("/")[0] : "root";
         return user + "@" + (address.isBlank() ? "rig" : address) + ":" + cwd + "$";
     }

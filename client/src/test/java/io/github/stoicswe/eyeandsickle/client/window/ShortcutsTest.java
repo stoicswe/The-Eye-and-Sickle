@@ -7,7 +7,7 @@ import io.github.stoicswe.eyeandsickle.client.shell.BuiltinCommands;
 import io.github.stoicswe.eyeandsickle.client.shell.Command;
 import io.github.stoicswe.eyeandsickle.client.shell.ExitStatus;
 import io.github.stoicswe.eyeandsickle.client.shell.Shell;
-import io.github.stoicswe.eyeandsickle.solo.Balance;
+import io.github.stoicswe.eyeandsickle.engine.Balance;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
@@ -33,7 +33,7 @@ class ShortcutsTest {
 
     private static Shell shell(Path dir) {
         var session = new LocalGameSession(io.github.stoicswe.eyeandsickle.client.support.TestSaves.bare(
-                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")), "op", CLOCK));
+                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("s.json")), "op", CLOCK));
         return new Shell(session, BuiltinCommands.registry());
     }
 
@@ -163,13 +163,13 @@ class ShortcutsTest {
             // Made structural rather than policed: there is no offering to buy, so there is no code
             // path to review. A test is still worth it because the failure would be a content edit,
             // not a code change, and content edits get less scrutiny.
-            for (var o : io.github.stoicswe.eyeandsickle.solo.Catalogue.offerings()) {
+            for (var o : io.github.stoicswe.eyeandsickle.engine.Catalogue.offerings()) {
                 String text = (o.name() + " " + o.description()).toLowerCase();
                 assertThat(o.purchasable() && text.contains("capacity"))
                         .as("%s appears to sell capacity for ethecoin", o.id())
                         .isFalse();
             }
-            assertThat(io.github.stoicswe.eyeandsickle.solo.Catalogue.offerings())
+            assertThat(io.github.stoicswe.eyeandsickle.engine.Catalogue.offerings())
                     .noneMatch(o -> o.id().contains("compute") || o.id().contains("vault"));
         }
     }
@@ -183,7 +183,7 @@ class ShortcutsTest {
         void pricesMatchGates() {
             // A price on a schematic-gated item would be exactly the I2 violation the gate exists to
             // prevent: money buying a permanent ceiling.
-            for (var o : io.github.stoicswe.eyeandsickle.solo.Catalogue.offerings()) {
+            for (var o : io.github.stoicswe.eyeandsickle.engine.Catalogue.offerings()) {
                 if (o.purchasable()) {
                     assertThat(o.priceWei()).as("%s", o.id()).isPositive();
                 } else {
@@ -201,13 +201,13 @@ class ShortcutsTest {
             // docs/design/03 §2 publishes the bands and CLAUDE.md warns the economy numbers are
             // calibrated as a set. An offering priced outside them is a balance change wearing a
             // content change's clothes.
-            for (var o : io.github.stoicswe.eyeandsickle.solo.Catalogue.offerings()) {
+            for (var o : io.github.stoicswe.eyeandsickle.engine.Catalogue.offerings()) {
                 if (o.purchasable()) {
                     assertThat(o.priceWei())
                             .as("%s is outside every published band", o.id())
                             .isBetween(
-                                    io.github.stoicswe.eyeandsickle.solo.Balance.PRICE_CONSUMABLE_MIN,
-                                    io.github.stoicswe.eyeandsickle.solo.Balance.PRICE_TOP_PURCHASABLE);
+                                    io.github.stoicswe.eyeandsickle.engine.Balance.PRICE_CONSUMABLE_MIN,
+                                    io.github.stoicswe.eyeandsickle.engine.Balance.PRICE_TOP_PURCHASABLE);
                 }
             }
         }

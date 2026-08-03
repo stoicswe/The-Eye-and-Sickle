@@ -1420,7 +1420,7 @@ public final class DeckShell {
         for (DeskManager.DeskWindow window : desk.windows()) {
             // ⚠ The breach window is never restored, because a breach in progress is never resumed.
             //
-            // An attempt is abandoned when the save is opened (SoloGame.backfill), so bringing the
+            // An attempt is abandoned when the save is opened (GameEngine.backfill), so bringing the
             // window back would raise an exploit console onto a breach that no longer exists —
             // an empty target list where the player left a live attempt, which reads as the game
             // having lost their progress rather than as the rule it is. Every other window is a

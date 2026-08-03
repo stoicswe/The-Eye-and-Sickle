@@ -4,10 +4,10 @@ import io.github.stoicswe.eyeandsickle.client.profile.ClientProfile;
 import io.github.stoicswe.eyeandsickle.client.session.LocalGameSession;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeManager;
 import io.github.stoicswe.eyeandsickle.protocol.game.UpgradeVersion;
-import io.github.stoicswe.eyeandsickle.solo.Catalogue;
-import io.github.stoicswe.eyeandsickle.solo.SoloGame;
-import io.github.stoicswe.eyeandsickle.solo.rules.Repac;
-import io.github.stoicswe.eyeandsickle.solo.state.StoredFileState;
+import io.github.stoicswe.eyeandsickle.engine.Catalogue;
+import io.github.stoicswe.eyeandsickle.engine.GameEngine;
+import io.github.stoicswe.eyeandsickle.engine.rules.Repac;
+import io.github.stoicswe.eyeandsickle.engine.state.StoredFileState;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.nio.file.Path;
@@ -100,8 +100,8 @@ public final class FlashOverlaySnapshot {
         ThemeManager themes = new ThemeManager(profile);
 
         Winding clock = new Winding(T0);
-        SoloGame game = SoloGame.open(
-                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(profileDir.resolve("save.json")),
+        GameEngine game = GameEngine.open(
+                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(profileDir.resolve("save.json")),
                 "halflight",
                 clock);
         game.state().schematics.add(Catalogue.FIRMWARE_IMPLANT_SCHEMATIC);

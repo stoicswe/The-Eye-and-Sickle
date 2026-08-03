@@ -6,7 +6,7 @@ import io.github.stoicswe.eyeandsickle.client.shell.BuiltinCommands;
 import io.github.stoicswe.eyeandsickle.client.shell.LocalCatalogue;
 import io.github.stoicswe.eyeandsickle.client.shell.Shell;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeManager;
-import io.github.stoicswe.eyeandsickle.solo.SoloGame;
+import io.github.stoicswe.eyeandsickle.engine.GameEngine;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.nio.file.Path;
@@ -58,8 +58,8 @@ public final class TerminalSnapshot {
         dir.toFile().mkdirs();
         ClientProfile profile = new ClientProfile(dir);
         ThemeManager themes = new ThemeManager(profile);
-        SoloGame game = SoloGame.open(
-                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")),
+        GameEngine game = GameEngine.open(
+                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("s.json")),
                 "kyyrell",
                 Clock.fixed(Instant.parse("2026-07-30T09:00:00Z"), ZoneOffset.UTC));
         LocalGameSession session = new LocalGameSession(game);

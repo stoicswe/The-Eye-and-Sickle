@@ -79,18 +79,11 @@ public final class VisualSettings {
      * making. Distinct from {@link #crtAberration}, which is a <em>static</em> convergence error on
      * the whole screen — this one moves, which is why it holds still in a paused wallpaper mode.
      *
-     * <p>⚠ Renamed from {@code ringChromatic} once it stopped being ring-only. The hook below is why
-     * a profile written before the rename still loads: Jackson has {@code FAIL_ON_UNKNOWN_PROPERTIES}
-     * off, so without it the old key would be <b>silently dropped</b> and the player's choice would
-     * quietly revert.
+     * <p>Named {@code wallpaperChromatic} rather than {@code ringChromatic} because it drives the
+     * character texture's aberration layers as well as the ring — one setting for whichever wallpaper
+     * is on, since a per-wallpaper duplicate is two controls that look identical and do the same thing.
      */
     public boolean wallpaperChromatic = false;
-
-    /** Reads the pre-rename key. See {@link #wallpaperChromatic}. */
-    @com.fasterxml.jackson.annotation.JsonProperty("ringChromatic")
-    public void setLegacyRingChromatic(boolean value) {
-        this.wallpaperChromatic = value;
-    }
 
     /** How far the rim aberration ramps towards the corners, 0–100. */
     public int crtCurvature = 0;

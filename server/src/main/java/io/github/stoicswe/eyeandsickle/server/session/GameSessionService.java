@@ -4,6 +4,7 @@ import io.github.stoicswe.eyeandsickle.protocol.game.GameIntent;
 import io.github.stoicswe.eyeandsickle.protocol.game.GameSnapshot;
 import io.github.stoicswe.eyeandsickle.protocol.game.IntentOutcome;
 import io.github.stoicswe.eyeandsickle.server.audit.OperatorLog;
+import io.github.stoicswe.eyeandsickle.engine.session.EngineSessions;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.util.Objects;
@@ -17,7 +18,7 @@ import org.springframework.stereotype.Service;
  *
  * <h2>⚠ ONE engine, two places to keep its state</h2>
  *
- * This does not reimplement anything. It drives {@code SoloGame} — the same engine single player runs
+ * This does not reimplement anything. It drives {@code GameEngine} — the same engine single player runs
  * — against state held in <em>this server's own database</em> ({@link JdbcSaveStore}). A balance
  * change in {@code design/03} therefore lands in every mode at once and cannot drift between them,
  * which is what the old "second implementation of a subset of the rules" warning in {@code CLAUDE.md}
@@ -29,7 +30,8 @@ import org.springframework.stereotype.Service;
  * <h2>Where the ordering lives</h2>
  *
  * Load → tick → act → persist is enforced by {@link EngineSessions#inSession}, not by this class, so
- * no call site can forget it and no future intent can skip it.
+ * no call site can forget it and no future intent can skip it. ⚠ That host lives in {@code solo}
+ * and single player uses the same one, so the ordering cannot hold in one mode and not the other.
  */
 @Service
 public class GameSessionService {
@@ -57,8 +59,8 @@ public class GameSessionService {
      * {@code Clock} is the type the application already publishes as a {@code @Primary} bean, so this
      * autowires and a test still injects a fixed one.
      */
-    public GameSessionService(EngineSessions engines, Clock clock, OperatorLog operatorLog) {
-        this.engines = Objects.requireNonNull(engines, "engines");
+    public GameSessionService(ServerEngineSessions engines, Clock clock, OperatorLog operatorLog) {
+        this.engines = Objects.requireNonNull(engines, "engines").sessions();
         this.clock = Objects.requireNonNull(clock, "clock");
         this.operatorLog = Objects.requireNonNull(operatorLog, "operatorLog");
     }

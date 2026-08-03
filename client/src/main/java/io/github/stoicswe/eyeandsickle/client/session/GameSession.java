@@ -71,7 +71,7 @@ public interface GameSession extends AutoCloseable {
     /**
      * The operator's picture as a base64 PNG, or empty when none is set.
      *
-     * <p>⚠ Pixels, never a path — see {@code SoloSave.avatarPng}. A stored path would mean reading
+     * <p>⚠ Pixels, never a path — see {@code GameSave.avatarPng}. A stored path would mean reading
      * an arbitrary host location on every launch, which is the boundary {@code docs/client/00} §7
      * exists to hold.
      */
@@ -479,7 +479,7 @@ public interface GameSession extends AutoCloseable {
      * {@code docs/client/05} §5 states the rule this exists to obey: <em>reachability is a server
      * verdict rendered as received (C4); the client never evaluates a gate.</em> A map window that
      * decided a sweep was locked by looking for an item id in the player's inventory would be a
-     * second implementation of {@link io.github.stoicswe.eyeandsickle.solo.net.NetRules#owns} living
+     * second implementation of {@link io.github.stoicswe.eyeandsickle.engine.net.NetRules#owns} living
      * in a view — and the day the rule grows a second condition, the two disagree and the window is
      * the one that lies. So the rules answer, and the panel paints the answer.
      *

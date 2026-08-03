@@ -260,7 +260,7 @@ public final class Notifications extends VBox {
          * shipped client rendered a host-OS fallback.
          */
         static String glyphFor(boolean severe) {
-            return io.github.stoicswe.eyeandsickle.solo.state.RigEvent.glyph(severe ? WARNING : NOTICE);
+            return io.github.stoicswe.eyeandsickle.engine.state.RigEvent.glyph(severe ? WARNING : NOTICE);
         }
 
         private RigEventSeverity() {}

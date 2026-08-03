@@ -72,11 +72,11 @@ Both are self-mining and both keep **I4** — silent, unseizable, zero heat. Exp
 
 **The pool is modelled as a real pool.** It hands each rig an easier target retuned to that rig's hashrate — real pools call this *vardiff* — so a share lands every ~30 s whatever the allocation, which is why pooling smooths a 10-cycle rig as well as a 100-cycle one. Payment is **pay-per-share**: a fixed amount per accepted share whether or not the pool found a block, with the fee as the price of the operator carrying that variance. A share is never a block and never touches the chain's height.
 
-> **⚠ The block subsidy is the only knob that changes the lottery's feel without disturbing `03`.** Raising it makes solo blocks rarer and larger and changes nobody's expected income by one minor unit, because the network hashrate is *derived* from the subsidy and the economy anchor (`solo/Balance.chainNetworkHashrate`). Reach for that one; do not reach for the rate.
+> **⚠ The block subsidy is the only knob that changes the lottery's feel without disturbing `03`.** Raising it makes solo blocks rarer and larger and changes nobody's expected income by one minor unit, because the network hashrate is *derived* from the subsidy and the economy anchor (`engine/Balance.chainNetworkHashrate`). Reach for that one; do not reach for the rate.
 
 ### 1.3a The pools — [PROPOSAL]
 
-Pooled mining is a choice of **pool**, not just of mode. Five operate on this chain (`solo/Pools.java`):
+Pooled mining is a choice of **pool**, not just of mode. Five operate on this chain (`engine/Pools.java`):
 
 | Pool | Scheme | Fee | Chain | Pays | Block fees | EC/hr @ 100 cy |
 |---|---|---|---|---|---|---|
@@ -274,7 +274,7 @@ On load the missed span is filled in **block by block**, and the LEDGER window s
 
 ## 1.4 Multiplayer — the chain a server runs — [PROPOSAL]
 
-Single player runs its chain in `solo`, entirely locally, and a solo character can never federate (`solo/pom.xml`, Invariant **I14**). A home server runs the same simulation for the characters it hosts, plus two things single player has no need of.
+Single player runs its chain in `solo`, entirely locally, and a solo character can never federate (`engine/pom.xml`, Invariant **I14**). A home server runs the same simulation for the characters it hosts, plus two things single player has no need of.
 
 ### 1.4a Genesis, or joining
 

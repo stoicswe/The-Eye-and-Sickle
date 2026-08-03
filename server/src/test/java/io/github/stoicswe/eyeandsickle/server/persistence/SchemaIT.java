@@ -314,6 +314,59 @@ class SchemaIT extends DatabaseIntegrationTestBase {
     }
 
     @Test
+    @DisplayName("⚠ engine state cannot exist for a character this server does not have — Invariant I14")
+    void engineStateRequiresAPlayer() {
+        // ⚠ THIS IS WHAT MAKES "A SOLO CHARACTER CAN NEVER FEDERATE" MECHANICAL RATHER THAN STATED.
+        //
+        // Single player runs the SAME engine against the SAME table, in a local H2 file, and that file
+        // is exactly as editable as the JSON save it replaced. So the protection was never the storage
+        // format and cannot be: a determined player can write anything they like into their own
+        // database. What stops it mattering is that engine state on a SERVER is not free-standing —
+        // `character_game_state` references `players`, so a hand-made row has nowhere to land until a
+        // `players` row exists, and that goes through CharacterService: a real DID, the allowlist, and
+        // the per-account character cap.
+        //
+        // ⚠ The engine tier deliberately does NOT carry this constraint (V7 has no foreign key) — it
+        // is added by core's V8, which single player never runs. That asymmetry IS the design: the
+        // engine's state has the same shape everywhere, and only the authority tier says who may own
+        // some.
+        assertThatThrownBy(() -> jdbcClient()
+                        .sql("""
+                                INSERT INTO character_game_state (character_id, state, format, updated_at)
+                                VALUES (:id, '{}', 1, CURRENT_TIMESTAMP)
+                                """)
+                        .param("id", UUID.randomUUID())
+                        .update())
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .hasMessageContaining("fk_character_game_state_player");
+    }
+
+    @Test
+    @DisplayName("deleting a character takes its engine state with it, rather than orphaning a whole game")
+    void deletingAPlayerCascadesToEngineState() {
+        UUID playerId = insertPlayer(DID_A);
+        jdbcClient()
+                .sql("""
+                        INSERT INTO character_game_state (character_id, state, format, updated_at)
+                        VALUES (:id, '{}', 1, CURRENT_TIMESTAMP)
+                        """)
+                .param("id", playerId)
+                .update();
+
+        jdbcClient().sql("DELETE FROM players WHERE player_id = :id").param("id", playerId).update();
+
+        // ON DELETE CASCADE, not RESTRICT — unlike provenance, which is signed history other servers
+        // may still verify against. A character's engine state is nobody else's evidence, and leaving
+        // it behind is an orphan row holding somebody's entire game with no way to reach it.
+        assertThat(jdbcClient()
+                        .sql("SELECT count(*) FROM character_game_state WHERE character_id = :id")
+                        .param("id", playerId)
+                        .query(Long.class)
+                        .single())
+                .isZero();
+    }
+
+    @Test
     @DisplayName("deleting an item that has provenance is refused, not cascaded")
     void deletingAnItemDoesNotEraseItsHistory() {
         UUID itemId = insertItem(DID_A, "vault");

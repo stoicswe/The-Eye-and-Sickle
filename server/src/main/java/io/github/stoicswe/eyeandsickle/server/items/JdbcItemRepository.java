@@ -4,7 +4,7 @@ import io.github.stoicswe.eyeandsickle.protocol.game.CharacterDid;
 import io.github.stoicswe.eyeandsickle.server.persistence.EnumColumns;
 import io.github.stoicswe.eyeandsickle.server.persistence.Jsonb;
 import io.github.stoicswe.eyeandsickle.server.persistence.Mutations;
-import io.github.stoicswe.eyeandsickle.server.persistence.Timestamps;
+import io.github.stoicswe.eyeandsickle.engine.persistence.Timestamps;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;

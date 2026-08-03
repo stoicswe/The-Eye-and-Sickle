@@ -18,18 +18,23 @@ spring:
     # container to run, no connection string to get wrong. That is the whole
     # point, since the pitch is a spare box.
     #
-    # ⚠ AUTO_SERVER=TRUE lets a second process (a console, a backup script) open
-    # the same file while the server is running. Without it the file is locked to
-    # one JVM and an operator cannot look at their own database while the game is
-    # up, which is exactly when they want to.
-    #
     # ⚠ MODE=PostgreSQL is not decoration: the schema is written in PostgreSQL's
     # dialect and the migrations were ported against this mode. Removing it breaks
     # them, and it breaks them at startup rather than subtly.
     #
-    # ⚠ DB_CLOSE_ON_EXIT=FALSE — Spring closes the pool on shutdown; letting H2
-    # also close on JVM exit races with that and logs alarming errors on a clean stop.
-    url: ${EYEANDSICKLE_DB_URL:jdbc:h2:file:./data/eyeandsickle;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;AUTO_SERVER=TRUE;DB_CLOSE_ON_EXIT=FALSE}
+    # ⚠ AUTO_SERVER=TRUE AND DB_CLOSE_ON_EXIT=FALSE ARE MUTUALLY EXCLUSIVE IN H2.
+    # Together they are a hard refusal at CONNECT time — "Feature not supported:
+    # AUTO_SERVER=TRUE && DB_CLOSE_ON_EXIT=FALSE" [50100] — so a server shipped
+    # with both would not start at all. It shipped with both from the PostgreSQL
+    # migration until 2026-08-03, and no test caught it because every test uses an
+    # in-memory URL. A self-hoster running the boot jar would have met it on the
+    # first launch and had nothing to go on.
+    #
+    # DB_CLOSE_ON_EXIT=FALSE is the one kept: H2's shutdown hook otherwise races
+    # the JVM's, and the loser is a half-closed database during graceful shutdown.
+    # AUTO_SERVER only bought attaching a second client to a running server, which
+    # an operator can get by setting EYEANDSICKLE_DB_URL themselves.
+    url: ${EYEANDSICKLE_DB_URL:jdbc:h2:file:./data/eyeandsickle;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_ON_EXIT=FALSE}
     username: ${EYEANDSICKLE_DB_USER:eyeandsickle}
     password: ${EYEANDSICKLE_DB_PASSWORD:}
     hikari:
@@ -44,20 +49,29 @@ spring:
 
   flyway:
     enabled: true
-    locations: classpath:db/migration/core
+    locations: classpath:db/migration/engine,classpath:db/migration/core
     baseline-on-migrate: false
-    # Federation tables only exist on servers that opted into federation, so
-    # their migrations live in a separate location that the `federation` profile
-    # below adds to this list.
+    # THREE migration tiers, scanned by ONE Flyway instance, so they share one
+    # flyway_schema_history and one version namespace. Version numbers must not
+    # collide across the directories, and they must ORDER correctly:
     #
-    # Both locations are scanned by ONE Flyway instance and therefore share one
-    # flyway_schema_history and one version namespace. That means version numbers
-    # must not collide across the two directories, so they get disjoint ranges:
+    #     db/migration/engine      V7          the rules engine's own state
+    #     db/migration/core        V1..V6, V8  the authority tables
+    #     db/migration/federation  V1001+      peers, validators, duels
     #
-    #     db/migration/core        V1, V2, V3, ...
-    #     db/migration/federation  V1001, V1002, ...
+    # `engine` is the tier SINGLE PLAYER runs, alone. The engine is one
+    # implementation that a server drives for LAN and federated play and the
+    # client drives in single player, so its state has to live in the same shape
+    # in both — otherwise the save format is two formats again.
     #
-    # A federating server's history is then a superset of a non-federating one's,
+    # V7 sits between core's V6 and V8 deliberately: V8 adds the foreign key from
+    # character_game_state to players, so the table must already exist. Flyway
+    # does not require the versions it applies to be contiguous, which is what
+    # lets single player configure `engine` alone and get exactly V7.
+    #
+    # Federation tables only exist on servers that opted into federation, so their
+    # migrations live in a location the `federation` profile below appends. A
+    # federating server's history is then a superset of a non-federating one's,
     # and turning federation on later only ever appends.
 
   threads:
@@ -104,7 +118,7 @@ spring:
     activate:
       on-profile: federation
   flyway:
-    locations: classpath:db/migration/core,classpath:db/migration/federation
+    locations: classpath:db/migration/engine,classpath:db/migration/core,classpath:db/migration/federation
 
 eyeandsickle:
   federation:

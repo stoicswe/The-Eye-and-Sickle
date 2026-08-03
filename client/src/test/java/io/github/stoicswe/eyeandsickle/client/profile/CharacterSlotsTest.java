@@ -3,8 +3,8 @@ package io.github.stoicswe.eyeandsickle.client.profile;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeId;
-import io.github.stoicswe.eyeandsickle.solo.Balance;
-import io.github.stoicswe.eyeandsickle.solo.SoloGame;
+import io.github.stoicswe.eyeandsickle.engine.Balance;
+import io.github.stoicswe.eyeandsickle.engine.GameEngine;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -37,16 +37,6 @@ class CharacterSlotsTest {
         }
 
         @Test
-        @DisplayName("slot 1 keeps the pre-slots filename, so no existing save is orphaned")
-        void slotOneIsBackwardsCompatible(@TempDir Path dir) {
-            // Every save written before slots existed is called solo-save.json. Renaming it would
-            // silently strand somebody's character behind a migration nobody ran.
-            CharacterSlots slots = new CharacterSlots(new ClientProfile(dir));
-            assertThat(slots.saveFile(1).getFileName()).hasToString("solo-save.json");
-            assertThat(slots.saveFile(2).getFileName()).hasToString("solo-save-2.json");
-        }
-
-        @Test
         @DisplayName("an empty slot reads as empty, not as broken")
         void emptySlots(@TempDir Path dir) {
             List<CharacterSlots.Slot> slots = new CharacterSlots(new ClientProfile(dir)).soloSlots();
@@ -61,13 +51,20 @@ class CharacterSlotsTest {
             ClientProfile profile = new ClientProfile(dir);
             CharacterSlots slots = new CharacterSlots(profile);
 
-            SoloGame game = SoloGame.open(
-                    new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(slots.saveFile(2)), "ghost", CLOCK);
+            // ⚠ Through slots.store(2), the production path — NOT a fixture store keyed on the
+            // legacy path. A slot lives in the profile's own database now, so writing anywhere else
+            // and then asking soloSlots() what it sees is a test of two unrelated stores.
+            GameEngine game = GameEngine.open(slots.store(2), "ghost", CLOCK);
             game.credit(Balance.ec("42"), "TEST", "seed");
             game.persist();
 
             CharacterSlots.Slot slot = slots.soloSlots().get(1);
-            assertThat(slot.occupied()).isTrue();
+            // ⚠ The problem string is in the assertion deliberately. `occupied` is false both when a
+            // slot is genuinely empty and when reading it threw, so a bare isTrue() reports "expected
+            // true, got false" for two completely different faults.
+            assertThat(slot.occupied())
+                    .as("slot 2 should hold the character just written; problem=%s", slot.problem())
+                    .isTrue();
             assertThat(slot.handle()).isEqualTo("ghost");
             assertThat(slot.summary()).contains("ghost").contains("42 EC").contains("100 cycles");
         }
@@ -79,7 +76,18 @@ class CharacterSlotsTest {
             // trying to recover. Showing the problem costs one line and prevents a real loss.
             ClientProfile profile = new ClientProfile(dir);
             CharacterSlots slots = new CharacterSlots(profile);
-            Files.writeString(slots.saveFile(3), "{ not json at all");
+            // ⚠ Written straight into the state column, which is the only way to produce a document
+            // the store itself would never write. A corrupt row is not hypothetical — a hand-edited
+            // database or a half-flushed page both land here, and the slot must say so rather than
+            // read as empty.
+            slots.database()
+                    .jdbcClient()
+                    .sql("""
+                            INSERT INTO character_game_state (character_id, state, format, updated_at)
+                            VALUES (:id, '{ not json at all', 1, CURRENT_TIMESTAMP)
+                            """)
+                    .param("id", slots.characterId(3))
+                    .update();
 
             CharacterSlots.Slot slot = slots.soloSlots().get(2);
             assertThat(slot.unreadable()).isTrue();
@@ -92,10 +100,8 @@ class CharacterSlotsTest {
         void deleteIsScoped(@TempDir Path dir) {
             ClientProfile profile = new ClientProfile(dir);
             CharacterSlots slots = new CharacterSlots(profile);
-            SoloGame.open(new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(slots.saveFile(1)), "a", CLOCK)
-                    .persist();
-            SoloGame.open(new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(slots.saveFile(2)), "b", CLOCK)
-                    .persist();
+            GameEngine.open(slots.store(1), "a", CLOCK).persist();
+            GameEngine.open(slots.store(2), "b", CLOCK).persist();
 
             assertThat(slots.delete(1)).isTrue();
             assertThat(slots.soloSlots().get(0).occupied()).isFalse();

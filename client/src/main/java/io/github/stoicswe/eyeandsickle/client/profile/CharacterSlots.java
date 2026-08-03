@@ -1,13 +1,17 @@
 package io.github.stoicswe.eyeandsickle.client.profile;
 
-import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
+import io.github.stoicswe.eyeandsickle.engine.save.LocalDatabase;
+import io.github.stoicswe.eyeandsickle.engine.save.SaveStore;
+import io.github.stoicswe.eyeandsickle.engine.state.GameSave;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * The save slots a player chooses between on the main menu.
@@ -20,13 +24,22 @@ import java.util.List;
  * is — and a player who never goes online still benefits from being able to keep a cautious run and a
  * reckless one at the same time.
  *
- * <h2>Solo slots are files; online slots are not</h2>
+ * <h2>⚠ A solo slot is a ROW now, not a file</h2>
  *
- * A solo slot is a JSON file in the profile directory and nothing else. An <em>online</em> slot lives
- * on a home server, keyed to a DID, and this client cannot enumerate one without the transport that
- * <b>CL-8</b> still lacks — so {@link #onlineSlots} returns what the profile has cached about servers
- * the player has named, and says plainly that it cannot list characters yet. Inventing a plausible
- * list would be the worst option available.
+ * Slots were JSON files in the profile directory until 2026-08-03. They are rows in
+ * {@code character_game_state}, in the profile's local H2 database, written by the same
+ * {@code JdbcSaveStore} a home server uses — one save system for every mode.
+ *
+ * <p>⚠ The slot's identity is therefore a <strong>character id</strong>, derived from the slot number
+ * ({@link #characterId}). It is derived rather than stored because a stored mapping is a second piece
+ * of state that can disagree with the first, on the surface a player uses to find their character.
+ *
+ * <h2>Solo slots are local; online slots are not</h2>
+ *
+ * An <em>online</em> slot lives on a home server, keyed to a DID, and this client cannot enumerate
+ * one without the transport that <b>CL-8</b> still lacks — so {@link #onlineSlots} returns what the
+ * profile has cached about servers the player has named, and says plainly that it cannot list
+ * characters yet. Inventing a plausible list would be the worst option available.
  */
 public final class CharacterSlots {
 
@@ -34,19 +47,50 @@ public final class CharacterSlots {
     public static final int SLOT_COUNT = 3;
 
     private final ClientProfile profile;
+    private LocalDatabase database;
 
     public CharacterSlots(ClientProfile profile) {
         this.profile = profile;
     }
 
-    /** Where slot {@code n}'s save lives. Slot 1 keeps the original filename so no save is orphaned. */
-    public Path saveFile(int slot) {
-        // Slot 1 is deliberately `solo-save.json` rather than `solo-save-1.json`: that is the name
-        // every save written before slots existed already has, and silently stranding somebody's
-        // character behind a rename would be an unforced loss.
-        return slot == 1
-                ? profile.directory().resolve("solo-save.json")
-                : profile.directory().resolve("solo-save-" + slot + ".json");
+    /**
+     * The local database every solo slot lives in, opened and migrated on first use.
+     *
+     * <p>⚠ Opened lazily and held, not opened per call. H2 allows one writer, and reopening the same
+     * file from a second {@code JdbcDataSource} while the first is live is how a player meets
+     * "Database may be already in use" on a screen that has no way to explain it.
+     *
+     * @return the profile's database
+     */
+    public synchronized LocalDatabase database() {
+        if (database == null) {
+            database = LocalDatabase.openAt(profile.directory().resolve("characters"));
+        }
+        return database;
+    }
+
+    /**
+     * The store for one slot — the same {@code JdbcSaveStore} a home server builds.
+     *
+     * @param slot the slot number
+     * @return its store
+     */
+    public SaveStore store(int slot) {
+        return database().store(characterId(slot), Instant::now);
+    }
+
+    /**
+     * The character id slot {@code n} maps to.
+     *
+     * <p>⚠ DERIVED from the slot number, never stored. A stored mapping would be a second piece of
+     * state able to disagree with the row it points at — and the symptom would be a player opening
+     * slot 2 and meeting slot 3's character. Deriving it means the two cannot come apart.
+     *
+     * @param slot the slot number
+     * @return the character id
+     */
+    public UUID characterId(int slot) {
+        return UUID.nameUUIDFromBytes(("eyeandsickle:solo:slot:" + slot).getBytes(StandardCharsets.UTF_8));
     }
 
     /** Reads all three slots. A slot that cannot be parsed is reported, never silently skipped. */
@@ -59,18 +103,16 @@ public final class CharacterSlots {
     }
 
     private Slot readSlot(int index) {
-        Path file = saveFile(index);
-        if (!Files.isRegularFile(file)) {
-            return Slot.empty(index, file);
-        }
         try {
-            SoloSave save = new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(file).load();
+            // ⚠ Goes through store(), which imports a legacy JSON save if the row is empty — so a
+            // returning player's character appears on the menu rather than reading as an empty slot
+            // they are then invited to overwrite.
+            GameSave save = store(index).load();
             if (save == null) {
-                return Slot.empty(index, file);
+                return Slot.empty(index);
             }
             return new Slot(
                     index,
-                    file,
                     true,
                     save.handle,
                     save.ethecoinWei,
@@ -84,8 +126,14 @@ public final class CharacterSlots {
             // A corrupt or future-format save is shown as such rather than hidden. A slot that
             // silently reads as empty invites the player to overwrite the thing they were trying to
             // recover.
-            return new Slot(
-                    index, file, false, "", java.math.BigInteger.ZERO, 0, 0, null, null, unreadable.getMessage(), "");
+            //
+            // ⚠ getMessage() CAN BE NULL, and this used to pass it straight through — which set
+            // `problem` to null, made `unreadable()` false, and rendered the slot as EMPTY. That is
+            // precisely the failure the comment above says this branch exists to prevent, reachable
+            // by any exception that carries no message. Falling back to toString() means the slot is
+            // always reported as unreadable, with the class name if there is nothing better.
+            String problem = unreadable.getMessage() != null ? unreadable.getMessage() : unreadable.toString();
+            return new Slot(index, false, "", java.math.BigInteger.ZERO, 0, 0, null, null, problem, "");
         }
     }
 
@@ -100,11 +148,12 @@ public final class CharacterSlots {
     public boolean delete(int slot) {
         profile.settings().forgetAppearance(slot);
         profile.save();
-        try {
-            return Files.deleteIfExists(saveFile(slot));
-        } catch (IOException e) {
-            return false;
-        }
+        return database()
+                        .jdbcClient()
+                        .sql("DELETE FROM character_game_state WHERE character_id = :id")
+                        .param("id", characterId(slot))
+                        .update()
+                > 0;
     }
 
     /**
@@ -121,7 +170,6 @@ public final class CharacterSlots {
     /** One save slot as the menu renders it. */
     public record Slot(
             int index,
-            Path file,
             boolean occupied,
             String handle,
             java.math.BigInteger ethecoinWei,
@@ -140,8 +188,8 @@ public final class CharacterSlots {
              */
             String avatarPng) {
 
-        static Slot empty(int index, Path file) {
-            return new Slot(index, file, false, "", java.math.BigInteger.ZERO, 0, 0, null, null, null, "");
+        static Slot empty(int index) {
+            return new Slot(index, false, "", java.math.BigInteger.ZERO, 0, 0, null, null, null, "");
         }
 
         public boolean unreadable() {

@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.github.stoicswe.eyeandsickle.protocol.game.BlockContribution;
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainSync;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
-import io.github.stoicswe.eyeandsickle.solo.Balance;
+import io.github.stoicswe.eyeandsickle.engine.Balance;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;

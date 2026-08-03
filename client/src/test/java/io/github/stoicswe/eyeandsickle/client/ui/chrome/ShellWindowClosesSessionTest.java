@@ -3,9 +3,9 @@ package io.github.stoicswe.eyeandsickle.client.ui.chrome;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.stoicswe.eyeandsickle.client.session.LocalGameSession;
-import io.github.stoicswe.eyeandsickle.solo.Balance;
-import io.github.stoicswe.eyeandsickle.solo.SoloGame;
-import io.github.stoicswe.eyeandsickle.solo.state.HostState;
+import io.github.stoicswe.eyeandsickle.engine.Balance;
+import io.github.stoicswe.eyeandsickle.engine.GameEngine;
+import io.github.stoicswe.eyeandsickle.engine.state.HostState;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
@@ -100,8 +100,8 @@ class ShellWindowClosesSessionTest {
 
     /** A rig holding a foothold on one machine, so a shell may legally open on it. */
     private static LocalGameSession sessionOn(Path dir) {
-        SoloGame game = SoloGame.open(
-                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")),
+        GameEngine game = GameEngine.open(
+                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("s.json")),
                 "operator",
                 Clock.fixed(T0, ZoneOffset.UTC));
         HostState host = game.state().topology.hosts.stream()

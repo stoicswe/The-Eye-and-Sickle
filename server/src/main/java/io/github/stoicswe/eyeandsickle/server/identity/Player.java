@@ -74,13 +74,13 @@ public record Player(
 
     /**
      * The lowest slot number a DID-bound character may occupy. Mirrors the lower half of
-     * {@code ck_players_slot_bound} in {@code db/migration/core/V3__character_slots.sql}.
+     * {@code ck_players_slot_bound} in {@code db/migration/core/V2__core_schema.sql}.
      */
     public static final int MIN_SLOT = 1;
 
     /**
      * The highest slot number a DID-bound character may occupy — the generous structural bound, not the
-     * product cap. Mirrors {@code ck_players_slot_bound} in {@code V3__character_slots.sql}. The real,
+     * product cap. Mirrors {@code ck_players_slot_bound} in {@code V2__core_schema.sql}. The real,
      * soft cap on how many characters an account may hold is {@code CharacterProperties.maxCharacters}
      * (default 3), enforced in the service; this is only the range a single slot number may take.
      */

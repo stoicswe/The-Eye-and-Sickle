@@ -218,7 +218,7 @@ class GlyphCoverageTest {
             Set<Integer> plex = coverage(PLEX);
             Set<Integer> martian = coverage(MARTIAN);
             for (int severity = 0; severity <= 7; severity++) {
-                String glyph = io.github.stoicswe.eyeandsickle.solo.state.RigEvent.glyph(severity);
+                String glyph = io.github.stoicswe.eyeandsickle.engine.state.RigEvent.glyph(severity);
                 for (char c : glyph.toCharArray()) {
                     assertThat(plex)
                             .as("severity %d glyph '%c' in Plex", severity, c)

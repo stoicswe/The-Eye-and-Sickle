@@ -79,7 +79,7 @@ The two meta-rules behind most of these: **compute is the master scarcity** (nev
 ├── pom.xml              ← reactor root; inherits from NOTHING (see below)
 ├── protocol/            ← eyeandsickle-protocol — wire types + provenance verifier
 ├── server/              ← eyeandsickle-server   — Spring Boot + embedded H2 home server
-├── solo/                ← eyeandsickle-solo     — offline single-player rules engine + JSON save
+├── engine/              ← eyeandsickle-engine   — THE rules engine, + the shared save system
 ├── client/              ← eyeandsickle-client   — JavaFX multi-window desktop client
 ├── deploy/              ← Dockerfile, docker-compose.yml, .env.example
 └── docs/
@@ -93,7 +93,27 @@ The two meta-rules behind most of these: **compute is the master scarcity** (nev
 
 ### Where does this class go?
 
-- **`solo`** — the **offline single-player runtime**: rules over a JSON save, with no Spring, no driver, no HTTP stack and no thread of its own (its own enforcer rule holds that line). It exists because the client bans the server transitively and because a second Boot JVM is the wrong price for a mode whose appeal is double-click-and-play. ⚠ **AMENDED 2026-08-02 — it is no longer a second implementation, it is THE engine.** This used to warn that solo was "a second implementation of a subset of the rules" and that re-tuning `design/03` meant re-reading `solo/Balance.java`. That was the cost of a plan in which the server grew its own engine; **the server now drives THIS one**. `save/SaveStore` is an interface with two implementations — `FileSaveStore` (a JSON file, single player) and the server's `JdbcSaveStore` (the same state in its own database) — so a balance change lands in every mode at once and cannot drift between them. ⚠ **I14 is satisfied by that rather than bent**: the engine runs on the server, against server-held state, and the client renders a snapshot. `solo/Balance.java` still cites the design doc for every number and is still the place a re-tune lands — it is just no longer a *second* place. A solo character is **local-only and can never federate**, which is how I14 survives a save file the player can edit.
+- **`solo`** — **THE rules engine**, despite the module name. One implementation of the mechanics, driven two ways: the client drives it in process for single player, a home server drives it for LAN and federated play. `Balance.java` exists in exactly one place and a re-tune lands in every mode at once. ⚠ **AMENDED TWICE, and both amendments deleted a warning that had been true.** 2026-08-02: it stopped being "a second implementation of a subset of the rules" when the server was pointed at this engine instead of growing its own. 2026-08-03: it stopped being "no framework, no driver, no port" when the **save system was unified** — it carries H2, spring-jdbc and Flyway now.
+  ⚠ **NO LEGACY-SAVE MACHINERY AT ALL (2026-08-03).** No build has shipped, so no save, settings file
+  or database predates the current one, and everything that existed to read an older format is gone:
+  the JSON save importer, the 26 `@JsonAlias` pre-wei keys and the `moneySchema` rescale, the ten
+  pre-per-character settings hooks, `retuneNetworkHashrate`, and the V3–V6 patch migrations (folded
+  into V2). ⚠ **Money fields keep their zero initialisers** — that is a null-safety rule, not a
+  migration one, and `ContributionState.creditedWei` threw an NPE on the login screen for want of it.
+  ⚠ **`SaveStore.format` / `CURRENT_FORMAT` also stay**: refusing a save from a *newer* build is
+  forward compatibility, which is the opposite of legacy support.
+  ⚠ **The moment a build ships, this stops being true**, and the first thing to come back is the
+  `theBaselineIsNotRewritten` guard in `SchemaVocabularyTest` — it forbade exactly the V2 edit that
+  the squash performs, and it was right to, for a deployed system.
+  ⚠ **ONE `SaveStore`, and the pair it replaced was not earning its keep.** `character_game_state.state` is `text` holding the engine's own JSON document — deliberately opaque to SQL (V7's comment: a query reaching inside would be a *second* way to read game state, able to disagree with the first, invisibly) — so `FileSaveStore` and `JdbcSaveStore` were **writing identical bytes**. The split bought two atomicity stories, two failure modes and two places for the save format to drift, and nothing else. `JsonSaveImport` is what is left of the file store: a **reader**, so it cannot become a second store by accident.
+  ⚠ **`engine/EngineSessions` is the one engine host** — load → tick → act → persist, one engine per character, one request at a time. It was the server's, taking a `JdbcClient` and a `PlayerRepository`; it takes two *functions* now and needs neither Spring nor JDBC, which is what lets the client use the same one. `ServerEngineSessions` is the server's 40-line wiring.
+  ⚠ **What is still banned is what matters**: no Spring Boot, no `spring-web`, no server module. A driver is a place to put bytes; a Boot context with a web layer is a second server, and a second Boot JVM is the wrong price for a mode whose appeal is double-click-and-play.
+  ⚠ **I14 is untouched by any of it, and here is the whole argument, because it is easy to get backwards.** I14 governs whose machine holds state that *others* must trust. A local H2 file is **exactly as editable as JSON was** — merely less pleasant to read — so the storage format never protected anything and moving between formats cannot weaken it. Nothing may ever be trusted on the grounds that it came out of a database.
+  What actually holds the line is that **a solo character has no route to a server**, and that is mechanical in two different places:
+  - **A solo character has no DID and no `players` row.** Going online means a character created *on* a home server (`CharacterService`, which enforces the allowlist and the per-account cap) — it starts empty. There is no exporter, and `Quarantine.refuseIfLan` guards the one export path that exists (`CharacterExportService`) against LAN identities.
+  - ⚠ **And a hand-made save cannot be smuggled in, because core's `V8` makes `character_game_state.character_id` a foreign key to `players`.** Engine state on a server is not free-standing: a forged row has nowhere to land until an authorised player exists. `SchemaIT.engineStateRequiresAPlayer` pins it, verified by removing the constraint first.
+  ⚠ **The engine tier deliberately does NOT carry that constraint** (V7 has no FK), and the asymmetry *is* the design: the engine's state has the same shape everywhere, and only the authority tier says who may own some.
+
 - **`protocol`** — a record, enum or sealed type that crosses the wire, the provenance verifier, **AT Proto identity resolution**, or the secure transport. Nothing else. No thresholds, no prices, no yields, no gate evaluation. If a constant here changed and a player would gain something, it's a balance value and it belongs to the server. Its packages layer one way: `game → provenance → crypto ← channel`, with `identity` above `crypto` and below `provenance`.
   ⚠ **The charter was two items until 2026-08-02 and is now three.** `identity` was admitted because the verifier already here has always been missing its other half — `SigningKeyDirectory` describes turning a `did:plc:xxx#key1` into a key and resolves nothing (**W-1**) — and because `architecture/04` §6.2 requires that verifier to run **client-side and offline** while `architecture/10` §1 requires the same resolution server-side. Either module owning it means the other copies it, and **two SSRF denylists is one denylist that is wrong**.
   ⚠ **`identity` is the ONLY package here that may open a socket.** Before it, this module did no I/O at all, and the reasons for that austerity (jlink candidate, shared by two very different runtimes) are unchanged. `ArchitectureRulesTest` confines `java.net.http` and `javax.naming` to `identity` and refuses them everywhere else — a wire type that phones home to fill in a field is authoritative-state-by-the-back-door, which is **I14**. It adds no dependency: `HttpClient` and Jackson 3 were already there.
@@ -117,6 +137,8 @@ The two meta-rules behind most of these: **compute is the master scarcity** (nev
 - ⚠ **H2 has no partial index, and dropping a `WHERE` from a UNIQUE one changes the RULE.** `uq_flagged_servers_active` was `... WHERE cleared_at IS NULL` — "one *live* flag per server". Without it, a server cleared could never be flagged again. Expressed now as a generated column that is the DID while live and NULL once cleared, since a unique index treats NULLs as distinct. ⚠ Non-unique partial indexes are only a performance change; the unique one was the only semantic loss.
 - ⚠ **`ON CONFLICT DO NOTHING` is `MERGE` with NO `WHEN MATCHED` branch. `MERGE ... KEY (...)` IS NOT IT** — that is an upsert, and it silently overwrites the row that was supposed to be left alone (measured). The 0-row return is a contract: `Mutations.requireInserted` and `AllowlistRepository.insertIfAbsent` both read it. `INSERT ... RETURNING` becomes `SELECT ... FROM FINAL TABLE (INSERT ...)`, which keeps the one-statement read-back rather than splitting into an INSERT plus a racy SELECT.
 - ⚠ **Two unannotated constructors stop the whole Spring context**, with "No default constructor found" — which names neither the class's problem nor the fix. `EngineSessions` and `GameSessionService` each had a convenience overload; both now take the application's `@Primary Clock` bean and have exactly one.
+- ⚠ **A file H2 with NO POOL closes between every statement, and that LOSES WRITES.** `JdbcDataSource` opens a connection per statement and closes it, so with H2's default `DB_CLOSE_DELAY=0` the database is opened and closed between operations — measured on 2.3.232: a row written through one call was visible to the next read and **absent from the one after that**, with nothing in between but a loop. It looks exactly like a phantom deletion and is not one; the database is not the same database twice running. `LocalDatabase` sets **`DB_CLOSE_DELAY=-1`**. The server is unaffected because Hikari holds connections.
+- ⚠ **`AUTO_SERVER=TRUE` and `DB_CLOSE_ON_EXIT=FALSE` ARE MUTUALLY EXCLUSIVE** — a hard refusal at connect time, SQLState 50100. `application.yml` shipped **both** from the Postgres migration until 2026-08-03, so the boot jar could not open its own database; no test caught it because every test used an in-memory URL. `DB_CLOSE_ON_EXIT=FALSE` is the one kept.
 - ⚠ **`bytea` maps to `binary varying` and must never be cast through a character type.** `CAST(:key AS varchar)` UTF-8-decodes it: every byte ≥ 0x80 becomes U+FFFD and a 32-byte key reads back as 64 bytes of replacement characters, with no error anywhere. The first symptom would be a federation peer whose signatures never verify.
 - **Enforcer rules are load-bearing, not decoration.** The client's ban on Spring/server is Invariant I14 made mechanical. Verified to actually fire.
 - **Boot 4 split `spring-boot-autoconfigure` into per-technology modules.** Depending on a raw library (e.g. `flyway-core`) instead of its starter gives you the classes without the auto-configuration: green build, dead config, feature silently absent. If you add a Boot integration, use its **starter**.
@@ -162,9 +184,11 @@ mvn -Pquality spotless:apply        # format
 ```
 
 The client **runs offline out of the box**: `mvn install -DskipTests && mvn -pl client javafx:run` opens a
-playable solo game with no network, account or database. Twenty tool windows, five themes, a shell
-with real pipelines and globs, and a 23-page offline manual parsed from `client/src/main/resources/
-.../terms/`.
+playable solo game with no network, no account and **nothing to install** — the character lives in an
+embedded H2 file in the profile directory, created and migrated on first launch (⚠ "no database" was
+true until 2026-08-03 and is not any more; what is still true, and is the part that mattered, is that
+there is nothing for a player to set up). Twenty tool windows, five themes, a shell with real pipelines
+and globs, and a 23-page offline manual parsed from `client/src/main/resources/.../terms/`.
 
 ⚠ **Window controls sit on the LEFT on macOS, in macOS's order** (close, minimise, zoom) and on the
 right everywhere else. The group is **reordered, not mirrored** — mirroring would put close where zoom
@@ -304,7 +328,7 @@ cell with a soft corner reads as a smaller cell, and discrete meters exist to be
 
 ⚠ **The rig root is macOS-shaped over a FreeBSD base**: `/Applications`, `/Library`, `/System`,
 `/Users`, `/mnt`. Homes are `/Users/<name>`; `/Applications` is system-wide. The Linux FHS did not
-vanish — it lives inside **`/System`** (`solo/fs/SystemTree`), laid out as FreeBSD lays one out,
+vanish — it lives inside **`/System`** (`engine/fs/SystemTree`), laid out as FreeBSD lays one out,
 `root:wheel` and `r-xr-xr-x` throughout. **`/System` is read-ONLY, not unlookable** — text
 configuration (`rc.conf`, `fstab`, `passwd`, `loader.conf`, …) reads in FreeBSD's real formats;
 binaries answer with `file`'s line rather than invented bytes; and `master.passwd` stays closed even
@@ -362,14 +386,14 @@ wall-clock time and zero blocks — on the one readout whose whole subject is th
   character id, so the walks are a fraction of a block apart at the start and diverge within the hour
   — which reads exactly like a broken RNG contract. `ChainSyncTest.OfflineWeight` persists one and
   loads it twice.
-- ⚠ **Two clamps must agree and only one is enforced in `SoloGame`.** `ChainRules.sync` excludes the
+- ⚠ **Two clamps must agree and only one is enforced in `GameEngine`.** `ChainRules.sync` excludes the
   player from the draw past the window, which caps solo and PPLNS. **PPS is not capped by that** — it
   runs its own share clock off `elapsed` — so `resume()` passes `walked.minedFor()`, never the absence.
   Passing the absence breaks I5 silently and *only for pay-per-share*.
 - **Confirming pending transactions while away is not income.** The value moved when the ledger row was
   written; confirmation only stamps the height. A transaction unconfirmed across a four-day absence
   would be the lie, and would let a player park money in the mempool to hide it.
-- ⚠ `SoloGame.sync` is **session state, never saved.** It describes one transition; persisting it
+- ⚠ `GameEngine.sync` is **session state, never saved.** It describes one transition; persisting it
   replays the sync screen on the next load reporting a catch-up that already happened.
 - ⚠ **The panel builds from `takeChainSync()`, NOT `chainSync()` — announced once per session.** A
   closed tool window keeps no state (`DeskManager` calls the factory afresh), so an idempotent read
@@ -424,7 +448,7 @@ finds **nothing** before `applyCss()`.
 **Buying a tool settles on-chain (2026-07-29).** Pay → **download** (a real transfer, the file manager's
 existing progress bar) → the package lands in `~/Downloads` as a vendor `.pkg` → `install`/`sell` refuse
 until the payment is mined → confirmation runs Repac, it becomes a `.upg`, installing it fills the vault.
-This **reverses** `SoloGame.debit`'s documented "the goods are immediate" decision, on explicit direction.
+This **reverses** `GameEngine.debit`'s documented "the goods are immediate" decision, on explicit direction.
 
 - ⚠ **The `.pkg` → `.upg` rename IS the lock — there is no second mechanism.** Repac already means "a
   vendor's package" vs "one this rig can install", and a bought one does not cross that line until the
@@ -433,7 +457,7 @@ This **reverses** `SoloGame.debit`'s documented "the goods are immediate" decisi
   read — no flag anywhere can disagree with the chain.
 - **First mechanical consequence a `FeeTier` has ever had.** Previously a fee bought only how soon a row
   stopped printing `—`. A higher fee buys a slot in an earlier block, never a faster chain.
-- ⚠ **`SoloGame.debit` writes TWO ledger rows** — the spend (broadcast) and a separate `TX_FEE` line
+- ⚠ **`GameEngine.debit` writes TWO ledger rows** — the spend (broadcast) and a separate `TX_FEE` line
   (not broadcast). Taking "the last row" gets the fee, which never confirms; a package pointed at it is
   held **forever** with the money gone. Use **`spend()`**, which returns the row it broadcast.
 - ⚠ **`LedgerEntryState.feeMinorUnits` exists because `confirmInto` DELETES the pending record.** The fee
@@ -473,7 +497,7 @@ now. The cost model and the teaching moved to `client/terms/en/1/port-scan.md`. 
 machines; a port scan interrogates one. ⚠ A term page's `seeAlso` refs must all **resolve** — the
 spec's list named three pages that do not exist.
 
-**Port scans file persistent node reports (2026-07-29).** `solo/state/NodeReportState` per machine,
+**Port scans file persistent node reports (2026-07-29).** `engine/state/NodeReportState` per machine,
 merged by `NodeReports`; Info on the node menu, `[i]` in the network list, and RECON lists every file
 with opened/updated dates.
 
@@ -526,7 +550,7 @@ still on the **2352**-cycle network while one created two days later was on **16
 converged to *its own* equilibrium (482 vs 344) — but mining income is `subsidy × rigHashrate × 3600 /
 (interval × networkHashrate)`, i.e. **inversely proportional to network size**, so that character had
 been earning **71% of what `design/03` §1 prices**, forever, with no readout saying so.
-`SoloGame.retuneNetworkHashrate` migrates it on load. ⚠ **It rescales difficulty by the same factor in
+`GameEngine.retuneNetworkHashrate` migrates it on load. ⚠ **It rescales difficulty by the same factor in
 the same step** — difficulty is what holds the block interval, and moving the hashrate alone stretches
 blocks from 12 to 17 minutes until the next retarget, which is **1440 blocks** away.
 
@@ -550,12 +574,12 @@ the same trap as the late `.label` rule, from the other side. Use `.table-view .
 
 ⚠ **There are now THREE reputations and none may share a field.** `factionReputation` (Eye/Sickle
 standing), `validatorReputation` (federation trust, server-side) and — new — **`traderReputation`**
-(whether you deliver what you were paid for, `solo/rules/SecondaryMarket`). A Sickle hero can be a
+(whether you deliver what you were paid for, `engine/rules/SecondaryMarket`). A Sickle hero can be a
 thief; a scrupulous trader can be a validator nobody trusts. Collapsing any two deletes an axis.
 
 ⚠ **Only ETHECOIN-gated upgrades may be resold.** Selling a schematic-gated tool for ethecoin would
 let anyone with enough money buy a ceiling — I2, and I8 for zero-days. Anything can still be *stolen
-and used*; what is refused is turning a gated item into currency. `solo/rules/Repac.sellable`.
+and used*; what is refused is turning a gated item into currency. `engine/rules/Repac.sellable`.
 
 ⚠ **A download is bounded by the REMOTE END'S UPLOAD, not your download** — `Balance.LINK_DOWN_BITS`
 is 1 Gbit and `LINK_UP_BITS` is 150 Mbit, so every transfer runs at 18.75 MB/s however good the local
@@ -579,7 +603,7 @@ with repaint machinery instead of history.
 directory after the operating system — so ours names it after *ours*. Everything else in the bundle
 keeps its real name; the OS-named directory is the one part that has to move when the OS does.
 
-⚠ **`solo/rules/AccessLog` is a [PROPOSAL] counter-forensics loop, and it must not become a fourth
+⚠ **`engine/rules/AccessLog` is a [PROPOSAL] counter-forensics loop, and it must not become a fourth
 exposure surface.** A remote actor who copies something is logged with the address they came from and
 may wipe that address before leaving — **blanking it, never deleting the line**, because a deleted
 row turns a legible crime into a missing file. `canTake` answers from the item's **tier** (§6), so an
@@ -587,7 +611,7 @@ upgrade visible inside an app bundle is a *view* onto an item, not a way around 
 Nothing writes to it in solo — there are no remote actors — and that is why it is tested rather than
 demonstrated.
 
-**The file manager (2026-07-28).** `Shortcut+Shift+H`. GNOME Files' layout over `solo/fs/VirtualFs`:
+**The file manager (2026-07-28).** `Shortcut+Shift+H`. GNOME Files' layout over `engine/fs/VirtualFs`:
 places sidebar, breadcrumb path bar, detail list, hidden-files toggle. ⚠ **A mount IS a session** —
 "Connect to machine" opens a shell session and unmounting closes it, so the file manager's mounted
 list and the set of open shells are one fact rather than two that drift. Kind markers are `ls -F`'s
@@ -675,7 +699,7 @@ reach, and `SessionRules` never touches `vantageAddress`. Had they been one thin
 multiply by the number of windows a player had open. The map's menu says *Open a shell* and *Move
 vantage here* precisely so the two never blur.
 
-⚠ **`solo/fs/VirtualFs` generates every machine's filesystem and stores none of it.** Not for save
+⚠ **`engine/fs/VirtualFs` generates every machine's filesystem and stores none of it.** Not for save
 size — a stored tree would be a cache of game state that eventually disagrees with it, on the exact
 surface a player uses to decide whether a machine has been tampered with. A deployed miner is a unit
 file in `/etc/systemd/system` because `deployedMiners` is non-empty. Seeded on the address, so a
@@ -696,7 +720,7 @@ cannot climb above `/`.
 ⚠ **ETHECOIN DIVIDES TO 18 PLACES (2026-07-30), and a `long` cannot carry it.** The unit is `1e-18`
 EC — ether's relationship to wei. At that scale a `long` tops out at **9.22 EC**, less than one
 firmware image, so `Ethecoin` carries a **`BigInteger`** and the server’s `bigint` column became
-`numeric(78,0)` (`V6__ethecoin_wei.sql`).
+`numeric(78,0)` (`V2__core_schema.sql`).
 
 - **Display trims trailing zeros** — `0.05 EC`, `500 EC`, `0.037097927036961408 EC`. A fixed
   `%.18f` would put eighteen characters of noise on every ledger row. ⚠ Trimming is never rounding.
@@ -716,7 +740,7 @@ firmware image, so `Ethecoin` carries a **`BigInteger`** and the server’s `big
 - ⚠ **A migration fixture built with the CURRENT code cannot catch a rename.** The first check did
   exactly that and passed against the broken build. `LegacySaveTest` pins **literal old-format JSON**
   and was verified to fail without the aliases.
-- ⚠ **Save migration is gated on `SoloSave.moneySchema`, never a heuristic** ("is this balance small?"
+- ⚠ **Save migration is gated on `GameSave.moneySchema`, never a heuristic** ("is this balance small?"
   is unanswerable — 8 wei is legal). Multiplies by 10^16, once, logged; `newCharacter` stamps the
   current schema; the `MISSING` fee sentinel is skipped.
 - ⚠ **Server columns were RENAMED `_ec_minor` → `_wei`, not just retyped.** The suffix is what
@@ -829,7 +853,7 @@ three are the real behaviour of firmware, which is why they are worth having. `d
 
 **Upgrades carry a version, and Get Info answers before you take one (2026-07-30).** A foreign
 `.pkg` used to be opaque — 40–320 MB with no way to learn what it was without paying for the
-transfer. `SoloGame.upgradeAt` reads the package's own metadata; the file manager renders a compare
+transfer. `GameEngine.upgradeAt` reads the package's own metadata; the file manager renders a compare
 block and `stat` prints the same facts (one source, two surfaces).
 
 - ⚠ **A newer build is worth more and SUPERSEDES an older one. It is NOT a better tool.** The
@@ -854,7 +878,7 @@ block and `stat` prints the same facts (one source, two surfaces).
 ⚠ **`NetRules.reconcileFootholds` is what makes a breached machine YOURS, and for a while nothing
 called it.** It was written, documented and covered by five tests — every caller was a test — so a
 cleared breach left the machine reading `contact` on the map, refusing `connect`, and still holding
-its loot. Now `SoloGame.settleBreachOutcomes`, called from **`resume()` and `breachAction`**: the load
+its loot. Now `GameEngine.settleBreachOutcomes`, called from **`resume()` and `breachAction`**: the load
 path too, or the bug is permanent for any save that already breached something. Safe to call freely —
 it is idempotent *by construction* (`foothold` and `looted` are one-way flags, so there is no settled
 marker to desync).
@@ -862,7 +886,7 @@ marker to desync).
 - ⚠ **The failure shape, not the fix, is the lesson.** Both pieces were correct and both suites green;
   the defect was in the join, where a unit test cannot look. `NetRulesTest` even carried a comment
   saying the caller existed — true of the design, false of the build. **A comment describing a caller
-  is not evidence of one.** `FootholdAfterBreachTest` tests one level up, against `SoloGame`, which is
+  is not evidence of one.** `FootholdAfterBreachTest` tests one level up, against `GameEngine`, which is
   the lowest level the bug is visible at; verified by neutering the fix first.
 - ⚠ **Map visibility keys on `knownNodes`; port scanning keys on `host.discovered`.** Two notions of
   "found" that agree only because a sweep sets both. A fixture setting just the flag yields a host the
@@ -1360,7 +1384,7 @@ key hint. `GlyphCoverageTest` parses the TTF cmaps and fails the build on any un
 ⚠ **Anything with a deadline must take the session's clock, never `Instant.now()`.** `RunningTask`
 got this wrong once and every task reported 100% complete the moment it started under a test clock —
 invisible in production, where the two clocks agree. `ComputeRules.spend` has the same warning one
-module down. Related: **work that can finish while the game is closed settles in `SoloGame.resume()`,
+module down. Related: **work that can finish while the game is closed settles in `GameEngine.resume()`,
 not in `tick()`** — `resume()` sets `lastTick = now`, so the first tick sees zero elapsed time and
 returns early.
 

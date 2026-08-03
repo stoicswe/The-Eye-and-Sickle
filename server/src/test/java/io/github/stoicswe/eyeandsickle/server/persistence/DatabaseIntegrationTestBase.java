@@ -47,12 +47,14 @@ import org.springframework.transaction.support.TransactionTemplate;
  * that had quietly become a total one. Every one of those is invisible to a unit test, because every
  * one of them is a property of the database rather than of the code that talks to it.
  *
- * <h2>Both migration locations, always</h2>
+ * <h2>All three migration tiers, always</h2>
  *
- * Tests migrate {@code core} <em>and</em> {@code federation}, mirroring a server started with the
- * {@code federation} profile. A non-federating server runs a strict subset, so testing the superset
- * exercises both — and it is the only configuration in which a federation migration's dependency on a
- * core one (V1001 uses {@code is_did}, created in V2) is checked at all.
+ * Tests migrate {@code engine}, {@code core} <em>and</em> {@code federation}, mirroring a server
+ * started with the {@code federation} profile. Every other configuration runs a strict subset — a
+ * non-federating server drops the last, single player runs {@code engine} alone — so testing the
+ * superset exercises all of them. It is also the only configuration in which the cross-tier
+ * dependencies are checked at all: V1001 uses {@code is_did} from core's V2, and core's V8 adds a
+ * foreign key to the table the engine tier's V7 creates.
  *
  * <h2>Isolation between tests</h2>
  *
@@ -99,7 +101,10 @@ public abstract class DatabaseIntegrationTestBase {
         // failure, not a silent baseline that pretends the earlier migrations ran.
         Flyway.configure()
                 .dataSource(DATA_SOURCE)
-                .locations("classpath:db/migration/core", "classpath:db/migration/federation")
+                .locations(
+                        "classpath:db/migration/engine",
+                        "classpath:db/migration/core",
+                        "classpath:db/migration/federation")
                 .load()
                 .migrate();
 

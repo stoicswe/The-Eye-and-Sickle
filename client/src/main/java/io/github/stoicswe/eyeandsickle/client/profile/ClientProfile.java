@@ -243,68 +243,6 @@ public final class ClientProfile {
             characterAppearance.remove(String.valueOf(slot));
         }
 
-        // ── migration from profiles written before appearance became per-character ──────────────
-        //
-        // ⚠ Setter-only, so Jackson READS them and never writes them back. The mapper ignores
-        // unknown properties, which means that without these ten methods a settings.json written by
-        // an older build would load with every appearance field silently reset to its default — a
-        // player would launch into a theme they never chose and have no way to know why. Each one
-        // lands in `appearance`, which is then copied into any character that gets loaded.
-        //
-        // They can be deleted once no profile in the wild predates this change, which in practice
-        // means never; they cost ten lines and one JSON key each.
-
-        @com.fasterxml.jackson.annotation.JsonProperty("themeId")
-        public void migrateThemeId(String value) {
-            appearance.themeId = value;
-        }
-
-        @com.fasterxml.jackson.annotation.JsonProperty("cursorSkin")
-        public void migrateCursorSkin(String value) {
-            appearance.cursorSkin = value;
-        }
-
-        @com.fasterxml.jackson.annotation.JsonProperty("wallpaper")
-        public void migrateWallpaper(String value) {
-            appearance.wallpaper = value;
-        }
-
-        @com.fasterxml.jackson.annotation.JsonProperty("bezel")
-        public void migrateBezel(String value) {
-            appearance.bezel = value;
-        }
-
-        @com.fasterxml.jackson.annotation.JsonProperty("crtScanlines")
-        public void migrateCrtScanlines(boolean value) {
-            appearance.crtScanlines = value;
-        }
-
-        @com.fasterxml.jackson.annotation.JsonProperty("crtAberration")
-        public void migrateCrtAberration(boolean value) {
-            appearance.crtAberration = value;
-        }
-
-        @com.fasterxml.jackson.annotation.JsonProperty("crtGlitch")
-        public void migrateCrtGlitch(boolean value) {
-            appearance.crtGlitch = value;
-        }
-
-        @com.fasterxml.jackson.annotation.JsonProperty("crtCurvature")
-        public void migrateCrtCurvature(int value) {
-            appearance.crtCurvature = value;
-        }
-
-        @com.fasterxml.jackson.annotation.JsonProperty("roundedWindows")
-        public void migrateRoundedWindows(boolean value) {
-            appearance.roundedWindows = value;
-        }
-
-        @com.fasterxml.jackson.annotation.JsonProperty("subwindowControlOrder")
-        public void migrateSubwindowControlOrder(String value) {
-            appearance.subwindowControlOrder = value;
-        }
-
-        /** Theme id, e.g. {@code deck} or {@code deck-hc}. Lowercase, per the glossary's convention. */
         /**
          * {@code explain} | {@code terms} | {@code off} — {@code docs/client/04} §3.10's {@code teach}
          * command. Defaults to {@code explain}, which is right for the audience the education goal

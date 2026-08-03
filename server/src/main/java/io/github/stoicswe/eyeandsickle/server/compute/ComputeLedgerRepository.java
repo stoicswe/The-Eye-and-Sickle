@@ -6,7 +6,7 @@ import io.github.stoicswe.eyeandsickle.protocol.game.Cycles;
 import io.github.stoicswe.eyeandsickle.server.persistence.EconomyColumns;
 import io.github.stoicswe.eyeandsickle.server.persistence.EnumColumns;
 import io.github.stoicswe.eyeandsickle.server.persistence.Mutations;
-import io.github.stoicswe.eyeandsickle.server.persistence.Timestamps;
+import io.github.stoicswe.eyeandsickle.engine.persistence.Timestamps;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;

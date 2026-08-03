@@ -2,7 +2,7 @@ package io.github.stoicswe.eyeandsickle.server.federation;
 
 import io.github.stoicswe.eyeandsickle.server.persistence.Jsonb;
 import io.github.stoicswe.eyeandsickle.server.persistence.Mutations;
-import io.github.stoicswe.eyeandsickle.server.persistence.Timestamps;
+import io.github.stoicswe.eyeandsickle.engine.persistence.Timestamps;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;

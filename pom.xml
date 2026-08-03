@@ -38,14 +38,14 @@
 
   <!--
     Order matters only for the reactor's convenience; Maven sorts by dependency
-    anyway. `solo` sits between protocol and client because that is where it sits
+    anyway. `engine` sits between protocol and client because that is where it sits
     in the dependency graph: it consumes the wire vocabulary and is consumed by
     the view layer, and it must never be consumed by `server`.
   -->
   <modules>
     <module>protocol</module>
     <module>server</module>
-    <module>solo</module>
+    <module>engine</module>
     <module>client</module>
     <module>client-dist</module>
   </modules>
@@ -81,6 +81,23 @@
       resolves for the server, or the two modules link against different Spring cores.
     -->
     <spring-framework.version>7.0.8</spring-framework.version>
+    <!--
+      ⚠ H2 IS PINNED BELOW WHAT SPRING BOOT MANAGES, AND THE PIN IS LOAD-BEARING. Boot 4.1 brings
+      2.4.240, which evaluates a CHECK constraint against the session that PARSED it — so once Flyway
+      closes its migration connection every constrained insert fails with SQLState 23514 ("check
+      constraint invalid", cause dropped) naming a constraint the row satisfies.
+      h2database/h2database#4291, dup #4292/#4320/#4342; no released fix.
+
+      ⚠ The property lives here and the SERVER RESTATES THE PIN in its own dependencyManagement. That
+      is not redundancy: the server imports the Boot BOM, and an imported BOM in a module beats its
+      parent's dependencyManagement, so a property alone would not hold there. Both point at this
+      number — change it in one place.
+    -->
+    <h2.version>2.3.232</h2.version>
+    <!-- Flyway: the engine tier is migrated in-process by the client too, so this is not a
+         server-only version any more. Keep it at or below what Boot ${spring-boot.version}
+         resolves, so the two modules do not link against different Flyway cores. -->
+    <flyway.version>12.4.0</flyway.version>
     <javafx.version>26.0.2</javafx.version>
     <atlantafx.version>2.1.0</atlantafx.version>
     <jackson.version>3.1.4</jackson.version>
@@ -114,7 +131,7 @@
       </dependency>
       <dependency>
         <groupId>io.github.stoicswe.eyeandsickle</groupId>
-        <artifactId>eyeandsickle-solo</artifactId>
+        <artifactId>eyeandsickle-engine</artifactId>
         <version>${revision}</version>
       </dependency>
 
@@ -127,6 +144,34 @@
       <dependency>
         <groupId>org.springframework</groupId>
         <artifactId>spring-context</artifactId>
+        <version>${spring-framework.version}</version>
+      </dependency>
+
+      <!--
+        ⚠ The SAVE SYSTEM, declared by `engine` and inherited by the client through it. Managed here
+        rather than versioned at the declaration because flatten-maven-plugin publishes each module's
+        pom with its own properties resolved but NOT its parent's — a `<version>${h2.version}</version>`
+        in engine/pom.xml installs as the literal string and every downstream module then fails to
+        resolve it. Managed versions are inlined by flatten, so this form works and the declaration
+        form does not.
+
+        ⚠ The SERVER does not use these entries. It imports the Spring Boot BOM, and an imported BOM
+        in a module beats its parent's dependencyManagement — so the H2 pin has to be restated in
+        server/pom.xml, where the reason it exists is written out in full.
+      -->
+      <dependency>
+        <groupId>com.h2database</groupId>
+        <artifactId>h2</artifactId>
+        <version>${h2.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.flywaydb</groupId>
+        <artifactId>flyway-core</artifactId>
+        <version>${flyway.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-jdbc</artifactId>
         <version>${spring-framework.version}</version>
       </dependency>
 

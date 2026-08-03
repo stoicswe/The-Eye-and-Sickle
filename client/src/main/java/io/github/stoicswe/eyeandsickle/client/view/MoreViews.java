@@ -80,7 +80,7 @@ public final class MoreViews {
         VBox listing = new VBox(8);
         Label result = new Label();
         result.setWrapText(true);
-        for (var o : io.github.stoicswe.eyeandsickle.solo.Catalogue.offerings()) {
+        for (var o : io.github.stoicswe.eyeandsickle.engine.Catalogue.offerings()) {
             VBox card = new VBox(4);
             card.getStyleClass().add("es-panel");
             Label name = new Label(o.name());

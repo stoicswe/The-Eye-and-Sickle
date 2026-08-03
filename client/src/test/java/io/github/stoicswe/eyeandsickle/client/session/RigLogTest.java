@@ -3,11 +3,11 @@ package io.github.stoicswe.eyeandsickle.client.session;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
-import io.github.stoicswe.eyeandsickle.solo.SoloGame;
-import io.github.stoicswe.eyeandsickle.solo.state.MinerState;
-import io.github.stoicswe.eyeandsickle.solo.state.NodeState;
-import io.github.stoicswe.eyeandsickle.solo.state.RigEvent;
-import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
+import io.github.stoicswe.eyeandsickle.engine.GameEngine;
+import io.github.stoicswe.eyeandsickle.engine.state.MinerState;
+import io.github.stoicswe.eyeandsickle.engine.state.NodeState;
+import io.github.stoicswe.eyeandsickle.engine.state.RigEvent;
+import io.github.stoicswe.eyeandsickle.engine.state.GameSave;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
@@ -31,8 +31,8 @@ class RigLogTest {
     private static final Instant T0 = Instant.parse("2026-07-25T12:00:00Z");
 
     private static LocalGameSession session(Path dir, Instant at) {
-        return new LocalGameSession(SoloGame.open(
-                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")),
+        return new LocalGameSession(GameEngine.open(
+                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("s.json")),
                 "op",
                 Clock.fixed(at, ZoneOffset.UTC)));
     }
@@ -122,8 +122,8 @@ class RigLogTest {
             // spins down. Both facts are invisible without the log, and invisible income — or
             // invisibly *absent* income — is indistinguishable from a bug.
             Path file = dir.resolve("s.json");
-            SoloGame first = SoloGame.open(
-                    new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(file),
+            GameEngine first = GameEngine.open(
+                    io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(file),
                     "op",
                     Clock.fixed(T0, ZoneOffset.UTC));
             first.allocateSelfMining(50);
@@ -136,8 +136,8 @@ class RigLogTest {
             first.state().knownNodes.add(node);
             first.persist();
 
-            LocalGameSession later = new LocalGameSession(SoloGame.open(
-                    new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(file),
+            LocalGameSession later = new LocalGameSession(GameEngine.open(
+                    io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(file),
                     "op",
                     Clock.fixed(T0.plus(Duration.ofHours(6)), ZoneOffset.UTC)));
 
@@ -160,7 +160,7 @@ class RigLogTest {
         @DisplayName("a riskier storage move is a warning, a safer one is not")
         void riskChangesAreGraded(@TempDir Path dir) {
             LocalGameSession s = session(dir, T0);
-            var item = new io.github.stoicswe.eyeandsickle.solo.state.ItemState();
+            var item = new io.github.stoicswe.eyeandsickle.engine.state.ItemState();
             item.displayName = "Overflow Kit";
             item.tier = "VAULT";
             s.game().state().items.add(item);
@@ -186,8 +186,8 @@ class RigLogTest {
             // A line every second saying "earned 0.011 EC" would bury the one line that mattered.
             // That is alert-fatigue(7), which is a page in this game's own manual.
             var clock = new MutableClock(T0);
-            LocalGameSession s = new LocalGameSession(SoloGame.open(
-                    new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")), "op", clock));
+            LocalGameSession s = new LocalGameSession(GameEngine.open(
+                    io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("s.json")), "op", clock));
             s.allocateSelfMining(100);
             int afterAllocate = s.log(7, 500).size();
 
@@ -202,28 +202,28 @@ class RigLogTest {
         @DisplayName("the log is capped, so a long session cannot grow the save without bound")
         void logIsCapped(@TempDir Path dir) {
             LocalGameSession s = session(dir, T0);
-            SoloSave save = s.game().state();
-            for (int i = 0; i < SoloSave.LOG_CAPACITY + 250; i++) {
-                io.github.stoicswe.eyeandsickle.solo.rules.EventLog.info(save, "test", "line " + i, T0);
+            GameSave save = s.game().state();
+            for (int i = 0; i < GameSave.LOG_CAPACITY + 250; i++) {
+                io.github.stoicswe.eyeandsickle.engine.rules.EventLog.info(save, "test", "line " + i, T0);
             }
-            assertThat(save.log).hasSize(SoloSave.LOG_CAPACITY);
+            assertThat(save.log).hasSize(GameSave.LOG_CAPACITY);
             // Oldest dropped, newest kept — a log that dropped the NEW ones would be useless.
-            assertThat(save.log.getLast().message).isEqualTo("line " + (SoloSave.LOG_CAPACITY + 249));
+            assertThat(save.log.getLast().message).isEqualTo("line " + (GameSave.LOG_CAPACITY + 249));
         }
 
         @Test
         @DisplayName("the log survives a restart, like a real journal")
         void logPersists(@TempDir Path dir) {
             Path file = dir.resolve("s.json");
-            SoloGame first = SoloGame.open(
-                    new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(file),
+            GameEngine first = GameEngine.open(
+                    io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(file),
                     "op",
                     Clock.fixed(T0, ZoneOffset.UTC));
             first.allocateSelfMining(20);
             first.persist();
 
-            SoloGame reopened = SoloGame.open(
-                    new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(file),
+            GameEngine reopened = GameEngine.open(
+                    io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(file),
                     "op",
                     Clock.fixed(T0, ZoneOffset.UTC));
             assertThat(reopened.log()).anyMatch(e -> e.facility.equals("mining"));

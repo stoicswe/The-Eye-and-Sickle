@@ -89,7 +89,7 @@ public final class UpgradeCompareSnapshot {
                 standing,
                 UnlockGate.ETHECOIN,
                 142_000_000L,
-                io.github.stoicswe.eyeandsickle.solo.Balance.ec("120.96"),
+                io.github.stoicswe.eyeandsickle.engine.Balance.ec("120.96"),
                 true,
                 0L,
                 io.github.stoicswe.eyeandsickle.protocol.game.UpgradeKind.FIRMWARE,
@@ -113,19 +113,19 @@ public final class UpgradeCompareSnapshot {
                                 new UpgradeVersion(3, 1),
                                 UpgradeVersion.UNKNOWN,
                                 UpgradeOffer.Standing.NEW,
-                                io.github.stoicswe.eyeandsickle.solo.Balance.ec("4.8"),
+                                io.github.stoicswe.eyeandsickle.engine.Balance.ec("4.8"),
                                 true)),
                         FileManagerView.compare(offer(
                                 new UpgradeVersion(5, 2),
                                 new UpgradeVersion(1, 8),
                                 UpgradeOffer.Standing.UPGRADE,
-                                io.github.stoicswe.eyeandsickle.solo.Balance.ec("6.4"),
+                                io.github.stoicswe.eyeandsickle.engine.Balance.ec("6.4"),
                                 true)),
                         FileManagerView.compare(offer(
                                 new UpgradeVersion(3, 1),
                                 new UpgradeVersion(3, 1),
                                 UpgradeOffer.Standing.SAME,
-                                io.github.stoicswe.eyeandsickle.solo.Balance.ec("4.8"),
+                                io.github.stoicswe.eyeandsickle.engine.Balance.ec("4.8"),
                                 true)),
                         // ⚠ The longest verdict of the four, and the one whose whole job is to still make a
                         // case. If it wraps badly or the dimmed cell reads as broken, it is visible here.
@@ -133,7 +133,7 @@ public final class UpgradeCompareSnapshot {
                                 new UpgradeVersion(2, 0),
                                 new UpgradeVersion(4, 0),
                                 UpgradeOffer.Standing.OLDER,
-                                io.github.stoicswe.eyeandsickle.solo.Balance.ec("4.0"),
+                                io.github.stoicswe.eyeandsickle.engine.Balance.ec("4.0"),
                                 true)));
         shoot(themes, all, out.resolve("upgrade-compare.png"), 700, 760);
 
