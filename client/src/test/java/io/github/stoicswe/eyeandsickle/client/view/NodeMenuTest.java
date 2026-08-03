@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 
 import io.github.stoicswe.eyeandsickle.client.session.LocalGameSession;
 import io.github.stoicswe.eyeandsickle.solo.SoloGame;
-import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
@@ -114,8 +113,10 @@ class NodeMenuTest {
     @DisplayName("right-clicking a machine does not throw when the anchor is rebuilt underneath it")
     void rightClickDoesNotThrow(@TempDir Path dir) throws Exception {
         onFxThread(() -> {
-            SoloGame game =
-                    SoloGame.open(new SaveStore(dir.resolve("s.json")), "operator", Clock.fixed(T0, ZoneOffset.UTC));
+            SoloGame game = SoloGame.open(
+                    new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")),
+                    "operator",
+                    Clock.fixed(T0, ZoneOffset.UTC));
             LocalGameSession session = new LocalGameSession(game);
             Region map = NetMapView.create(session);
             // ⚠ A Scene with NO Stage — the same condition a node detached by a repaint is in, and

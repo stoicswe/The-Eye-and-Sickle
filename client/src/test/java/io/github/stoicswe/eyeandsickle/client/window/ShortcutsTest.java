@@ -8,7 +8,6 @@ import io.github.stoicswe.eyeandsickle.client.shell.Command;
 import io.github.stoicswe.eyeandsickle.client.shell.ExitStatus;
 import io.github.stoicswe.eyeandsickle.client.shell.Shell;
 import io.github.stoicswe.eyeandsickle.solo.Balance;
-import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
@@ -34,7 +33,7 @@ class ShortcutsTest {
 
     private static Shell shell(Path dir) {
         var session = new LocalGameSession(io.github.stoicswe.eyeandsickle.client.support.TestSaves.bare(
-                new SaveStore(dir.resolve("s.json")), "op", CLOCK));
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")), "op", CLOCK));
         return new Shell(session, BuiltinCommands.registry());
     }
 

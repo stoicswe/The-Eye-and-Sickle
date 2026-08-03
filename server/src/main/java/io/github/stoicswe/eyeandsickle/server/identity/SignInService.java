@@ -45,6 +45,7 @@ public class SignInService {
     private final AllowlistPolicy allowlist;
     private final PlayerRepository players;
     private final VerifiedHandleDirectory handles;
+    private final io.github.stoicswe.eyeandsickle.server.audit.OperatorLog operatorLog;
 
     /**
      * @param identityProvider the AT Proto authentication seam
@@ -56,11 +57,13 @@ public class SignInService {
             AtProtoIdentityProvider identityProvider,
             AllowlistPolicy allowlist,
             PlayerRepository players,
-            VerifiedHandleDirectory handles) {
+            VerifiedHandleDirectory handles,
+            io.github.stoicswe.eyeandsickle.server.audit.OperatorLog operatorLog) {
         this.identityProvider = Objects.requireNonNull(identityProvider, "identityProvider");
         this.allowlist = Objects.requireNonNull(allowlist, "allowlist");
         this.players = Objects.requireNonNull(players, "players");
         this.handles = Objects.requireNonNull(handles, "handles");
+        this.operatorLog = Objects.requireNonNull(operatorLog, "operatorLog");
     }
 
     /**
@@ -83,6 +86,10 @@ public class SignInService {
 
         // Step 2: gate the authenticated DID. Closed by default.
         if (!allowlist.permits(identity.did())) {
+            // ⚠ Logged HERE rather than at the controller: this is the chokepoint every sign-in
+            // passes through, so coverage cannot drift as callers are added. Same rule the client's
+            // EventBus follows.
+            operatorLog.signInDenied(identity.did(), "not on the allowlist");
             throw new SignInDeniedException(identity.did());
         }
 
@@ -94,6 +101,7 @@ public class SignInService {
         List<Player> characters = players.findCharactersByDid(identity.did()).stream()
                 .filter(character -> character.status().isPlayable())
                 .toList();
+        operatorLog.signedIn(identity.did(), handle, characters.size());
         return new AccountSession(identity.did(), handle, characters);
     }
 

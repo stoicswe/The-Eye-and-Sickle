@@ -7,7 +7,6 @@ import io.github.stoicswe.eyeandsickle.client.view.PackageView;
 import io.github.stoicswe.eyeandsickle.protocol.game.PackageManifest;
 import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.SoloGame;
-import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.nio.file.Path;
@@ -73,7 +72,10 @@ public final class PackageSnapshot {
         ThemeManager themes = new ThemeManager(profile);
 
         Winding clock = new Winding(T0);
-        SoloGame game = SoloGame.open(new SaveStore(profileDir.resolve("save.json")), "halflight", clock);
+        SoloGame game = SoloGame.open(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(profileDir.resolve("save.json")),
+                "halflight",
+                clock);
         LocalGameSession session = new LocalGameSession(game);
         game.credit(Balance.ec("500"), "TEST", "seed");
         session.purchase("canary-token");

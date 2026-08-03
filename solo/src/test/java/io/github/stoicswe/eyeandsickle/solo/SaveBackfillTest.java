@@ -49,7 +49,7 @@ class SaveBackfillTest {
     @Test
     @DisplayName("opening an old save brings up a world, and the sweep the player could not run now runs")
     void backfillsAndSweeps(@TempDir Path dir) {
-        SaveStore store = new SaveStore(dir.resolve("save.json"));
+        SaveStore store = new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json"));
         store.save(pretopology());
 
         SoloGame game = SoloGame.open(store, "operator", new TestClock(T0));
@@ -69,8 +69,8 @@ class SaveBackfillTest {
         second.rngSeed = first.rngSeed;
         second.characterId = first.characterId;
 
-        SaveStore storeA = new SaveStore(dir.resolve("a.json"));
-        SaveStore storeB = new SaveStore(dir.resolve("b.json"));
+        SaveStore storeA = new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("a.json"));
+        SaveStore storeB = new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("b.json"));
         storeA.save(first);
         storeB.save(second);
 
@@ -87,7 +87,7 @@ class SaveBackfillTest {
     @Test
     @DisplayName("a save from before the chain existed joins it, pooled, at its current height")
     void backfillsTheChain(@TempDir Path dir) {
-        SaveStore store = new SaveStore(dir.resolve("save.json"));
+        SaveStore store = new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json"));
         SoloSave old = pretopology();
         old.chain = null;
         store.save(old);
@@ -110,7 +110,7 @@ class SaveBackfillTest {
     @Test
     @DisplayName("a save that already has a world is left exactly as it was")
     void neverRegenerates(@TempDir Path dir) {
-        SaveStore store = new SaveStore(dir.resolve("save.json"));
+        SaveStore store = new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json"));
         SoloSave save = SoloGame.newCharacter("operator", T0);
         store.save(save);
 
@@ -130,7 +130,7 @@ class SaveBackfillTest {
     @Test
     @DisplayName("a breach still open when the game closed is abandoned as an aborted attempt")
     void breachesDoNotSurviveASession(@TempDir Path dir) {
-        SaveStore store = new SaveStore(dir.resolve("save.json"));
+        SaveStore store = new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json"));
         SoloSave save = SoloGame.newCharacter("operator", T0);
         // The audit that makes the tutorial parasite a target; see SoloGameTest for the pipeline.
         save.rig.foreignMiners.getFirst().discovered = true;
@@ -164,7 +164,7 @@ class SaveBackfillTest {
     @Test
     @DisplayName("a breach that had already resolved is left alone, so its outcome can still be read")
     void resolvedBreachesSurvive(@TempDir Path dir) {
-        SaveStore store = new SaveStore(dir.resolve("save.json"));
+        SaveStore store = new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json"));
         SoloSave save = SoloGame.newCharacter("operator", T0);
         save.rig.foreignMiners.getFirst().discovered = true;
         var target = io.github.stoicswe.eyeandsickle.solo.breach.Targets.available(save)
@@ -182,7 +182,7 @@ class SaveBackfillTest {
     @Test
     @DisplayName("abandoning on demand is the same act as abandoning on load, and frees the cycles")
     void abandonOnDemand(@TempDir Path dir) {
-        SaveStore store = new SaveStore(dir.resolve("save.json"));
+        SaveStore store = new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json"));
         SoloGame game = SoloGame.open(store, "operator", new TestClock(T0));
         game.state().rig.foreignMiners.getFirst().discovered = true;
         var target = game.breachTargets().getFirst();
@@ -208,7 +208,10 @@ class SaveBackfillTest {
     @Test
     @DisplayName("abandoning when nothing is running is a no-op, not a refusal")
     void abandonIsSilentWhenIdle(@TempDir Path dir) {
-        SoloGame game = SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", new TestClock(T0));
+        SoloGame game = SoloGame.open(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json")),
+                "operator",
+                new TestClock(T0));
         // Closing an idle breach window is a perfectly ordinary thing to do, and complaining about
         // it would be the client narrating its own bookkeeping.
         assertThat(game.abandonBreach()).isFalse();
@@ -218,7 +221,10 @@ class SaveBackfillTest {
     @Test
     @DisplayName("a resolved breach is not abandoned — its slate is still the player's to read")
     void resolvedIsNotAbandoned(@TempDir Path dir) {
-        SoloGame game = SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", new TestClock(T0));
+        SoloGame game = SoloGame.open(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json")),
+                "operator",
+                new TestClock(T0));
         game.state().rig.foreignMiners.getFirst().discovered = true;
         game.beginBreach(game.breachTargets().getFirst().targetId());
         game.abortBreach();
@@ -230,7 +236,7 @@ class SaveBackfillTest {
     @Test
     @DisplayName("an old save has no filing and gets an empty one rather than a null")
     void filingIsInitialised(@TempDir Path dir) {
-        SaveStore store = new SaveStore(dir.resolve("save.json"));
+        SaveStore store = new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json"));
         SoloSave save = pretopology();
         save.netFolders = null;
         store.save(save);

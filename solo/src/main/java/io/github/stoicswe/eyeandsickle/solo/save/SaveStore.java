@@ -1,126 +1,59 @@
 package io.github.stoicswe.eyeandsickle.solo.save;
 
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.file.AtomicMoveNotSupportedException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import tools.jackson.databind.ObjectMapper;
-import tools.jackson.databind.SerializationFeature;
-import tools.jackson.databind.cfg.DateTimeFeature;
-import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Reads and writes a save file.
+ * Where a game's state is kept — the seam that lets <strong>one rules engine serve every mode</strong>.
  *
- * <h2>Atomic writes, because the alternative is losing someone's run</h2>
+ * <h2>⚠ Why this is an interface, and what it replaced</h2>
  *
- * A save is written to a sibling temporary file and then moved into place. The move is atomic on
- * every filesystem this client will realistically meet, which means a crash — or a laptop lid closing
- * mid-write — leaves either the old save or the new one, never a half-written file that parses as far
- * as the inventory and then stops.
+ * {@code CLAUDE.md} used to warn that this module is "a SECOND IMPLEMENTATION of a subset of the
+ * rules", and that re-tuning {@code design/03} meant re-reading {@code solo/Balance.java}. That warning
+ * existed because the plan was for the server to grow its own engine — two codebases computing the
+ * same yields, drifting.
  *
- * <p>Naively overwriting in place would be one line shorter and would eventually eat a player's
- * character. Autosave makes that a near-certainty over a long enough population: the window is small,
- * but it is entered on every single save.
+ * <p><strong>That is no longer the plan and no longer true.</strong> {@link SoloGame} is the engine,
+ * and where its state lives is a detail behind this interface:
  *
- * <h2>Human-readable on purpose</h2>
+ * <ul>
+ *   <li>{@link FileSaveStore} — a JSON file on the player's disk. Single player.
+ *   <li>the home server's implementation — the same state in <em>its</em> Postgres. LAN and federated.
+ * </ul>
  *
- * The file is pretty-printed JSON. It is a single-player save on the player's own disk — obfuscating
- * it would buy nothing against anybody who wanted to edit it, and would cost the ability to diff a
- * save, mail one to a bug report, or hand-repair one after a bad release. The threat model here has
- * exactly one participant and they own the machine.
+ * ⚠ <strong>Invariant I14 is satisfied by the server's implementation, not weakened by it.</strong>
+ * I14 says game state lives in the server's database and never in player-controlled infrastructure.
+ * A server-side store keeps it exactly there — the player's copy is a render, and the engine that
+ * decides anything runs on the server against server-held state.
+ *
+ * <p>⚠ And the reason a player-editable save is safe in single player is unchanged: nothing downstream
+ * trusts it, and a solo character can never federate. That protection comes from the <em>quarantine</em>
+ * ({@code docs/architecture/12-lan-mode.md} §1), never from the engine being a different one.
  */
-public final class SaveStore {
+public interface SaveStore {
+
+    /** @return where this store keeps its state, for logs and diagnostics; may be null for non-file stores */
+    default Path file() {
+        return null;
+    }
+
+    /** @return whether any state exists yet */
+    boolean exists();
 
     /**
-     * Jackson 3 registers {@code java.time} support from {@code databind} itself, so an {@link
-     * java.time.Instant} round-trips with no extra module on the classpath. Written as ISO-8601
-     * strings rather than epoch numbers so the file stays readable by the human it belongs to.
-     */
-    private static final ObjectMapper MAPPER = JsonMapper.builder()
-            .enable(SerializationFeature.INDENT_OUTPUT)
-            // Jackson 3 moved the date-format switches out of SerializationFeature into
-            // DateTimeFeature, and flipped the default: java.time values now serialize as ISO-8601
-            // strings rather than numeric timestamps. That is what we want, so this is disabled
-            // explicitly rather than relied upon — a default that changed once can change again, and
-            // a save file full of epoch nanoseconds would be unreadable by the person it belongs to.
-            .disable(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS)
-            .build();
-
-    private final Path file;
-
-    public SaveStore(Path file) {
-        this.file = file;
-    }
-
-    public Path file() {
-        return file;
-    }
-
-    public boolean exists() {
-        return Files.isRegularFile(file);
-    }
-
-    /**
-     * Loads the save, or returns {@code null} if there is not one yet.
+     * Loads the state, or returns {@code null} if there is none yet.
      *
-     * @throws UnreadableSaveException if the file exists but cannot be used — a corrupt file, or one
-     *     written by a newer version of the game. Both are refused loudly rather than partially
-     *     applied, because a half-loaded character is worse than an error message.
+     * @throws UnreadableSaveException if state exists but must not be used — corrupt, or written by a
+     *     newer build. Both are refused loudly rather than partially applied, because a half-loaded
+     *     character is worse than an error message.
      */
-    public SoloSave load() {
-        if (!exists()) {
-            return null;
-        }
-        SoloSave save;
-        try {
-            save = MAPPER.readValue(Files.readString(file), SoloSave.class);
-        } catch (IOException e) {
-            throw new UncheckedIOException("Could not read save " + file, e);
-        } catch (RuntimeException e) {
-            throw new UnreadableSaveException("Save file " + file + " is not readable as a save", e);
-        }
-        if (save == null) {
-            throw new UnreadableSaveException("Save file " + file + " is empty", null);
-        }
-        if (save.format > SoloSave.CURRENT_FORMAT) {
-            // Downgrading is refused rather than attempted. A newer save may contain state this
-            // build has no rule for, and silently dropping it is how a player loses progress they
-            // can see in the file.
-            throw new UnreadableSaveException(
-                    "Save file " + file + " has format " + save.format + ", but this build understands at most "
-                            + SoloSave.CURRENT_FORMAT + ". Update the game to load it.",
-                    null);
-        }
-        return save;
-    }
+    SoloSave load();
 
-    /** Writes the save atomically, creating parent directories if needed. */
-    public void save(SoloSave save) {
-        try {
-            Path parent = file.toAbsolutePath().getParent();
-            if (parent != null) {
-                Files.createDirectories(parent);
-            }
-            Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
-            Files.writeString(tmp, MAPPER.writeValueAsString(save));
-            try {
-                Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException notAtomic) {
-                // Some network and FUSE filesystems refuse ATOMIC_MOVE. A plain replace is still
-                // better than writing in place, and it is the best available on that volume.
-                Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING);
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException("Could not write save " + file, e);
-        }
-    }
+    /** Writes the state. ⚠ Implementations must make this atomic; a half-written save eats a run. */
+    void save(SoloSave save);
 
-    /** Thrown when a save exists but must not be used. */
-    public static final class UnreadableSaveException extends RuntimeException {
+    /** Thrown when state exists but must not be used. */
+    final class UnreadableSaveException extends RuntimeException {
         public UnreadableSaveException(String message, Throwable cause) {
             super(message, cause);
         }

@@ -36,7 +36,10 @@ class ChainSyncTest {
     private static final Instant T0 = Instant.parse("2026-07-25T12:00:00Z");
 
     private static SoloGame at(Path file, Instant when) {
-        return SoloGame.open(new SaveStore(file), "operator", Clock.fixed(when, ZoneOffset.UTC));
+        return SoloGame.open(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(file),
+                "operator",
+                Clock.fixed(when, ZoneOffset.UTC));
     }
 
     @Nested
@@ -247,7 +250,10 @@ class ChainSyncTest {
          */
         private SoloGame played(Path dir, String poolId, Duration span) {
             Winding clock = new Winding(T0);
-            SoloGame game = SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", clock);
+            SoloGame game = SoloGame.open(
+                    new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json")),
+                    "operator",
+                    clock);
             game.setPool(poolId);
             // ⚠ The postcondition, not setPool's return. It reports whether anything CHANGED, so it
             // is false for "commons" — which is already the default — and asserting on it fails a
@@ -402,7 +408,7 @@ class ChainSyncTest {
          * objects with byte-identical state, which is what makes a same-seed comparison mean anything.
          */
         private SaveStore soloRig(Path dir, String name) {
-            SaveStore store = new SaveStore(dir.resolve(name + ".json"));
+            SaveStore store = new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve(name + ".json"));
             SoloGame game = SoloGame.open(store, "operator", Clock.fixed(T0, ZoneOffset.UTC));
             game.setMiningMode(MiningMode.SOLO);
             // ⚠ 80, not 100 — a fresh rig's tutorial parasite holds some cycles and a full

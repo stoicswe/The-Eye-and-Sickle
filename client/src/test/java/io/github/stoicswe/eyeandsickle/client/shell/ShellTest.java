@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.stoicswe.eyeandsickle.client.session.GameSession;
 import io.github.stoicswe.eyeandsickle.client.session.LocalGameSession;
-import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import io.github.stoicswe.eyeandsickle.solo.state.NodeState;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -29,7 +28,7 @@ class ShellTest {
 
     private static Shell shell(Path dir) {
         GameSession session = new LocalGameSession(io.github.stoicswe.eyeandsickle.client.support.TestSaves.bare(
-                new SaveStore(dir.resolve("s.json")), "op", CLOCK));
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")), "op", CLOCK));
         return new Shell(session, BuiltinCommands.registry());
     }
 

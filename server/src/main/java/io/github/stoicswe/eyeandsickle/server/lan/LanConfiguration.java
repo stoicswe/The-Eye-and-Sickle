@@ -48,7 +48,7 @@ public class LanConfiguration {
     }
 
     @Bean
-    LanJoinController lanJoinController() {
-        return new LanJoinController();
+    LanJoinController lanJoinController(io.github.stoicswe.eyeandsickle.server.audit.OperatorLog operatorLog) {
+        return new LanJoinController(operatorLog);
     }
 }

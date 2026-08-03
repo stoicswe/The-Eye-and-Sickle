@@ -7,7 +7,6 @@ import io.github.stoicswe.eyeandsickle.protocol.game.UpgradeVersion;
 import io.github.stoicswe.eyeandsickle.solo.Catalogue;
 import io.github.stoicswe.eyeandsickle.solo.SoloGame;
 import io.github.stoicswe.eyeandsickle.solo.rules.Repac;
-import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import io.github.stoicswe.eyeandsickle.solo.state.StoredFileState;
 import java.awt.image.BufferedImage;
 import java.io.File;
@@ -101,7 +100,10 @@ public final class FlashOverlaySnapshot {
         ThemeManager themes = new ThemeManager(profile);
 
         Winding clock = new Winding(T0);
-        SoloGame game = SoloGame.open(new SaveStore(profileDir.resolve("save.json")), "halflight", clock);
+        SoloGame game = SoloGame.open(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(profileDir.resolve("save.json")),
+                "halflight",
+                clock);
         game.state().schematics.add(Catalogue.FIRMWARE_IMPLANT_SCHEMATIC);
         game.state().rig.selfMiningCycles = 0L;
         StoredFileState image = Repac.arrive(

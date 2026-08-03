@@ -147,7 +147,10 @@ class FirmwareFlashTest {
         @DisplayName("it takes about a minute and a half, then grants the item and eats the image")
         void completes(@TempDir Path dir) {
             Winding clock = new Winding(T0);
-            SoloGame game = SoloGame.open(new SaveStore(dir.resolve("s.json")), "operator", clock);
+            SoloGame game = SoloGame.open(
+                    new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")),
+                    "operator",
+                    clock);
             String path = ready(game);
             Repac.install(game.state(), path, T0);
 
@@ -177,7 +180,7 @@ class FirmwareFlashTest {
         @DisplayName("a flash that finishes while the game is closed settles on the way back in")
         void settlesOnResume(@TempDir Path dir) {
             Winding clock = new Winding(T0);
-            SaveStore store = new SaveStore(dir.resolve("s.json"));
+            SaveStore store = new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json"));
             SoloGame game = SoloGame.open(store, "operator", clock);
             String path = ready(game);
             Repac.install(game.state(), path, T0);
@@ -256,7 +259,10 @@ class FirmwareFlashTest {
         @DisplayName("mining works again once the flash finishes")
         void thawsOnCompletion(@TempDir Path dir) {
             Winding clock = new Winding(T0);
-            SoloGame game = SoloGame.open(new SaveStore(dir.resolve("s.json")), "operator", clock);
+            SoloGame game = SoloGame.open(
+                    new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")),
+                    "operator",
+                    clock);
             String path = ready(game);
             Repac.install(game.state(), path, T0);
 
@@ -268,6 +274,9 @@ class FirmwareFlashTest {
     }
 
     private static SoloGame game(Path dir) {
-        return SoloGame.open(new SaveStore(dir.resolve("s.json")), "operator", Clock.fixed(T0, ZoneOffset.UTC));
+        return SoloGame.open(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")),
+                "operator",
+                Clock.fixed(T0, ZoneOffset.UTC));
     }
 }

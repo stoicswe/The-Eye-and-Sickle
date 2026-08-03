@@ -15,7 +15,6 @@ import io.github.stoicswe.eyeandsickle.client.view.TerminalView;
 import io.github.stoicswe.eyeandsickle.client.view.Views;
 import io.github.stoicswe.eyeandsickle.client.window.WindowSpec;
 import io.github.stoicswe.eyeandsickle.solo.SoloGame;
-import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.nio.file.Path;
@@ -112,7 +111,10 @@ public final class DeckSnapshot {
         }
         ThemeManager themes = new ThemeManager(profile);
 
-        var game = SoloGame.open(new SaveStore(profileDir.resolve("save.json")), "halflight", Clock.systemUTC());
+        var game = SoloGame.open(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(profileDir.resolve("save.json")),
+                "halflight",
+                Clock.systemUTC());
         LocalGameSession session = new LocalGameSession(game);
         // A rig doing something. An empty rig renders an empty grid, which would prove nothing about
         // the component the whole design language calls its signature.

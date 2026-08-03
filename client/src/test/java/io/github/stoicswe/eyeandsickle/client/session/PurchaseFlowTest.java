@@ -6,7 +6,6 @@ import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
 import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.SoloGame;
 import io.github.stoicswe.eyeandsickle.solo.rules.Repac;
-import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import io.github.stoicswe.eyeandsickle.solo.state.StoredFileState;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -49,7 +48,10 @@ class PurchaseFlowTest {
     @DisplayName("the whole journey: paid, downloaded, held, confirmed, installed")
     void buyDownloadConfirmInstall(@TempDir Path dir) {
         Winding clock = new Winding(T0);
-        SoloGame game = SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", clock);
+        SoloGame game = SoloGame.open(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json")),
+                "operator",
+                clock);
         LocalGameSession session = new LocalGameSession(game);
         game.credit(Balance.ec("500"), "TEST", "seed");
         java.math.BigInteger before = session.balance().wei();
@@ -122,7 +124,10 @@ class PurchaseFlowTest {
     @DisplayName("the ledger row for the purchase is what releases it")
     void theLedgerRowIsTheKey(@TempDir Path dir) {
         Winding clock = new Winding(T0);
-        SoloGame game = SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", clock);
+        SoloGame game = SoloGame.open(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json")),
+                "operator",
+                clock);
         LocalGameSession session = new LocalGameSession(game);
         game.credit(Balance.ec("500"), "TEST", "seed");
         session.purchase(OFFERING);
@@ -151,7 +156,10 @@ class PurchaseFlowTest {
     @DisplayName("a package whose ledger row has vanished fails open")
     void anOrphanedHoldFailsOpen(@TempDir Path dir) {
         Winding clock = new Winding(T0);
-        SoloGame game = SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", clock);
+        SoloGame game = SoloGame.open(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json")),
+                "operator",
+                clock);
         LocalGameSession session = new LocalGameSession(game);
         game.credit(Balance.ec("500"), "TEST", "seed");
         session.purchase(OFFERING);
@@ -169,7 +177,10 @@ class PurchaseFlowTest {
     @DisplayName("buying the same thing twice is refused rather than charged twice")
     void noDoubleBuy(@TempDir Path dir) {
         Winding clock = new Winding(T0);
-        SoloGame game = SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", clock);
+        SoloGame game = SoloGame.open(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json")),
+                "operator",
+                clock);
         LocalGameSession session = new LocalGameSession(game);
         game.credit(Balance.ec("500"), "TEST", "seed");
 
@@ -199,7 +210,10 @@ class PurchaseFlowTest {
     @DisplayName("a bought package's manifest reports its publisher, contents and hold")
     void manifestDescribesThepackage(@TempDir Path dir) {
         Winding clock = new Winding(T0);
-        SoloGame game = SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", clock);
+        SoloGame game = SoloGame.open(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json")),
+                "operator",
+                clock);
         LocalGameSession session = new LocalGameSession(game);
         var pkg = bought(dir, clock, game, session);
 
@@ -230,7 +244,10 @@ class PurchaseFlowTest {
     @DisplayName("digests match on a market package, and diverge when the payload is substituted")
     void integrityIsCheckable(@TempDir Path dir) {
         Winding clock = new Winding(T0);
-        SoloGame game = SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", clock);
+        SoloGame game = SoloGame.open(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json")),
+                "operator",
+                clock);
         LocalGameSession session = new LocalGameSession(game);
         var pkg = bought(dir, clock, game, session);
 
@@ -254,7 +271,10 @@ class PurchaseFlowTest {
     @DisplayName("a path that is not a package this rig holds has no manifest")
     void noManifestForAnythingElse(@TempDir Path dir) {
         Winding clock = new Winding(T0);
-        SoloGame game = SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", clock);
+        SoloGame game = SoloGame.open(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json")),
+                "operator",
+                clock);
         LocalGameSession session = new LocalGameSession(game);
         // The panel falls back to the rules' own refusal for these rather than rendering blank.
         assertThat(session.packageAt("/Users/operator/Downloads/not-here.upg")).isEmpty();

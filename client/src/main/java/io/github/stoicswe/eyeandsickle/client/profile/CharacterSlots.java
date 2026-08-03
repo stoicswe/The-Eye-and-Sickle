@@ -1,6 +1,5 @@
 package io.github.stoicswe.eyeandsickle.client.profile;
 
-import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -65,7 +64,7 @@ public final class CharacterSlots {
             return Slot.empty(index, file);
         }
         try {
-            SoloSave save = new SaveStore(file).load();
+            SoloSave save = new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(file).load();
             if (save == null) {
                 return Slot.empty(index, file);
             }

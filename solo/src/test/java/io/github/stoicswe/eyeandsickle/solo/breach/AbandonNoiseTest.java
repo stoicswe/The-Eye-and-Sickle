@@ -6,7 +6,6 @@ import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.SoloGame;
 import io.github.stoicswe.eyeandsickle.solo.net.SweepTier;
 import io.github.stoicswe.eyeandsickle.solo.rules.NoiseRules;
-import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -28,19 +27,22 @@ class AbandonNoiseTest {
         final SoloGame game;
 
         Rig(Path dir) {
-            game = SoloGame.open(new SaveStore(dir.resolve("s.json")), "op", new java.time.Clock() {
-                public java.time.ZoneId getZone() {
-                    return java.time.ZoneOffset.UTC;
-                }
+            game = SoloGame.open(
+                    new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")),
+                    "op",
+                    new java.time.Clock() {
+                        public java.time.ZoneId getZone() {
+                            return java.time.ZoneOffset.UTC;
+                        }
 
-                public java.time.Clock withZone(java.time.ZoneId z) {
-                    return this;
-                }
+                        public java.time.Clock withZone(java.time.ZoneId z) {
+                            return this;
+                        }
 
-                public Instant instant() {
-                    return now;
-                }
-            });
+                        public Instant instant() {
+                            return now;
+                        }
+                    });
             game.sweep(SweepTier.BASE);
             for (int i = 0; i < 30 && !game.state().tasks.isEmpty(); i++) {
                 now = now.plusSeconds(5);

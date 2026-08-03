@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget;
 import io.github.stoicswe.eyeandsickle.solo.SoloGame;
-import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
@@ -96,7 +95,8 @@ class NodeReportTest {
     @DisplayName("a completed scan files a report, and the map marks the machine")
     void aScanFilesAReport(@TempDir Path dir) {
         Winding clock = new Winding(T0);
-        SoloGame game = SoloGame.open(new SaveStore(dir.resolve("s.json")), "operator", clock);
+        SoloGame game = SoloGame.open(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")), "operator", clock);
         String address = someMachine(game);
 
         assertThat(NodeReports.any(game.state(), address)).isFalse();
@@ -128,7 +128,8 @@ class NodeReportTest {
     @DisplayName("findings accumulate across scans and a shallow rescan erases nothing")
     void findingsAccumulate(@TempDir Path dir) {
         Winding clock = new Winding(T0);
-        SoloGame game = SoloGame.open(new SaveStore(dir.resolve("s.json")), "operator", clock);
+        SoloGame game = SoloGame.open(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")), "operator", clock);
         String address = someMachine(game);
 
         scanned(clock, game, address, PortScanTarget.VAULT_MEDIUM);
@@ -163,7 +164,8 @@ class NodeReportTest {
     @DisplayName("updatedAt moves with any scan, but each finding keeps its own date")
     void datesArePerFinding(@TempDir Path dir) {
         Winding clock = new Winding(T0);
-        SoloGame game = SoloGame.open(new SaveStore(dir.resolve("s.json")), "operator", clock);
+        SoloGame game = SoloGame.open(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")), "operator", clock);
         String address = someMachine(game);
 
         scanned(clock, game, address, PortScanTarget.CYCLE_LOAD);
@@ -187,14 +189,17 @@ class NodeReportTest {
     void itPersists(@TempDir Path dir) {
         Path file = dir.resolve("s.json");
         Winding clock = new Winding(T0);
-        SoloGame game = SoloGame.open(new SaveStore(file), "operator", clock);
+        SoloGame game =
+                SoloGame.open(new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(file), "operator", clock);
         String address = someMachine(game);
         scanned(clock, game, address, PortScanTarget.DOWNLOADS);
         long downloads = NodeReports.at(game.state(), address).orElseThrow().downloadsBytes();
         game.persist();
 
-        SoloGame reopened =
-                SoloGame.open(new SaveStore(file), "operator", Clock.fixed(clock.instant(), ZoneOffset.UTC));
+        SoloGame reopened = SoloGame.open(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(file),
+                "operator",
+                Clock.fixed(clock.instant(), ZoneOffset.UTC));
         var report = NodeReports.at(reopened.state(), address).orElseThrow();
         assertThat(report.downloadsBytes()).isEqualTo(downloads);
         assertThat(report.knows(PortScanTarget.DOWNLOADS)).isTrue();
@@ -206,7 +211,8 @@ class NodeReportTest {
     @DisplayName("RECON lists every file, most recently updated first")
     void reportsAreListedNewestFirst(@TempDir Path dir) {
         Winding clock = new Winding(T0);
-        SoloGame game = SoloGame.open(new SaveStore(dir.resolve("s.json")), "operator", clock);
+        SoloGame game = SoloGame.open(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")), "operator", clock);
         var machines = game.state().topology.hosts.stream()
                 .filter(h -> !"SELF".equals(h.kind))
                 .limit(3)
@@ -235,7 +241,8 @@ class NodeReportTest {
     @DisplayName("naming and tagging need a report, and the search finds one by any of them")
     void namesAndTagsAreSearchable(@TempDir Path dir) {
         Winding clock = new Winding(T0);
-        SoloGame game = SoloGame.open(new SaveStore(dir.resolve("s.json")), "operator", clock);
+        SoloGame game = SoloGame.open(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")), "operator", clock);
         String address = someMachine(game);
 
         // ⚠ Refused before there is a file. A name is a note about intelligence you hold; letting one
@@ -272,7 +279,8 @@ class NodeReportTest {
     @DisplayName("clearing a name falls back to the address, never to blank")
     void clearingANameFallsBack(@TempDir Path dir) {
         Winding clock = new Winding(T0);
-        SoloGame game = SoloGame.open(new SaveStore(dir.resolve("s.json")), "operator", clock);
+        SoloGame game = SoloGame.open(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")), "operator", clock);
         String address = someMachine(game);
         scanned(clock, game, address, PortScanTarget.FIREWALL);
 
@@ -289,15 +297,18 @@ class NodeReportTest {
     void namesPersist(@TempDir Path dir) {
         Path file = dir.resolve("s.json");
         Winding clock = new Winding(T0);
-        SoloGame game = SoloGame.open(new SaveStore(file), "operator", clock);
+        SoloGame game =
+                SoloGame.open(new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(file), "operator", clock);
         String address = someMachine(game);
         scanned(clock, game, address, PortScanTarget.FIREWALL);
         NodeReports.rename(game.state(), address, "the bank");
         NodeReports.retag(game.state(), address, java.util.List.of("revisit"));
         game.persist();
 
-        SoloGame reopened =
-                SoloGame.open(new SaveStore(file), "operator", Clock.fixed(clock.instant(), ZoneOffset.UTC));
+        SoloGame reopened = SoloGame.open(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(file),
+                "operator",
+                Clock.fixed(clock.instant(), ZoneOffset.UTC));
         var report = NodeReports.at(reopened.state(), address).orElseThrow();
         assertThat(report.alias()).isEqualTo("the bank");
         assertThat(report.tags()).containsExactly("revisit");

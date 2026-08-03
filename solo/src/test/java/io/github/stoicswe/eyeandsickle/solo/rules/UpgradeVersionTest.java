@@ -8,7 +8,6 @@ import io.github.stoicswe.eyeandsickle.protocol.game.UpgradeVersion;
 import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.Catalogue;
 import io.github.stoicswe.eyeandsickle.solo.SoloGame;
-import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import io.github.stoicswe.eyeandsickle.solo.state.ItemState;
 import java.math.BigInteger;
 import java.nio.file.Path;
@@ -36,7 +35,10 @@ class UpgradeVersionTest {
     private static final Instant T0 = Instant.parse("2026-07-30T09:00:00Z");
 
     private static SoloGame game(Path dir) {
-        return SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", Clock.fixed(T0, ZoneOffset.UTC));
+        return SoloGame.open(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json")),
+                "operator",
+                Clock.fixed(T0, ZoneOffset.UTC));
     }
 
     @Nested

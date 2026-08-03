@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.github.stoicswe.eyeandsickle.client.session.LocalGameSession;
 import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.SoloGame;
-import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import io.github.stoicswe.eyeandsickle.solo.state.HostState;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -101,8 +100,10 @@ class ShellWindowClosesSessionTest {
 
     /** A rig holding a foothold on one machine, so a shell may legally open on it. */
     private static LocalGameSession sessionOn(Path dir) {
-        SoloGame game =
-                SoloGame.open(new SaveStore(dir.resolve("s.json")), "operator", Clock.fixed(T0, ZoneOffset.UTC));
+        SoloGame game = SoloGame.open(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")),
+                "operator",
+                Clock.fixed(T0, ZoneOffset.UTC));
         HostState host = game.state().topology.hosts.stream()
                 .filter(h -> !"SELF".equals(h.kind))
                 .findFirst()

@@ -135,6 +135,29 @@
     </dependency>
 
     <!--
+      The rules engine.
+
+      ⚠ This is the refactor that removed a duplicate-rules problem rather than creating one.
+      CLAUDE.md used to warn that `solo` was "a SECOND IMPLEMENTATION of a subset of the rules" and
+      that re-tuning design/03 meant re-reading solo/Balance.java. That was true while the plan was
+      for the server to grow its own engine. It no longer is: `solo` IS the engine, and where its
+      state lives is a detail behind the SaveStore interface — a file for single player, this
+      server's Postgres for LAN and federated.
+
+      ⚠ Invariant I14 is satisfied by that, not weakened. I14 says game state lives in the server's
+      database and never in player-controlled infrastructure; a server-side SaveStore keeps it
+      exactly there, and the engine that decides anything runs here against server-held state.
+
+      solo carries no Spring, no driver, no HTTP stack and no thread of its own — its own enforcer
+      rule holds that line — so depending on it adds nothing to this module's tree but the rules.
+    -->
+    <dependency>
+      <groupId>io.github.stoicswe.eyeandsickle</groupId>
+      <artifactId>eyeandsickle-solo</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <!--
       BouncyCastle, for ONE reason: secp256k1.
 
       Most did:plc accounts sign with secp256k1, and SunEC cannot verify it (measured on OpenJDK 26 —

@@ -39,7 +39,9 @@ class SoloGameTest {
     private static final Instant T0 = Instant.parse("2026-07-25T12:00:00Z");
 
     private static SoloGame freshGame(Path dir) {
-        return bare(new SaveStore(dir.resolve("save.json")), new TestClock(T0));
+        return bare(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json")),
+                new TestClock(T0));
     }
 
     /**
@@ -128,7 +130,8 @@ class SoloGameTest {
         @DisplayName("UI-6: the cycles start recovering only once the scan ends")
         void scanRecoversAfterItEnds(@TempDir Path dir) {
             TestClock clock = new TestClock(T0);
-            SoloGame game = bare(new SaveStore(dir.resolve("save.json")), clock);
+            SoloGame game =
+                    bare(new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json")), clock);
             game.scan(SoloGame.ScanTier.THOROUGH);
 
             // Just short of the published ~6 min: still held, still not recovering.
@@ -161,7 +164,8 @@ class SoloGameTest {
         /** Runs a Full Scan to completion on a rig carrying {@code selfMining} cycles. */
         private Instant recoveryDeadlineAfterFullScan(Path dir, int selfMining) {
             TestClock clock = new TestClock(T0);
-            SoloGame game = bare(new SaveStore(dir.resolve("save.json")), clock);
+            SoloGame game =
+                    bare(new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json")), clock);
             if (selfMining > 0) {
                 game.allocateSelfMining(selfMining);
             }
@@ -179,7 +183,8 @@ class SoloGameTest {
         @DisplayName("recovered cycles come back once their time has passed")
         void recoveredCyclesReturn(@TempDir Path dir) {
             TestClock clock = new TestClock(T0);
-            SoloGame game = bare(new SaveStore(dir.resolve("save.json")), clock);
+            SoloGame game =
+                    bare(new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json")), clock);
             game.scan(SoloGame.ScanTier.QUICK);
             assertThat(game.computeBudget().available()).isEqualTo(Cycles.of(95));
 
@@ -194,14 +199,14 @@ class SoloGameTest {
         void offlineScanDoesNotRestartItsRecoveryClock(@TempDir Path dir) {
             Path save = dir.resolve("save.json");
             TestClock clock = new TestClock(T0);
-            SoloGame game = bare(new SaveStore(save), clock);
+            SoloGame game = bare(new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(save), clock);
             game.scan(SoloGame.ScanTier.THOROUGH);
             game.persist();
 
             // A week away. The scan ended six minutes in and its recovery finished long before now,
             // so the rig must be whole — not still nursing Tuesday's scan in front of the player.
             TestClock later = new TestClock(T0.plus(Duration.ofDays(7)));
-            SoloGame resumed = bare(new SaveStore(save), later);
+            SoloGame resumed = bare(new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(save), later);
             assertThat(resumed.computeBudget().available()).isEqualTo(Cycles.of(100));
             assertThat(resumed.computeBudget().recovering()).isEqualTo(Cycles.of(0));
             assertThat(resumed.tasks()).isEmpty();
@@ -216,7 +221,8 @@ class SoloGameTest {
         @DisplayName("a full rig self-mines 40 EC/hr — the design/03 §1 figure")
         void selfMiningRate(@TempDir Path dir) {
             TestClock clock = new TestClock(T0);
-            SoloGame game = bare(new SaveStore(dir.resolve("save.json")), clock);
+            SoloGame game =
+                    bare(new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json")), clock);
             game.allocateSelfMining(100);
 
             // ⚠ Since 2026-07-27 this is a Poisson process, not a rate, so the EXPECTATION is the
@@ -243,7 +249,8 @@ class SoloGameTest {
         @DisplayName("pooled mining never has an empty hour, which is what makes it the floor (I4)")
         void pooledIsAFloor(@TempDir Path dir) {
             TestClock clock = new TestClock(T0);
-            SoloGame game = bare(new SaveStore(dir.resolve("save.json")), clock);
+            SoloGame game =
+                    bare(new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json")), clock);
             game.allocateSelfMining(100);
 
             double previous = 0;
@@ -263,7 +270,8 @@ class SoloGameTest {
         @DisplayName("solo mining pays in rare lumps, and the choice is the player's")
         void soloIsALottery(@TempDir Path dir) {
             TestClock clock = new TestClock(T0);
-            SoloGame game = bare(new SaveStore(dir.resolve("save.json")), clock);
+            SoloGame game =
+                    bare(new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json")), clock);
             game.allocateSelfMining(100);
             assertThat(game.setMiningMode(MiningMode.SOLO)).isTrue();
 
@@ -321,7 +329,7 @@ class SoloGameTest {
         @DisplayName("INVARIANT I5 — a month away pays no more than the spin-down window")
         void offlineSelfMiningIsCappedNotProportional(@TempDir Path dir) throws IOException {
             Path file = dir.resolve("save.json");
-            SoloGame first = bare(new SaveStore(file), new TestClock(T0));
+            SoloGame first = bare(new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(file), new TestClock(T0));
             first.allocateSelfMining(100);
             first.persist();
             byte[] saved = Files.readAllBytes(file);
@@ -337,7 +345,9 @@ class SoloGameTest {
                     Duration.ofDays(30))) {
                 Path each = dir.resolve("away-" + away.toHours() + ".json");
                 Files.write(each, saved);
-                SoloGame game = bare(new SaveStore(each), new TestClock(T0.plus(away)));
+                SoloGame game = bare(
+                        new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(each),
+                        new TestClock(T0.plus(away)));
 
                 assertThat(game.chainSync().minedSeconds())
                         .as("the rig is credited with the window, never the absence (%s)", away)
@@ -374,14 +384,16 @@ class SoloGameTest {
         @DisplayName("the rig is absent from every block after it spins down")
         void nothingIsWonPastTheCap(@TempDir Path dir) {
             Path file = dir.resolve("save.json");
-            SoloGame first = bare(new SaveStore(file), new TestClock(T0));
+            SoloGame first = bare(new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(file), new TestClock(T0));
             first.setMiningMode(MiningMode.SOLO);
             first.allocateSelfMining(100);
             first.persist();
 
             // Three days away. At a ~4% share and a 14-minute block that is ~300 blocks the rig
             // would have expected to win a dozen of — it must win none of them past hour four.
-            SoloGame later = bare(new SaveStore(file), new TestClock(T0.plus(Duration.ofDays(3))));
+            SoloGame later = bare(
+                    new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(file),
+                    new TestClock(T0.plus(Duration.ofDays(3))));
             var sync = later.chainSync();
 
             // ⚠ A 4σ Poisson bound, not a flat "+8". How many blocks land inside a FIXED four-hour
@@ -405,7 +417,7 @@ class SoloGameTest {
         @DisplayName("INVARIANT I5 — a deployed miner does accrue while away, up to the cap")
         void deployedMinersAreTheOnlyOfflineIncome(@TempDir Path dir) {
             Path file = dir.resolve("save.json");
-            SoloGame game = bare(new SaveStore(file), new TestClock(T0));
+            SoloGame game = bare(new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(file), new TestClock(T0));
 
             NodeState node = new NodeState();
             node.address = "10.0.0.7";
@@ -417,7 +429,9 @@ class SoloGameTest {
             game.state().knownNodes.add(node);
             game.persist();
 
-            SoloGame later = bare(new SaveStore(file), new TestClock(T0.plus(Duration.ofDays(7))));
+            SoloGame later = bare(
+                    new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(file),
+                    new TestClock(T0.plus(Duration.ofDays(7))));
             MinerState after =
                     later.state().knownNodes.getFirst().deployedMiners.getFirst();
 
@@ -487,12 +501,13 @@ class SoloGameTest {
         @DisplayName("a save round-trips through the file")
         void roundTrip(@TempDir Path dir) {
             Path file = dir.resolve("save.json");
-            SoloGame game = SoloGame.open(new SaveStore(file), "ghost", new TestClock(T0));
+            SoloGame game = SoloGame.open(
+                    new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(file), "ghost", new TestClock(T0));
             game.credit(Balance.ec("12.34"), "TEST", "seed");
             game.allocateSelfMining(25);
             game.persist();
 
-            SoloSave reloaded = new SaveStore(file).load();
+            SoloSave reloaded = new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(file).load();
             assertThat(reloaded).isNotNull();
             assertThat(reloaded.handle).isEqualTo("ghost");
             assertThat(reloaded.ethecoinWei).isEqualTo(Balance.ec("12.34"));
@@ -504,7 +519,8 @@ class SoloGameTest {
         @DisplayName("timestamps are written as readable ISO-8601, not epoch numbers")
         void timestampsAreReadable(@TempDir Path dir) throws IOException {
             Path file = dir.resolve("save.json");
-            bare(new SaveStore(file), new TestClock(T0)).persist();
+            bare(new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(file), new TestClock(T0))
+                    .persist();
 
             // It is the player's file on the player's disk; they should be able to read it.
             assertThat(Files.readString(file)).contains("2026-");
@@ -516,7 +532,7 @@ class SoloGameTest {
             Path file = dir.resolve("save.json");
             Files.writeString(file, "{\"format\":9999,\"handle\":\"from-the-future\"}");
 
-            assertThatThrownBy(() -> new SaveStore(file).load())
+            assertThatThrownBy(() -> new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(file).load())
                     .isInstanceOf(SaveStore.UnreadableSaveException.class)
                     .hasMessageContaining("9999");
         }
@@ -527,14 +543,16 @@ class SoloGameTest {
             Path file = dir.resolve("save.json");
             Files.writeString(file, "{ this is not json");
 
-            assertThatThrownBy(() -> new SaveStore(file).load()).isInstanceOf(SaveStore.UnreadableSaveException.class);
+            assertThatThrownBy(() -> new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(file).load())
+                    .isInstanceOf(SaveStore.UnreadableSaveException.class);
         }
 
         @Test
         @DisplayName("no temporary file is left behind after a save")
         void noTempFileLeftBehind(@TempDir Path dir) throws IOException {
             Path file = dir.resolve("save.json");
-            bare(new SaveStore(file), new TestClock(T0)).persist();
+            bare(new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(file), new TestClock(T0))
+                    .persist();
 
             try (var entries = Files.list(dir)) {
                 assertThat(entries.map(p -> p.getFileName().toString())).containsExactly("save.json");
@@ -591,7 +609,10 @@ class SoloGameTest {
             // breach system, and without one planted here the core loop is unreachable on a fresh
             // save. It also makes §3.1's audit mechanic true on day one — the ledger no longer adds
             // up, so there is finally a discrepancy to notice.
-            SoloGame game = SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", new TestClock(T0));
+            SoloGame game = SoloGame.open(
+                    new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json")),
+                    "operator",
+                    new TestClock(T0));
 
             assertThat(game.state().rig.foreignMiners).hasSize(1);
             assertThat(game.computeBudget().total()).isEqualTo(Cycles.of(Balance.STARTING_CYCLES));
@@ -620,7 +641,10 @@ class SoloGameTest {
         @DisplayName("an audit that names the parasite is what makes its cycles appear on the readout")
         void auditingAttributesTheTheft(@TempDir Path dir) {
             TestClock clock = new TestClock(T0);
-            SoloGame game = SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", clock);
+            SoloGame game = SoloGame.open(
+                    new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json")),
+                    "operator",
+                    clock);
 
             // A Thorough Scan sees everything, including a rootkit-wrapped miner (docs/design/04
             // §3.2). Before it lands the theft is real and unattributed; after it lands the same
@@ -643,7 +667,10 @@ class SoloGameTest {
         @DisplayName("that parasite becomes a breach target once an audit has found it — not before")
         void tutorialMinerIsABreachTargetAfterTheAudit(@TempDir Path dir) {
             TestClock clock = new TestClock(T0);
-            SoloGame game = SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", clock);
+            SoloGame game = SoloGame.open(
+                    new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json")),
+                    "operator",
+                    clock);
 
             // ⚠ This used to assert a target on the first frame. Listing an unaudited parasite told
             // the player a process was stealing from them at the same moment the rig monitor was

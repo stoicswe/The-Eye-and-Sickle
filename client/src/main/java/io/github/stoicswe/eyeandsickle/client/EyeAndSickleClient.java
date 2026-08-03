@@ -679,7 +679,7 @@ public class EyeAndSickleClient extends Application {
 
     /** Opens a solo character and switches the window to the game. */
     private void startSolo(int slot, String handleIfNew) {
-        SaveStore store = new SaveStore(slots.saveFile(slot));
+        SaveStore store = new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(slots.saveFile(slot));
         String handle = handleIfNew != null && !handleIfNew.isBlank()
                 ? handleIfNew.trim()
                 : (profile.settings().soloHandle.isBlank() ? "operator" : profile.settings().soloHandle);

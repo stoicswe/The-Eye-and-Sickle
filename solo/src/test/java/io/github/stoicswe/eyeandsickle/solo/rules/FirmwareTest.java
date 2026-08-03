@@ -8,7 +8,6 @@ import io.github.stoicswe.eyeandsickle.protocol.game.UpgradeKind;
 import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.Catalogue;
 import io.github.stoicswe.eyeandsickle.solo.SoloGame;
-import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import io.github.stoicswe.eyeandsickle.solo.state.MinerState;
 import io.github.stoicswe.eyeandsickle.solo.state.NodeState;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
@@ -47,7 +46,10 @@ class FirmwareTest {
     private static final String IMAGE = "firmware-implant";
 
     private static SoloGame game(Path dir) {
-        return SoloGame.open(new SaveStore(dir.resolve("save.json")), "operator", Clock.fixed(T0, ZoneOffset.UTC));
+        return SoloGame.open(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("save.json")),
+                "operator",
+                Clock.fixed(T0, ZoneOffset.UTC));
     }
 
     /** A repacked firmware image sitting in Downloads, ready to install. */

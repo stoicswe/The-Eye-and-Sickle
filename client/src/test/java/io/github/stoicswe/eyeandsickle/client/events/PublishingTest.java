@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.github.stoicswe.eyeandsickle.client.session.LocalGameSession;
 import io.github.stoicswe.eyeandsickle.client.support.TestSaves;
 import io.github.stoicswe.eyeandsickle.solo.SoloGame;
-import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
@@ -69,7 +68,8 @@ class PublishingTest {
     @DisplayName("a successful intent is published, named after the method the player invoked")
     void successfulIntent(@TempDir Path dir) {
         Winding clock = new Winding(T0);
-        SoloGame game = TestSaves.bare(new SaveStore(dir.resolve("s.json")), "operator", clock);
+        SoloGame game = TestSaves.bare(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")), "operator", clock);
         LocalGameSession session = new LocalGameSession(game);
         session.events().recorder().clear();
 
@@ -93,7 +93,8 @@ class PublishingTest {
     @DisplayName("a refusal is published too — the half a success-only stream would hide")
     void refusedIntent(@TempDir Path dir) {
         Winding clock = new Winding(T0);
-        SoloGame game = TestSaves.bare(new SaveStore(dir.resolve("s.json")), "operator", clock);
+        SoloGame game = TestSaves.bare(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")), "operator", clock);
         LocalGameSession session = new LocalGameSession(game);
         session.events().recorder().clear();
 
@@ -117,7 +118,8 @@ class PublishingTest {
     @DisplayName("a task finishing while nobody is looking publishes on the next tick")
     void backgroundTaskCompletion(@TempDir Path dir) {
         Winding clock = new Winding(T0);
-        SoloGame game = TestSaves.bare(new SaveStore(dir.resolve("s.json")), "operator", clock);
+        SoloGame game = TestSaves.bare(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")), "operator", clock);
         LocalGameSession session = new LocalGameSession(game);
         session.scan("quick");
         assertThat(game.tasks()).as("the scan must actually be running").isNotEmpty();
@@ -133,7 +135,8 @@ class PublishingTest {
     @DisplayName("blocks landing publish once, carrying how far the chain moved")
     void chainAdvance(@TempDir Path dir) {
         Winding clock = new Winding(T0);
-        SoloGame game = TestSaves.bare(new SaveStore(dir.resolve("s.json")), "operator", clock);
+        SoloGame game = TestSaves.bare(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")), "operator", clock);
         LocalGameSession session = new LocalGameSession(game);
         long before = game.chainHeight();
         session.events().recorder().clear();
@@ -162,7 +165,8 @@ class PublishingTest {
         // The heartbeat runs once a second for the whole session. If an idle one published, the log
         // would hold nothing but heartbeats within the hour and the feature would be worse than absent.
         Winding clock = new Winding(T0);
-        SoloGame game = TestSaves.bare(new SaveStore(dir.resolve("s.json")), "operator", clock);
+        SoloGame game = TestSaves.bare(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")), "operator", clock);
         LocalGameSession session = new LocalGameSession(game);
         session.tick();
         session.events().recorder().clear();

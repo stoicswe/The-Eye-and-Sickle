@@ -4,7 +4,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
 import io.github.stoicswe.eyeandsickle.solo.SoloGame;
-import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import io.github.stoicswe.eyeandsickle.solo.state.MinerState;
 import io.github.stoicswe.eyeandsickle.solo.state.NodeState;
 import io.github.stoicswe.eyeandsickle.solo.state.RigEvent;
@@ -32,8 +31,10 @@ class RigLogTest {
     private static final Instant T0 = Instant.parse("2026-07-25T12:00:00Z");
 
     private static LocalGameSession session(Path dir, Instant at) {
-        return new LocalGameSession(
-                SoloGame.open(new SaveStore(dir.resolve("s.json")), "op", Clock.fixed(at, ZoneOffset.UTC)));
+        return new LocalGameSession(SoloGame.open(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")),
+                "op",
+                Clock.fixed(at, ZoneOffset.UTC)));
     }
 
     @Nested
@@ -121,7 +122,10 @@ class RigLogTest {
             // spins down. Both facts are invisible without the log, and invisible income — or
             // invisibly *absent* income — is indistinguishable from a bug.
             Path file = dir.resolve("s.json");
-            SoloGame first = SoloGame.open(new SaveStore(file), "op", Clock.fixed(T0, ZoneOffset.UTC));
+            SoloGame first = SoloGame.open(
+                    new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(file),
+                    "op",
+                    Clock.fixed(T0, ZoneOffset.UTC));
             first.allocateSelfMining(50);
             NodeState node = new NodeState();
             MinerState miner = new MinerState();
@@ -133,7 +137,9 @@ class RigLogTest {
             first.persist();
 
             LocalGameSession later = new LocalGameSession(SoloGame.open(
-                    new SaveStore(file), "op", Clock.fixed(T0.plus(Duration.ofHours(6)), ZoneOffset.UTC)));
+                    new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(file),
+                    "op",
+                    Clock.fixed(T0.plus(Duration.ofHours(6)), ZoneOffset.UTC)));
 
             String text = String.join(
                     " ",
@@ -180,7 +186,8 @@ class RigLogTest {
             // A line every second saying "earned 0.011 EC" would bury the one line that mattered.
             // That is alert-fatigue(7), which is a page in this game's own manual.
             var clock = new MutableClock(T0);
-            LocalGameSession s = new LocalGameSession(SoloGame.open(new SaveStore(dir.resolve("s.json")), "op", clock));
+            LocalGameSession s = new LocalGameSession(SoloGame.open(
+                    new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")), "op", clock));
             s.allocateSelfMining(100);
             int afterAllocate = s.log(7, 500).size();
 
@@ -208,11 +215,17 @@ class RigLogTest {
         @DisplayName("the log survives a restart, like a real journal")
         void logPersists(@TempDir Path dir) {
             Path file = dir.resolve("s.json");
-            SoloGame first = SoloGame.open(new SaveStore(file), "op", Clock.fixed(T0, ZoneOffset.UTC));
+            SoloGame first = SoloGame.open(
+                    new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(file),
+                    "op",
+                    Clock.fixed(T0, ZoneOffset.UTC));
             first.allocateSelfMining(20);
             first.persist();
 
-            SoloGame reopened = SoloGame.open(new SaveStore(file), "op", Clock.fixed(T0, ZoneOffset.UTC));
+            SoloGame reopened = SoloGame.open(
+                    new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(file),
+                    "op",
+                    Clock.fixed(T0, ZoneOffset.UTC));
             assertThat(reopened.log()).anyMatch(e -> e.facility.equals("mining"));
         }
     }

@@ -6,7 +6,6 @@ import static org.assertj.core.api.Assertions.withinPercentage;
 
 import io.github.stoicswe.eyeandsickle.client.session.LocalGameSession;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
-import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
@@ -29,7 +28,7 @@ class RigStatusTest {
 
     private static LocalGameSession session(Path dir) {
         return new LocalGameSession(io.github.stoicswe.eyeandsickle.client.support.TestSaves.bare(
-                new SaveStore(dir.resolve("s.json")), "op", CLOCK));
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")), "op", CLOCK));
     }
 
     /** How much a block's fees add to a reward that includes them. See MiningRules.rewardBase. */

@@ -79,6 +79,26 @@ public class ComputeLedgerRepository {
      * @param rigId the rig
      * @return the rig, or empty if none
      */
+    /**
+     * The rig belonging to a character.
+     *
+     * <p>⚠ One rig per character is the model the schema already encodes; this reads it back so the
+     * session transport can go from a character id — which is what a client holds — to the rig the
+     * compute ledger keys on. Without it the transport would have to make the client supply a rig id,
+     * and a client-supplied rig id is a client naming somebody else's rig.
+     *
+     * @param playerId the character
+     * @return its rig, or empty if none has been provisioned
+     */
+    Optional<Rig> findRigByPlayer(UUID playerId) {
+        Objects.requireNonNull(playerId, "playerId");
+        return jdbcClient
+                .sql("SELECT " + RigRows.COLUMNS + " FROM rigs WHERE player_id = :playerId")
+                .param("playerId", playerId)
+                .query(RigRows.MAPPER)
+                .optional();
+    }
+
     Optional<Rig> findRig(UUID rigId) {
         Objects.requireNonNull(rigId, "rigId");
         return jdbcClient

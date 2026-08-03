@@ -5,7 +5,6 @@ import io.github.stoicswe.eyeandsickle.client.session.LocalGameSession;
 import io.github.stoicswe.eyeandsickle.client.shell.Shell;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeManager;
 import io.github.stoicswe.eyeandsickle.solo.SoloGame;
-import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.nio.file.Path;
@@ -75,7 +74,10 @@ public final class AuditSnapshot {
         ThemeManager themes = new ThemeManager(profile);
 
         Winding clock = new Winding(T0);
-        SoloGame game = SoloGame.open(new SaveStore(profileDir.resolve("save.json")), "kyyrell", clock);
+        SoloGame game = SoloGame.open(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(profileDir.resolve("save.json")),
+                "kyyrell",
+                clock);
         LocalGameSession session = new LocalGameSession(game);
         Shell shell = new Shell(session, io.github.stoicswe.eyeandsickle.client.shell.BuiltinCommands.registry());
 

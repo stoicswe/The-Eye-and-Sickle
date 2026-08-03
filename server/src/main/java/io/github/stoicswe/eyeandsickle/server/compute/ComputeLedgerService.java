@@ -133,6 +133,16 @@ public class ComputeLedgerService {
      * @return its live compute budget
      * @throws RigNotFoundException if no such rig exists on this server
      */
+    /**
+     * The rig belonging to a character.
+     *
+     * @param playerId the character
+     * @return its rig id, or empty if none has been provisioned
+     */
+    public java.util.Optional<UUID> rigOf(UUID playerId) {
+        return repository.findRigByPlayer(playerId).map(Rig::rigId);
+    }
+
     public ComputeBudget readMonitor(UUID rigId) {
         Objects.requireNonNull(rigId, "rigId");
         RigComputeReconciliation reconciliation = readReconciliation(rigId);

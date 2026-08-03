@@ -26,6 +26,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/lan/join")
 public class LanJoinController {
 
+    private final io.github.stoicswe.eyeandsickle.server.audit.OperatorLog operatorLog;
+
+    LanJoinController(io.github.stoicswe.eyeandsickle.server.audit.OperatorLog operatorLog) {
+        this.operatorLog = operatorLog;
+    }
+
     /**
      * @param username what to call this player on screen; ⚠ NOT unique and never made unique — two
      *     players called {@code ghost} is a social problem with a social fix, and making the name a
@@ -52,6 +58,9 @@ public class LanJoinController {
             throw new IllegalArgumentException("that username is too long");
         }
         Did did = LanIdentity.mint();
+        // ⚠ The minted identity is a bearer token; OperatorLog reduces it to a fingerprint rather
+        // than writing a credential into the operator's log file.
+        operatorLog.lanJoined(username, did);
         return new JoinResponse(did.value(), username);
     }
 }

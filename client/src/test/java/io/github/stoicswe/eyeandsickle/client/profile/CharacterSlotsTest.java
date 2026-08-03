@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeId;
 import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.SoloGame;
-import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -62,7 +61,8 @@ class CharacterSlotsTest {
             ClientProfile profile = new ClientProfile(dir);
             CharacterSlots slots = new CharacterSlots(profile);
 
-            SoloGame game = SoloGame.open(new SaveStore(slots.saveFile(2)), "ghost", CLOCK);
+            SoloGame game = SoloGame.open(
+                    new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(slots.saveFile(2)), "ghost", CLOCK);
             game.credit(Balance.ec("42"), "TEST", "seed");
             game.persist();
 
@@ -92,8 +92,10 @@ class CharacterSlotsTest {
         void deleteIsScoped(@TempDir Path dir) {
             ClientProfile profile = new ClientProfile(dir);
             CharacterSlots slots = new CharacterSlots(profile);
-            SoloGame.open(new SaveStore(slots.saveFile(1)), "a", CLOCK).persist();
-            SoloGame.open(new SaveStore(slots.saveFile(2)), "b", CLOCK).persist();
+            SoloGame.open(new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(slots.saveFile(1)), "a", CLOCK)
+                    .persist();
+            SoloGame.open(new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(slots.saveFile(2)), "b", CLOCK)
+                    .persist();
 
             assertThat(slots.delete(1)).isTrue();
             assertThat(slots.soloSlots().get(0).occupied()).isFalse();

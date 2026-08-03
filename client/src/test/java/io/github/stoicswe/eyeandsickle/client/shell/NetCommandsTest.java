@@ -5,7 +5,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.github.stoicswe.eyeandsickle.client.session.GameSession;
 import io.github.stoicswe.eyeandsickle.client.session.LocalGameSession;
 import io.github.stoicswe.eyeandsickle.client.support.TestSaves;
-import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
@@ -39,7 +38,8 @@ class NetCommandsTest {
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-07-27T12:00:00Z"), ZoneOffset.UTC);
 
     private static Shell shell(Path dir) {
-        GameSession session = new LocalGameSession(TestSaves.bare(new SaveStore(dir.resolve("s.json")), "op", CLOCK));
+        GameSession session = new LocalGameSession(TestSaves.bare(
+                new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")), "op", CLOCK));
         Shell.CommandRegistry registry = BuiltinCommands.registry();
         NetCommands.register(registry);
         return new Shell(session, registry);

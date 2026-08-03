@@ -11,7 +11,6 @@ import io.github.stoicswe.eyeandsickle.protocol.game.FeeTier;
 import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.Pools;
 import io.github.stoicswe.eyeandsickle.solo.SoloGame;
-import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import io.github.stoicswe.eyeandsickle.solo.state.SoloSave;
 import java.math.BigInteger;
 import java.nio.file.Path;
@@ -42,19 +41,22 @@ class MempoolTest {
         final SoloGame game;
 
         Rig(Path dir) {
-            game = SoloGame.open(new SaveStore(dir.resolve("s.json")), "operator", new java.time.Clock() {
-                public java.time.ZoneId getZone() {
-                    return java.time.ZoneOffset.UTC;
-                }
+            game = SoloGame.open(
+                    new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(dir.resolve("s.json")),
+                    "operator",
+                    new java.time.Clock() {
+                        public java.time.ZoneId getZone() {
+                            return java.time.ZoneOffset.UTC;
+                        }
 
-                public java.time.Clock withZone(java.time.ZoneId zone) {
-                    return this;
-                }
+                        public java.time.Clock withZone(java.time.ZoneId zone) {
+                            return this;
+                        }
 
-                public Instant instant() {
-                    return now;
-                }
-            });
+                        public Instant instant() {
+                            return now;
+                        }
+                    });
         }
 
         void advance(Duration by) {

@@ -7,7 +7,6 @@ import io.github.stoicswe.eyeandsickle.client.view.Views;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
 import io.github.stoicswe.eyeandsickle.solo.Balance;
 import io.github.stoicswe.eyeandsickle.solo.SoloGame;
-import io.github.stoicswe.eyeandsickle.solo.save.SaveStore;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.nio.file.Path;
@@ -97,7 +96,8 @@ public final class LedgerSnapshot {
         // pay-per-share, whose rows correctly credit nothing from the block — so a snapshot of only
         // that is a snapshot of the case most likely to look broken, with nothing to compare it to.
         Ticking clock = new Ticking(T0);
-        SoloGame played = SoloGame.open(new SaveStore(save), "halflight", clock);
+        SoloGame played =
+                SoloGame.open(new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(save), "halflight", clock);
         played.allocateSelfMining(60);
         for (int hour = 0; hour < 14; hour++) {
             clock.advance(Duration.ofHours(1));
@@ -133,7 +133,8 @@ public final class LedgerSnapshot {
         // able to send after the sync and then tick until it confirms — which a fixed clock cannot
         // do. The 8-hour jump is the absence; the ticks afterwards are the session.
         clock.advance(Duration.ofHours(8));
-        SoloGame reopened = SoloGame.open(new SaveStore(save), "halflight", clock);
+        SoloGame reopened =
+                SoloGame.open(new io.github.stoicswe.eyeandsickle.solo.save.FileSaveStore(save), "halflight", clock);
         // ⚠ A win planted directly in the strip's window, because the point of the shot is the
         // AMBER pill and a 3.5% rig wins about one block in twenty-eight — a fixture that relied on
         // the draw would render the thing under test about as often as not. blocksWon is exactly

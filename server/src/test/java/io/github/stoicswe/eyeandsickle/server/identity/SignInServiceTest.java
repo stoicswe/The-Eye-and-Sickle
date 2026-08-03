@@ -66,7 +66,8 @@ class SignInServiceTest {
             FakeAtProtoIdentityProvider provider, FakeAllowlistRepository allowlist, VerifiedHandleDirectory handles) {
         FakePlayerRepository players = new FakePlayerRepository();
         AllowlistPolicy policy = new AllowlistPolicy(allowlist, new AllowlistProperties(true, List.of()));
-        SignInService service = new SignInService(provider, policy, players, handles);
+        SignInService service = new SignInService(
+                provider, policy, players, handles, new io.github.stoicswe.eyeandsickle.server.audit.OperatorLog());
         return new Harness(service, provider, allowlist, players);
     }
 

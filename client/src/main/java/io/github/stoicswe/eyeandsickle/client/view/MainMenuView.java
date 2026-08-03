@@ -9,6 +9,7 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.control.Alert;
 import javafx.scene.control.Button;
+import javafx.scene.control.ButtonBar;
 import javafx.scene.control.ButtonType;
 import javafx.scene.control.ChoiceBox;
 import javafx.scene.control.Label;
@@ -53,9 +54,13 @@ import javafx.scene.layout.VBox;
  *
  * <h2>What the home-server face does and does not claim</h2>
  *
- * It says, in as many words, that the transport is not built (<b>CL-8</b>) — before taking an address
- * rather than after. A field that accepts input and then fails teaches the player to distrust the
- * address they typed, which is a worse outcome than the missing feature.
+ * It says what is and is not wired, before taking an address rather than after. ⚠ The rule that
+ * survives from when nothing worked: <strong>a field that accepts input and then fails teaches the
+ * player to distrust the address they typed</strong>, which is worse than the missing feature. So the
+ * prompt now names the split — sign-in and account state work; mining, the chain, breach and the
+ * filesystem are not authoritative server-side yet (<b>CL-8</b>,
+ * {@code docs/architecture/13-the-game-transport.md}) — rather than claiming either that everything
+ * works or that nothing does.
  */
 public final class MainMenuView {
 
@@ -503,9 +508,11 @@ public final class MainMenuView {
                 "ui.main-menu.online-play-runs-against",
                 "Online play runs against a home server — someone's self-hosted machine, which owns "
                         + "the game state. Losses there are real, and a solo character cannot be "
-                        + "carried across.\n\nNot available yet: the client has the session shape and "
-                        + "no transport behind it (CL-8). Connecting will tell you exactly that "
-                        + "rather than hanging."));
+                        + "carried across.\n\nPartly wired. Signing in works, and the server answers "
+                        + "for your account, characters, compute, balance and heat. Mining, the chain, "
+                        + "breach and the filesystem are not authoritative on a server yet, so they are "
+                        + "not playable online — the client will say so per action rather than showing "
+                        + "you a number nobody is keeping."));
         note.setWrapText(true);
         note.setMaxWidth(420);
         note.getStyleClass().add("es-small");
@@ -550,13 +557,53 @@ public final class MainMenuView {
      * ring, that matters more than it did on the old list.
      */
     private static boolean confirmDelete(CharacterSlots.Slot slot) {
-        Alert confirm = new Alert(
-                Alert.AlertType.CONFIRMATION,
-                "Delete " + slot.handle() + " in slot " + slot.index() + "? This cannot be undone.",
-                ButtonType.CANCEL,
-                ButtonType.OK);
-        confirm.setHeaderText("Delete this character");
-        return confirm.showAndWait().filter(button -> button == ButtonType.OK).isPresent();
+        // ⚠ The button says DELETE, not OK. A destructive action behind a button labelled with a
+        // generic affirmative is one people press to make a dialog go away — the label has to name
+        // the act, so that dismissing the dialog and doing the thing are visibly different choices.
+        ButtonType delete =
+                new ButtonType(Views.t("ui.main-menu.delete-forever", "Delete forever"), ButtonBar.ButtonData.OK_DONE);
+        ButtonType keep = new ButtonType(Views.t("ui.main-menu.keep", "Keep"), ButtonBar.ButtonData.CANCEL_CLOSE);
+
+        Alert confirm = new Alert(Alert.AlertType.WARNING, "", keep, delete);
+        confirm.setHeaderText(Views.t("ui.main-menu.delete-header", "Delete ") + slot.handle() + "?");
+        confirm.setContentText(deletionWarning(slot));
+        confirm.getDialogPane().setMinWidth(460);
+
+        // ⚠ KEEP is the default, so Return dismisses safely. A destructive default is how a character
+        // dies to a keypress meant for the previous dialog.
+        Button deleteButton = (Button) confirm.getDialogPane().lookupButton(delete);
+        deleteButton.setDefaultButton(false);
+        ((Button) confirm.getDialogPane().lookupButton(keep)).setDefaultButton(true);
+
+        return confirm.showAndWait().filter(button -> button == delete).isPresent();
+    }
+
+    /**
+     * Says what is actually lost, in the units the player recognises.
+     *
+     * <p>⚠ "This cannot be undone" is true and does almost no work — it is the sentence every dialog
+     * says, so it reads as boilerplate rather than as information. What makes a destructive
+     * confirmation land is <em>naming the thing being destroyed</em>: this character, these hours,
+     * this much compute. The slot already knows all of it.
+     *
+     * <p>⚠ And it states the part players assume is untrue: there is <strong>no backup and no
+     * recovery</strong>. A solo character is one file on this machine, this game has no account
+     * behind it and no server holding a copy, so there is nobody to ask afterwards. People carry an
+     * expectation from cloud-saved games that somebody, somewhere, can undo it. Here nobody can.
+     */
+    private static String deletionWarning(CharacterSlots.Slot slot) {
+        long hours = Math.max(0, slot.playedSeconds()) / 3600;
+        long minutes = (Math.max(0, slot.playedSeconds()) % 3600) / 60;
+        String played = hours > 0 ? hours + "h " + minutes + "m" : minutes + "m";
+
+        return Views.t("ui.main-menu.delete-warning-played", "Slot ") + slot.index() + " · " + played
+                + Views.t("ui.main-menu.delete-warning-played-2", " played · ") + slot.totalCycles()
+                + Views.t(
+                        "ui.main-menu.delete-warning-body",
+                        " cycles.\n\nThis erases the save file for this character: its rig, its balance, its"
+                                + " items and its history.\n\nThere is no backup and no way to recover it. This"
+                                + " game keeps no copy anywhere else, so nobody can restore it afterwards —"
+                                + " not you, and not anyone you ask.");
     }
 
     // ------------------------------------------------------------------ CL-4 / T-2
