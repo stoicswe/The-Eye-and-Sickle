@@ -57,11 +57,37 @@
     </dependency>
 
     <!--
-      NOTE: no crypto dependency. Ed25519 (EdDSA) is in java.base via the SunEC
-      provider on every JDK 15+; verified on the build JDK. BouncyCastle would
-      be a 5 MB dependency for an algorithm the platform already has, and it
-      would have to be jlinked into the client image for nothing.
+      BouncyCastle. REVERSES this module's long-standing "no crypto dependency"
+      note, on explicit direction 2026-08-02, and the old reasoning is recorded
+      here because it was sound when written and is no longer true.
+
+      It said: "BouncyCastle would be a 5 MB dependency for an algorithm the
+      platform already has, and it would have to be jlinked into the client
+      image for nothing." Two facts overtook it.
+
+        1. secp256k1. Most did:plc accounts sign with it and SunEC CANNOT verify
+           it (measured on OpenJDK 26: the curve name resolves, a key builds,
+           initVerify SUCCEEDS, and only verify() refuses). See
+           docs/architecture/10-oauth-and-did-resolution.md section 5.1.
+        2. HPKE (RFC 9180), which backs the secure channel. SunJCE has it only
+           on JDK 26+; this project targets 25.
+
+      So it is no longer "for an algorithm the platform already has" - it is for
+      two the platform does not have on the target runtime.
+
+      MEASURED COST: 8.1 MB, not the 5 MB the old note estimated. It lands in
+      the five client uber jars and the jpackage image (~135 MB, so roughly 6%).
+
+      Chosen over noise-java and Tink because it is an IETF standard (RFC 9180)
+      implementation from a long-lived, widely-reviewed library, and it was
+      already on the server classpath for reason 1.
     -->
+    <dependency>
+      <groupId>org.bouncycastle</groupId>
+      <artifactId>bcprov-jdk18on</artifactId>
+      <version>${bouncycastle.version}</version>
+    </dependency>
+
 
     <dependency>
       <groupId>com.tngtech.archunit</groupId>

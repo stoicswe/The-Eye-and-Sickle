@@ -134,6 +134,28 @@
       <artifactId>spring-boot-starter-oauth2-client</artifactId>
     </dependency>
 
+    <!--
+      BouncyCastle, for ONE reason: secp256k1.
+
+      Most did:plc accounts sign with secp256k1, and SunEC cannot verify it (measured on OpenJDK 26 —
+      the curve name resolves, a key constructs, initVerify SUCCEEDS, and only verify() refuses). So
+      without this the server cannot check the service-auth JWT of the majority of real players.
+      docs/architecture/10-oauth-and-did-resolution.md section 5.1 has the measured table.
+
+      SERVER ONLY, deliberately. The client needs P-256 for DPoP and Ed25519 for provenance, both of
+      which the platform has everywhere — so the client's dependency austerity is untouched and this
+      is not carried into the five platform jars or the jpackage image.
+
+      Registering it is NOT sufficient by itself: SunEC still answers getInstance() first and fails
+      later, so the provider must be named explicitly. protocol identity MultibaseKey probes for a
+      provider that actually works and remembers which one.
+    -->
+    <dependency>
+      <groupId>org.bouncycastle</groupId>
+      <artifactId>bcprov-jdk18on</artifactId>
+      <version>${bouncycastle.version}</version>
+    </dependency>
+
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>

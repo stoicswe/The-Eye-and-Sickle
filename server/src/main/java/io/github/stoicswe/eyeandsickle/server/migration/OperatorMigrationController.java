@@ -2,6 +2,7 @@ package io.github.stoicswe.eyeandsickle.server.migration;
 
 import java.util.Objects;
 import java.util.UUID;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -29,6 +30,18 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/operator/migration")
+/**
+ * ⚠ ABSENT IN LAN MODE, not merely refused.
+ *
+ * <p>{@code docs/architecture/12-lan-mode.md} §3: LAN state may never cross a server boundary, and a
+ * flag consulted at each call site is a flag somebody forgets at one of them. So in LAN mode this
+ * component is not created at all — the endpoint does not exist, and a caller that should not be
+ * calling fails to wire at startup rather than failing to check in production.
+ *
+ * <p>⚠ {@code matchIfMissing = true} on purpose: an unset or misspelled {@code eyeandsickle.mode}
+ * must give the mode with the security machinery ON, never the one without it.
+ */
+@ConditionalOnProperty(name = "eyeandsickle.mode", havingValue = "FEDERATED", matchIfMissing = true)
 public class OperatorMigrationController {
 
     /** The header a cooperating operator presents to prove authority. */

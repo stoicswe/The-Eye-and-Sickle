@@ -96,6 +96,12 @@ public final class MenuSnapshot {
             public void setUpNewCharacter(int slot, String suggestedHandle) {}
 
             @Override
+            public void addOnlineAccount() {
+                // A render harness has no browser and no keychain; the panel is photographed by its
+                // own snapshot, not by opening it from here.
+            }
+
+            @Override
             public void connectOnline(String serverAddress) {}
 
             @Override

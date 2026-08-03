@@ -9,6 +9,7 @@ import io.github.stoicswe.eyeandsickle.server.items.ServerSigningIdentity;
 import io.github.stoicswe.eyeandsickle.server.items.ServerSigningKeyLoader;
 import io.github.stoicswe.eyeandsickle.server.items.ServerSigningProperties;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -74,13 +75,27 @@ class ServerIntegrationConfiguration {
     }
 
     /**
-     * Resolves an external DID/kid to a verification key. Stubbed to resolve nothing pending the
-     * identity slice's network resolver; see the class note on why {@code null} is the safe default.
+     * Resolves an external DID/kid to a verification key. Resolves nothing by default; see the class
+     * note on why {@code null} is the safe default.
+     *
+     * <p>⚠ The real implementation now exists — {@code identity.AtprotoDidPublicKeyResolver}, wired by
+     * {@code IdentityConfiguration.IdentityResolutionConfiguration} when
+     * {@code eyeandsickle.identity.resolution.enabled=true}. The <strong>negative</strong> condition
+     * on that same property is here rather than relying on {@code @ConditionalOnMissingBean} alone:
+     * that annotation is only order-independent inside auto-configuration, and between two ordinary
+     * {@code @Configuration} classes it resolves according to whichever Spring parses first. Two
+     * mutually exclusive conditions on one property cannot go wrong that way — and "which key
+     * resolver is live" is not something to leave to scan order.
      *
      * @return a resolver that resolves nothing
      */
     @Bean
     @ConditionalOnMissingBean
+    @ConditionalOnProperty(
+            prefix = "eyeandsickle.identity.resolution",
+            name = "enabled",
+            havingValue = "false",
+            matchIfMissing = true)
     DidPublicKeyResolver didPublicKeyResolver() {
         return DidPublicKeyResolver.unresolved();
     }

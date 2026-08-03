@@ -81,6 +81,16 @@ public final class MainMenuView {
         /** Connect to a home server. Currently reports why it cannot — see CL-8. */
         void connectOnline(String serverAddress);
 
+        /**
+         * Opens the AT Protocol sign-in panel.
+         *
+         * <p>⚠ Separate from {@link #connectOnline} because they are different acts and the order
+         * matters: an account proves who you are, a home server is where you play. Signing in first
+         * is what lets the client offer servers rather than demand an address — see
+         * {@code ServerFinder}.
+         */
+        void addOnlineAccount();
+
         void openSettings();
 
         void quit();
@@ -500,7 +510,27 @@ public final class MainMenuView {
         note.setMaxWidth(420);
         note.getStyleClass().add("es-small");
 
-        VBox panel = new VBox(10, sectionLabel("HOME SERVER"), new HBox(10, address, connect), note);
+        Button addAccount = menuButton(Views.t("ui.main-menu.add-an-online-account", "Add an online account"), () -> {
+            popup.hide();
+            actions.addOnlineAccount();
+        });
+        Label accountNote = new Label(Views.t(
+                "ui.main-menu.an-online-account-is",
+                "An online account is your AT Protocol identity — the same one Bluesky uses. It is "
+                        + "what a home server recognises you by, and signing in first lets the client "
+                        + "look for servers instead of asking you to know one."));
+        accountNote.setWrapText(true);
+        accountNote.setMaxWidth(420);
+        accountNote.getStyleClass().add("es-small");
+
+        VBox panel = new VBox(
+                10,
+                sectionLabel("ONLINE ACCOUNT"),
+                addAccount,
+                accountNote,
+                sectionLabel("HOME SERVER"),
+                new HBox(10, address, connect),
+                note);
         panel.getStyleClass().addAll("es-files", "es-body-pad", "es-files-dialog");
         popup.getContent().add(panel);
         if (anchor.getScene() != null && anchor.getScene().getWindow() != null) {
@@ -630,6 +660,13 @@ public final class MainMenuView {
             @Override
             public void connectOnline(String serverAddress) {
                 connect.accept(serverAddress);
+            }
+
+            @Override
+            public void addOnlineAccount() {
+                // The small-caller helper has no sign-in screen to open. Deliberately inert rather
+                // than throwing: this overload exists for snapshots and tests, and a preview that
+                // crashes on a button nobody meant to press is worse than one that does nothing.
             }
 
             @Override

@@ -98,6 +98,30 @@ Sequence numbers must increase by exactly one. Equal is a replay, lower is a reo
 - **This is not TLS's replacement.** Run inside TLS 1.3.
 - **⚠ It does not make the client trustworthy.** This is the most important line in the document. An authenticated channel proves *who* said something and that it arrived unaltered. It says nothing about whether the contents are *true*. A cheating client can hold a flawless channel and send flawlessly authenticated lies about how much ethecoin it mined. **Invariant I14 is completely untouched by any of this: the server still validates everything.** Encryption is not authority, and any future change that treats "it came over the secure channel" as "therefore it is true" is a bug.
 
+## 5a. ⚠ AMENDED 2026-08-02 — the construction is now RFC 9180 HPKE, not hand-rolled Noise
+
+§4 describes a hand-rolled Noise-IK-shaped handshake. On explicit direction the channel moved to
+**RFC 9180 HPKE via BouncyCastle** (`protocol/channel/HpkeChannel`), for the reason **T-1** always
+gave: reviewed patterns and unreviewed code is a bad bet for the one layer that cannot fail loudly.
+
+- **Mode `auth`, X25519 + HKDF-SHA256 + AES-256-GCM.** Suite pinned, never negotiated — a suite the
+  peer can choose is one the peer can choose badly, and there is no legacy to be compatible with.
+- ⚠ **Authentication is structural.** `mode_auth` folds the sender's static key into the key schedule,
+  so a wrong sender does not raise a mismatch for somebody to check — its frames simply do not open.
+- ⚠ **Replay and reorder are rejected by the construction**, via the context's sequence number, rather
+  than by a nonce cache that has to be maintained and pruned.
+- ⚠ **HPKE contexts are ONE-DIRECTIONAL.** The reverse direction is derived from the exporter secret
+  per RFC 9180 §9.8. Reusing one context both ways would repeat sequence numbers under one key — the
+  catastrophic AEAD failure — and is the mistake this note exists to prevent.
+
+**§3 is unchanged**: TLS 1.3 stays mandatory and this runs inside it. **§4 is superseded** for new
+work; the Noise implementation is still in the tree, still unreviewed, and was never called from
+outside `protocol`.
+
+⚠ **T-1 is narrowed, not closed.** The primitive is now a standard from a widely-reviewed library, so
+what remains to review is *this repository's use of it* — key distribution, session lifetime, and the
+framing above it — which is a much smaller and more tractable question than a bespoke handshake.
+
 ## 6. Open questions
 
 - **TS-1: Should this be replaced by a reviewed Noise library?** This is a hand-rolled implementation of a well-understood pattern — safer than inventing a protocol, still not the same as audited code. **Get a cryptographer to review it, or swap in a real Noise implementation, before it protects a live federation.** Recorded as the highest-priority item here.

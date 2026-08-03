@@ -43,7 +43,8 @@ class ArchitectureRulesTest {
         // nothing at all. This test is the tripwire for that.
         assertThat(PROTOCOL_CLASSES).isNotEmpty();
         assertThat(PROTOCOL_CLASSES.stream().map(JavaClass::getPackageName).distinct())
-                .contains(ROOT + ".crypto", ROOT + ".provenance", ROOT + ".game", ROOT + ".channel");
+                .contains(
+                        ROOT + ".crypto", ROOT + ".provenance", ROOT + ".game", ROOT + ".channel", ROOT + ".identity");
     }
 
     @Test
@@ -72,8 +73,51 @@ class ArchitectureRulesTest {
                 .resideInAPackage("..protocol.crypto..")
                 .should()
                 .dependOnClassesThat()
-                .resideInAnyPackage("..protocol.provenance..", "..protocol.game..", "..protocol.channel..")
-                .because("crypto is the shared floor: game -> provenance -> crypto <- channel")
+                .resideInAnyPackage(
+                        "..protocol.provenance..", "..protocol.game..", "..protocol.channel..", "..protocol.identity..")
+                .because("crypto is the shared floor: game -> provenance -> crypto <- channel, "
+                        + "with identity sitting above crypto too")
+                .allowEmptyShould(true)
+                .check(PROTOCOL_CLASSES);
+    }
+
+    @Test
+    @DisplayName("identity resolves who someone is, never what they own")
+    void identityDoesNotDependOnGame() {
+        // identity was admitted to this module's charter on 2026-08-02 (see package-info) because
+        // the provenance verifier here has always been missing its other half — turning a `kid` into
+        // a key. That argument holds only while identity stays identity. The moment resolving a DID
+        // can see a compute budget or a faction reputation, a verification failure becomes a function
+        // of game state, and "this signature is invalid" starts meaning something different
+        // depending on who is asking.
+        noClasses()
+                .that()
+                .resideInAPackage("..protocol.identity..")
+                .should()
+                .dependOnClassesThat()
+                .resideInAnyPackage("..protocol.game..", "..protocol.channel..")
+                .because("identity answers who, not what-they-own "
+                        + "(docs/architecture/10-oauth-and-did-resolution.md)")
+                .allowEmptyShould(true)
+                .check(PROTOCOL_CLASSES);
+    }
+
+    @Test
+    @DisplayName("identity is the ONLY package here that may open a socket")
+    void networkIoIsConfinedToIdentity() {
+        // Before identity landed, this module did no I/O at all, and the reasons for that austerity
+        // are unchanged: it is a jlink candidate and it is shared by a JavaFX client and a Spring
+        // Boot server. Admitting one package that fetches is a deliberate, argued exception; it must
+        // not become a precedent that the wire types quietly follow. A `game` record that phones home
+        // to fill in a field would be authoritative-state-by-the-back-door, which is I14.
+        noClasses()
+                .that()
+                .resideOutsideOfPackages("..protocol.identity..")
+                .should()
+                .dependOnClassesThat()
+                .resideInAnyPackage("java.net.http..", "javax.naming..", "javax.net.ssl..")
+                .because("network I/O in protocol is confined to identity "
+                        + "(protocol/package-info.java, amended 2026-08-02)")
                 .allowEmptyShould(true)
                 .check(PROTOCOL_CLASSES);
     }

@@ -77,6 +77,13 @@ public class CharacterExportService {
      * @throws CharacterNotActiveException if the character is already migrated or retired
      */
     public CharacterMigrationBundle exportForMigration(Did accountDid, UUID characterId) {
+        // ⚠ THE QUARANTINE. A LAN character may not leave the LAN server it was made on
+        // (docs/architecture/12-lan-mode.md §1): its identity is an unproven UUID, its items have no
+        // verifiable provenance, and its outcomes were decided by one machine with no quorum — which
+        // is exactly the single-arbiter shape I15 forbids across servers. Checked HERE, at the one
+        // method that produces a cross-server bundle, rather than at the REST layer, so a second
+        // caller cannot route around it.
+        io.github.stoicswe.eyeandsickle.server.lan.Quarantine.refuseIfLan(accountDid);
         Player character = requireOwnedActive(accountDid, characterId);
         CharacterRef ref = refOf(character);
         List<ItemChain> chains = itemChains.chainsForHolder(character.characterDid());

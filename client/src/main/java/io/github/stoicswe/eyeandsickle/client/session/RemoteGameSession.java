@@ -40,9 +40,28 @@ import java.util.function.Consumer;
  */
 public final class RemoteGameSession implements GameSession {
 
+    /**
+     * What {@link #handle()} answers before anyone has signed in.
+     *
+     * <p>⚠ This class used to take a handle in its constructor and {@code connectOnline} passed it
+     * {@code profile.settings().soloHandle} — so connecting to a home server displayed whatever the
+     * player had named their <em>offline</em> character, forever, and since 2026-07-28 it appeared in
+     * the command-strip prompt too. There is no sign-in yet (<b>CL-8</b>, and
+     * {@code docs/architecture/10-oauth-and-did-resolution.md} §7), so the honest answer is that
+     * nobody is signed in — not a borrowed name from a different game mode.
+     */
+    public static final String NOT_SIGNED_IN = "not signed in";
+
     private final URI server;
-    private final String handle;
     private final List<Consumer<GameSession>> listeners = new CopyOnWriteArrayList<>();
+
+    /**
+     * The signed-in identity, or {@code null} before sign-in.
+     *
+     * <p>Not final: sign-in completes <em>after</em> the session exists, because the session is what
+     * carries the request. Written once by {@link #identify}.
+     */
+    private volatile SignedIn identity;
 
     /** The last thing the server told us. Shown as stale rather than blanked. */
     private ComputeBudget lastBudget;
@@ -51,9 +70,25 @@ public final class RemoteGameSession implements GameSession {
     private int lastHeat;
     private boolean connected;
 
-    public RemoteGameSession(URI server, String handle) {
+    /**
+     * The identity a completed sign-in produced.
+     *
+     * <p>⚠ {@code handle} is a <strong>cache with a verified flag</strong>, never the key
+     * ({@code docs/architecture/10-oauth-and-did-resolution.md} §4.1). A DID document's
+     * {@code alsoKnownAs} is self-asserted, so a handle that has not been resolved back to this same
+     * DID must never be drawn as though it had been — hence {@code handleVerified} rather than a bare
+     * string, and hence {@link #handle()} falling back to the DID rather than showing an unverified
+     * name. Handles are also re-claimable after release, which is the second reason nothing is keyed
+     * on one.
+     *
+     * @param did the authenticated identity — the only thing anything is keyed on
+     * @param handle the display handle, or {@code null} if none resolved
+     * @param handleVerified whether {@code handle} was confirmed to resolve back to {@code did}
+     */
+    public record SignedIn(String did, String handle, boolean handleVerified) {}
+
+    public RemoteGameSession(URI server) {
         this.server = server;
-        this.handle = handle;
         // An empty budget rather than null: see the last-known-good rule above. A rig with zero
         // capacity is obviously wrong on screen, which is better than a crash or a blank.
         this.lastBudget = new ComputeBudget(UUID.randomUUID(), Cycles.of(0), Cycles.of(0), List.of());
@@ -76,9 +111,37 @@ public final class RemoteGameSession implements GameSession {
         return SessionMode.ONLINE;
     }
 
+    /**
+     * Records the identity a completed sign-in produced.
+     *
+     * @param signedIn the verified identity, or {@code null} to return to signed-out
+     */
+    public void identify(SignedIn signedIn) {
+        this.identity = signedIn;
+        fire();
+    }
+
+    /** @return the signed-in identity, or {@code null} */
+    public SignedIn identity() {
+        return identity;
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * <p>⚠ Never borrows the solo character's name — see {@link #NOT_SIGNED_IN}. The order is
+     * deliberate: a <em>verified</em> handle, else the DID, else nothing. An unverified handle is
+     * never shown, because on this client's surfaces a display name is evidence
+     * ({@code docs/design/12-identity-and-social.md}), and a DID nobody can read is a smaller failure
+     * than a name somebody else asserted.
+     */
     @Override
     public String handle() {
-        return handle;
+        SignedIn who = identity;
+        if (who == null) {
+            return NOT_SIGNED_IN;
+        }
+        return who.handleVerified() && who.handle() != null ? who.handle() : who.did();
     }
 
     @Override

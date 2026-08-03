@@ -4,6 +4,7 @@ import java.security.SecureRandom;
 import java.time.Clock;
 import java.util.random.RandomGenerator;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -28,7 +29,19 @@ import org.springframework.context.annotation.Configuration;
  *
  * @see io.github.stoicswe.eyeandsickle.server.federation.sampling.AResSampler
  */
+/**
+ * ⚠ ABSENT IN LAN MODE, not merely refused.
+ *
+ * <p>{@code docs/architecture/12-lan-mode.md} §3 and §4: a LAN server has no cross-server outcomes, so
+ * the validator quorum has nothing to adjudicate — and if it ever did, one machine deciding them is
+ * exactly the single-arbiter shape <b>I15</b> forbids. Not created in LAN mode, so a call that should
+ * not happen fails to wire rather than failing to check.
+ *
+ * <p>⚠ {@code matchIfMissing = true}: an unset or misspelled {@code eyeandsickle.mode} gives the mode
+ * with the security machinery ON.
+ */
 @Configuration(proxyBeanMethods = false)
+@ConditionalOnProperty(name = "eyeandsickle.mode", havingValue = "FEDERATED", matchIfMissing = true)
 @EnableConfigurationProperties(QuorumProperties.class)
 class FederationConfiguration {
 

@@ -44,17 +44,23 @@ public class SignInService {
     private final AtProtoIdentityProvider identityProvider;
     private final AllowlistPolicy allowlist;
     private final PlayerRepository players;
+    private final VerifiedHandleDirectory handles;
 
     /**
      * @param identityProvider the AT Proto authentication seam
      * @param allowlist the closed-by-default join gate
      * @param players the character table
+     * @param handles the bidirectional handle check, or the no-op default until one is wired
      */
     public SignInService(
-            AtProtoIdentityProvider identityProvider, AllowlistPolicy allowlist, PlayerRepository players) {
+            AtProtoIdentityProvider identityProvider,
+            AllowlistPolicy allowlist,
+            PlayerRepository players,
+            VerifiedHandleDirectory handles) {
         this.identityProvider = Objects.requireNonNull(identityProvider, "identityProvider");
         this.allowlist = Objects.requireNonNull(allowlist, "allowlist");
         this.players = Objects.requireNonNull(players, "players");
+        this.handles = Objects.requireNonNull(handles, "handles");
     }
 
     /**
@@ -80,11 +86,45 @@ public class SignInService {
             throw new SignInDeniedException(identity.did());
         }
 
-        // Step 3: enumerate the account's playable characters. Only active ones are selectable; migrated
+        // Step 3: refresh the display handle, and only ever to a VERIFIED one.
+        String handle = verifiedHandle(identity);
+
+        // Step 4: enumerate the account's playable characters. Only active ones are selectable; migrated
         // and retired shells are history, not choices (09 §6.1).
         List<Player> characters = players.findCharactersByDid(identity.did()).stream()
                 .filter(character -> character.status().isPlayable())
                 .toList();
-        return new AccountSession(identity.did(), identity.handle(), characters);
+        return new AccountSession(identity.did(), handle, characters);
+    }
+
+    /**
+     * Refreshes the handle, dropping it rather than showing one that did not verify.
+     *
+     * <h2>Why this runs on every sign-in</h2>
+     *
+     * Handles are re-claimable after release, so a cached one goes stale in a way that hands a
+     * <em>different person</em> a name this server has on file for somebody else. Refreshing at
+     * sign-in is the cheapest point at which that can be corrected, and it is why
+     * {@link ResolvedIdentity} carries a handle at all.
+     *
+     * <h2>⚠ Three states, not two</h2>
+     *
+     * <ul>
+     *   <li>No directory wired ({@code canVerify() == false}) — keep what the provider said. This is
+     *       what the server ships as today, and the handle is unverified; the fix is to wire a
+     *       resolver, not to pretend here.
+     *   <li>Verified — use it.
+     *   <li>Checked and nothing verified — <strong>drop the handle entirely</strong>. Falling back to
+     *       the provider's unverified handle here would make the whole check decorative: an attacker
+     *       whose DID document claims {@code at://a-rivals.handle} would simply fail verification and
+     *       be displayed as the rival anyway. {@code AccountSession} tolerates a null handle, and the
+     *       DID is always there.
+     * </ul>
+     */
+    private String verifiedHandle(ResolvedIdentity identity) {
+        if (!handles.canVerify()) {
+            return identity.handle();
+        }
+        return handles.verifiedHandleFor(identity.did());
     }
 }

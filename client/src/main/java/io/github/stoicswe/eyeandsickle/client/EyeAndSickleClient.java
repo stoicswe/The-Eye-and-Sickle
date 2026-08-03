@@ -369,6 +369,11 @@ public class EyeAndSickleClient extends Application {
             }
 
             @Override
+            public void addOnlineAccount() {
+                EyeAndSickleClient.this.showOnlineAccount();
+            }
+
+            @Override
             public void openSettings() {
                 showMenuSettings();
             }
@@ -584,8 +589,11 @@ public class EyeAndSickleClient extends Application {
             profile.save();
         }
         try {
-            var remote = new io.github.stoicswe.eyeandsickle.client.session.RemoteGameSession(
-                    java.net.URI.create(address), profile.settings().soloHandle);
+            // No handle is passed: nothing has signed in, so the session reports NOT_SIGNED_IN.
+            // This used to hand over profile.settings().soloHandle — the OFFLINE character's name —
+            // which then showed as the online identity forever (architecture/10 §2).
+            var remote =
+                    new io.github.stoicswe.eyeandsickle.client.session.RemoteGameSession(java.net.URI.create(address));
             var outcome = remote.allocateSelfMining(0);
             remote.close();
             alert(
@@ -593,6 +601,73 @@ public class EyeAndSickleClient extends Application {
                     outcome.message() + "\n\nThe address is remembered. Solo play needs none of this and works now.");
         } catch (IllegalArgumentException badUri) {
             alert(javafx.scene.control.Alert.AlertType.WARNING, "That is not a valid address: " + address);
+        }
+    }
+
+    /**
+     * The signed-in AT Protocol identity, or null. Session state, never persisted here.
+     *
+     * <p>⚠ The credentials live in the {@code TokenStore}; this is only what is on screen. Putting
+     * any part of a token in {@code ClientProfile} would break the promise its own comment makes.
+     */
+    private io.github.stoicswe.eyeandsickle.client.oauth.SignInFlow.Identity onlineIdentity;
+
+    /**
+     * Opens the "Add an online account" panel.
+     *
+     * <h2>⚠ The browser is opened through JavaFX's own {@code HostServices}</h2>
+     *
+     * Not {@code Desktop.browse} and not a subprocess. {@code HostServices.showDocument} is the
+     * toolkit's supported route, works from a jpackage image, and needs no {@code java.desktop}
+     * grant. ⚠ This is the first time the client opens a browser at all — {@code CLAUDE.md} records
+     * that Credits prints handles rather than linking them, because "opening a browser would throw
+     * the player out of a full-screen game". That reasoning holds for a gratuitous link; here the
+     * redirect <em>is</em> the protocol, and the panel warns before it happens.
+     */
+    private void showOnlineAccount() {
+        var store = io.github.stoicswe.eyeandsickle.client.oauth.TokenStores.forProfile(profile.directory());
+        var http = new io.github.stoicswe.eyeandsickle.protocol.identity.HardenedHttpClient();
+        var dids = new io.github.stoicswe.eyeandsickle.protocol.identity.DidResolver();
+        var handles = new io.github.stoicswe.eyeandsickle.protocol.identity.HandleResolver(
+                http, dids, io.github.stoicswe.eyeandsickle.protocol.identity.TxtLookup.system());
+        var discovery = new io.github.stoicswe.eyeandsickle.client.oauth.OauthDiscovery(http, handles, dids);
+
+        var flow = new io.github.stoicswe.eyeandsickle.client.oauth.SignInFlow(
+                discovery,
+                store,
+                uri -> getHostServices().showDocument(uri.toString()),
+                // ⚠ http://localhost is the atproto DEVELOPMENT client_id: the authorization server
+                // synthesises native-client metadata with loopback redirects for it, so the whole
+                // flow works with no domain and no certificate. A release build points this at the
+                // project's hosted client-metadata document and nothing else changes.
+                redirectUri -> new io.github.stoicswe.eyeandsickle.client.oauth.OauthClient(
+                        http, "http://localhost", redirectUri, java.time.Instant::now));
+
+        javafx.stage.Popup popup = new javafx.stage.Popup();
+        popup.setAutoHide(true);
+        var panel = io.github.stoicswe.eyeandsickle.client.view.OnlineAccountPanel.build(
+                new io.github.stoicswe.eyeandsickle.client.view.OnlineAccountPanel.Host() {
+                    @Override
+                    public void signIn(
+                            String handle,
+                            String server,
+                            java.util.function.Consumer<
+                                            io.github.stoicswe.eyeandsickle.client.oauth.SignInFlow.Identity>
+                                    onDone,
+                            java.util.function.Consumer<Exception> onError) {
+                        io.github.stoicswe.eyeandsickle.client.view.OnlineAccountPanel.offThread(
+                                () -> flow.signIn(handle, server), onDone, onError);
+                    }
+
+                    @Override
+                    public io.github.stoicswe.eyeandsickle.client.oauth.TokenStore store() {
+                        return store;
+                    }
+                },
+                identity -> onlineIdentity = identity);
+        popup.getContent().add(panel);
+        if (stage != null) {
+            popup.show(stage);
         }
     }
 

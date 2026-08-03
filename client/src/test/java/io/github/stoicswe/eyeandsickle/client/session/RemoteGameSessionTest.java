@@ -18,7 +18,52 @@ import org.junit.jupiter.api.Test;
 class RemoteGameSessionTest {
 
     private static RemoteGameSession session() {
-        return new RemoteGameSession(URI.create("https://home.example"), "operator");
+        return new RemoteGameSession(URI.create("https://home.example"));
+    }
+
+    @Nested
+    @DisplayName("the displayed identity")
+    class Identity {
+
+        @Test
+        @DisplayName("is 'not signed in' before sign-in, never a borrowed solo handle")
+        void signedOutSaysSo() {
+            // The regression: connectOnline used to pass profile.settings().soloHandle, so the
+            // OFFLINE character's name was displayed as the online identity forever — including in
+            // the command-strip prompt. architecture/10 §2.
+            assertThat(session().handle()).isEqualTo(RemoteGameSession.NOT_SIGNED_IN);
+        }
+
+        @Test
+        @DisplayName("shows a verified handle when there is one")
+        void verifiedHandleIsShown() {
+            RemoteGameSession session = session();
+            session.identify(new RemoteGameSession.SignedIn("did:plc:abc123", "operator.example", true));
+
+            assertThat(session.handle()).isEqualTo("operator.example");
+        }
+
+        @Test
+        @DisplayName("falls back to the DID rather than showing an UNVERIFIED handle")
+        void unverifiedHandleIsNotShown() {
+            // alsoKnownAs is self-asserted, so anyone can claim any handle in their own DID document.
+            // A DID nobody can read is a smaller failure than a name somebody else asserted —
+            // architecture/10 §4.1, and design/12 is why a display name here is evidence.
+            RemoteGameSession session = session();
+            session.identify(new RemoteGameSession.SignedIn("did:plc:abc123", "a-rivals.handle", false));
+
+            assertThat(session.handle()).isEqualTo("did:plc:abc123");
+            assertThat(session.handle()).doesNotContain("a-rivals");
+        }
+
+        @Test
+        @DisplayName("falls back to the DID when no handle resolved at all")
+        void noHandleFallsBackToDid() {
+            RemoteGameSession session = session();
+            session.identify(new RemoteGameSession.SignedIn("did:plc:abc123", null, true));
+
+            assertThat(session.handle()).isEqualTo("did:plc:abc123");
+        }
     }
 
     @Nested

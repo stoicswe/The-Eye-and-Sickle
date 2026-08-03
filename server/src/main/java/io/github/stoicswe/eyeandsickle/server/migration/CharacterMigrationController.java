@@ -4,6 +4,7 @@ import io.github.stoicswe.eyeandsickle.protocol.game.CharacterMigrationBundle;
 import io.github.stoicswe.eyeandsickle.server.identity.Did;
 import java.util.Objects;
 import java.util.UUID;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -31,6 +32,18 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @RestController
 @RequestMapping("/api/accounts/{accountDid}/characters/{characterId}/migration")
+/**
+ * ⚠ ABSENT IN LAN MODE, not merely refused.
+ *
+ * <p>{@code docs/architecture/12-lan-mode.md} §3: LAN state may never cross a server boundary, and a
+ * flag consulted at each call site is a flag somebody forgets at one of them. So in LAN mode this
+ * component is not created at all — the endpoint does not exist, and a caller that should not be
+ * calling fails to wire at startup rather than failing to check in production.
+ *
+ * <p>⚠ {@code matchIfMissing = true} on purpose: an unset or misspelled {@code eyeandsickle.mode}
+ * must give the mode with the security machinery ON, never the one without it.
+ */
+@ConditionalOnProperty(name = "eyeandsickle.mode", havingValue = "FEDERATED", matchIfMissing = true)
 public class CharacterMigrationController {
 
     private final CharacterExportService exportService;

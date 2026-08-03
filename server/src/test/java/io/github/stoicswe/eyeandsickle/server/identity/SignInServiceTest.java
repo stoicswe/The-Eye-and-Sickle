@@ -57,10 +57,84 @@ class SignInServiceTest {
             FakePlayerRepository players) {}
 
     private static Harness harness(FakeAtProtoIdentityProvider provider, FakeAllowlistRepository allowlist) {
+        // The no-op directory is what the server actually ships with, so the default harness is the
+        // shipped configuration rather than a convenient one.
+        return harness(provider, allowlist, VerifiedHandleDirectory.unresolved());
+    }
+
+    private static Harness harness(
+            FakeAtProtoIdentityProvider provider, FakeAllowlistRepository allowlist, VerifiedHandleDirectory handles) {
         FakePlayerRepository players = new FakePlayerRepository();
         AllowlistPolicy policy = new AllowlistPolicy(allowlist, new AllowlistProperties(true, List.of()));
-        SignInService service = new SignInService(provider, policy, players);
+        SignInService service = new SignInService(provider, policy, players, handles);
         return new Harness(service, provider, allowlist, players);
+    }
+
+    /** A directory that verifies, and answers with whatever it was given. */
+    private static VerifiedHandleDirectory verifying(String handle) {
+        return did -> handle;
+    }
+
+    @Nested
+    @DisplayName("the displayed handle")
+    class Handles {
+
+        @Test
+        @DisplayName("with NO directory wired, the provider's handle is kept — the shipped state")
+        void unwiredKeepsProviderHandle() {
+            // canVerify() == false means "nobody has wired a resolver", which is not the same as
+            // "nothing verified". Dropping the handle here would blank the display name on every
+            // server that has not opted into resolution yet.
+            Harness h = harness(
+                    FakeAtProtoIdentityProvider.returning(new ResolvedIdentity(REAL, "alice.bsky.social")),
+                    new FakeAllowlistRepository().allow(REAL));
+
+            assertThat(h.service().signIn(credentials(null)).handle()).isEqualTo("alice.bsky.social");
+        }
+
+        @Test
+        @DisplayName("a verified handle REPLACES the provider's — handles are re-claimable")
+        void verifiedHandleWins() {
+            // The provider's handle can be stale: handles are released and re-claimed, so a cached
+            // one eventually names a different person. Refreshing at sign-in is where that is fixed.
+            Harness h = harness(
+                    FakeAtProtoIdentityProvider.returning(new ResolvedIdentity(REAL, "stale.bsky.social")),
+                    new FakeAllowlistRepository().allow(REAL),
+                    verifying("current.bsky.social"));
+
+            assertThat(h.service().signIn(credentials(null)).handle()).isEqualTo("current.bsky.social");
+        }
+
+        @Test
+        @DisplayName("⚠ when verification runs and FAILS, the handle is dropped — never fallen back to")
+        void unverifiedHandleIsDroppedNotFallenBackTo() {
+            // This is the assertion that decides whether the whole bidirectional check is real. An
+            // attacker whose DID document claims at://a-rivals.handle fails verification; if sign-in
+            // then fell back to the provider's unverified handle, they would be displayed as the
+            // rival anyway and the check would be decorative. architecture/10 §4.1.
+            Harness h = harness(
+                    FakeAtProtoIdentityProvider.returning(new ResolvedIdentity(REAL, "a-rivals.handle")),
+                    new FakeAllowlistRepository().allow(REAL),
+                    verifying(null));
+
+            AccountSession account = h.service().signIn(credentials(null));
+
+            assertThat(account.handle()).isNull();
+            assertThat(account.did()).isEqualTo(REAL);
+        }
+
+        @Test
+        @DisplayName("a failed handle check never fails the sign-in itself")
+        void handleFailureDoesNotBlockSignIn() {
+            // A handle is a display name; a DID is the identity. Locking somebody out of a game they
+            // own characters in because their DNS is briefly wrong would be the worse failure.
+            Harness h = harness(
+                    FakeAtProtoIdentityProvider.returning(new ResolvedIdentity(REAL, "alice.bsky.social")),
+                    new FakeAllowlistRepository().allow(REAL),
+                    verifying(null));
+
+            assertThat(h.service().signIn(credentials(null))).isNotNull();
+        }
     }
 
     @Nested
