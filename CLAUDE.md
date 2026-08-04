@@ -1368,6 +1368,104 @@ solo included — the listings are readable whether or not anybody real is on th
   are real trades across the federation; answering with a simulation would put invented prices on a
   screen whose entire subject is what a price is. **W-9**, unbuilt.
 
+**ShMark trades between real people: listings, no escrow, and a 6-hour clock (2026-08-04).**
+`rules/ShadowTrading`; `state/ShadowListingState` + `ShadowObligationState`; `protocol/game/{DeliveryMode,
+ShadowListing,ShadowObligation}`.
+
+- ⚠ **THERE IS NO ESCROW, AND THAT IS THE FEATURE.** Money moves the instant a buyer confirms and
+  nothing holds it — if the seller never ships, the buyer has simply lost it. A market between people
+  who can defect is a different game from one that cannot go wrong. ⚠ **Reintroducing escrow anywhere
+  collapses `DeliveryMode` into one option**, because the whole difference between the two is whether
+  the buyer is carrying risk. `ShadowOrderState.escrowWei` survives as a permanently-zero marker
+  saying so.
+- ⚠ **`ATTACHED` REMOVES the items from storage; it is not a reservation.** A reservation looks
+  equivalent and is a lie — the seller could equip, sell elsewhere or delete the reserved copy and the
+  "safe" purchase would fail at delivery with nothing able to say why. Cancelling returns them to
+  **arrivals**: the listing did not remember where they came from, and inventing a destination files
+  goods somewhere the player did not choose.
+- ⚠ **Possession is required for BOTH modes.** A send-later listing for something never owned is a
+  confidence trick with no cost of entry, and a market where those are free is one where every
+  listing is presumed fake.
+- ⚠ **Delivery mode is DERIVED from the seller's rating, not drawn.** A shady seller usually wants
+  paying up front; a trusted one usually attaches. Rolling them apart would give trustworthy sellers
+  who demand trust anyway and shady ones who hand the goods over — price and risk carrying no
+  information about each other, so there is nothing to read. **"Usually", not "always"**, or the
+  standing would be redundant with the mode.
+- ⚠ **The mode is the FIRST thing on a listing row and the header of the confirmation**, ahead of the
+  price. It is the whole decision; a screen leading with the number sells risk without naming it.
+  ⚠ **Only the risky one is coloured** (`-es-warn`) — colouring both makes them read as two categories
+  of equal weight. **Not `-es-alarm`**: §2.1 rations that to loss, and a promise is not a loss until
+  it is broken (an *overdue* obligation is, and that is where alarm is spent).
+- ⚠ **The confirmation's button NAMES THE ACT and Cancel is the default** — `MainMenuView`'s two
+  rules, and they apply harder here: there is no escrow behind that button, so a mis-press cannot be
+  undone by anybody.
+- ⚠ **`Balance.SHADOW_FULFILMENT_HOURS` (6) runs on the TICK**, so the deadline survives a logout —
+  otherwise closing the client would be the way to escape one. ⚠ **`settled` makes the penalty land
+  once**: the tick runs every second and an overdue obligation stays overdue, so without it a seller
+  who missed a deadline is penalised once per second until they notice.
+- ⚠ **No refund on default, in either direction**, and the **buyer's** standing is untouched — the
+  reputation cost belongs to whoever failed to act. `SecondaryMarket.defect` is reused rather than
+  duplicated, so there is one defection mechanic reached from two places. ⚠ Its roll is seeded from
+  the save's `Rng` and committed back: `new Random()` would make being caught depend on when the
+  client happened to be running.
+- ⚠ **A bid that outlived its funding is CANCELLED, not defaulted.** The fill is the agreement, and it
+  did not happen — treating it as a defection would punish somebody for a market moving while they
+  spent their own money.
+- ⚠ **A dialog builds its own Scene and inherits NO stylesheet** — it paints Modena white unless the
+  owner scene's sheets are copied onto it. Same family as the unstyled `ScrollPane` viewport.
+- **Your listings sell to NPCs on the tick, at a RATE PER HOUR (2026-08-04).** ⚠ **Never a chance per
+  tick** — that makes a faster-ticking client sell faster and gives a three-day absence exactly one
+  roll, both invisible in play and both making the tuned number meaningless. `1 - e^(-rate × hours)`
+  off the tick's own `elapsed`, so frequency drops out and a listing left up over an absence settles
+  as though it had been standing the whole time, which it was.
+  ⚠ **Priced against the mid**: measured at 0.9h median at market, 0.2h at 30% under, 4.9h at 10%
+  over, 27.7h at 20% over — halving every 4% above, because "significantly less" means a few percent
+  over should visibly *stall*.
+  ⚠ **NOTHING SELLS ABOVE THE ARBITRAGE CEILING, at any probability** — a hard zero, not a small
+  number. An NPC's ethecoin is invented, so paying above the storefront's floor is *issuance* on a
+  repeatable action; "unlikely but possible" is still a faucet. Selling to a real player is a transfer
+  and must not inherit this.
+  ⚠ **One unit per sale**, or quantity becomes a multiplier on luck rather than on time.
+  ⚠ A send-later sale leaves the player **owing**, on the same 6-hour clock — the mode reaching them
+  from the other side.
+- **A listing fee, by standing (2026-08-04).** `ShadowTrading.feeBasisPoints`: **1.5% trusted / 3%
+  standard / 12% shady**. ⚠ **Basis points, not percent** — the trusted rate is not an integer number
+  of percent, and whole percent would either lose it or invite a `double` into wei arithmetic.
+  ⚠ **The bands ARE the standing bands**, not new thresholds: a second set would let a seller read
+  "trusted" on one screen and be charged the shady rate on another, both screens correct.
+  ⚠ **The untrusted pay TWICE** — once to list and again on sale — and the up-front charge is
+  **refused if unaffordable** (taking a partial fee and listing anyway is the worst of both) and
+  **not refunded on withdrawal**. A refundable one is no deterrent: a shady seller could paper the
+  board and withdraw for free, which is the exact behaviour it exists to stop.
+  ⚠ **Taken from the PROCEEDS at payment**, so it is already gone when a deadline lapses — a fee
+  charged at delivery is one a defaulting seller never pays.
+  ⚠ **Rounds UP**, or a small enough listing arranges a fee of zero.
+  ⚠ **Burned, not paid to anybody** — this is a real sink; crediting a house account would make it a
+  delay instead.
+  ⚠ **A resting SELL ORDER pays it too.** Exempting the order form would be a fee-free back door
+  every seller would learn to use — the same feature with the sink switched off.
+- ⚠ **A LISTING IS NOT A PRICE TICK, and keying it to one made buying IMPOSSIBLE.** Listings were
+  derived from the 2-second `TICK`, so the board turned over while the confirmation dialog was open
+  and `buyNow` answered "that listing is gone" every time — a board that looked alive and could not
+  be traded with. `LISTING_DWELL` is **2 minutes**, staggered per slot so roughly one turns over
+  every 20s while each individual one stands for the full dwell. ⚠ Solo only: a federated listing is
+  a real posting and does not rotate at all.
+- ⚠ **A listing's PRICE is frozen at the instant it opened**, read from `bookAt(opened)` and never
+  from `now`. Reading live leaves the id stable and the price drifting under it, so the confirmation
+  quotes one number and the debit takes another — invisible until somebody checks their ledger.
+  ⚠ The board is therefore **sorted after the fact**: each slot froze at a different instant, so slot
+  order would put a stale dear listing above a fresh cheap one.
+- ⚠ **`offer()` RECONSTRUCTS from the id rather than searching the live board**, with a bounded
+  `LISTING_GRACE` (45s). With staggered slots one listing is always near its boundary, so searching
+  live made purchases fail through nobody's fault. The grace is a quote-expiry window; it is
+  **bounded** because an unbounded one is a free option on a moving market that a player could farm.
+  ⚠ A listing from the **future** is refused too — an id is a string and a save is a file the player
+  can edit.
+- ⚠ **A listing's id is derived from (item, window, depth), never random.** A random id would be a
+  different listing on every repaint, so the confirmation would name one thing and buy another.
+- ⚠ **Room is checked before the money moves**, and for send-later too — refusing now is far kinder
+  than refusing in six hours.
+
 **The ShMark order form is a HOVER DRAWER on the right edge (2026-08-04).** `ShadowMarketView.drawer`
 — a vertical `BUY / SELL` handle; hovering it slides the form in from the right. It was a third
 column in the row, where it took width from the chart at every window size and sat on screen whether

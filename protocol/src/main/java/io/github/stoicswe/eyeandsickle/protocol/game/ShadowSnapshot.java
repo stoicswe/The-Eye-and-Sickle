@@ -31,6 +31,13 @@ import java.util.List;
  * @param tape recent prints, newest first
  * @param openOrders the player's own resting orders on this listing
  * @param holdings how many of this item the player owns and could sell
+ * @param listings offers that can be taken outright — ⚠ each carries its {@link DeliveryMode}, which
+ *     is the buyer's whole risk decision and must never be rendered as a detail
+ * @param obligations trades where somebody still owes somebody, in either direction
+ * @param listingFeeBasisPoints what the house takes from this seller — ⚠ basis points, because the
+ *     trusted rate is 1.5% and is not an integer number of percent
+ * @param listingFeeUpFront whether this seller is also charged to put a listing up, which only the
+ *     untrusted are — and it is not refunded if they withdraw
  */
 public record ShadowSnapshot(
         String itemType,
@@ -43,7 +50,11 @@ public record ShadowSnapshot(
         List<ShadowLevel> asks,
         List<ShadowPrint> tape,
         List<ShadowOrder> openOrders,
-        int holdings) {
+        int holdings,
+        List<ShadowListing> listings,
+        List<ShadowObligation> obligations,
+        int listingFeeBasisPoints,
+        boolean listingFeeUpFront) {
 
     public ShadowSnapshot {
         candles = List.copyOf(candles);
@@ -51,6 +62,8 @@ public record ShadowSnapshot(
         asks = List.copyOf(asks);
         tape = List.copyOf(tape);
         openOrders = List.copyOf(openOrders);
+        listings = List.copyOf(listings);
+        obligations = List.copyOf(obligations);
     }
 
     /** A market with nothing in it — what a session answers when it cannot price anything. */
@@ -66,7 +79,11 @@ public record ShadowSnapshot(
                 List.of(),
                 List.of(),
                 List.of(),
-                0);
+                0,
+                List.of(),
+                List.of(),
+                0,
+                false);
     }
 
     public BigInteger bestBid() {

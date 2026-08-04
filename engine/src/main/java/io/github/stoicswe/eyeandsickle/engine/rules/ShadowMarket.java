@@ -476,6 +476,168 @@ public final class ShadowMarket {
         return out;
     }
 
+    // ── listings ──────────────────────────────────────────────────────────────────────────────
+
+    /** One offer from a counterparty, with its delivery mode. */
+    public record Offer(
+            String listingId,
+            String itemType,
+            BigInteger price,
+            int quantity,
+            io.github.stoicswe.eyeandsickle.protocol.game.DeliveryMode delivery,
+            Trader trader) {}
+
+    /** How many counterparty listings stand at once. */
+    public static final int OFFERS = 6;
+
+    /**
+     * How long one simulated listing stands before it is replaced.
+     *
+     * <h2>⚠ A LISTING IS NOT A PRICE TICK, and keying it to one made buying impossible</h2>
+     *
+     * Listings were derived from {@link #TICK}, so the whole board turned over every two seconds. A
+     * player would right-click a row, read the confirmation, press Pay — and by then the listing it
+     * named no longer existed, so {@code buyNow} answered "that listing is gone" every time. The
+     * board looked alive and could not be traded with.
+     *
+     * <p>The two are genuinely different things: the <b>price</b> moves continuously because that is
+     * what a market does, and a <b>listing</b> is somebody's standing offer that sits there until it
+     * sells or is pulled. Two minutes is long enough to read a row, open a dialog and decide.
+     *
+     * <p>⚠ This governs the <b>simulation only</b>. A federated listing does not rotate at all — it
+     * is a real posting and it stands until its seller takes it down or somebody buys it, so there is
+     * no dwell to tune on that path.
+     */
+    public static final Duration LISTING_DWELL = Duration.ofMinutes(2);
+
+    /**
+     * The listings a buyer can take outright.
+     *
+     * <h2>⚠ A SHADY seller is far likelier to want paying up front</h2>
+     *
+     * Delivery mode is derived from the trader's rating, not drawn independently, and that is the
+     * whole shape of the decision: the cheap listings are cheap <em>and</em> promised, the safe ones
+     * are attached <em>and</em> dearer. Rolling the two apart would produce trustworthy sellers who
+     * demand trust anyway and shady ones who hand the goods over — a market where the price and the
+     * risk carry no information about each other, so there is nothing to read.
+     *
+     * <p>⚠ Derived from the book index, so listings do not reshuffle on repaint. A player who
+     * right-clicks a listing must get the listing they aimed at.
+     */
+    public static List<Offer> offersAt(GameSave save, String itemType, Instant now) {
+        BigInteger retail = retailOf(itemType);
+        if (retail.signum() <= 0) {
+            return List.of();
+        }
+        List<Offer> offers = new ArrayList<>();
+        for (int depth = 0; depth < OFFERS; depth++) {
+            // ⚠ STAGGERED, so the board is not replaced wholesale every two minutes. Each slot keeps
+            // its own phase, so roughly one listing turns over every twenty seconds while any
+            // individual one still stands for the full dwell — the board reads as alive and every
+            // row on it is long-lived enough to buy.
+            Instant opened = windowStart(now, depth);
+            // ⚠ The book is read AT THE INSTANT THE LISTING OPENED, never at `now`. Reading it live
+            // would leave the id stable and the price drifting underneath it, so the confirmation
+            // would quote one number and the debit would take another — the single most damaging
+            // thing a shop can get wrong, and invisible until somebody checked their ledger.
+            Book book = bookAt(save, itemType, opened);
+            if (depth >= book.asks().size()) {
+                continue;
+            }
+            Level level = book.asks().get(depth);
+            Trader trader = level.trader();
+            long window = Math.floorDiv(opened.getEpochSecond(), LISTING_DWELL.toSeconds());
+            // ⚠ Derived from the rating with a deterministic wobble, so a trusted seller USUALLY
+            // attaches and a shady one usually does not — "usually" rather than "always", or the
+            // standing would be redundant with the mode and the player would only ever read one.
+            long roll = Math.floorMod(hash(seedOf(save, itemType), window * 97 + depth, 0xDE11), 100L);
+            var mode = roll < trader.rating() + 100L
+                    ? io.github.stoicswe.eyeandsickle.protocol.game.DeliveryMode.ATTACHED
+                    : io.github.stoicswe.eyeandsickle.protocol.game.DeliveryMode.SEND_LATER;
+            // ⚠ A STABLE id derived from (item, window, depth). A random id would be a different
+            // listing on every repaint, so the confirmation dialog would name one thing and buy
+            // another.
+            String id = itemType + ":" + window + ":" + depth;
+            offers.add(new Offer(id, itemType, level.price(), (int) level.size(), mode, trader));
+        }
+        // ⚠ Sorted after the fact, because each slot froze its price at a different instant — leaving
+        // them in slot order would put a stale dear listing above a fresh cheap one and the board
+        // would stop reading as a book.
+        offers.sort((a, b) -> a.price().compareTo(b.price()));
+        return offers;
+    }
+
+    /**
+     * When the listing in a given slot went up.
+     *
+     * <p>Each slot is offset by a fraction of the dwell so they do not all turn over together.
+     */
+    private static Instant windowStart(Instant now, int depth) {
+        long dwell = LISTING_DWELL.toSeconds();
+        long offset = dwell * depth / Math.max(1, OFFERS);
+        long window = Math.floorDiv(now.getEpochSecond() - offset, dwell);
+        return Instant.ofEpochSecond(window * dwell + offset);
+    }
+
+
+    /**
+     * How long a listing is still honoured after it leaves the board.
+     *
+     * <h2>⚠ Without it, a purchase can fail through nobody's fault</h2>
+     *
+     * The slots are staggered, so at any moment one of them is close to its boundary — a player who
+     * right-clicks that row and takes four seconds over the confirmation would be told the listing is
+     * gone, having done nothing wrong. The grace is what a real quote-expiry flow gives you: the
+     * price you were shown is the price you can take, for a little longer than it takes to decide.
+     *
+     * <p>⚠ Bounded, and deliberately short. Reconstructing the offer from its id means an
+     * arbitrarily old listing could otherwise be bought at its original price by leaving the dialog
+     * open — which is a free option on a moving market, and a player who found it could farm it.
+     */
+    public static final Duration LISTING_GRACE = Duration.ofSeconds(45);
+
+    /**
+     * Finds a counterparty listing by the id the panel showed.
+     *
+     * <h2>⚠ RECONSTRUCTED from the id, not searched for on the current board</h2>
+     *
+     * The id carries the window and the slot, and both the price and the counterparty are functions
+     * of those — so the exact listing the player clicked can be rebuilt whether or not it is still on
+     * screen. Searching the live board instead made a purchase fail whenever the board had turned
+     * over between the right-click and the confirmation, which with staggered slots is a real and
+     * regular occurrence rather than an edge case.
+     */
+    public static java.util.Optional<Offer> offer(GameSave save, String itemType, String listingId, Instant now) {
+        String[] parts = String.valueOf(listingId).split(":");
+        if (parts.length < 3) {
+            return java.util.Optional.empty();
+        }
+        long window;
+        int depth;
+        try {
+            window = Long.parseLong(parts[parts.length - 2]);
+            depth = Integer.parseInt(parts[parts.length - 1]);
+        } catch (NumberFormatException malformed) {
+            return java.util.Optional.empty();
+        }
+        if (depth < 0 || depth >= OFFERS) {
+            return java.util.Optional.empty();
+        }
+        long dwell = LISTING_DWELL.toSeconds();
+        long offset = dwell * depth / Math.max(1, OFFERS);
+        Instant opened = Instant.ofEpochSecond(window * dwell + offset);
+        Instant expires = opened.plus(LISTING_DWELL).plus(LISTING_GRACE);
+        // ⚠ Both ends checked. A listing from the FUTURE is as wrong as a stale one, and an id is a
+        // string the player's own save could carry — refusing to price something that has not been
+        // posted yet costs nothing and closes the obvious edit.
+        if (now.isBefore(opened) || !now.isBefore(expires)) {
+            return java.util.Optional.empty();
+        }
+        return offersAt(save, itemType, opened).stream()
+                .filter(offer -> offer.listingId().equals(listingId))
+                .findFirst();
+    }
+
     // ── what is traded here ───────────────────────────────────────────────────────────────────
 
     /**
@@ -595,16 +757,26 @@ public final class ShadowMarket {
         order.placedAt = now;
 
         if (buy) {
-            BigInteger escrow = limitPriceWei.multiply(BigInteger.valueOf(quantity));
-            if (save.ethecoinWei.compareTo(escrow) < 0) {
+            // ⚠ NO ESCROW (2026-08-04). This used to move the money out of the balance at
+            // placement, which made a resting bid risk-free — and this market is between people who
+            // can defect, so risk-free is the one thing it must not be. The consequence is real and
+            // deliberate: a bid can fill against a balance that has since been spent, and `settle`
+            // simply cancels it. See the class note on ShadowTrading.
+            if (save.ethecoinWei.compareTo(limitPriceWei.multiply(BigInteger.valueOf(quantity))) < 0) {
+                // Refused at placement as a courtesy, NOT as a guarantee — nothing stops the player
+                // spending it before the fill.
                 return Placed.refused(Refusal.CANNOT_AFFORD);
             }
-            // ⚠ Moved out of the balance, not merely noted. A balance that still counts committed
-            // money is a balance that is wrong, and the player would discover it by being refused
-            // something they could apparently afford.
-            save.ethecoinWei = save.ethecoinWei.subtract(escrow);
-            order.escrowWei = escrow;
         } else {
+            // ⚠ The untrusted pay to advertise here too — a resting sell order is a listing, and
+            // charging it only on the listings board would leave the deterrent with an obvious hole.
+            if (ShadowTrading.chargedUpFront(save)) {
+                BigInteger upFront = ShadowTrading.feeOn(limitPriceWei, save);
+                if (save.ethecoinWei.compareTo(upFront) < 0) {
+                    return Placed.refused(Refusal.CANNOT_AFFORD);
+                }
+                save.ethecoinWei = save.ethecoinWei.subtract(upFront);
+            }
             var held = save.items.stream()
                     .filter(item -> itemType.equals(item.itemType))
                     .filter(item -> !item.equipped)
@@ -624,10 +796,11 @@ public final class ShadowMarket {
     }
 
     /**
-     * Withdraws an order and gives back what it was holding.
+     * Withdraws an order.
      *
-     * <p>⚠ Escrow is returned in full. A cancellation fee would be a second sink nobody asked for and
-     * would make the market punish the one action that corrects a mistake.
+     * <p>⚠ Nothing is returned, because nothing was held — there is no escrow on this market. A
+     * cancelled bid simply stops being an offer. ⚠ Cancelling is free, and a cancellation fee would
+     * be a sink nobody asked for that punished the one action which corrects a mistake.
      */
     public static boolean cancel(GameSave save, String orderId) {
         if (save == null || orderId == null) {
@@ -639,7 +812,6 @@ public final class ShadowMarket {
         if (found.isEmpty()) {
             return false;
         }
-        save.ethecoinWei = save.ethecoinWei.add(found.get().escrowWei);
         save.shadowOrders.remove(found.get());
         return true;
     }
@@ -700,8 +872,14 @@ public final class ShadowMarket {
             // ⚠ The fill is at the TOUCH, not at the limit — a limit is the worst price you accept,
             // and charging it when the market is better would quietly take the difference.
             BigInteger cost = touch.price();
-            BigInteger refund = order.escrowWei.subtract(cost).max(BigInteger.ZERO);
-            save.ethecoinWei = save.ethecoinWei.add(refund);
+            // ⚠ CHECKED AT FILL TIME, because nothing was escrowed. A bid that outlived its funding
+            // is cancelled rather than defaulted: the player never entered an agreement, because the
+            // fill is the agreement and it did not happen. Treating this as a defection would punish
+            // somebody for a market moving while they spent their own money.
+            if (save.ethecoinWei.compareTo(cost) < 0) {
+                return new Fill(order.itemType, true, cost, false, "");
+            }
+            save.ethecoinWei = save.ethecoinWei.subtract(cost);
             if (delivered) {
                 var item = new io.github.stoicswe.eyeandsickle.engine.state.ItemState();
                 item.itemType = order.itemType;
@@ -716,7 +894,10 @@ public final class ShadowMarket {
             return new Fill(order.itemType, true, cost, delivered, touch.trader().handle());
         }
         save.items.removeIf(item -> item.itemId.equals(order.heldItemId));
-        save.ethecoinWei = save.ethecoinWei.add(touch.price());
+        // ⚠ A resting sell order IS a listing, so it pays the same fee. Exempting it would make the
+        // order form a fee-free back door around the listing board, and every seller would learn to
+        // use it — which is the same feature with the sink switched off.
+        save.ethecoinWei = save.ethecoinWei.add(ShadowTrading.takeFee(save, touch.price()));
         return new Fill(order.itemType, false, touch.price(), true, touch.trader().handle());
     }
 

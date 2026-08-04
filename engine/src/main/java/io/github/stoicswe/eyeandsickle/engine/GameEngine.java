@@ -502,6 +502,53 @@ public final class GameEngine {
         // filled while its window was on screen would make the market a thing that happens to people
         // who are watching, and a player would learn to leave the panel open — which is the opposite
         // of what a resting order is for.
+        // ⚠ Listings sell on the TICK, at a RATE PER HOUR — never a chance per tick. A per-tick roll
+        // makes a faster-ticking client sell faster and gives a three-day absence exactly one roll,
+        // both invisible in play. `elapsed` is what converts either into the same answer.
+        for (var sale : io.github.stoicswe.eyeandsickle.engine.rules.ShadowTrading.settleListings(
+                save, elapsed, now)) {
+            changed = true;
+            EventLog.notice(
+                    save,
+                    "market",
+                    sale.owesDelivery()
+                            ? "somebody took your listing for " + sale.itemType() + " at "
+                                    + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.format(
+                                            sale.priceWei())
+                                    + " (less "
+                                    + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.format(
+                                            sale.feeWei())
+                                    + " listing fee). You have " + Balance.SHADOW_FULFILMENT_HOURS
+                                    + " hours to send it — they have already paid, and the fee stands "
+                                    + "whether or not you do."
+                            : "sold " + sale.itemType() + " off your listing for "
+                                    + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.format(
+                                            sale.priceWei())
+                                    + " (less "
+                                    + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.format(
+                                            sale.feeWei())
+                                    + " listing fee). The goods were attached, so it is done.",
+                    now);
+        }
+        // ⚠ Obligations lapse on the TICK, so a deadline runs while the client is shut. It has to:
+        // the six-hour window is meant to survive a logout, or closing the client would be the way
+        // to escape one.
+        for (var lapsed : io.github.stoicswe.eyeandsickle.engine.rules.ShadowTrading.settleOverdue(save, now)) {
+            changed = true;
+            EventLog.notice(
+                    save,
+                    "market",
+                    lapsed.byMe()
+                            ? "you did not deliver " + lapsed.itemType() + " to " + lapsed.counterparty()
+                                    + " inside the window. Your trader reputation has taken the hit, and "
+                                    + "they keep nothing but the story."
+                            : lapsed.counterparty() + " never sent the " + lapsed.itemType()
+                                    + " you paid "
+                                    + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.format(
+                                            lapsed.paidWei())
+                                    + " for. There was no escrow; that money is gone.",
+                    now);
+        }
         for (var fill : io.github.stoicswe.eyeandsickle.engine.rules.ShadowMarket.settle(
                 save, now, now.getEpochSecond())) {
             changed = true;
@@ -1522,7 +1569,11 @@ public final class GameEngine {
                 (int) save.items.stream()
                         .filter(item -> itemType.equals(item.itemType))
                         .filter(item -> !item.equipped)
-                        .count());
+                        .count(),
+                shadowListings(itemType, now),
+                shadowObligations(now),
+                io.github.stoicswe.eyeandsickle.engine.rules.ShadowTrading.feeBasisPoints(save),
+                io.github.stoicswe.eyeandsickle.engine.rules.ShadowTrading.chargedUpFront(save));
     }
 
     private static io.github.stoicswe.eyeandsickle.protocol.game.ShadowLevel level(
@@ -1534,6 +1585,77 @@ public final class GameEngine {
                 level.trader().standing(),
                 level.trader().fillPercent(),
                 false);
+    }
+
+    /**
+     * Offers on one listing that a buyer can take outright — counterparties' and the player's own.
+     *
+     * <p>⚠ The player's own listings are marked and come FIRST. A seller looking at their own offer
+     * beside six identical-looking ones needs to know which is theirs before they click Buy now on
+     * it, and "mine" is not something a price can convey.
+     */
+    private java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.ShadowListing> shadowListings(
+            String itemType, Instant now) {
+        var out = new java.util.ArrayList<io.github.stoicswe.eyeandsickle.protocol.game.ShadowListing>();
+        for (var own : io.github.stoicswe.eyeandsickle.engine.rules.ShadowTrading.mine(save)) {
+            if (!itemType.equals(own.itemType)) {
+                continue;
+            }
+            out.add(new io.github.stoicswe.eyeandsickle.protocol.game.ShadowListing(
+                    own.listingId,
+                    own.itemType,
+                    displayNameOf(own.itemType),
+                    own.priceWei,
+                    own.quantity,
+                    own.sendLater()
+                            ? io.github.stoicswe.eyeandsickle.protocol.game.DeliveryMode.SEND_LATER
+                            : io.github.stoicswe.eyeandsickle.protocol.game.DeliveryMode.ATTACHED,
+                    save.handle,
+                    "you",
+                    0,
+                    own.listedAt,
+                    true,
+                    io.github.stoicswe.eyeandsickle.engine.rules.ShadowTrading.saleRatePerHour(save, own, now)));
+        }
+        for (var offer : io.github.stoicswe.eyeandsickle.engine.rules.ShadowMarket.offersAt(save, itemType, now)) {
+            out.add(new io.github.stoicswe.eyeandsickle.protocol.game.ShadowListing(
+                    offer.listingId(),
+                    offer.itemType(),
+                    displayNameOf(offer.itemType()),
+                    offer.price(),
+                    offer.quantity(),
+                    offer.delivery(),
+                    offer.trader().handle(),
+                    offer.trader().standing(),
+                    offer.trader().rating(),
+                    now,
+                    false,
+                    0));
+        }
+        return out;
+    }
+
+    private java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.ShadowObligation> shadowObligations(
+            Instant now) {
+        return io.github.stoicswe.eyeandsickle.engine.rules.ShadowTrading.obligations(save).stream()
+                .map(owed -> new io.github.stoicswe.eyeandsickle.protocol.game.ShadowObligation(
+                        owed.obligationId,
+                        owed.itemType,
+                        displayNameOf(owed.itemType),
+                        owed.quantity,
+                        owed.paidWei,
+                        owed.counterpartyHandle,
+                        owed.owedByMe,
+                        owed.incurredAt,
+                        owed.dueAt,
+                        now))
+                .toList();
+    }
+
+    private static String displayNameOf(String itemType) {
+        return io.github.stoicswe.eyeandsickle.engine.Catalogue.byId(itemType)
+                .map(io.github.stoicswe.eyeandsickle.engine.Catalogue.Offering::name)
+                .orElse(itemType);
     }
 
     /** The player's resting Shadow Market orders. */

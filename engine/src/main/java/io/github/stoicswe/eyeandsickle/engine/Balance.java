@@ -271,6 +271,19 @@ public final class Balance {
     public static final long MARKET_FOREIGN_PURCHASE_NOISE_CYCLES = 3L;
 
     /**
+     * How long a Shadow Market seller has to deliver before it costs them.
+     *
+     * <h2>⚠ Long enough to be a promise, short enough to be a deadline</h2>
+     *
+     * Six hours spans a session boundary — a seller who lists, logs off and comes back can still
+     * honour it — which is the point: the obligation is meant to survive the client being closed, so
+     * that closing the client is not a way to escape one. Shorter would punish anybody who logs off;
+     * much longer would make defaulting cost nothing that mattered, since the buyer has already lost
+     * the money either way.
+     */
+    public static final long SHADOW_FULFILMENT_HOURS = 6L;
+
+    /**
      * The pool settles up every sixty seconds.
      *
      * <h2>⚠ This exists because the ledger is the artefact, not because the maths needed it</h2>

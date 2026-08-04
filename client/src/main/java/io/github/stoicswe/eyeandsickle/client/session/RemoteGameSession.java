@@ -523,6 +523,27 @@ public final class RemoteGameSession implements GameSession {
         return unavailable();
     }
 
+    @Override
+    public Outcome buyShadowListing(String itemType, String listingId) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome createShadowListing(
+            String itemType, java.math.BigInteger priceWei, java.util.List<String> itemIds, boolean sendLater) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome cancelShadowListing(String listingId) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome fulfilShadowObligation(String obligationId) {
+        return unavailable();
+    }
+
     /**
      * Returns the refusal and records nothing.
      *

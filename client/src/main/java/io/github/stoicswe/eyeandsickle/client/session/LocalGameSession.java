@@ -826,6 +826,62 @@ public final class LocalGameSession implements GameSession {
     }
 
     @Override
+    public Outcome buyShadowListing(String itemType, String listingId) {
+        var offer = io.github.stoicswe.eyeandsickle.engine.rules.ShadowMarket.offer(
+                game.state(), itemType, listingId, game.now());
+        if (offer.isEmpty()) {
+            // ⚠ Says it MOVED rather than that it never existed. Listings are derived from the clock
+            // and turn over every couple of seconds, so "no such listing" would read as a bug on a
+            // screen the player just clicked.
+            return announce("market", Outcome.refused("that listing is gone — the book has moved."));
+        }
+        var taken = offer.get();
+        var result = io.github.stoicswe.eyeandsickle.engine.rules.ShadowTrading.buyNow(
+                game.state(),
+                itemType,
+                taken.price(),
+                1,
+                taken.delivery(),
+                taken.trader().handle(),
+                taken.trader().rating(),
+                game.now());
+        return announce(
+                "market", result.ok() ? changed(Outcome.ok(result.message())) : Outcome.refused(result.message()));
+    }
+
+    @Override
+    public Outcome createShadowListing(
+            String itemType, java.math.BigInteger priceWei, java.util.List<String> itemIds, boolean sendLater) {
+        var result = io.github.stoicswe.eyeandsickle.engine.rules.ShadowTrading.list(
+                game.state(),
+                itemType,
+                priceWei,
+                itemIds,
+                sendLater
+                        ? io.github.stoicswe.eyeandsickle.protocol.game.DeliveryMode.SEND_LATER
+                        : io.github.stoicswe.eyeandsickle.protocol.game.DeliveryMode.ATTACHED,
+                game.now());
+        return announce(
+                "market", result.ok() ? changed(Outcome.ok(result.message())) : Outcome.refused(result.message()));
+    }
+
+    @Override
+    public Outcome cancelShadowListing(String listingId) {
+        var result = io.github.stoicswe.eyeandsickle.engine.rules.ShadowTrading.cancel(
+                game.state(), listingId, game.now());
+        return announce(
+                "market", result.ok() ? changed(Outcome.ok(result.message())) : Outcome.refused(result.message()));
+    }
+
+    @Override
+    public Outcome fulfilShadowObligation(String obligationId) {
+        var result = io.github.stoicswe.eyeandsickle.engine.rules.ShadowTrading.fulfil(
+                game.state(), obligationId, game.now());
+        return announce(
+                "market", result.ok() ? changed(Outcome.ok(result.message())) : Outcome.refused(result.message()));
+    }
+
+    @Override
     public Outcome extract(String path) {
         var started = io.github.stoicswe.eyeandsickle.engine.rules.Archives.begin(game.state(), path, game.now());
         if (!started.succeeded()) {

@@ -3433,3 +3433,21 @@
 .es-shmark-tab:hover { -fx-border-color: -es-rule-hi; }
 .es-shmark-tab-label { -fx-text-fill: -es-text-hi; -fx-font-size: 10px; }
 .es-shmark-drawer { -fx-padding: 0; }
+
+/* Delivery mode on a listing — the buyer's whole risk decision.
+ *
+ * ⚠ ONLY THE RISKY ONE IS COLOURED. `PROMISED` takes `-es-warn`, which is exactly what warn is for:
+ * you are about to pay for something nobody is holding. `IN HAND` takes the ordinary bright text
+ * token, because there is nothing to flag about it — colouring both would make the pair read as two
+ * categories of equal weight, when one of them is the only one that can cost the player anything.
+ *
+ * ⚠ NOT `-es-alarm`. §2.1 rations that to loss and hostile state, and a promise is neither until it
+ * is broken — an overdue obligation IS alarm, and that is where it is spent (`.es-shmark-down`).
+ *
+ * ⚠ Both are ContrastTest tokens, so they are measured against both panel grounds in six palettes. */
+.es-shmark-promised { -fx-text-fill: -es-warn; }
+.es-shmark-inhand   { -fx-text-fill: -es-text-hi; }
+
+/* A listing row is right-clickable and has to look it. Brightening the ground on hover is the only
+ * affordance available — §9 makes shadows build-blocking and a cursor change would need Java. */
+.es-shmark-listing:hover { -fx-background-color: -es-panel-hi; }

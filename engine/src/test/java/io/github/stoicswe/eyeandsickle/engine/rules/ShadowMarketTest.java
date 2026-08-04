@@ -123,6 +123,136 @@ class ShadowMarketTest {
     }
 
     @Nested
+    @DisplayName("⚠ listings stand long enough to buy")
+    class Listings2 {
+
+        @Test
+        @DisplayName("⚠ a listing survives long enough to right-click, read and confirm")
+        void aListingOutlivesTheDecision() {
+            // The bug this pins: listings were keyed to the 2-second price TICK, so the whole board
+            // turned over while the confirmation dialog was open and `buyNow` answered "that listing
+            // is gone" every single time. The board looked alive and could not be traded with.
+            GameSave save = character("dwell");
+            String itemType = ShadowMarket.listings().getFirst();
+            var first = ShadowMarket.offersAt(save, itemType, T0);
+            assertThat(first).isNotEmpty();
+            String id = first.getFirst().listingId();
+
+            // ⚠ EVERY listing on the board, not just the first — the slots are staggered, so one of
+            // them is always close to its boundary, and it is precisely that one a player would be
+            // told they could not buy. The grace period is what makes this hold for all six.
+            for (var offer : first) {
+                assertThat(ShadowMarket.offer(save, itemType, offer.listingId(), T0.plus(Duration.ofSeconds(30))))
+                        .as("%s must still be buyable after a slow confirmation", offer.listingId())
+                        .isPresent();
+            }
+            assertThat(id).isNotBlank();
+        }
+
+        @Test
+        @DisplayName("⚠ but a listing left open for a long time DOES expire")
+        void theGraceIsBounded() {
+            // Reconstructing an offer from its id means a stale one could otherwise be bought at its
+            // original price by leaving the dialog open — a free option on a moving market, and a
+            // player who found it could farm it.
+            GameSave save = character("expiry");
+            String itemType = ShadowMarket.listings().getFirst();
+            var offer = ShadowMarket.offersAt(save, itemType, T0).getFirst();
+            Instant wayLater = T0.plus(ShadowMarket.LISTING_DWELL)
+                    .plus(ShadowMarket.LISTING_GRACE)
+                    .plus(Duration.ofMinutes(5));
+            assertThat(ShadowMarket.offer(save, itemType, offer.listingId(), wayLater))
+                    .isEmpty();
+        }
+
+        @Test
+        @DisplayName("⚠ and a listing from the FUTURE is refused")
+        void theFutureIsRefused() {
+            // An id is a string, and a save is a file the player can edit. Refusing to price
+            // something that has not been posted yet costs nothing and closes the obvious edit.
+            GameSave save = character("future");
+            String itemType = ShadowMarket.listings().getFirst();
+            var offer = ShadowMarket.offersAt(save, itemType, T0.plus(Duration.ofHours(6))).getFirst();
+            assertThat(ShadowMarket.offer(save, itemType, offer.listingId(), T0)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("⚠ and its PRICE does not drift while it stands")
+        void aListingsPriceIsFrozen() {
+            // Reading the book live would leave the id stable and the price moving underneath it, so
+            // the confirmation would quote one number and the debit take another — invisible until
+            // somebody checked their ledger.
+            GameSave save = character("frozen");
+            String itemType = ShadowMarket.listings().getFirst();
+            var offer = ShadowMarket.offersAt(save, itemType, T0).getFirst();
+            for (int second = 1; second <= 20; second++) {
+                var later = ShadowMarket.offer(save, itemType, offer.listingId(), T0.plus(Duration.ofSeconds(second)));
+                assertThat(later).isPresent();
+                assertThat(later.get().price())
+                        .as("price at +%ds", second)
+                        .isEqualTo(offer.price());
+                assertThat(later.get().delivery()).isEqualTo(offer.delivery());
+                assertThat(later.get().trader().handle()).isEqualTo(offer.trader().handle());
+            }
+        }
+
+        @Test
+        @DisplayName("⚠ but the board is not replaced wholesale — the slots are staggered")
+        void slotsTurnOverIndependently() {
+            // Without the stagger every listing would change in the same instant, which reads as the
+            // panel having reloaded rather than as a market moving.
+            GameSave save = character("stagger");
+            String itemType = ShadowMarket.listings().getFirst();
+            java.util.Set<Long> windowStarts = new java.util.HashSet<>();
+            for (var offer : ShadowMarket.offersAt(save, itemType, T0)) {
+                // The window index is the middle field of the id.
+                windowStarts.add(Long.parseLong(offer.listingId().split(":")[1]));
+            }
+            assertThat(ShadowMarket.offersAt(save, itemType, T0)).hasSizeGreaterThan(1);
+            assertThat(ShadowMarket.LISTING_DWELL)
+                    .as("a listing must outlive a price tick by a wide margin")
+                    .isGreaterThan(ShadowMarket.TICK.multipliedBy(10));
+        }
+
+        @Test
+        @DisplayName("the board is sorted by price, cheapest first")
+        void theBoardReadsAsABook() {
+            // Each slot freezes its price at a different instant, so slot order would put a stale
+            // dear listing above a fresh cheap one.
+            GameSave save = character("sorted");
+            for (String itemType : ShadowMarket.listings()) {
+                for (long minute = 0; minute < 600; minute += 7) {
+                    var offers = ShadowMarket.offersAt(save, itemType, T0.plus(Duration.ofMinutes(minute)));
+                    for (int i = 1; i < offers.size(); i++) {
+                        assertThat(offers.get(i).price())
+                                .isGreaterThanOrEqualTo(offers.get(i - 1).price());
+                    }
+                }
+            }
+        }
+
+        @Test
+        @DisplayName("⚠ a listing's price still respects the arbitrage ceiling")
+        void listingsCannotBreachTheCeiling() {
+            // Freezing a price at an earlier instant must not become a way round the guard — the
+            // frozen value came from bookAt, which is clamped into the band, so this holds by
+            // construction. Pinned because "by construction" is exactly what a later refactor breaks.
+            int storefrontFloorPercent = 100 - MarketDeals.maxDiscountPercent();
+            GameSave save = character("ceiling");
+            for (String itemType : ShadowMarket.listings()) {
+                BigInteger cheapestStorefront = retail(itemType)
+                        .multiply(BigInteger.valueOf(storefrontFloorPercent))
+                        .divide(BigInteger.valueOf(100));
+                for (long minute = 0; minute < 20_000; minute += 13) {
+                    for (var offer : ShadowMarket.offersAt(save, itemType, T0.plus(Duration.ofMinutes(minute)))) {
+                        assertThat(offer.price()).isLessThan(cheapestStorefront);
+                    }
+                }
+            }
+        }
+    }
+
+    @Nested
     @DisplayName("the picker's categories")
     class Categories {
 

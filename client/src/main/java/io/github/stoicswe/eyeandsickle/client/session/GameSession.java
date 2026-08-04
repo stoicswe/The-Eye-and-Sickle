@@ -827,8 +827,46 @@ public interface GameSession extends AutoCloseable {
     Outcome placeShadowOrder(
             String itemType, boolean buy, java.math.BigInteger limitPriceWei, int quantity, String heldItemId);
 
-    /** Withdraws an order and returns its escrow in full. */
+    /**
+     * Withdraws a resting order.
+     *
+     * <p>⚠ Nothing comes back, because nothing was held — this market has no escrow.
+     */
     Outcome cancelShadowOrder(String orderId);
+
+    /**
+     * Takes a listing outright at the seller's price.
+     *
+     * <h2>⚠ THE MONEY GOES IMMEDIATELY AND CANNOT COME BACK</h2>
+     *
+     * There is no escrow. On an {@code ATTACHED} listing the goods arrive in the same call; on a
+     * {@code SEND_LATER} one the buyer holds nothing but an obligation and a deadline, and if the
+     * seller never ships, the money is simply gone. <b>Callers must confirm with the player first</b>,
+     * and the confirmation must name the delivery mode — it is the whole decision.
+     *
+     * @param itemType which listing's instrument
+     * @param listingId the offer, as the snapshot gave it
+     */
+    Outcome buyShadowListing(String itemType, String listingId);
+
+    /**
+     * Puts something up for sale.
+     *
+     * <p>⚠ Refused unless the player holds every named copy, unequipped — including for
+     * {@code SEND_LATER}. A promise-only listing for something never owned is a confidence trick
+     * with no cost of entry.
+     *
+     * @param itemIds which copies, by id
+     * @param sendLater true to keep the goods and owe delivery, false to attach them now
+     */
+    Outcome createShadowListing(
+            String itemType, java.math.BigInteger priceWei, List<String> itemIds, boolean sendLater);
+
+    /** Takes a listing down; anything attached comes back to storage. */
+    Outcome cancelShadowListing(String listingId);
+
+    /** Hands over what was promised, closing an obligation before its deadline. */
+    Outcome fulfilShadowObligation(String obligationId);
 
     /**
      * Records a refusal the <em>client</em> made before it asked the rules anything.

@@ -39,7 +39,13 @@ public final class ShadowOrderState {
     public Instant placedAt = Instant.EPOCH;
 
     /**
-     * Ethecoin held against a buy. Zero for a sell.
+     * ⚠ Always zero. Kept as a field so an existing save still parses, and as a marker.
+     *
+     * <p>This market had escrow until 2026-08-04 and deliberately does not any more: it is a market
+     * between people who can defect, and escrow is precisely the thing that makes defecting
+     * impossible. A bid now commits nothing until it fills. ⚠ <b>Do not reintroduce it here</b> —
+     * doing so would also collapse {@code DeliveryMode}'s two options into one, since the whole
+     * difference between them is whether the buyer is carrying risk.
      *
      * <p>⚠ Initialised, never left null — the money-field rule {@code CLAUDE.md} records after
      * {@code ContributionState.creditedWei} threw an NPE on the login screen for want of one.

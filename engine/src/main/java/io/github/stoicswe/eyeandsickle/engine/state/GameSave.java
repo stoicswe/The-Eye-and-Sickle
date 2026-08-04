@@ -217,6 +217,24 @@ public final class GameSave {
     public List<ShadowOrderState> shadowOrders = new ArrayList<>();
 
     /**
+     * Listings this character has up for sale on the Shadow Market.
+     *
+     * <p>⚠ An {@code ATTACHED} listing HOLDS the items — they are removed from {@link #items} when it
+     * is created and returned only on cancel or handed over on sale. That is what makes the two
+     * delivery modes different in mechanism rather than in promise.
+     */
+    public List<ShadowListingState> shadowListings = new ArrayList<>();
+
+    /**
+     * Trades where somebody still owes somebody something.
+     *
+     * <p>⚠ The market has <b>no escrow</b>, so this list is the entire enforcement mechanism: the
+     * money has already moved and all that remains is an obligation, a deadline and the reputation
+     * cost of missing it.
+     */
+    public List<ShadowObligationState> shadowObligations = new ArrayList<>();
+
+    /**
      * What this character has taken off the market's shelf, keyed {@code <offeringId>@<day>}.
      *
      * <p>⚠ The COUNT TAKEN, never the stock level. How much the shop stocked is derived from the item

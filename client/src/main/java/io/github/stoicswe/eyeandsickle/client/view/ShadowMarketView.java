@@ -96,6 +96,10 @@ public final class ShadowMarketView {
         // would rebuild the book's children, which dirties layout, which fires the listener again —
         // a layout loop.
         ShadowSnapshot[] last = new ShadowSnapshot[1];
+        // ⚠ The fee depends on the player's STANDING, which moves — so the caption is refreshed with
+        // everything else rather than written once. A seller whose reputation slipped into the shady
+        // band and was still being told 3% would find out by being charged four times that.
+        Label[] feeCaption = new Label[1];
         String[] listing = {listings.getFirst()};
         String[] interval = {"M5"};
 
@@ -120,6 +124,8 @@ public final class ShadowMarketView {
         HBox intervals = new HBox(UiTokens.SPACE_1);
         Canvas chart = new Canvas(600, 260);
         VBox book = new VBox(1);
+        VBox listingRows = new VBox(1);
+        VBox obligations = new VBox(UiTokens.SPACE_1);
         VBox tape = new VBox(1);
         VBox orders = new VBox(UiTokens.SPACE_1);
 
@@ -144,6 +150,18 @@ public final class ShadowMarketView {
             paintBook(book, snapshot);
             paintTape(tape, snapshot);
             paintOrders(orders, session, snapshot.openOrders(), result, repaint);
+            paintListings(listingRows, session, snapshot, result, repaint);
+            paintObligations(obligations, session, snapshot, result, repaint);
+            if (feeCaption[0] != null) {
+                String rate = String.format(Locale.ROOT, "%.1f%%", snapshot.listingFeeBasisPoints() / 100.0d);
+                feeCaption[0].setText(snapshot.listingFeeUpFront()
+                        ? "Listing fee " + rate + " — and your standing means you pay it TWICE: once "
+                                + "to list (not refunded if you withdraw) and again when it sells."
+                        : "Listing fee " + rate + ", taken from the proceeds when it sells.");
+                feeCaption[0].getStyleClass().removeAll("es-shmark-promised", "es-shmark-inhand");
+                feeCaption[0].getStyleClass().add(
+                        snapshot.listingFeeUpFront() ? "es-shmark-promised" : "es-shmark-inhand");
+            }
         };
 
         for (String id : new String[] {"M1", "M5", "M15", "H1"}) {
@@ -163,7 +181,8 @@ public final class ShadowMarketView {
         // chart column carried a block of empty space the same size. It is also where it belongs:
         // an order is a line on this instrument, and the chart is what the player is reading to
         // decide whether to pull it.
-        VBox chartColumn = new VBox(UiTokens.SPACE_2, intervals, chart, heading("YOUR ORDERS"), orders);
+        VBox chartColumn = new VBox(
+                UiTokens.SPACE_2, intervals, chart, heading("OWED"), obligations, heading("YOUR ORDERS"), orders);
         chartColumn.getChildren().addAll(palette.nodes());
         // ⚠ THE CANVAS MUST BE REDRAWN ON LAYOUT, or its colours are whatever they were before CSS.
         //
@@ -187,7 +206,9 @@ public final class ShadowMarketView {
         HBox.setHgrow(chartColumn, Priority.ALWAYS);
         chartColumn.setPrefWidth(0);
 
-        VBox bookColumn = new VBox(UiTokens.SPACE_2, heading("ORDER BOOK"), book, heading("RECENT TRADES"), tape);
+        VBox bookColumn = new VBox(
+                UiTokens.SPACE_2, heading("LISTINGS"), listingRows, heading("ORDER BOOK"), book,
+                heading("RECENT TRADES"), tape);
         bookColumn.getStyleClass().add("es-shmark-book");
         bookColumn.setMinWidth(272);
 
@@ -208,7 +229,7 @@ public final class ShadowMarketView {
         // was trading; as a drawer it costs nothing until it is wanted. Same rule the download dock
         // and the balance delta already follow — nothing transient may occupy layout space.
         javafx.scene.layout.StackPane host = new javafx.scene.layout.StackPane(scrolled);
-        host.getChildren().add(drawer(session, listing, limit, quantity, result, repaint));
+        host.getChildren().add(drawer(session, listing, limit, quantity, result, repaint, feeCaption));
         // ⚠ Clipped to itself, or the closed drawer paints outside the panel. It rests translated a
         // full form-width to the right, which is off this panel's edge by construction.
         javafx.scene.shape.Rectangle clip = new javafx.scene.shape.Rectangle();
@@ -427,6 +448,211 @@ public final class ShadowMarketView {
         return row;
     }
 
+    /**
+     * The listings, each takeable outright.
+     *
+     * <h2>⚠ THE DELIVERY MODE IS THE FIRST THING ON THE ROW, ahead of the price</h2>
+     *
+     * There is no escrow on this market: the money moves the instant a buyer confirms, and whether
+     * they get anything back depends entirely on this one word. A row that led with the number would
+     * be selling risk without naming it — and the cheap rows are systematically the risky ones,
+     * because a shady seller is likelier to want paying up front.
+     */
+    private static void paintListings(
+            VBox box, GameSession session, ShadowSnapshot snapshot, Label result, Runnable[] repaint) {
+        box.getChildren().clear();
+        if (snapshot.listings().isEmpty()) {
+            box.getChildren().add(Ui.micro("Nothing listed."));
+            return;
+        }
+        for (var listing : snapshot.listings()) {
+            Label mode = Ui.micro(listing.delivery().risky() ? "PROMISED" : "IN HAND");
+            mode.getStyleClass().add(listing.delivery().risky() ? "es-shmark-promised" : "es-shmark-inhand");
+            mode.setMinWidth(62);
+            Label price = Ui.micro(Ethecoin.formatApprox(listing.priceWei(), 4));
+            price.setMinWidth(76);
+            Label size = Ui.micro("×" + listing.quantity());
+            size.setMinWidth(28);
+            Label who = Ui.micro(listing.mine() ? "you" : listing.sellerHandle());
+            who.setMinWidth(74);
+            // ⚠ On the player's OWN listing the standing column carries how it is selling instead.
+            // A seller's question is not "who am I" — it is "is this price working", and the answer
+            // is the one thing the panel knows that they cannot work out by looking.
+            Label standing = Ui.micro(listing.mine() ? listing.interest() : listing.sellerStanding());
+            standing.getStyleClass()
+                    .add(listing.mine()
+                            ? (listing.interestPerHour() <= 0 ? "es-shmark-down" : "es-shmark-inhand")
+                            : "es-shmark-" + listing.sellerStanding());
+
+            HBox row = Ui.row(UiTokens.SPACE_2, mode, price, size, who, standing);
+            row.setAlignment(Pos.CENTER_LEFT);
+            row.getStyleClass().add("es-shmark-listing");
+            row.setAccessibleText((listing.delivery().risky() ? "promised, not yet sent. " : "in hand. ")
+                    + Ethecoin.format(listing.priceWei()) + " each, " + listing.quantity()
+                    + " available from " + listing.sellerHandle()
+                    + (listing.mine() ? ", your own listing" : ", " + listing.sellerStanding())
+                    + ". Right-click to buy.");
+
+            javafx.scene.control.ContextMenu menu = new javafx.scene.control.ContextMenu();
+            if (listing.mine()) {
+                javafx.scene.control.MenuItem withdraw = new javafx.scene.control.MenuItem("Withdraw listing");
+                withdraw.setOnAction(event -> {
+                    GameSession.Outcome outcome = session.cancelShadowListing(listing.listingId());
+                    result.setText(outcome.message());
+                    Views.styleByOutcome(result, outcome);
+                    repaint[0].run();
+                });
+                menu.getItems().add(withdraw);
+            } else {
+                javafx.scene.control.MenuItem buy = new javafx.scene.control.MenuItem("Buy now");
+                buy.setOnAction(event -> confirmBuy(session, row, listing, result, repaint));
+                menu.getItems().add(buy);
+            }
+            // ⚠ Anchored to the WINDOW, not to the row. The panel repaints every second, so the node
+            // the player right-clicked may be detached by the time the popup anchors to it — JavaFX
+            // then throws "The owner node needs to be associated with a window" on the FX thread.
+            // NetMapView records the same trap; screen coordinates make it identical on screen.
+            row.setOnContextMenuRequested(event -> {
+                if (row.getScene() != null && row.getScene().getWindow() != null) {
+                    menu.show(row.getScene().getWindow(), event.getScreenX(), event.getScreenY());
+                }
+                event.consume();
+            });
+            box.getChildren().add(row);
+        }
+    }
+
+    /**
+     * The confirmation before any money moves.
+     *
+     * <h2>⚠ It leads with the DELIVERY MODE, not with the price</h2>
+     *
+     * This is the last point at which the buyer can decline, and what they are actually deciding is
+     * whether to trust the seller — so that is the header. A dialog that only restated the amount
+     * would be asking "are you sure you want to spend this?" when the real question is "are you sure
+     * this person will send it?".
+     *
+     * <h2>⚠ The button NAMES THE ACT and Cancel is the default</h2>
+     *
+     * Both rules come from {@code MainMenuView}'s delete confirmation, and both apply here for the
+     * same reason: a button labelled with a generic affirmative is one people press to make a dialog
+     * go away, and an irreversible spend must not be what Return does to a dialog the player has not
+     * read. There is no escrow behind this — a mis-press cannot be undone by anybody.
+     */
+    private static void confirmBuy(
+            GameSession session,
+            javafx.scene.Node anchor,
+            io.github.stoicswe.eyeandsickle.protocol.game.ShadowListing listing,
+            Label result,
+            Runnable[] repaint) {
+        boolean risky = listing.delivery().risky();
+        String body = risky
+                ? "You pay " + Ethecoin.format(listing.priceWei()) + " to " + listing.sellerHandle()
+                        + " now. They send the goods afterwards — or they do not.\n\n"
+                        + "THERE IS NO ESCROW. Nothing holds that money and nothing can reverse it. "
+                        + "If they never send it, it is simply gone.\n\n"
+                        + "They are rated " + listing.sellerStanding() + ", and they have "
+                        + io.github.stoicswe.eyeandsickle.engine.Balance.SHADOW_FULFILMENT_HOURS
+                        + " hours before it costs them anything."
+                : "You pay " + Ethecoin.format(listing.priceWei()) + " to " + listing.sellerHandle()
+                        + " and the goods transfer in the same moment.\n\n"
+                        + "The seller attached them to the listing when they made it, so there is "
+                        + "nothing left for them to withhold.";
+
+        javafx.scene.control.ButtonType pay = new javafx.scene.control.ButtonType(
+                "Pay " + Ethecoin.formatApprox(listing.priceWei(), 4),
+                javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
+        javafx.scene.control.ButtonType back = new javafx.scene.control.ButtonType(
+                "Cancel", javafx.scene.control.ButtonBar.ButtonData.CANCEL_CLOSE);
+
+        javafx.scene.control.Alert confirm = new javafx.scene.control.Alert(
+                risky
+                        ? javafx.scene.control.Alert.AlertType.WARNING
+                        : javafx.scene.control.Alert.AlertType.CONFIRMATION,
+                "",
+                back,
+                pay);
+        confirm.setHeaderText(risky
+                ? "Paying up front — " + listing.sellerHandle() + " sends it later"
+                : "Goods in hand — they transfer now");
+        confirm.setContentText(body);
+        confirm.getDialogPane().setMinWidth(480);
+        theme(confirm, anchor);
+
+        // ⚠ Cancel is the default. See the class note — there is no escrow behind this button.
+        ((javafx.scene.control.Button) confirm.getDialogPane().lookupButton(pay)).setDefaultButton(false);
+        ((javafx.scene.control.Button) confirm.getDialogPane().lookupButton(back)).setDefaultButton(true);
+
+        if (confirm.showAndWait().filter(button -> button == pay).isEmpty()) {
+            return;
+        }
+        GameSession.Outcome outcome = session.buyShadowListing(listing.itemType(), listing.listingId());
+        result.setText(outcome.message());
+        Views.styleByOutcome(result, outcome);
+        repaint[0].run();
+    }
+
+    /**
+     * ⚠ Copies the owner scene's stylesheets onto the dialog, or it paints Modena WHITE.
+     *
+     * <p>A {@code Dialog} builds its own {@code Stage} and {@code Scene}, and that scene inherits
+     * nothing — the palette lives on the deck's scene and the dialog has never seen it. Same trap as
+     * an unstyled {@code ScrollPane} viewport, one level up.
+     */
+    private static void theme(javafx.scene.control.Dialog<?> dialog, javafx.scene.Node anchor) {
+        if (anchor == null || anchor.getScene() == null) {
+            return;
+        }
+        dialog.getDialogPane().getStylesheets().addAll(anchor.getScene().getStylesheets());
+        dialog.getDialogPane().getStyleClass().add("es-panel");
+        if (anchor.getScene().getWindow() != null) {
+            dialog.initOwner(anchor.getScene().getWindow());
+        }
+    }
+
+    /**
+     * What is still owed, in either direction.
+     *
+     * <p>⚠ Both directions on one list. A player needs to see what they owe (act on it) and what is
+     * owed to them (watch it) in the same place, because the six-hour clock is the same clock and
+     * splitting them would hide half the market's risk behind a tab.
+     */
+    private static void paintObligations(
+            VBox box, GameSession session, ShadowSnapshot snapshot, Label result, Runnable[] repaint) {
+        box.getChildren().clear();
+        if (snapshot.obligations().isEmpty()) {
+            box.getChildren().add(Ui.micro("Nothing outstanding."));
+            return;
+        }
+        for (var owed : snapshot.obligations()) {
+            java.time.Duration left = owed.remaining();
+            Label what = Ui.small((owed.owedByMe() ? "YOU OWE  " : "OWED TO YOU  ")
+                    + owed.quantity() + " × " + owed.displayName()
+                    + (owed.owedByMe() ? "  to " : "  from ") + owed.counterpartyHandle());
+            what.getStyleClass().add(owed.owedByMe() ? "es-shmark-promised" : "es-shmark-inhand");
+            Label clock = Ui.micro(owed.overdue()
+                    ? "overdue"
+                    : left.toHours() + "h " + left.toMinutesPart() + "m left");
+            if (owed.overdue()) {
+                clock.getStyleClass().add("es-shmark-down");
+            }
+            HBox row = Ui.row(UiTokens.SPACE_3, what, clock, Ui.spacer());
+            row.setAlignment(Pos.CENTER_LEFT);
+            if (owed.owedByMe()) {
+                Button send = new Button("Send now");
+                send.getStyleClass().add("es-shmark-cancel");
+                send.setOnAction(event -> {
+                    GameSession.Outcome outcome = session.fulfilShadowObligation(owed.obligationId());
+                    result.setText(outcome.message());
+                    Views.styleByOutcome(result, outcome);
+                    repaint[0].run();
+                });
+                row.getChildren().add(send);
+            }
+            box.getChildren().add(row);
+        }
+    }
+
     private static void paintTape(VBox box, ShadowSnapshot snapshot) {
         box.getChildren().clear();
         for (var print : snapshot.tape()) {
@@ -505,9 +731,10 @@ public final class ShadowMarketView {
             TextField limit,
             TextField quantity,
             Label result,
-            Runnable[] repaint) {
+            Runnable[] repaint,
+            Label[] feeCaption) {
 
-        Region form = orderForm(session, listing, limit, quantity, result, repaint);
+        Region form = orderForm(session, listing, limit, quantity, result, repaint, feeCaption);
 
         Label caption = new Label("BUY / SELL");
         caption.getStyleClass().add("es-shmark-tab-label");
@@ -612,7 +839,8 @@ public final class ShadowMarketView {
             TextField limit,
             TextField quantity,
             Label result,
-            Runnable[] repaint) {
+            Runnable[] repaint,
+            Label[] feeCaption) {
         VBox form = new VBox(UiTokens.SPACE_2);
         form.getStyleClass().addAll("es-market-card", "es-shmark-form");
         form.setMinWidth(210);
@@ -630,6 +858,18 @@ public final class ShadowMarketView {
         buy.setOnAction(event -> send[0].run());
         sell.setOnAction(event -> send[1].run());
 
+        // ── listing something of your own ────────────────────────────────────────────────────
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch sendLater =
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch("Send later");
+        sendLater.setTooltip(new javafx.scene.control.Tooltip(
+                "Keep the goods and owe delivery. Off means they go with the listing."));
+        Label fee = Ui.micro("");
+        fee.setWrapText(true);
+        feeCaption[0] = fee;
+        Button list = new Button("List for sale");
+        list.getStyleClass().add("es-market-buy");
+        list.setOnAction(event -> confirmList(session, form, listing[0], limit, sendLater, result, repaint));
+
         form.getChildren()
                 .addAll(
                         heading("ORDER"),
@@ -638,9 +878,93 @@ public final class ShadowMarketView {
                         Ui.micro("Quantity"),
                         quantity,
                         Ui.row(UiTokens.SPACE_2, buy, sell),
-                        Views.wrapped("A limit rests until the market reaches it. A buy holds the "
-                                + "ethecoin now; a sell reserves the copy."));
+                        // ⚠ Says there is NO escrow. A resting bid used to hold the money and now
+                        // does not, and a player who assumes the old behaviour finds out by having
+                        // a fill silently cancelled.
+                        Views.wrapped("A limit rests until the market reaches it. Nothing is held "
+                                + "against it — if the coin is gone when it fills, the order is."),
+                        heading("SELL YOUR OWN"),
+                        fee,
+                        sendLater,
+                        list,
+                        Views.wrapped("Off: the copy goes with the listing and transfers on sale. "
+                                + "On: you keep it and owe delivery."));
         return form;
+    }
+
+    /**
+     * Listing something you own, with the warning that matters.
+     *
+     * <h2>⚠ SEND LATER GETS A WARNING; ATTACHED DOES NOT</h2>
+     *
+     * Not symmetry for its own sake — the two choices carry different consequences and only one of
+     * them can hurt somebody else. Attaching costs the seller the use of the item and nothing more.
+     * Promising creates an obligation with a deadline, and missing it costs reputation that the
+     * whole market is priced against, so the seller has to be told what they are taking on <em>before
+     * a buyer relies on it</em>.
+     */
+    private static void confirmList(
+            GameSession session,
+            javafx.scene.Node anchor,
+            String itemType,
+            TextField limit,
+            io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch sendLater,
+            Label result,
+            Runnable[] repaint) {
+        BigInteger price;
+        try {
+            price = Ethecoin.ofDecimal(limit.getText().trim()).wei();
+        } catch (RuntimeException malformed) {
+            GameSession.Outcome refused = GameSession.Outcome.refused("set a price first.");
+            result.setText(refused.message());
+            Views.styleByOutcome(result, refused);
+            return;
+        }
+        // ⚠ The copy is chosen HERE, by id, and refused if there is none. Items do not stack, so a
+        // listing that named only a type would part with whichever build the code found first.
+        var owned = session.items(null).stream()
+                .filter(item -> itemType.equals(item.itemType()))
+                .filter(item -> !item.equipped())
+                .findFirst();
+        if (owned.isEmpty()) {
+            GameSession.Outcome refused = GameSession.Outcome.refused(
+                    "you have no unequipped copy of that to sell.");
+            result.setText(refused.message());
+            Views.styleByOutcome(result, refused);
+            return;
+        }
+
+        if (sendLater.isSelected()) {
+            javafx.scene.control.ButtonType accept = new javafx.scene.control.ButtonType(
+                    "List it and accept the obligation", javafx.scene.control.ButtonBar.ButtonData.OK_DONE);
+            javafx.scene.control.ButtonType back = new javafx.scene.control.ButtonType(
+                    "Cancel", javafx.scene.control.ButtonBar.ButtonData.CANCEL_CLOSE);
+            javafx.scene.control.Alert warn = new javafx.scene.control.Alert(
+                    javafx.scene.control.Alert.AlertType.WARNING, "", back, accept);
+            warn.setHeaderText("You are promising to send this, not sending it");
+            warn.setContentText("A buyer pays you the moment they take this listing, and receives "
+                    + "nothing until you deliver.\n\n"
+                    + "You will have "
+                    + io.github.stoicswe.eyeandsickle.engine.Balance.SHADOW_FULFILMENT_HOURS
+                    + " hours from the sale to send it. The clock runs whether or not this "
+                    + "client is open.\n\n"
+                    + "Miss it and your trader reputation takes the hit — and reputation is what "
+                    + "every price on this market is quoted against. Keep the copy until then: if "
+                    + "you spend or equip it, you will have nothing to send.");
+            warn.getDialogPane().setMinWidth(500);
+            theme(warn, anchor);
+            ((javafx.scene.control.Button) warn.getDialogPane().lookupButton(accept)).setDefaultButton(false);
+            ((javafx.scene.control.Button) warn.getDialogPane().lookupButton(back)).setDefaultButton(true);
+            if (warn.showAndWait().filter(button -> button == accept).isEmpty()) {
+                return;
+            }
+        }
+
+        GameSession.Outcome outcome = session.createShadowListing(
+                itemType, price, java.util.List.of(owned.get().itemId()), sendLater.isSelected());
+        result.setText(outcome.message());
+        Views.styleByOutcome(result, outcome);
+        repaint[0].run();
     }
 
     private static void submit(
