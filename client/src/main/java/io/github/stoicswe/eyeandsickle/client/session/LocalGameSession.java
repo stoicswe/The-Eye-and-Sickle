@@ -881,6 +881,72 @@ public final class LocalGameSession implements GameSession {
                 "market", result.ok() ? changed(Outcome.ok(result.message())) : Outcome.refused(result.message()));
     }
 
+    // ── AnonShare ─────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * ⚠ The search query rides on the panel, not the session. It is a view concern, and threading it
+     * through the port keeps the engine building one consistent snapshot per clock reading rather
+     * than the panel making two calls at two instants.
+     */
+    private String shareQuery = "";
+
+    /** @param query what the panel's search box holds */
+    public void setShareQuery(String query) {
+        this.shareQuery = query == null ? "" : query;
+    }
+
+    @Override
+    public io.github.stoicswe.eyeandsickle.protocol.game.SharesSnapshot shares(String symbol) {
+        return game.shares(symbol, shareQuery);
+    }
+
+    @Override
+    public Outcome buyShares(String symbol, int shares) {
+        var result = io.github.stoicswe.eyeandsickle.engine.rules.Brokerage.buy(
+                game.state(), game.stockFeed(), symbol, shares, game.now());
+        return announce(
+                "market", result.ok() ? changed(Outcome.ok(result.message())) : Outcome.refused(result.message()));
+    }
+
+    @Override
+    public Outcome sellShares(String holdingId, int shares) {
+        var result = io.github.stoicswe.eyeandsickle.engine.rules.Brokerage.sell(
+                game.state(), game.stockFeed(), holdingId, shares, game.now());
+        return announce(
+                "market", result.ok() ? changed(Outcome.ok(result.message())) : Outcome.refused(result.message()));
+    }
+
+    @Override
+    public Outcome createPortfolio(String name) {
+        var result = io.github.stoicswe.eyeandsickle.engine.rules.Brokerage.createPortfolio(game.state(), name);
+        return announce(
+                "market", result.ok() ? changed(Outcome.ok(result.message())) : Outcome.refused(result.message()));
+    }
+
+    @Override
+    public Outcome deletePortfolio(String portfolioId) {
+        var result = io.github.stoicswe.eyeandsickle.engine.rules.Brokerage.deletePortfolio(game.state(), portfolioId);
+        return announce(
+                "market", result.ok() ? changed(Outcome.ok(result.message())) : Outcome.refused(result.message()));
+    }
+
+    @Override
+    public Outcome watchSymbol(String portfolioId, String symbol, boolean watch) {
+        var result = watch
+                ? io.github.stoicswe.eyeandsickle.engine.rules.Brokerage.watch(game.state(), portfolioId, symbol)
+                : io.github.stoicswe.eyeandsickle.engine.rules.Brokerage.unwatch(game.state(), portfolioId, symbol);
+        return announce(
+                "market", result.ok() ? changed(Outcome.ok(result.message())) : Outcome.refused(result.message()));
+    }
+
+    @Override
+    public Outcome fileHolding(String holdingId, String portfolioId) {
+        var result = io.github.stoicswe.eyeandsickle.engine.rules.Brokerage.file(
+                game.state(), holdingId, portfolioId);
+        return announce(
+                "market", result.ok() ? changed(Outcome.ok(result.message())) : Outcome.refused(result.message()));
+    }
+
     @Override
     public Outcome extract(String path) {
         var started = io.github.stoicswe.eyeandsickle.engine.rules.Archives.begin(game.state(), path, game.now());

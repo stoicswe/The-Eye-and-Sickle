@@ -3451,3 +3451,17 @@
 /* A listing row is right-clickable and has to look it. Brightening the ground on hover is the only
  * affordance available — §9 makes shadows build-blocking and a cursor change would need Java. */
 .es-shmark-listing:hover { -fx-background-color: -es-panel-hi; }
+
+/* ANONSHARE — Anonymous Shares Inc.
+ *
+ * ⚠ The wordmark is `-es-text-hi`, NOT amber and NOT alarm. §2.1 spends amber on cycles doing work
+ * and income, and rations alarm to loss and hostile state — a brokerage tracking an outside market is
+ * neither, and colouring it would claim the game had an opinion about what these prices mean. GROUP
+ * OF HACKS is amber because a shop is income; SHADOW MARKET is alarm because nobody there is bonded;
+ * this one is deliberately the quiet one. */
+.es-anon-wordmark {
+    -fx-text-fill: -es-text-hi;
+    -fx-font-size: 17px;
+    -fx-font-weight: 700;
+}
+.es-anon { -fx-padding: 12 14 16 14; }

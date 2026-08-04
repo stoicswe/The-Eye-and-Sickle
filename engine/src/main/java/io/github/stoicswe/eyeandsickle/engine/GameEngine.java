@@ -502,6 +502,20 @@ public final class GameEngine {
         // filled while its window was on screen would make the market a thing that happens to people
         // who are watching, and a player would learn to leave the panel open — which is the opposite
         // of what a resting order is for.
+        // ⚠ Dividends land on the TICK, and are paid whether or not the market is open — a dividend
+        // is not a trade, and gating it on session hours would mean a weekend-only player never
+        // collected anything.
+        for (var paid : io.github.stoicswe.eyeandsickle.engine.rules.Brokerage.settleDividends(
+                save, stockFeed, now)) {
+            changed = true;
+            EventLog.notice(
+                    save,
+                    "market",
+                    "dividend: " + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.format(
+                                    paid.amountWei())
+                            + " on " + paid.shares() + " × " + paid.symbol() + ".",
+                    now);
+        }
         // ⚠ Listings sell on the TICK, at a RATE PER HOUR — never a chance per tick. A per-tick roll
         // makes a faster-ticking client sell faster and gives a three-day absence exactly one roll,
         // both invisible in play. `elapsed` is what converts either into the same answer.
@@ -1528,6 +1542,118 @@ public final class GameEngine {
      * separate calls means separate instants, and a book quoting one price beside a candle drawing
      * another is the single most damaging thing a trading screen can do.
      */
+    /**
+     * Where AnonShare's prices come from.
+     *
+     * <h2>⚠ Defaults to the OFFLINE feed, and the default is the promise</h2>
+     *
+     * "Runs offline out of the box" is a standing commitment of this client. A brokerage that needed
+     * a network call to draw its own screen would break it for every player who is not online, and
+     * there is no sensible failure for a panel that cannot quote — so the simulated feed is what is
+     * here unless a player has opted into a real one with their own key.
+     *
+     * <p>⚠ The client swaps it; the engine never constructs a live one. Network I/O belongs to the
+     * client, and an engine that could fetch would also fetch on the server, which is a different
+     * question nobody has asked.
+     */
+    private io.github.stoicswe.eyeandsickle.engine.stocks.StockFeed stockFeed =
+            new io.github.stoicswe.eyeandsickle.engine.stocks.SimulatedStockFeed(0);
+
+    /** @param feed the price source; never null */
+    public void useStockFeed(io.github.stoicswe.eyeandsickle.engine.stocks.StockFeed feed) {
+        if (feed != null) {
+            this.stockFeed = feed;
+        }
+    }
+
+    public io.github.stoicswe.eyeandsickle.engine.stocks.StockFeed stockFeed() {
+        return stockFeed;
+    }
+
+    /**
+     * AnonShare for one symbol, plus everything the panel needs around it.
+     *
+     * <p>⚠ Answerable when the market is shut and when the feed is offline. A brokerage screen that
+     * went blank out of hours would be one nobody could learn to read, and out of hours is most of
+     * the week.
+     */
+    public io.github.stoicswe.eyeandsickle.protocol.game.SharesSnapshot shares(String symbol, String query) {
+        Instant now = clock.instant();
+        var listing = io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.bySymbol(symbol)
+                .orElseGet(() -> io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.all().getFirst());
+        var quote = stockFeed.quote(listing.symbol(), now);
+        var session = io.github.stoicswe.eyeandsickle.engine.stocks.MarketCalendar.sessionAt(now);
+
+        java.math.BigInteger price = quote
+                .map(io.github.stoicswe.eyeandsickle.engine.stocks.StockFeed.Quote::priceWei)
+                .orElse(java.math.BigInteger.ZERO);
+        java.math.BigInteger previous = quote
+                .map(io.github.stoicswe.eyeandsickle.engine.stocks.StockFeed.Quote::previousCloseWei)
+                .orElse(java.math.BigInteger.ZERO);
+
+        var results = io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.search(query).stream()
+                .map(hit -> {
+                    var q = stockFeed.quote(hit.symbol(), now);
+                    return new io.github.stoicswe.eyeandsickle.protocol.game.SharesSnapshot.Result(
+                            hit.symbol(),
+                            hit.displayName(),
+                            hit.sector(),
+                            q.map(io.github.stoicswe.eyeandsickle.engine.stocks.StockFeed.Quote::priceWei)
+                                    .orElse(java.math.BigInteger.ZERO),
+                            q.map(io.github.stoicswe.eyeandsickle.engine.stocks.StockFeed.Quote::changePercent)
+                                    .orElse(0.0d));
+                })
+                .toList();
+
+        var holdings = io.github.stoicswe.eyeandsickle.engine.rules.Brokerage.holdings(save).stream()
+                .map(holding -> {
+                    java.math.BigInteger each = stockFeed
+                            .quote(holding.symbol, now)
+                            .map(io.github.stoicswe.eyeandsickle.engine.stocks.StockFeed.Quote::priceWei)
+                            .orElse(holding.costPerShareWei);
+                    return new io.github.stoicswe.eyeandsickle.protocol.game.SharesSnapshot.Holding(
+                            holding.holdingId,
+                            holding.symbol,
+                            io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.bySymbol(holding.symbol)
+                                    .map(io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.Listing::displayName)
+                                    .orElse(holding.symbol),
+                            holding.shares,
+                            holding.costPerShareWei,
+                            each.multiply(java.math.BigInteger.valueOf(holding.shares)),
+                            holding.portfolioId);
+                })
+                .toList();
+
+        var portfolios = io.github.stoicswe.eyeandsickle.engine.rules.Brokerage.portfolios(save).stream()
+                .map(portfolio -> new io.github.stoicswe.eyeandsickle.protocol.game.SharesSnapshot.Portfolio(
+                        portfolio.portfolioId,
+                        portfolio.name,
+                        java.util.List.copyOf(portfolio.watching),
+                        holdings.stream()
+                                .filter(h -> portfolio.portfolioId.equals(h.portfolioId()))
+                                .map(io.github.stoicswe.eyeandsickle.protocol.game.SharesSnapshot.Holding::valueWei)
+                                .reduce(java.math.BigInteger.ZERO, java.math.BigInteger::add)))
+                .toList();
+
+        return new io.github.stoicswe.eyeandsickle.protocol.game.SharesSnapshot(
+                listing.symbol(),
+                listing.displayName(),
+                listing.sector(),
+                price,
+                previous,
+                quote.map(io.github.stoicswe.eyeandsickle.engine.stocks.StockFeed.Quote::changePercent)
+                        .orElse(0.0d),
+                listing.annualYieldBp(),
+                session.phase().name(),
+                session.changesAt(),
+                now,
+                stockFeed.describe(),
+                stockFeed.live(),
+                results,
+                holdings,
+                portfolios);
+    }
+
     public io.github.stoicswe.eyeandsickle.protocol.game.ShadowSnapshot shadowMarket(
             String itemType, io.github.stoicswe.eyeandsickle.engine.rules.ShadowMarket.Interval interval, int candles) {
         if (itemType == null

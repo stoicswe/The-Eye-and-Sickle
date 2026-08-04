@@ -1308,6 +1308,64 @@ pushing every window down. The dead cell was three times the overflow.
   colouring it would imply the number meant something about the game. `text-hi` on `panel-hi` — a pair
   `ContrastTest` already measures in all six palettes, so it inverts correctly on uOS Classic.
 
+**MARKET has a THIRD tab, AnonShare — Anonymous Shares Inc. (2026-08-04).** Real US tickers, aliased
+company names, real market hours, portfolios and dividends. `engine/stocks/*`, `rules/Brokerage`,
+`client/stocks/HttpStockFeed`, `view/AnonShareView`.
+
+- ⚠ **THE COMMISSION IS THE ONLY THING BOUNDING THIS MARKET.** Every other market here has a ceiling
+  derived from a number the game controls; this one tracks prices the game cannot predict, so there
+  is nothing to derive. `Balance.BROKERAGE_COMMISSION_BP` (65) charged **both ways** makes a round
+  trip negative-expectation — a gamble, not a printer. **Lowering it towards zero re-opens the
+  faucet and every screen still renders correctly while it does.** Pinned by a test asserting a flat
+  round trip loses money.
+- ⚠ **THE PLAYER'S OWN API KEY, and that is also the licensing answer.** Rate limits are public;
+  none of the pages stated whether a *distributed desktop app* may use a free key. The question does
+  not arise when each player signs up themselves — nothing is redistributed and no key ships here.
+  ⚠ The picker **links** each provider's terms rather than summarising them; a summary would be a
+  claim this project makes on the player's behalf. Three providers, limits recorded **with the date
+  they were checked** (`StockProvider.LIMITS_CHECKED`) so nobody reads them as current fact later:
+  Finnhub 60/min (default), Twelve Data 800/day + 8/min, **Alpha Vantage 25 per DAY** — offered but
+  flagged as too small for a live panel.
+- ⚠ **The HTTP feed lives in the CLIENT, not the engine.** An engine that could fetch would also
+  fetch on a home server — different limits, different party's terms, nobody asked. ⚠ **It never
+  blocks the FX thread**: answers from cache, refreshes on a virtual thread, falls back to the
+  offline feed so the panel is never blank and never waits. ⚠ **Redirects refused** (the URL carries
+  the key) and **the URL is never logged**. ⚠ Rate limits are obeyed by **backing off on a 429**,
+  never by counting — a hard-coded budget that drifted would throttle a player with headroom or
+  hammer a service that had already cut them off.
+- ⚠ **`feedIsLive` must reach the screen.** A simulated price shown as real is the only harm this tab
+  could cause *outside* the game. The offline feed names itself and the panel renders it at the top,
+  always.
+- ⚠ **Symbols are real, names are not**, and **search matches the ALIAS** — a player who found a
+  company by typing its real name would have been told the real name, which is what the layer exists
+  to prevent. `Aliaser` is deterministic: a drifting alias makes a player's own portfolio
+  unrecognisable. ⚠ It tokenizes on **dots and hyphens** as well as spaces, or `Amazon.com` and
+  `Coca-Cola` match nothing and fall through to the bland fallback.
+- ⚠ **Session hours are NEW YORK's; the clock on screen is the PLAYER's.** Every figure is an
+  `Instant`, so Berlin sees 15:30 and Tokyo 23:30 and both are right. Storing "09:30" and comparing
+  it to a local clock opens the market at four different instants. Weekend-observed holidays and
+  half-days included; ⚠ the Good Friday list **runs out**, and past its horizon the market reads as
+  open on a day it was shut — the harmless direction.
+- ⚠ **Dividends are paid ONCE per quarter** (`lastPaidQuarter`). The tick runs every second and a
+  quarter stays current for three months — without the marker a holder is paid once per *second* for
+  a quarter of a year. ⚠ **Buying does not immediately collect** — you are paid for quarters you held
+  *through*, the simplification standing in for a record date. ⚠ **Rounds DOWN**, the opposite of a
+  fee: rounding a payment up creates wei from nothing on every dividend in the game. ⚠ **No
+  commission on a dividend**, and **paid whether or not the market is open** — a weekend-only player
+  must still collect.
+- ⚠ **Selling names a PARCEL, never a symbol.** Two buys at different prices are two positions with
+  two different answers to "am I up on this"; a symbol-keyed sell picks for the player and then
+  reports a profit against a basis they did not choose.
+- ⚠ **Deleting a portfolio UNFILES holdings, never sells them.** A portfolio is a label.
+- ⚠ **The refresh cadence is the PLAYER's** (Settings → AnonShare, 15s–10m, default 60s) and the
+  slider says what it **costs** in calls-per-day, because that is the number they are really
+  choosing. Read when the window opens.
+- ⚠ **No `⚠` glyph in UI strings** — U+26A0 is in neither bundled face and `GlyphCoverageTest` caught
+  exactly this line. Emphasis comes from the word and the colour, which §4.4 wants anyway.
+- ⚠ **The wordmark is `-es-text-hi`** — not amber (GoH, income), not alarm (ShMark, hostile). A
+  brokerage tracking an outside market is neither, and colouring it would claim the game had an
+  opinion about what these prices mean.
+
 **MARKET is two tabs — GoH and ShMark (2026-08-04).** The storefront moved into **GoH**; **ShMark**
 is the **Shadow Market**, the darknet secondary market, as a trading desk. `rules/ShadowMarket`
 simulates it, `protocol/game/Shadow*` carries it, `view/ShadowMarketView` draws it. Always viewable,

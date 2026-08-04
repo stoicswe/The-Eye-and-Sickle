@@ -284,6 +284,26 @@ public final class Balance {
     public static final long SHADOW_FULFILMENT_HOURS = 6L;
 
     /**
+     * AnonShare's cut of every trade, in basis points — charged on the way IN and on the way OUT.
+     *
+     * <h2>⚠ THIS IS THE ONLY THING BOUNDING A REAL-PRICE FAUCET</h2>
+     *
+     * Every other market in this game has a ceiling derived from a number the game controls. This one
+     * tracks prices the game does not control and cannot predict, so there is no ceiling to derive —
+     * a player who buys before a real rally and sells after it has created ethecoin out of an
+     * external event.
+     *
+     * <p>The commission is what makes that a <em>gamble</em> rather than a <em>printer</em>: charged
+     * both ways, a round trip has to beat roughly twice this before it makes anything, so the
+     * expected value of trading noise is negative and grinding it is a losing strategy. Wins stay
+     * real and stay earned.
+     *
+     * <p>⚠ Raising the stakes elsewhere is fine; <b>lowering this towards zero re-opens the
+     * faucet</b>, and it will not look like it has — every screen will still render correctly.
+     */
+    public static final int BROKERAGE_COMMISSION_BP = 65;
+
+    /**
      * The pool settles up every sixty seconds.
      *
      * <h2>⚠ This exists because the ledger is the artefact, not because the maths needed it</h2>

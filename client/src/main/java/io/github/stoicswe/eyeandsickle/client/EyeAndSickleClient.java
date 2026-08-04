@@ -710,7 +710,25 @@ public class EyeAndSickleClient extends Application {
         profile.useCharacterAppearance(slot);
         themes.reloadAppearance();
 
-        session = new LocalGameSession(GameEngine.open(store, handle, Clock.systemUTC()));
+        GameEngine engine = GameEngine.open(store, handle, Clock.systemUTC());
+        // ⚠ The live feed is built HERE, in the client, and only if the player supplied a key. The
+        // engine never constructs one: network I/O belongs to the client, and an engine that could
+        // fetch would also fetch on a home server — a different question with a different party's
+        // rate limits that nobody has asked.
+        //
+        // ⚠ The offline feed is always the fallback, so "runs offline out of the box" holds whether
+        // or not there is a key, a network, or a provider having a bad day.
+        var offline = new io.github.stoicswe.eyeandsickle.engine.stocks.SimulatedStockFeed(
+                engine.state().characterId.hashCode());
+        String apiKey = profile.settings().stockApiKey;
+        engine.useStockFeed(apiKey == null || apiKey.isBlank()
+                ? offline
+                : new io.github.stoicswe.eyeandsickle.client.stocks.HttpStockFeed(
+                        io.github.stoicswe.eyeandsickle.engine.stocks.StockProvider.parse(
+                                profile.settings().stockProvider),
+                        apiKey,
+                        offline));
+        session = new LocalGameSession(engine);
 
         Shell.CommandRegistry commands = BuiltinCommands.registry();
         shell = new Shell(session, commands);
@@ -1085,7 +1103,10 @@ public class EyeAndSickleClient extends Application {
             case FILES -> FileManagerView.create(session);
             case MAN -> ManView.create(terms);
             case LOG -> LogView.create(session);
-            case MARKET -> io.github.stoicswe.eyeandsickle.client.view.MarketView.create(session);
+            // ⚠ The refresh cadence is read HERE, at open, not cached — a player who moves the
+            // slider and reopens the window gets the new rate without a restart.
+            case MARKET -> io.github.stoicswe.eyeandsickle.client.view.MarketView.create(
+                    session, profile.settings().stockRefreshSeconds);
             // ⚠ RECON is the reports now, not the page about them. The cost model and what a scan
             // is a model of moved to `man port-scan` — reference a player reads once, in the place
             // they can find it deliberately, rather than above the data every single time.

@@ -545,6 +545,47 @@ public final class RemoteGameSession implements GameSession {
     }
 
     /**
+     * ⚠ AnonShare is CLIENT-SIDE in every mode, and that is deliberate. The feed is the player's own
+     * key and the calendar is a fact about a real exchange — neither is something a home server has a
+     * better answer to, and routing it through one would put somebody else's rate limit between a
+     * player and a screen. Holdings are engine state, so they travel with the character.
+     */
+    @Override
+    public io.github.stoicswe.eyeandsickle.protocol.game.SharesSnapshot shares(String symbol) {
+        return null;
+    }
+
+    @Override
+    public Outcome buyShares(String symbol, int shares) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome sellShares(String holdingId, int shares) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome createPortfolio(String name) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome deletePortfolio(String portfolioId) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome watchSymbol(String portfolioId, String symbol, boolean watch) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome fileHolding(String holdingId, String portfolioId) {
+        return unavailable();
+    }
+
+    /**
      * Returns the refusal and records nothing.
      *
      * <p>The log belongs to the server, and there is not one. Handing the sentence back unlogged is

@@ -3128,6 +3128,102 @@ public final class Views {
                                         + "panel wipe, the caret blink, the greeble and the sweep bar; readouts "
                                         + "keep updating, because that is information, not animation."))));
 
+        // ── AnonShare ────────────────────────────────────────────────────────────────────────
+        //
+        // ⚠ MACHINE-WIDE, beside Language and text size, not per character. A key is a credential
+        // about this installation; asking a player to paste it again for every new character would
+        // be the same mistake per-character accessibility settings would have been.
+        javafx.scene.control.ComboBox<io.github.stoicswe.eyeandsickle.engine.stocks.StockProvider> provider =
+                new javafx.scene.control.ComboBox<>();
+        provider.getItems().addAll(io.github.stoicswe.eyeandsickle.engine.stocks.StockProvider.values());
+        provider.getSelectionModel()
+                .select(io.github.stoicswe.eyeandsickle.engine.stocks.StockProvider.parse(
+                        profile.settings().stockProvider));
+        Label providerLimits = Ui.micro("");
+        Runnable describeProvider = () -> {
+            var chosen = provider.getSelectionModel().getSelectedItem();
+            // ⚠ The DATE travels with the figure. Rate limits go stale, and a number in this repo
+            // read as current fact two years from now is worse than no number.
+            providerLimits.setText(chosen.limits() + "  ·  checked "
+                    + io.github.stoicswe.eyeandsickle.engine.stocks.StockProvider.LIMITS_CHECKED
+                    + "  ·  key and terms: " + chosen.signupUrl());
+        };
+        describeProvider.run();
+        provider.setOnAction(event -> {
+            profile.settings().stockProvider =
+                    provider.getSelectionModel().getSelectedItem().name();
+            describeProvider.run();
+            profile.save();
+        });
+
+        javafx.scene.control.PasswordField apiKey = new javafx.scene.control.PasswordField();
+        apiKey.setText(profile.settings().stockApiKey);
+        apiKey.setPromptText(t("settings.anon.key.prompt", "Your API key — blank uses simulated prices"));
+        // ⚠ A PasswordField, so a key does not sit in plain view during a screen share. It is not
+        // encrypted at rest and does not pretend to be — it is in a file on the player's own machine
+        // beside a save they can edit freely — but shoulder-surfing is a real and cheap thing to stop.
+        apiKey.textProperty().addListener((o, was, now) -> {
+            profile.settings().stockApiKey = now == null ? "" : now.trim();
+            profile.save();
+        });
+
+        Slider refresh = new Slider(
+                io.github.stoicswe.eyeandsickle.client.profile.ClientProfile.Settings.STOCK_REFRESH_MIN,
+                io.github.stoicswe.eyeandsickle.client.profile.ClientProfile.Settings.STOCK_REFRESH_MAX,
+                profile.settings().stockRefreshSeconds);
+        refresh.setShowTickMarks(true);
+        refresh.setMajorTickUnit(120);
+        refresh.setBlockIncrement(15);
+        Label refreshValue = Ui.micro("");
+        Runnable describeRefresh = () -> {
+            int seconds = profile.settings().stockRefreshSeconds;
+            // ⚠ Says what it COSTS, not just what it is. The number a player is really choosing is
+            // how much of their own free-tier allowance the panel spends, and calls-per-day is the
+            // figure the provider's limit is quoted in.
+            long perDay = 86400L / Math.max(1, seconds);
+            refreshValue.setText(seconds < 60
+                    ? seconds + "s  ·  up to " + perDay + " calls a day per symbol"
+                    : (seconds / 60) + "m " + (seconds % 60) + "s  ·  up to " + perDay
+                            + " calls a day per symbol");
+        };
+        describeRefresh.run();
+        refresh.valueProperty().addListener((o, was, now) -> {
+            profile.settings().stockRefreshSeconds = (int) Math.round(now.doubleValue());
+            describeRefresh.run();
+            profile.save();
+        });
+
+        pages.put(
+                t("settings.cat.anonshare", "AnonShare"),
+                settingsPage(
+                        Ui.label(t("settings.anon.provider", "Quote provider")),
+                        provider,
+                        providerLimits,
+                        wrapped(t(
+                                "settings.anon.key.note",
+                                "AnonShare uses YOUR OWN key. Nothing ships with this game and nothing "
+                                        + "is shared between players, so the allowance is yours alone and the "
+                                        + "provider's terms are between you and them — read them at the link "
+                                        + "above before you sign up.")),
+                        new Separator(),
+                        Ui.label(t("settings.anon.key", "API key")),
+                        apiKey,
+                        wrapped(t(
+                                "settings.anon.key.storage",
+                                "Kept in your settings file on this machine, unencrypted — the same file "
+                                        + "as everything else here. It is never logged and never sent anywhere "
+                                        + "except to the provider it belongs to. Leave it blank and the panel "
+                                        + "runs on simulated prices, clearly marked as such.")),
+                        new Separator(),
+                        Ui.label(t("settings.anon.refresh", "How often to fetch a price")),
+                        refresh,
+                        refreshValue,
+                        wrapped(t(
+                                "settings.anon.refresh.note",
+                                "Slow on purpose. A share price moves on a scale of minutes, and every "
+                                        + "refresh spends part of the daily allowance you are paying for. The "
+                                        + "market window reads this when you open it."))));
+
         pages.put(
                 t("settings.cat.language", "Language"),
                 settingsPage(

@@ -868,6 +868,34 @@ public interface GameSession extends AutoCloseable {
     /** Hands over what was promised, closing an obligation before its deadline. */
     Outcome fulfilShadowObligation(String obligationId);
 
+    // ── AnonShare ─────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * A quote and the session state around it.
+     *
+     * <p>⚠ Answerable at any time, including when the market is shut and when the player is offline —
+     * a brokerage screen that went blank out of hours would be a screen nobody could learn to read.
+     */
+    io.github.stoicswe.eyeandsickle.protocol.game.SharesSnapshot shares(String symbol);
+
+    /** Buys at the feed's price, plus commission. ⚠ Refused when the market is closed. */
+    Outcome buyShares(String symbol, int shares);
+
+    /** Sells a specific parcel. ⚠ By holding id, so the player picks their own cost basis. */
+    Outcome sellShares(String holdingId, int shares);
+
+    /** Creates a named collection. */
+    Outcome createPortfolio(String name);
+
+    /** Removes one. ⚠ Holdings filed under it are unfiled, never sold. */
+    Outcome deletePortfolio(String portfolioId);
+
+    /** Adds or removes a symbol from a portfolio's watchlist. */
+    Outcome watchSymbol(String portfolioId, String symbol, boolean watch);
+
+    /** Files a holding under a portfolio, or unfiles it with a blank id. */
+    Outcome fileHolding(String holdingId, String portfolioId);
+
     /**
      * Records a refusal the <em>client</em> made before it asked the rules anything.
      *

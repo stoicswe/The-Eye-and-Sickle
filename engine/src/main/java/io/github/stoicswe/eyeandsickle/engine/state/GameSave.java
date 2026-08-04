@@ -223,6 +223,15 @@ public final class GameSave {
      * is created and returned only on cancel or handed over on sale. That is what makes the two
      * delivery modes different in mechanism rather than in promise.
      */
+    /**
+     * What this character holds on AnonShare.
+     *
+     * <p>⚠ Nullable-safe by initialisation, like every other collection here. Nothing about the
+     * <em>prices</em> is stored — those come from a feed and are nobody's state — only what was
+     * bought, for how much, and how the player has filed it.
+     */
+    public BrokerageState brokerage = new BrokerageState();
+
     public List<ShadowListingState> shadowListings = new ArrayList<>();
 
     /**

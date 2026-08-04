@@ -75,17 +75,31 @@ public final class MarketView {
      * @return the storefront
      */
     public static Region create(GameSession session) {
-        // ⚠ TWO MARKETS, two tabs, and they are different KINDS of market rather than two views of
-        // one. GoH sells at a price somebody else set; ShMark is where what players already hold
-        // changes hands at whatever two people agree to. Folding them into one page would put a
-        // storefront's certainties beside a market's risks with nothing saying which was which.
+        return create(session, 60);
+    }
+
+    /**
+     * @param refreshSeconds how often AnonShare asks for a price — the player's own setting
+     */
+    public static Region create(GameSession session, int refreshSeconds) {
+        // ⚠ THREE MARKETS, three tabs, and they are different KINDS of market rather than three
+        // views of one. GoH sells at a price somebody else set; ShMark is where what players already
+        // hold changes hands at whatever two people agree to; AnonShare tracks an outside world the
+        // game does not control at all. Folding them into one page would put a storefront's
+        // certainties beside a market's risks beside a real exchange, with nothing saying which was
+        // which — and the last of those is the one a player could act on outside the game.
         javafx.scene.control.TabPane tabs = new javafx.scene.control.TabPane();
         tabs.getStyleClass().add("es-market-tabs");
         tabs.setTabClosingPolicy(javafx.scene.control.TabPane.TabClosingPolicy.UNAVAILABLE);
 
         javafx.scene.control.Tab storefront = new javafx.scene.control.Tab("GoH", storefront(session));
         javafx.scene.control.Tab shadow = new javafx.scene.control.Tab("ShMark", ShadowMarketView.create(session));
-        tabs.getTabs().addAll(storefront, shadow);
+        // ⚠ AnonShare repaints on the PLAYER'S cadence, not the deck's one-second clock. A share
+        // price moves on a scale of minutes, and every refresh spends part of a free-tier allowance
+        // the player pays for out of their own quota.
+        javafx.scene.control.Tab shares = new javafx.scene.control.Tab(
+                "AnonShare", AnonShareView.create(session, refreshSeconds));
+        tabs.getTabs().addAll(storefront, shadow, shares);
         return tabs;
     }
 

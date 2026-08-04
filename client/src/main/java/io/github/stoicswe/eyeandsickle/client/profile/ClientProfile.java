@@ -356,6 +356,12 @@ public final class ClientProfile {
          * {@code physical / scale}, so a large scale in a small window falls under the supported
          * minimum. {@code WindowSize.usableAt} is the rule and Settings disables what fails it.
          */
+        /** The fastest AnonShare may poll — see {@code stockRefreshSeconds}. */
+        public static final int STOCK_REFRESH_MIN = 15;
+
+        /** The slowest. Beyond a few minutes the panel stops feeling connected to anything. */
+        public static final int STOCK_REFRESH_MAX = 600;
+
         public int uiScalePercent = 100;
 
         /**
@@ -378,6 +384,41 @@ public final class ClientProfile {
          * machine. {@code Language.hostDefault()} resolves the first case, once.
          */
         public String language = "";
+
+        /**
+         * Which quote service AnonShare uses, by {@code StockProvider} name.
+         *
+         * <p>⚠ MACHINE-WIDE, not per character — it is a credential and a preference about this
+         * installation, the same line {@link #language} and {@link #uiScalePercent} sit on. A
+         * per-character key would ask a player to paste it again for every new character.
+         */
+        public String stockProvider = "";
+
+        /**
+         * The player's own API key. Blank means the offline feed.
+         *
+         * <h2>⚠ THE PLAYER'S KEY, IN THE PLAYER'S SETTINGS FILE</h2>
+         *
+         * It is not encrypted and is not pretending to be: it sits in a file on their own machine
+         * alongside a save they can edit freely, and anything else here would be theatre against
+         * somebody who already owns the disk. What matters is that <b>it is never logged and never
+         * leaves the machine except to the provider it belongs to</b> — the URL that carries it is
+         * kept out of every log line for that reason.
+         */
+        public String stockApiKey = "";
+
+        /**
+         * How often AnonShare asks for a fresh price, in seconds.
+         *
+         * <h2>⚠ SLOW BY DEFAULT, and that is the point</h2>
+         *
+         * A share price is not the Shadow Market: it moves on a scale of minutes and the panel is
+         * something a player glances at rather than watches. Every refresh also spends one of a
+         * budget the player is paying for out of their own free-tier allowance — at
+         * {@link #STOCK_REFRESH_MIN} seconds a single symbol would use several hundred calls a day,
+         * which is more than one provider's entire daily quota.
+         */
+        public int stockRefreshSeconds = 60;
 
         /**
          * Whether the deck takes the whole screen.
