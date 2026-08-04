@@ -108,6 +108,13 @@
 
     <!-- Plugin versions — pinned so a fresh clone builds identically. -->
     <bouncycastle.version>1.82</bouncycastle.version>
+    <!--
+      springdoc-openapi — the OpenAPI 3.1 spec for the home server's REST API.
+      ⚠ 3.x, not 2.x: springdoc 2.x is built against Spring Boot 3 and 3.1.0 is built against Boot
+      4.1.0 exactly (checked against its parent pom). A 2.x on Boot 4 fails at runtime rather than at
+      resolution, which is the worst place to find out.
+    -->
+    <springdoc.version>3.1.0</springdoc.version>
     <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
     <maven-shade-plugin.version>3.6.1</maven-shade-plugin.version>
     <maven-surefire-plugin.version>3.5.6</maven-surefire-plugin.version>

@@ -46,6 +46,10 @@ import org.springframework.context.event.SimpleApplicationEventMulticaster;
  */
 public final class EventBus implements ApplicationEventPublisher {
 
+    /** ⚠ JUL — captured by {@code log/ClientLog} for the CLIENT LOGS tab. */
+    private static final java.util.logging.Logger LOG =
+            java.util.logging.Logger.getLogger(EventBus.class.getName());
+
     private final SimpleApplicationEventMulticaster multicaster = new SimpleApplicationEventMulticaster();
     private final EventRecorder recorder = new EventRecorder();
 
@@ -76,6 +80,11 @@ public final class EventBus implements ApplicationEventPublisher {
      * to be listening.
      */
     private void subscriberFailed(Throwable failure) {
+        // ⚠ Logged as well as recorded, and the two are not redundant. The recorded event is
+        // visible on the EVENTS tab and carries only the message; this carries the STACK TRACE,
+        // which is the half that says which subscriber threw. A packaged client has no console
+        // behind it, so without this the trace has nowhere to go at all.
+        LOG.log(java.util.logging.Level.SEVERE, "an event subscriber threw", failure);
         recorder.record(CloudEvent.of(
                 EventTypes.of("subscriber.failed"),
                 "/client/events",

@@ -50,6 +50,7 @@ public final class WindowFrame extends Pane {
     private final Label titleLabel;
     private final Label identifierLabel;
     private final HBox controls = new HBox(UiTokens.SPACE_3);
+    private final SizeReadout sizeReadout = new SizeReadout();
     private final BooleanProperty focused = new SimpleBooleanProperty(false);
 
     private Runnable onMinimize;
@@ -77,7 +78,10 @@ public final class WindowFrame extends Pane {
         strip.setMinHeight(UiTokens.STRIP_HEIGHT);
 
         inner.setTop(strip);
-        getChildren().addAll(edge, inner);
+        // ⚠ A child of the FRAME, not of `inner` — `inner` is clipped to the notch polygon, and a
+        // readout in the bottom-right of a clipped region is fine until somebody turns rounded
+        // corners on and the clip starts eating the corner it sits in.
+        getChildren().addAll(edge, inner, sizeReadout);
 
         focused.addListener((obs, was, now) -> {
             getStyleClass().removeAll("es-window-focused");
@@ -265,6 +269,23 @@ public final class WindowFrame extends Pane {
 
         edge.setClip(clip(w, h));
         inner.setClip(clip(Math.max(0, w - 2 * UiTokens.HAIR), Math.max(0, h - 2 * UiTokens.HAIR)));
+
+        // ⚠ Reported from the LAYOUT PASS, because that is the only place that knows the frame's
+        // real size. `report` ignores a pass where nothing changed — layoutChildren runs whenever a
+        // child asks for layout, so an unconditional call would light this up on every repaint of
+        // whatever the window contains.
+        sizeReadout.report(w, h);
+        sizeReadout.placeIn(w, h);
+    }
+
+    /**
+     * Releases the frame's ticker.
+     *
+     * <p>⚠ Called by {@link DeskManager} when a window closes. A {@code Pulse} subscription outlives
+     * the node that made it, and the deck opens and closes windows constantly.
+     */
+    public void dispose() {
+        sizeReadout.stop();
     }
 
     /**

@@ -166,6 +166,34 @@ class UiContractTest {
         }
 
         @Test
+        @DisplayName("⚠ no `-fx-strikethrough` — it belongs to Text, and on a Label it silently does nothing")
+        void strikethroughIsNotAvailableHere() throws IOException {
+            // It was declared on `.es-market-was` for a week and never drew a pixel: the market
+            // showed a sale price beside the old one with NOTHING saying which was cancelled, and
+            // the stylesheet read exactly right. `-fx-strikethrough` is a property of `Text`;
+            // `Labeled` has `-fx-underline` and no strikethrough, and JavaFX drops a property it
+            // does not recognise without warning — the same silence that hides an unknown looked-up
+            // colour (`-es-accent`).
+            //
+            // ⚠ A blanket ban, and it is correct here rather than merely convenient: every text
+            // node in this client is a Label or a Labeled subclass, because colouring with
+            // `-fx-fill` would take the node out of ContrastTest's reach. The day a `Text` is styled
+            // by class, this test is the right place to carve the exception — with the class named.
+            // Until then a `-fx-strikethrough` in this file is a line somebody believes is on screen.
+            for (String sheet : new String[] {
+                "theme.css", "theme-amber.css", "theme-classic.css",
+                "theme-cyberdeck.css", "theme-hc.css", "theme-phosphor.css"
+            }) {
+                String body = Files.readString(CLIENT_RESOURCES.resolve(UI_RESOURCES + sheet))
+                        .replaceAll("(?s)/\\*.*?\\*/", "");
+                assertThat(body)
+                        .as("%s must not declare -fx-strikethrough — draw the rule instead "
+                                + "(MarketView.struck)", sheet)
+                        .doesNotContain("-fx-strikethrough");
+            }
+        }
+
+        @Test
         @DisplayName("nothing in the stylesheet reaches for a rounded corner or a shadow")
         void rejectionListHolds() throws IOException {
             // §9, the parts a stylesheet can violate. -fx-background-radius and -fx-border-radius

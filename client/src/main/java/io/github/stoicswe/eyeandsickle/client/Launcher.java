@@ -61,6 +61,11 @@ public final class Launcher {
     public static final String APP_NAME = "EAS uOS Client";
 
     public static void main(String[] args) {
+        // ⚠ FIRST, before the toolkit and before anything can log. Records emitted before the buffer
+        // is attached are gone — there is no backfill — and start-up is exactly when the failures
+        // worth sending in happen: a database that would not open, a font that would not load, a
+        // migration that refused. Installing this from `start()` would miss all of them.
+        io.github.stoicswe.eyeandsickle.client.log.ClientLog.install();
         nameTheApplication();
         Application.launch(EyeAndSickleClient.class, args);
     }

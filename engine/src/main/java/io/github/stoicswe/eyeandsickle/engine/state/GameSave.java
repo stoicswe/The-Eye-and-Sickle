@@ -3,7 +3,9 @@ package io.github.stoicswe.eyeandsickle.engine.state;
 import java.math.BigInteger;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -186,6 +188,49 @@ public final class GameSave {
      * is the same catch-up path deployed-miner buffers already take.
      */
     public List<TaskState> tasks = new ArrayList<>();
+
+    /**
+     * Bought and waiting to come down the wire, in the order they will arrive.
+     *
+     * <h2>⚠ ORDER IS THE MODEL. There is no "running" flag anywhere.</h2>
+     *
+     * The active download is the first entry that is not paused; everything after it is held. That
+     * makes reordering and pausing the same operation seen twice, and it means the list cannot ever
+     * describe a state the rules disagree with — a stored {@code running} boolean would be a second
+     * answer to a question the list's own order already settles, and the two part company the first
+     * time something is moved.
+     *
+     * <p>⚠ Persisted, because the money already moved. A queue that lived in the client would lose
+     * paid-for downloads when the window closed, which is indistinguishable from being robbed.
+     */
+    public List<DownloadOrderState> downloadQueue = new ArrayList<>();
+
+    /**
+     * The player's own resting orders on the Shadow Market.
+     *
+     * <p>⚠ The ONLY part of that market that is stored. Prices, the book, the tape and the candles
+     * are pure functions of (character, item, clock) — see {@code rules/ShadowMarket} — so storing
+     * any of them would be a cache of a derived thing that eventually disagrees with it, on a screen
+     * whose entire subject is what a price is. What cannot be recomputed is what the player
+     * committed: a buy holds ethecoin in escrow and a sell holds a specific item by id.
+     */
+    public List<ShadowOrderState> shadowOrders = new ArrayList<>();
+
+    /**
+     * What this character has taken off the market's shelf, keyed {@code <offeringId>@<day>}.
+     *
+     * <p>⚠ The COUNT TAKEN, never the stock level. How much the shop stocked is derived from the item
+     * and the day ({@code rules/MarketStock}); storing the remaining level instead would be a second
+     * copy of a derived number, and the two would disagree the first time the ration was re-tuned.
+     *
+     * <p>⚠ Solo only. On a server this is the server's own table — the shelf is shared, and a
+     * per-character count would give every player a private one. See {@code MarketStock.Held}.
+     *
+     * <p>⚠ Keyed by DAY, so yesterday's entries are simply never read again. They are pruned on load
+     * rather than accumulating: a save played daily for a year would otherwise carry a few thousand
+     * dead keys, which is not a size problem but is a file nobody can read.
+     */
+    public Map<String, Integer> marketTaken = new LinkedHashMap<>();
 
     /**
      * Completed audits, oldest first, capped at {@link ScanReportState#LIMIT}.

@@ -78,6 +78,38 @@ spring:
     virtual:
       enabled: true
 
+# ---------------------------------------------------------------------------
+# OpenAPI / Swagger (docs/architecture/14-api-documentation.md).
+#
+# ⚠ BOTH OFF BY DEFAULT, and that is a decision rather than caution. A home
+# server is closed by default — the allowlist starts empty, LAN mode refuses to
+# bind a public address — and shipping an interactive API console that answers
+# to whoever can reach the port would sit badly beside that. The operator turns
+# it on for their own box:
+#
+#     EYEANDSICKLE_API_DOCS=true    -> GET /v3/api-docs      (the spec)
+#     EYEANDSICKLE_SWAGGER_UI=true  -> GET /swagger-ui.html  (the console)
+#
+# ⚠ Two switches, not one. The SPEC is a static document and is the thing worth
+# publishing; the CONSOLE issues live requests against a running server. An
+# operator who wants to hand a client developer the schema should not have to
+# expose a request builder to do it.
+#
+# ⚠ The spec is generated and CHECKED on every build regardless — OpenApiSpecIT
+# boots the context with docs enabled and asserts the document covers every
+# mapped endpoint. Documentation produced only when somebody remembers to enable
+# it is documentation that has already fallen behind.
+# ---------------------------------------------------------------------------
+springdoc:
+  api-docs:
+    enabled: ${EYEANDSICKLE_API_DOCS:false}
+  swagger-ui:
+    enabled: ${EYEANDSICKLE_SWAGGER_UI:false}
+  # Sorted, so a diff between two versions of the spec shows what CHANGED rather
+  # than what moved. Generation order is otherwise reflection order, which is
+  # stable in practice and guaranteed by nothing.
+  writer-with-order-by-keys: true
+
 server:
   port: ${EYEANDSICKLE_PORT:8080}
   shutdown: graceful

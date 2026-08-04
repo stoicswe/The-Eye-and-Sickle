@@ -6,6 +6,7 @@ import javax.sql.DataSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 
@@ -27,6 +28,13 @@ import org.springframework.test.context.DynamicPropertySource;
 // the discovery scan behaves differently once spring-boot:repackage has rewritten the module jar in
 // the package phase, before failsafe runs. Naming the application class removes that fragility.
 @SpringBootTest(classes = EyeAndSickleServerApplication.class)
+// ⚠ @ActiveProfiles, NOT registry.add("spring.profiles.active", …) below — which is what this used
+// and which DOES NOTHING. Profiles are resolved while the Environment is being prepared, before
+// @DynamicPropertySource contributes anything, so the registry form is accepted, ignored, and
+// reported only as "No active profile set, falling back to 1 default profile" in a log nobody reads
+// in a passing test. This class asserted for two days that it exercised the federation beans and
+// migrations while running neither.
+@ActiveProfiles("federation")
 class ServerContextLoadsIT {
 
     private static final String DB_NAME = "servercontextloadsit";
@@ -54,8 +62,6 @@ class ServerContextLoadsIT {
                 () -> "jdbc:h2:mem:%s;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1".formatted(DB_NAME));
         registry.add("spring.datasource.username", () -> "sa");
         registry.add("spring.datasource.password", () -> "");
-        // Federation on, so those migrations and beans are exercised too, not just core.
-        registry.add("spring.profiles.active", () -> "federation");
     }
 
     @Autowired

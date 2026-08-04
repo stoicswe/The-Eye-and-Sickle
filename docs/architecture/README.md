@@ -25,6 +25,10 @@ Almost everything here is **Established** — the full stack was decided end-to-
 | 08 | [`08-discovery-and-sync.md`](08-discovery-and-sync.md) | ⚠️ **[PROPOSAL]** | Automatic peer discovery; why shared state converges on validity, never recency |
 | 09 | [`09-player-state-portability.md`](09-player-state-portability.md) | ⚠️ **[PROPOSAL]** | 3-slot character model (online-only); finding, backing up, and migrating a character across machines and servers |
 | 10 | [`10-oauth-and-did-resolution.md`](10-oauth-and-did-resolution.md) | ⚠️ **[PROPOSAL]** | **Working document, not a decision record.** What shipping AT Proto sign-in actually takes: the blocking who-is-the-client decision, PAR/DPoP/PKCE, bidirectional handle verification, and three places `02` is wrong or silent |
+| 11 | [`11-finding-a-home-server.md`](11-finding-a-home-server.md) | ⚠️ **[PROPOSAL]** | How a client discovers a server to join at all — the bootstrap problem behind sign-in |
+| 12 | [`12-lan-mode.md`](12-lan-mode.md) | ⚠️ **[PROPOSAL]**, partly built | A third way to play: no DID, no federation, and the quarantine rule that keeps the two apart |
+| 13 | [`13-the-game-transport.md`](13-the-game-transport.md) | ⚠️ **[PROPOSAL]** | Closing CL-8: a snapshot/intent transport instead of one endpoint per `GameSession` method |
+| 14 | [`14-api-documentation.md`](14-api-documentation.md) | Established | The generated OpenAPI spec, why both surfaces ship off, and the 401 this uncovered |
 
 The **client's** visual design — the two theme families, the UI token contract, terminology and accessibility — lives in [`../client/`](../client/README.md), not here. This folder covers the stack; that one covers the surface.
 
@@ -46,5 +50,6 @@ Every decision traces to a constraint the user actually gave in Tech Chat 1:
 
 - **Tech Chat 1** — stack, client, server, deployment, identity scope, federation shape.
 - **Tech Chat 2** — provenance JWS schema, per-item chain decision, validator sampling (A-Res, N=7), reputation update formulas (AIMD-style), equivocation slashing.
+- **`15-federation-rollout.md`** — ⚠ [PROPOSAL] the *order* federation gets built in, and the two recommendations that change what ships first: LAN before federation, and mutual TLS instead of the unreviewed hand-rolled transport (T-1).
 
 Both are also captured in the Claude project as a compact tech-decisions doc so they're never lost to chat history again.

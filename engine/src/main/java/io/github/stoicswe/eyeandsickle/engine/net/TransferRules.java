@@ -148,6 +148,22 @@ public final class TransferRules {
      *     minutes later knows which transaction releases it — see {@code Repac.locked}.
      */
     public static Started beginPurchase(GameSave save, String itemType, String fileName, String entryId, Instant now) {
+        return beginPurchase(save, itemType, fileName, entryId, now, true);
+    }
+
+    /**
+     * Starts a purchase download, stating whether the vendor is somebody else's machine.
+     *
+     * <p>⚠ {@code foreign} decides the NOISE, and the default above is {@code true} — the loud
+     * direction. Solo and LAN are both foreign in the fiction, a federated server you do not own is
+     * foreign, and only your own home server is not. Defaulting to silent would make every unconverted
+     * caller quietly free, which is the wrong way for that mistake to go: a purchase that should have
+     * been observable and was not is a stealth bug nobody can see.
+     *
+     * @param foreign whether the vendor is a machine the player does not control
+     */
+    public static Started beginPurchase(
+            GameSave save, String itemType, String fileName, String entryId, Instant now, boolean foreign) {
         if (save == null || itemType == null || itemType.isBlank()) {
             return new Started(null, Refusal.NOT_TRANSFERABLE, 0, Duration.ZERO);
         }
@@ -160,11 +176,86 @@ public final class TransferRules {
         long bytes = io.github.stoicswe.eyeandsickle.engine.fs.VirtualFs.upgradeBytes(itemType);
         Duration duration = Balance.transferTime(bytes);
         TaskState task = new TaskState(KIND, "downloading " + fileName, "", 0L, now, now.plus(duration));
+        // ⚠ On the TASK, so the noise is present-tense and ends by itself when the download does.
+        // NoiseRules already counts a running task's declared loudness, so this needs no new
+        // mechanism and cannot leave a rig permanently loud if something forgets to clear it.
+        task.noiseCycles = foreign ? Balance.MARKET_FOREIGN_PURCHASE_NOISE_CYCLES : 0L;
         task.outcome = VENDOR + " " + path + " " + bytes + " "
                 + io.github.stoicswe.eyeandsickle.engine.rules.Repac.defaultDestination(save.handle)
                 + " " + itemType + " " + entryId;
         save.tasks.add(task);
         return new Started(task, null, bytes, duration);
+    }
+
+    /**
+     * Commissions the download of a bought <b>bundle</b>, as one archive.
+     *
+     * <h2>⚠ ONE transfer, because it was ONE purchase</h2>
+     *
+     * A bundle is one price, one debit and one ledger row, so it arrives as one file. Three
+     * concurrent {@code .pkg} downloads would turn it back into three purchases that happened to
+     * share a discount, and the player would watch three bars for something they bought once.
+     *
+     * <p>⚠ The member list rides as a SEVENTH field and the item type is deliberately blank: an
+     * archive installs as nothing, it <em>contains</em> things. Leaving the item type set would make
+     * {@code Repac.arrive} file the archive as an upgrade of whatever happened to be first.
+     *
+     * @param members the catalogue ids inside it
+     * @param bytes the archive's size, which the caller totals from the members
+     */
+    public static Started beginArchive(
+            GameSave save,
+            String fileName,
+            String entryId,
+            long bytes,
+            java.util.List<String> members,
+            Instant now,
+            boolean foreign) {
+        if (save == null || members == null || members.isEmpty()) {
+            return new Started(null, Refusal.NOT_TRANSFERABLE, 0, Duration.ZERO);
+        }
+        String path = "/" + VENDOR + "/" + fileName;
+        if (running(save, path).isPresent()) {
+            return new Started(null, Refusal.ALREADY_RUNNING, 0, Duration.ZERO);
+        }
+        long size = Math.max(1L, bytes);
+        Duration duration = Balance.transferTime(size);
+        TaskState task = new TaskState(KIND, "downloading " + fileName, "", 0L, now, now.plus(duration));
+        task.noiseCycles = foreign ? Balance.MARKET_FOREIGN_PURCHASE_NOISE_CYCLES : 0L;
+        // ⚠ Field 4 (the item type) is EMPTY and field 6 carries the members. The accessors read by
+        // index, so appending rather than repurposing is what keeps a task written by an older build
+        // parsing — every missing index answers empty rather than throwing.
+        // ⚠ Assembled by INDEX, with the empty item-type field spelled out. Written as a `+` chain
+        // it is a double space in the middle of a string literal — invisible in review, and deleting
+        // it silently shifts the entry id into the item-type slot, which files the archive as an
+        // upgrade of nothing and loses the lock that holds a bundle until its payment is mined.
+        task.outcome = String.join(
+                " ",
+                VENDOR,
+                path,
+                String.valueOf(size),
+                io.github.stoicswe.eyeandsickle.engine.rules.Repac.defaultDestination(save.handle),
+                "",
+                entryId == null ? "" : entryId,
+                String.join(",", members));
+        save.tasks.add(task);
+        return new Started(task, null, size, duration);
+    }
+
+    /**
+     * What is inside a bundle's archive, or empty for anything else.
+     *
+     * <p>⚠ Comma-separated because {@link #field} splits on spaces. A list joined with spaces would
+     * read back as one member and silently lose the rest of a bundle the player paid for.
+     */
+    public static java.util.List<String> membersOf(TaskState task) {
+        String joined = field(task, 6);
+        return joined.isBlank() ? java.util.List.of() : java.util.List.of(joined.split(","));
+    }
+
+    /** Whether this transfer is carrying a bundle archive rather than a single package. */
+    public static boolean isArchive(TaskState task) {
+        return !membersOf(task).isEmpty();
     }
 
     /**

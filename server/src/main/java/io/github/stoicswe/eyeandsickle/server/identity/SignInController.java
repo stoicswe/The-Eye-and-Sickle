@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * Where a client presents its proof of identity — the last piece of Option C's loop.
@@ -28,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
  * that is minted per character ({@code CharacterService.selectCharacter}), per
  * {@code docs/architecture/09-player-state-portability.md} §1–§2.
  */
+@Tag(name = "identity")
 @RestController
 @RequestMapping("/api/sign-in")
 public class SignInController {

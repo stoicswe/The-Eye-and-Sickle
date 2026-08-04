@@ -5,6 +5,7 @@ import java.util.Objects;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * Says which DID this server is, so a client can mint a token bound to it.
@@ -25,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>Unauthenticated on purpose: it is a public fact about a public endpoint, and requiring auth to
  * learn who you are talking to is a chicken-and-egg with no upside.
  */
+@Tag(name = "identity")
 @RestController
 @RequestMapping("/api/server")
 public class ServerIdentityController {

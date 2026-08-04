@@ -1,16 +1,28 @@
 package io.github.stoicswe.eyeandsickle.client.view;
 
 /**
- * The two views the LOG window offers.
+ * The three views the LOG window offers.
  *
  * <h2>Why they are separate rather than one stream</h2>
  *
- * They are written for different readers. {@link #OVERVIEW} is the rig's journal — what happened to
- * the player's machine, in the player's vocabulary, at a rate a person can read. {@link #EVENTS} is
- * every {@code CloudEvent} the client's broker carried, which is a developer's record and runs orders
- * of magnitude faster. Interleaving them would bury the handful of lines that matter to a player
- * under machinery, which is the failure {@code alert-fatigue(7)} — a page in this game's own manual —
- * is about.
+ * They are written for different readers, and they run at wildly different rates.
+ *
+ * <ul>
+ *   <li>{@link #OVERVIEW} is <b>the rig's journal</b> — what happened to the player's machine, in the
+ *       player's vocabulary, at a rate a person can read. It is fiction: the rig is a thing in the
+ *       game.
+ *   <li>{@link #EVENTS} is every {@code CloudEvent} the client's broker carried — a record of what
+ *       the game's own systems told each other.
+ *   <li>{@link #CLIENT} is <b>the actual application log</b>, this program's and its libraries'. It
+ *       is not fiction at all; it is the same thing that would be on stdout, and it is what a bug
+ *       report needs.
+ * </ul>
+ *
+ * <p>Interleaving them would bury the handful of lines that matter to a player under machinery, which
+ * is the failure {@code alert-fatigue(7)} — a page in this game's own manual — is about. ⚠ The
+ * OVERVIEW/CLIENT split is the sharpest of the three: one is a story about a rig, the other is a
+ * Java program reporting on itself, and a reader who cannot tell which they are looking at cannot
+ * trust either.
  */
 public enum LogTab {
 
@@ -22,7 +34,15 @@ public enum LogTab {
     OVERVIEW("OVERVIEW"),
 
     /** Every event the broker has carried this session, for debugging. */
-    EVENTS("EVENTS");
+    EVENTS("EVENTS"),
+
+    /**
+     * The real application log — this client's and its libraries'.
+     *
+     * <p>Last, because it is the tab a player reaches for only when something has gone wrong, and
+     * first-position belongs to what they open LOG to read.
+     */
+    CLIENT("CLIENT LOGS");
 
     private final String label;
 
@@ -39,6 +59,7 @@ public enum LogTab {
         return switch (this) {
             case OVERVIEW -> "The rig's journal: what has happened, newest last.";
             case EVENTS -> "Every event the client's broker has carried this session, for debugging.";
+            case CLIENT -> "The application's own log, all levels, with a filter per level.";
         };
     }
 

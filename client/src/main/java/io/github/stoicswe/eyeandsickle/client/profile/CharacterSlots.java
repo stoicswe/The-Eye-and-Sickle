@@ -43,6 +43,10 @@ import java.util.UUID;
  */
 public final class CharacterSlots {
 
+    /** ⚠ JUL — captured by {@code log/ClientLog} for the CLIENT LOGS tab. */
+    private static final java.util.logging.Logger LOG =
+            java.util.logging.Logger.getLogger(CharacterSlots.class.getName());
+
     /** Matches the online cap in {@code docs/architecture/09}. */
     public static final int SLOT_COUNT = 3;
 
@@ -123,6 +127,9 @@ public final class CharacterSlots {
                     null,
                     save.avatarPng);
         } catch (RuntimeException unreadable) {
+            // ⚠ SEVERE. The slot card says "unreadable" and nothing more; this is the only place the
+            // reason is recorded, and the reason is what decides whether a character is recoverable.
+            LOG.log(java.util.logging.Level.SEVERE, "slot " + index + " could not be read", unreadable);
             // A corrupt or future-format save is shown as such rather than hidden. A slot that
             // silently reads as empty invites the player to overwrite the thing they were trying to
             // recover.

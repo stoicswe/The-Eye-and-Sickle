@@ -43,6 +43,10 @@ import tools.jackson.databind.json.JsonMapper;
  */
 public final class ClientProfile {
 
+    /** ⚠ JUL — captured by {@code log/ClientLog} for the CLIENT LOGS tab. */
+    private static final java.util.logging.Logger LOG =
+            java.util.logging.Logger.getLogger(ClientProfile.class.getName());
+
     /** System property that relocates the whole profile directory. */
     public static final String PROFILE_DIR_PROPERTY = "eyeandsickle.profile";
 
@@ -194,7 +198,14 @@ public final class ClientProfile {
             // that actually reached the disk; lighting it on entry would make it a statement of
             // intent, and it would flash on exactly the writes that then threw below.
             io.github.stoicswe.eyeandsickle.client.DiskActivity.wrote();
+            // ⚠ FINE. Settings are written on every window move and every 30-second autosave; at
+            // INFO this one line would be most of the log.
+            LOG.log(java.util.logging.Level.FINE, "settings written to {0}", settingsFile);
         } catch (IOException e) {
+            // ⚠ Logged AND rethrown. The throw is the caller's problem to handle; the log is so that
+            // a player whose settings silently stop persisting has something to send in. Losing
+            // either half loses a different question's answer.
+            LOG.log(java.util.logging.Level.SEVERE, "could not write " + settingsFile, e);
             throw new UncheckedIOException("Could not write " + settingsFile, e);
         }
     }

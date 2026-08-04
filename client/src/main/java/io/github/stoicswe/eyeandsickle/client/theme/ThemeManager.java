@@ -49,6 +49,10 @@ import javafx.scene.Scene;
  */
 public final class ThemeManager {
 
+    /** ⚠ JUL — captured by {@code log/ClientLog} for the CLIENT LOGS tab. */
+    private static final java.util.logging.Logger LOG =
+            java.util.logging.Logger.getLogger(ThemeManager.class.getName());
+
     private final ClientProfile profile;
     private final ObjectProperty<ThemeId> current = new SimpleObjectProperty<>(ThemeId.DECK);
     private final List<Scene> scenes = new ArrayList<>();
@@ -94,6 +98,7 @@ public final class ThemeManager {
         try {
             return Platform.getPreferences().isReducedMotion();
         } catch (RuntimeException notAvailable) {
+            LOG.log(java.util.logging.Level.FINE, "theme resource unavailable", notAvailable);
             // A headless or older toolkit may not expose preferences. Defaulting to "animate" is the
             // right failure direction: someone who needs reduced motion can set it explicitly, and
             // defaulting to suppressed would silently remove feedback for everyone else.
@@ -207,6 +212,7 @@ public final class ThemeManager {
                 }
             });
         } catch (RuntimeException notAvailable) {
+            LOG.log(java.util.logging.Level.FINE, "theme resource unavailable", notAvailable);
             // Nothing to follow. See resolveReducedMotion().
         }
     }

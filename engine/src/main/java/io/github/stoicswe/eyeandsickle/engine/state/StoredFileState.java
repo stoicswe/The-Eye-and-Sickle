@@ -28,6 +28,23 @@ public final class StoredFileState {
     /** For an upgrade, the item type it installs. Empty for anything else. */
     public String itemType = "";
 
+    /**
+     * For a {@code .tar.xz}, what is inside it. Empty for everything else.
+     *
+     * <h2>⚠ The archive is the ONLY place a bundle's contents are recorded</h2>
+     *
+     * Not on the task that unpacks it, and not derivable from the file's name — the name is built
+     * from the order id precisely so it does not have to carry eighty characters of member ids. So
+     * this list is what the player owns, and {@code Archives.complete} removes the archive
+     * <b>after</b> building the members rather than before, because a failure in between would
+     * otherwise destroy the only copy.
+     *
+     * <p>Item types rather than file names: what comes out is decided by {@code Repac}'s naming
+     * rules at unpack time, so storing names here would be a second spelling of the same thing that
+     * goes stale the day a suffix changes.
+     */
+    public java.util.List<String> archiveItemTypes = new java.util.ArrayList<>();
+
     /** The machine it came off, so the player can retrace where a thing came from. */
     public String sourceAddress = "";
 

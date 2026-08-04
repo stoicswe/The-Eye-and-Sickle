@@ -145,6 +145,26 @@ The two meta-rules behind most of these: **compute is the master scarcity** (nev
 - **Transport security is `[PROPOSAL]` and needs a cryptographer.** `docs/architecture/07-transport-security.md` §6 T-1. It is a hand-rolled Noise-IK-shaped protocol — reviewed patterns, unreviewed code. Do not let it guard a live federation until someone qualified has read it.
 - **Timestamps bind through `persistence/Timestamps.at(Instant)`, never a bare `Instant`.** This began as a Postgres driver rule ("Can't infer the SQL type") and survives as a house rule: `Row.instant()` reads them back as `OffsetDateTime`, and `Timestamps` is the matching write side, so both directions have one spelling. Unit tests with fakes cannot catch a raw bind — only the `-Pit` repository tests do.
 
+### API documentation
+
+`docs/architecture/14-api-documentation.md`. springdoc-openapi generates an **OpenAPI 3.1** spec from
+the controllers; `server/web/OpenApiConfiguration` supplies the metadata. ⚠ **Both surfaces ship OFF**
+(`EYEANDSICKLE_API_DOCS`, `EYEANDSICKLE_SWAGGER_UI`) — the server is closed by default and an
+interactive request builder is not something to enable on somebody else's box. ⚠ **The spec is
+checked on every `-Pit` run**, both directions, against `RequestMappingHandlerMapping` rather than a
+hand-kept list; negative-tested by hiding a controller.
+
+- ⚠ **springdoc 3.x, NOT 2.x** — 2.x targets Boot 3 and fails at runtime on Boot 4, not at resolution.
+- ⚠ **THE REST API CURRENTLY ANSWERS 401 TO EVERYTHING.** `spring-boot-starter-security` was on the
+  classpath with **no `SecurityFilterChain` anywhere**, so Boot's `anyRequest().authenticated()`
+  applied to all 31 endpoints. **No test in the server module had ever made an HTTP request to its own
+  controllers**, so nothing caught it. `ApiDocsSecurityConfiguration` opens the doc paths only and
+  deliberately leaves the rest — the auth model is **API-1**/CL-8, not a documentation task.
+- ⚠ **`@DynamicPropertySource` CANNOT SET `spring.profiles.active`** — profiles resolve before dynamic
+  properties are contributed, so it is accepted, ignored, and reported only as "No active profile set"
+  in a passing test's log. `ServerContextLoadsIT` claimed to exercise the federation profile and never
+  had. Use `@ActiveProfiles`.
+
 ### Server implementation status
 
 The **Established spine is implemented and boots** (`ServerContextLoadsIT` starts the full context against a real database): schema (Flyway core + federation), JdbcClient data layer, AT-Proto-auth + allowlist, compute ledger, ethecoin/public ledger + gates, provenance persistence & ingress verification, validator quorum (A-Res sampling + AIMD reputation), peer discovery, and the `Content-Digest` checksum filter. ~168 main + ~117 test classes; `mvn verify` and `mvn -Pit verify` both green (203 integration tests, no Docker).
@@ -1223,6 +1243,422 @@ pushing every window down. The dead cell was three times the overflow.
 - `WrapStripTest` needs no toolkit — `Region` does its own layout maths, so it exercises the real
   `layoutChildren` rather than a reimplementation that would have agreed with the bug. Verified against
   the unfixed code first: all three checks fired.
+
+**The store has daily stock and is branded GROUP OF HACKS (2026-08-04).** `rules/MarketStock` +
+`SaveMarketStock`; `view/MarketView` scrolls, searches and shows stock.
+
+- ⚠ **STOCK IS WORLD STATE, NOT CHARACTER STATE — hence a PORT.** On a server the shelf is shared, so
+  a counter in `GameSave` would give every player a private one, which is the opposite of a limited
+  item. `MarketStock.Held`: the save in solo (one player, so it matches LAN by construction), the
+  server's table online (**W-7**, unbuilt, atomic take required — two buyers racing the last unit must
+  resolve to one sale and one refusal).
+- ⚠ **The RATION is derived from (item, day); only the COUNT TAKEN is stored.** Consumables 6–14,
+  permanents 1–3 — inverted on purpose, since a consumable is rebought and a permanent is a race. An
+  item on offer is stocked shorter but **never to zero**. ⚠ A gated item is **not stocked**, which is
+  not "0 left": one says come back tomorrow, the other is never coming.
+- ⚠ **Purchase noise rides on the download TASK**, so it is present-tense and ends by itself — no new
+  mechanism, and it cannot leave a rig permanently loud. **Own home server silent** (I9's reasoning);
+  **LAN, foreign federated and solo loud**. The `foreign` flag defaults to **true**, the loud
+  direction, because a purchase that should have been observable and was not is invisible.
+- ⚠ **The store balance is 2dp under the TOP STRIP'S licensed exception** — exact figure on hover and
+  in `accessibleText`, ledger still exact. ⚠ `Ethecoin.formatApprox` appends the unit itself; a second
+  `" EC"` rendered **"500 EC EC"**.
+- ⚠ **No account-level nav row**, deliberately: the deck already carries identity and balance in the
+  top strip and navigation on the rail. ⚠ **The deals strip is not filtered by the search** — the
+  strip answers "what is worth buying today", not "what matches". ⚠ An empty section says so rather
+  than vanishing.
+
+**Every window shows its size while it is resized (2026-08-04).** `ui/chrome/SizeReadout` —
+`840 × 520` bottom-right, held for `DWELL_MS` (900) and then stepped away. On every desk window
+(`WindowFrame`) and on the outer window (`DeckShell`).
+
+- **Not only convention:** the deck lays out on real breakpoints — the rail at `NARROW_WIDTH`, the
+  cycle grid at 25/20/10 per row, the shelf at three tiles then two — so *which pixel* a layout
+  changes at is something a player can watch happen. This turns "it went funny when I made it small"
+  into a number.
+- ⚠ **It STEPS away and is not a tween.** `REVEAL_STEPS` whole steps on `Pulse`, the same ladder
+  `BalanceDelta` and `Motion` use. **`Fade` is deliberately NOT used** — that is the splash's
+  continuous ramp, licensed by §5.1 for a title card the player is only *watching*, and this is
+  chrome on a window they are working inside.
+- ⚠ **`Pulse.every` — DATA, not `animate`.** Under Reduce motion `animate` never fires, so the dwell
+  would never expire and every window would carry a permanent number in its corner: the accessibility
+  path getting the *worse* behaviour, the exact failure the carousel already recorded. The clock runs
+  in both modes and only the ramp is conditional — with motion suppressed it holds, then goes in one
+  step. WCAG 2.2.2 satisfied rather than the information withdrawn.
+- ⚠ **The FIRST report is swallowed.** A window opening at its saved size is not a resize, and without
+  this the deck flashes a number in the corner of all twenty tool windows every time it restores a
+  layout. ⚠ It also means a **single-pass render photographs the state indistinguishable from the
+  feature being absent** — `DeckSnapshot -Ddeck.resize=<width>` lays out a second time at a different
+  size. Nothing fades there either, because no `Pulse` frame fires synchronously, which is what makes
+  it photographable.
+- ⚠ **Reported from `layoutChildren`, and it must ignore a pass where nothing changed.** That method
+  runs whenever any child asks for layout, so an unconditional call lights it up on every repaint of
+  whatever the window contains.
+- ⚠ **A child of the FRAME, not of `inner`.** `inner` is clipped to the notch polygon, so a readout in
+  its bottom-right corner works until somebody turns rounded corners on and the clip eats the corner
+  it sits in.
+- ⚠ **Unmanaged, so it must `autosize()` itself** — an unmanaged node is never resized by its parent
+  and a `Label` that has never been sized is zero wide. Same family as `SyncBanner`'s trap.
+- ⚠ **`WindowFrame.dispose()` is called from `DeskManager.close`.** A `Pulse` subscription outlives
+  the node that made it; `CycleGrid.dispose`/`CoreCage.dispose` were written, correct and called by
+  nobody, and every open of the rig monitor leaked one.
+- ⚠ **Driven off `root`, not the `Stage`.** A Stage's width includes OS chrome and is set before the
+  scene lays out, so it reports a size the deck never has.
+- ⚠ **Not amber.** §2.1 spends amber on cycles doing work and income; a pixel size is neither, and
+  colouring it would imply the number meant something about the game. `text-hi` on `panel-hi` — a pair
+  `ContrastTest` already measures in all six palettes, so it inverts correctly on uOS Classic.
+
+**MARKET is two tabs — GoH and ShMark (2026-08-04).** The storefront moved into **GoH**; **ShMark**
+is the **Shadow Market**, the darknet secondary market, as a trading desk. `rules/ShadowMarket`
+simulates it, `protocol/game/Shadow*` carries it, `view/ShadowMarketView` draws it. Always viewable,
+solo included — the listings are readable whether or not anybody real is on the other side.
+
+- ⚠ **THE ARBITRAGE CEILING IS THE WHOLE DESIGN.** A player market beside the shop is
+  `MarketDeals`' faucet failure one step removed and much easier to miss: if a bid here ever reaches
+  what the storefront charges, buy-on-GoH → sell-on-ShMark is free money with **no compute cost**,
+  repeatable, and the ethecoin supply inverts with every screen still rendering correctly.
+  `ceilingPercent()` is **derived** from `100 - MarketDeals.maxDiscountPercent()` less a margin —
+  never written down, for the reason `breakEvenDiscountPercent` exists. `ShadowMarketTest` sweeps a
+  **year × 5 characters × every listing** and fails the build on any bid reaching the storefront floor.
+- ⚠ **BOUNDED NOISE, NOT A RANDOM WALK, and that is not a style choice.** A walk is unbounded, so the
+  ceiling would have to be a clamp — and a clamped walk sits pinned to the clamp, which is both
+  visibly wrong and exactly the state where arbitrage is worth checking. Fractal value noise is
+  bounded **by construction**, so no length of play can breach the ceiling: the economic guard is a
+  property of the function rather than a check somebody must remember to run. It is also **seekable**,
+  which is what lets a chart draw a week of candles instantly and the save store none of it.
+- ⚠ **DERIVED, so nothing about the market is stored.** Price, book, tape and candles are pure
+  functions of (character, item, clock) — the panel repaints on a clock and a drawn price would
+  reshuffle the chart every second. **Only the player's own orders persist**: a buy escrows real
+  ethecoin, a sell reserves one **specific copy by id** (items stopped stacking, so a type-named
+  order would sell the wrong build).
+- ⚠ **THE CHEAPEST ASK IS SYSTEMATICALLY THE RISKIEST, and that IS the decision.** A trusted seller
+  asks a premium for the certainty; a shady one undercuts. The book sorts by price, so the top of the
+  asks is the worst-rated counterparty — which falls out of sorting rather than being staged. Every
+  row therefore carries its standing beside its price; a book showing prices alone renders the one
+  reading of it that is wrong. ⚠ **A defection does NOT refund** — an undelivered purchase that
+  refunded itself would make reputation free to ignore.
+- ⚠ **`BASE_SPREAD_BP` MUST EXCEED `REPUTATION_SWING_BP` or the book CROSSES.** At depth 0 the offset
+  is reputation alone: a shady buyer bid above a shady seller's ask, and a crossed book is a standing
+  offer to buy and sell simultaneously for a profit with no counterparty risk. **Measured — it
+  crossed within 44 minutes of the epoch.** Pinned by a test.
+- ⚠ **Only ethecoin-gated items are listed** — `Repac.sellable`, i.e. **I2** and **I8**. Listing a
+  schematic- or zero-day-gated tool would put a price on the one thing whose point is that it has none.
+- ⚠ **The market settles on the TICK, not when the panel is open.** An order that only filled while
+  its window was on screen would teach players to leave the panel open.
+- ⚠ **A `Canvas` cannot resolve a looked-up colour**, and §10 criterion 2 forbids the hex literals
+  that would replace it — so the chart reads its two colours off **invisible probe labels in the live
+  scene**. ⚠ The first version wrapped a probe in a **throwaway `Scene`, which carries no stylesheet**:
+  nothing resolved, every probe returned Modena's default, and every candle rendered the same colour
+  with up and down indistinguishable. No error anywhere. **Found by rendering.**
+- ⚠ **THE CANVAS MUST BE REDRAWN ON LAYOUT.** The panel paints once during construction, before
+  anything is in a Scene and before CSS — so even with the probes fixed the first frame was
+  monochrome. The running game hides it a tick later; a synchronous render makes it permanent, which
+  is how it was found. ⚠ **Only the chart** is redrawn there: re-running the full repaint rebuilds the
+  book, which dirties layout, which fires the listener again. Drawing on a Canvas dirties nothing.
+- ⚠ **A doji's body is floored at one pixel.** Open equal to close is a real and common candle, and a
+  zero-height body draws nothing — the chart develops gaps that read as missing data.
+- ⚠ **Asks are drawn HIGHEST first** so the two sides meet at the spread, as every book a player has
+  seen is laid out. Best-first puts the touch at the top and the spread at the outer edges.
+- ⚠ **The wordmark is `-es-alarm`** — the one place §2.1's reservation for *hostile state* is the
+  right reading rather than a borrowed one. Nobody here is bonded and the money can simply not come
+  back. GROUP OF HACKS is amber because a shop is income; this is not a shop.
+- ⚠ **Prices are typed through `Ethecoin.ofDecimal`, never `Double.parseDouble`** — the second place
+  in the game a player types an amount, and a double holds ~16 digits against ethecoin's 18.
+- ⚠ **`RemoteGameSession` answers an EMPTY market, never a local simulation.** On a server the prints
+  are real trades across the federation; answering with a simulation would put invented prices on a
+  screen whose entire subject is what a price is. **W-9**, unbuilt.
+
+**The ShMark order form is a HOVER DRAWER on the right edge (2026-08-04).** `ShadowMarketView.drawer`
+— a vertical `BUY / SELL` handle; hovering it slides the form in from the right. It was a third
+column in the row, where it took width from the chart at every window size and sat on screen whether
+or not anybody was trading.
+
+- ⚠ **It STEPS, on `Pulse.every`.** §5 permits no easing and `UiContractTest` rations `AnimationTimer`
+  to two files by name, so the slide is `REVEAL_STEPS` whole jumps — the ladder `SizeReadout`,
+  `BalanceDelta` and `Motion` already use. ⚠ **`every`, not `animate`**: a decorative subscription
+  never fires under Reduce motion, so an `animate` drawer is one that **cannot open** — the control
+  broken on exactly the accessibility path. The clock runs in both modes and only the ramp is
+  conditional; with motion suppressed it snaps open in one step.
+- ⚠ **Hover is on the DRAWER, not the handle.** Opening it puts the pointer on a journey across the
+  form, which is part of the drawer — keying on the handle alone closes it the instant the player
+  moves toward the thing they opened it for. Focus-within holds it open for keyboard users.
+- ⚠ **A rotated caption inside a `StackPane` renders as an ELLIPSIS.** A StackPane resizes a
+  resizable child to fit itself, so the label was squeezed to the handle's 22px width and truncated
+  to `...` — and only *then* rotated, so what reached the screen was a vertical row of three dots
+  that read as texture. `Group` does not resize its children; wrapping the label in one keeps its
+  natural width. ⚠ Same root cause as the `SHMARK_TAB_WIDTH` note: **a rotation is a transform and
+  does not change layout bounds**, so the holder must be a fixed box.
+- ⚠ **Overlay, clipped to the panel.** It rests translated a full form-width right, which is off the
+  panel's edge — without the clip a closed drawer paints outside its own window. `USE_PREF_SIZE` both
+  ways, or the StackPane grows it into a transparent full-panel pane swallowing every click.
+- **The instrument picker is a `MenuButton` grouped by category** (`Offering.category()` = the first
+  tag). ⚠ **Tag zero, not a new field** — a parallel `category` would be a second answer to a question
+  the tags already settle, and the day somebody edited one and not the other the picker and the
+  storefront's search would file the same item in two places. `ShadowMarketTest` holds that every
+  listing is filed and that the categories actually group.
+- ⚠ **The menu is built ONCE, not per repaint.** The panel repaints every second, and a menu rebuilt
+  under an open popup closes it mid-click.
+- **YOUR ORDERS sits UNDER THE CHART**, in the same column, not at the foot of the page. Below
+  everything it was past the fold on any normal window — the one part of the screen about the
+  player's own money was the part they could not see, while the chart column carried a block of empty
+  space the same size. Each row carries a **Cancel** (not "Withdraw": the correct term is the one
+  nobody reads on a trading screen) and the **escrow it is holding**, because that is money the
+  balance no longer counts.
+
+**Items do not stack, and a purchase needs somewhere to land (2026-08-04).** `rules/StorageRules`.
+
+- ⚠ **OWNING ONE IS NO LONGER A REASON TO REFUSE A SALE, and `Repac.install` allows a duplicate.**
+  Each copy has its own `itemId`, tier and build, so a second Tarpit is a second *thing* — a shop
+  that refused was answering a question about inventory rather than about money. The old refusal's
+  reasoning ("this copy is worth more sold than installed") survives where it belongs: `manifest()`
+  still reports `owned`, so the package panel says so **before** anything is consumed.
+- ⚠ **Two copies must be two FILES — `Repac.boughtPackageName` puts a 6-char order tag in the name.**
+  `Repac.find` resolves a path to *the first* match, so two `tarpit.pkg` files would make Get Info
+  describe one, `install` consume one and `rm` delete one, with nothing on screen saying which — a
+  filesystem where the path is not an identifier.
+- ⚠ **A BOUGHT item lands in `StorageRules.ARRIVALS` — the HIGH-RISK zone, not the vault.** The vault
+  is meant to be a decision: goods you have not put away are goods anybody can take, and a purchase
+  that filed itself safely would make `design/01` §6's tiers a setting nobody touches. ⚠ **A STOLEN
+  item keeps the vault** — you already carried the risk of taking it, and charging it again on
+  arrival is the same tax twice. That asymmetry is deliberate; if it ever reads wrong, change it in
+  one place (`Repac.install`).
+- ⚠ **Capacity is enforced ONLY at purchase.** `Balance.storageCapacity`'s own note warns that a hard
+  cap of six on the vault with no way to raise it "is a different game from the one that document
+  describes" — so nothing caps the **vault** and nothing refuses a **move**. What is enforced is the
+  narrow thing asked for, and it binds against the arrivals tier's 60 rather than the vault's 6.
+- ⚠ **COMMITTED, not occupied — three things claim a slot.** Items in the tier, orders in the queue
+  (a bundle once per member), and bought packages still sitting in Downloads (an unextracted archive
+  once per package inside). Counting only installed items lets a player queue a hundred against sixty
+  and find out forty installs later with the money gone. ⚠ A **stolen** package claims nothing — it
+  lands in the vault, and counting it would make the shop refuse a sale over a file taken for free.
+- ⚠ **A bundle checks room for every member ONCE.** Asking per item passes for the first two and
+  fails on the third with the money already gone.
+- **The item id is surfaced now**, because it never was: `verify <item>` has always *taken* an
+  `itemId` and nothing anywhere *showed* one. Six characters on the storage tile and in the ROWS
+  listing (matching the package tag, so it is one habit not two), the full id on the tooltip, in the
+  selection panel and in `verify`'s output — full wherever it is meant to be copied, since a
+  truncated identifier that looks copyable and is not is worse than none.
+
+⚠ **`-fx-strikethrough` DOES NOTHING ON A LABEL, and it failed silently for a week (2026-08-04).**
+It is a property of `Text`; **`Labeled` has `-fx-underline` and no strikethrough**, and JavaFX drops a
+property it does not recognise without warning — the same silence that hides an unknown looked-up
+colour (`-es-accent`). `.es-market-was` declared it, the stylesheet read exactly right, and the market
+showed a sale price beside the old one with **nothing saying which was cancelled**. Invisible in
+review; found by magnifying a render.
+
+- **The line is DRAWN** — `MarketView.struck` puts a 1px `Region` over the `Label`, the same reasoning
+  behind the carousel's drawn dots and the flash overlay's drawn warning mark: a thing that must be
+  certain is not left to a property that can be dropped.
+- ⚠ **A `Text` node was the other option and is worse here.** It supports the property and colours
+  with `-fx-fill` rather than `-fx-text-fill`, which would take the price out of `ContrastTest`'s
+  reach — and that test measures every text token against both panel grounds in six palettes.
+- ⚠ **The baseline must be delegated to the label.** A `Region`'s `getBaselineOffset()` is
+  `BASELINE_OFFSET_SAME_AS_HEIGHT`, so in the `BASELINE_LEFT` rows these sit in, a bare `StackPane`
+  aligns its *bottom edge* to the row's baseline and the struck price rides up above its neighbour.
+- ⚠ **The rule is raised off the box centre by `STRIKE_RISE`** (0.125 em, derived from the applied
+  font). A label's box carries the descender space, so its centre sits below the middle of a row of
+  figures and a centred line reads as one that has slipped.
+- ⚠ **The rule takes the TEXT's colour, never an accent.** A strikethrough is part of the word it
+  crosses; §2.1 rations `-es-alarm` to loss and hostile state, and a price no longer being charged is
+  neither.
+- ⚠ **`UiContractTest.strikethroughIsNotAvailableHere` bans it from all six stylesheets**, negative-
+  tested by planting one. Blanket rather than scoped because every text node in this client is a
+  `Labeled` — the day a `Text` is styled by class, that test is where the exception gets carved, with
+  the class named.
+
+**The storefront is a FIXED CONTENT COLUMN of floating cards (2026-08-04).**
+`UiTokens.MARKET_CONTENT_WIDTH` (960), centred; the shelf is a tile grid.
+
+- **One measure for the whole page** — masthead, search, carousel, bundle and shelf all take it. The
+  reason is legibility, not fashion: text reflowing to `MAX_SUPPORTED_WIDTH` is a line nobody's eye
+  tracks back from, and a shelf that silently goes from three tiles to eight is a different shop at
+  every window size. A **maximum**, so a narrow market window still works — the tiles wrap to two,
+  then one.
+- ⚠ **The cap goes on the PAGE and the centring on a holder around it.** A `ScrollPane` with
+  `setFitToWidth` resizes content to the viewport and has **no alignment** for content narrower than
+  that, so capping the page alone pins the whole shop to the left edge of a wide window.
+- ⚠ **The bundle sits BELOW the carousel with a band of clear space either side** (`MARKET_BAND_GAP`,
+  inside §2.3's closed scale). It is a different *kind* of offer — one price for several things — and
+  stacked flush against the carousel above and the shelf below, all three read as one undifferentiated
+  column of cards. The band is the only thing saying "this is a different question". An explicit
+  spacer node, not more container spacing: widening the VBox would push the carousel off the masthead
+  too, which is a different relationship and already right.
+
+
+- ⚠ **A market card had NO BORDER and was filled `-es-panel` — the same colour as the window body**,
+  so nothing could say where one ended and they read as full-bleed slabs. `.es-market-card` now
+  carries the deck's one card recipe, the two properties `.es-block` and `.es-package` already use:
+  **`-es-panel-hi` ground + 1px `-es-rule`**. §2.1's "depth from brightness, never shadow" is the
+  only lever available (§9 makes drop shadows build-blocking), so **the lift IS the float**.
+  ⚠ Correct on **uOS Classic** for free — `panel-hi` is lighter there too, so a card reads as paper
+  raised off the desk rather than a hole in it. A literal colour would have inverted.
+- ⚠ **The accent-edge rules are TWO-CLASS and declared AFTER the hover rule.** `.es-market-card:hover`
+  is class + pseudo-class, the same 0,2,0 as `.es-market-card.es-market-deal`, so at equal weight the
+  later rule wins and a one-class `.es-market-deal` would lose its amber edge under the pointer —
+  `.es-block-yours` recorded this exact trap one screen up.
+- ⚠ **The page needs a GUTTER or a bounded card is not a card.** With four borders, a page flush to
+  the window body puts every left edge on x=0 where the window clips it — full-bleed bands again,
+  which is what the border was added to stop.
+- ⚠ **`TilePane`, not `FlowPane`, for the shelf.** A FlowPane gives each card its own height and
+  centres it in the row, so a long description leaves its neighbours' Buy buttons at three different
+  heights — a styled list. TilePane sizes **every** tile to the largest, and a `VBox`'s maximum is
+  unbounded (a **Control's would not be** — the `Vgrow` trap), so each card fills its tile and a
+  `Vgrow` spacer puts every price and Buy on one line.
+- ⚠ **A `FlowPane` FILLS its children to the row height** — `rowValignment` does not stop it,
+  `layoutInArea` grows a child to its maximum whatever the alignment says. Found when the bundle sat
+  *beside* the hero (superseded, see the content column above): the shorter card was stretched to the
+  hero's height with a third of itself empty. `setMaxHeight(USE_PREF_SIZE)`, which the bundle keeps.
+  Same family as `HBox.setFillHeight`, from the same side.
+
+**Bundles buy in one action, ship as a `.tar.xz`, and downloads QUEUE (2026-08-04).**
+`engine/rules/DownloadQueue` + `Archives`; `state/DownloadOrderState`; `protocol/game/DownloadOrder`;
+`view/DownloadDock`. `unxz(1)` in the shell, Extract in the file manager.
+
+- ⚠ **THE ACTIVE DOWNLOAD IS DERIVED — the first order that is not paused.** Nothing stores which one
+  is running. That single decision is why pause and reorder need no separate machinery: moving an
+  order to the front *is* starting it, pausing the head *is* promoting the next, and no combination
+  can leave a stored flag disagreeing with the list.
+- ⚠ **An ORDER is not a TASK.** A task is work with a deadline and cannot express "three bought, one
+  downloading". The order exists from the moment the money moves; the transfer exists only while
+  bytes are in flight. **Persisted**, because a queue that lived in the client would lose paid-for
+  downloads on close, which is indistinguishable from being robbed.
+- ⚠ **A HELD DOWNLOAD HAS BOTH ENDS OF ITS CLOCK PUSHED FORWARD.** Wall time cannot be stopped, so
+  holding means shifting `startedAt` **and** `endsAt` — shifting only `endsAt` stretches the transfer
+  instead of pausing it and the bar crawls backwards. ⚠ It must run in the tick **and in `resume()`
+  with the absence as the delta**, or a queue paused across four days finds every held transfer
+  finished on the first tick back — the pause doing the opposite of what it says, and only for a
+  player who closed the client. Both halves are negative-tested.
+- ⚠ **`enqueue` settles immediately.** Leaving promotion to the next tick means a lone purchase shows
+  a queue entry and no bar — about a second in the running game and **indefinite under a test clock**,
+  which is what six existing purchase tests caught. `Duration.ZERO` is the right delta: no wall time
+  passed inside the call, so nothing held may shift.
+- ⚠ **Extraction takes REAL TIME, unlike Repac.** `Repac.repack` is instant because renaming a payload
+  is bookkeeping; `xz` is genuinely slow to decompress, and `EXTRACT_BYTES_PER_SECOND` is deliberately
+  **below the link speed** so unpacking outlasts the download. That relationship is the teaching — a
+  rate above the link would teach the opposite with nothing reporting a problem.
+- ⚠ **The archive is consumed at COMPLETION and its contents are built FIRST.** Same rule as the
+  firmware flash: an interrupted extraction must cost nothing rather than everything, and the member
+  list lives **only** on the archive (`archiveItemTypes`), so removing it before building the members
+  destroys a bundle the player paid for.
+- ⚠ **Members carry the BUNDLE's `lockedByEntryId`**, so one payment releases the whole thing.
+  Unpacking is local work on bytes already held and settles nothing — releasing on extraction would
+  make a bundle the one purchase that skips the on-chain settlement every other purchase waits for.
+- ⚠ **All or nothing, checked BEFORE the debit.** A bundle price is quoted for a specific set; selling
+  three-quarters of it at that price is worse than refusing, and there is no refund mechanism.
+- ⚠ **Field 4 of the archive task's `outcome` is EMPTY and the members are field 6.** Assembled with
+  `String.join` by index rather than a `+` chain — spelled the other way it is a double space inside a
+  literal, invisible in review, and deleting it shifts the entry id into the item-type slot and loses
+  the lock.
+- ⚠ **The dock is LAID OVER the page and takes no layout space.** A panel in the flow would appear
+  above or below the fold depending on scroll, so the one confirmation a purchase worked would be
+  invisible about half the time — and it would move the shelf on every purchase. Same rule the balance
+  delta had to learn. ⚠ **A `StackPane` RESIZES a resizable child to fill it**, so the maximums are
+  what stop it being a transparent full-window pane eating every click.
+- ⚠ **`Pulse.every` does NOT invoke immediately — the exact inverse of `Pulse.animate`.** The dock is
+  data, so it is on `every`, so it must paint once at build or it opens as an empty box for half a
+  second and **forever in a synchronous render**. Found by rendering.
+- ⚠ **`Boolean.getBoolean` needs the literal `"true"`** — `-Dmarket.bundle=1` is silently false, and
+  the render reported two features missing that were present.
+- ⚠ **A render harness must not wrap `MarketView.create` in a second `ScrollPane`** — that hands the
+  dock's StackPane its *preferred* height, so bottom-centre lands a page below the viewport and the
+  dock photographs as absent.
+- ⚠ **Scope: MARKET downloads only.** A pull off a machine you are standing on runs over a session you
+  are holding open and paying for; queueing it behind two bought packages would cost a foothold to
+  ration bandwidth nobody has to ration.
+- ⚠ **`MarketDealsTest`'s ceiling is unchanged and still binds** — a bundle is still capped by
+  `maxDiscountPercent()`, so buying one to resell is still not free money.
+
+**TODAY'S OFFERS is a carousel — one hero card, arrows, dots (2026-08-04).** `MarketView.carousel`.
+It was three cards across, which showed every offer at once and left arrows nothing to do; one at a
+time buys the room for the full description, the struck-through price and the saving.
+
+- ⚠ **`Pulse.animate` INVOKES ITS ACTION ONCE IMMEDIATELY — documented, and a trap for an action that
+  ADVANCES rather than paints.** The immediate call is right for its usual caller, a widget that would
+  otherwise be blank until its first tick. Here it stepped the carousel before anyone had seen it, so
+  the shelf opened on **offer 2 of 3**. ⚠ **Worse under Reduce motion**, where the immediate call still
+  happens and the periodic one never does: the second offer becomes the permanent one and the first is
+  reachable only by pressing an arrow — a defect that lands on the accessibility path only. A
+  `settled` flag skips the first invocation. **Found by rendering; it compiles and reads correctly.**
+- ⚠ **There are TWO settling invocations, and the second is easy to miss.** `Pulse.setReducedMotion(
+  true)` fires every decorative subscription **once** so a widget suppressed mid-animation paints its
+  final state — for an advance that is one more step, i.e. turning Reduce motion on skips the player
+  forward a card. The action asks `Pulse.shared().reducedMotion()` and bails; the flag is assigned
+  before the loop fires, so the answer is already true by then.
+- ⚠ **Auto-advance is `Pulse.animate`, i.e. DECORATION**, so Reduce motion holds one card still and
+  the arrows still work — that is WCAG 2.2.2's pause, and the same relationship `WallpaperMode.moves()`
+  encodes. Paused on hover and on focus, because a card that moves while it is being read is worse
+  than one that does not move at all.
+- ⚠ **The dots are drawn `Region`s, never glyphs.** `GlyphCoverageTest` has already rejected four
+  block elements and the warning sign; `←`/`→` are safe only because `NetCanvas` already renders them.
+- ⚠ **`Math.floorMod`, not `%`** — `-1 % 3` is `-1` in Java, so the left arrow on the first card
+  throws rather than wrapping to the last.
+
+**The market is a storefront, with deals that rotate every three days (2026-08-04).**
+`engine/rules/MarketDeals` decides; `protocol/game/MarketWindow` carries; `view/MarketView` renders.
+
+- ⚠ **A DISCOUNT CAN TURN THE ECONOMY'S SINK INTO A FAUCET, AND THE CEILING IS ARITHMETIC.** Anything
+  ethecoin-gated is resellable, and `Repac.resaleValue` is a fraction of the **catalogue** price, not
+  of what was paid. A market package ships at `MARKET_UPGRADE_VERSION_MAJOR` (3), so it fetches
+  `RESALE_PERCENT` scaled by `UPGRADE_VERSION_RESALE_PERCENT_PER_MAJOR` — **74.4% of retail**. Past a
+  **26%** discount, buy-then-resell is free money with no compute cost. `breakEvenDiscountPercent()`
+  **derives** that from the constants rather than restating it; `maxDiscountPercent()` holds 5 points
+  below; `MarketDealsTest` walks a year of rotations across five characters and fails the build if any
+  deal or bundle reaches it. ⚠ **Widening a band without reading this inverts the ethecoin supply,
+  silently** — the shop still works and the price still renders.
+- **Bands:** consumables 10–20%, permanents 5–10%, bundles 12–18%. ⚠ Permanents are shallower not
+  because they are stronger (I2 already forbids a ceiling) but because they are bought **once** — a
+  discount there leaves the sink permanently smaller for a decision the player was making anyway.
+- ⚠ **`Durability` is a new classification and is NOT a gate.** `equippedCycles == 0` is the tempting
+  proxy and is wrong both ways: a Net Sweep holds nothing and is kept forever; a Relay hop holds
+  nothing and is per-session. The convenience constructor defaults to **PERMANENT**, the cautious
+  direction — a new entry gets the smaller sale by omission, never the larger.
+- ⚠ **Deals are DERIVED from (character, 3-day epoch), never drawn and never stored.** The storefront
+  repaints on a clock; a drawn deal would reshuffle the shelves every second. Same rule as
+  `MempoolRules.projectionDepth`. `floorDiv`, so an instant before 1970 does not share a window with
+  one after it.
+- ⚠ **Only ethecoin-gated items go on sale.** A "sale" on a schematic-gated item would put a price on
+  the one thing whose whole point is that it has none.
+- ⚠ **`MarketWindow` carries `asOf` — the SESSION's clock.** The countdown built on `Instant.now()`
+  read "8h 5m" against a window the game clock had opened minutes earlier. Caught by rendering it.
+- ⚠ **The discounted price rounds UP.** Integer division truncates, which rounds the price down and
+  the discount up — a wei, in the one direction the resale ceiling guards.
+- ⚠ **The bundle is priced but not purchasable as one action**, and the card says so. Wiring it as a
+  loop over `purchase()` would charge retail per item and silently ignore the bundle discount.
+
+**LOG has a third tab, CLIENT LOGS (2026-08-04)** — the application's own log, all five levels, one
+toggle each. `client/log/{ClientLog,LogEntry,LogLevel}` capture; `view/ClientLogView` renders.
+
+- ⚠ **`java.util.logging`, not SLF4J.** No new dependency, no enforcer amendment — and JUL is what
+  the libraries here already use (Flyway logs to it; commons-logging falls back to it), so **one
+  handler captures the client and its libraries in one ordered stream**. "The migration ran, then the
+  save loaded, then the deck failed" is a sequence no per-subsystem log would show.
+- ⚠ **THE ROOT LOGGER IS NOT OPENED TO `ALL`, AND THAT IS MEASURED.** The obvious way to "capture
+  everything" makes the panel useless inside one frame: **JavaFX logs its own layout at `FINEST`**,
+  a record per node resized and per node moved, per pass. First render with the root open dropped
+  **11,905 records** and evicted every line the client itself had logged. It compiled, the capture
+  tests passed, and only a render showed it. So `io.github.stoicswe.eyeandsickle` goes to `ALL` and
+  the root keeps its default — libraries still contribute INFO and above.
+  `-Deyeandsickle.log.verbose=true` opens the root for anyone chasing a library.
+  `ClientLogTest.theRootIsLeftAlone` guards it, because the wrong version still passes every other test.
+- ⚠ **TRACE is CAPTURED but not SHOWN.** The panel starts with it filtered out. Capturing it anyway is
+  the whole point: a player asked to turn trace on sees what led *up* to the problem rather than only
+  what happens next, so an intermittent fault does not need reproducing first.
+- ⚠ **Installed in `Launcher.main`, before the toolkit.** There is no backfill, and start-up is when
+  the failures worth sending in happen.
+- ⚠ **A `LogRecord` is flattened at capture.** It is mutable and reusable, its message is a format
+  string resolved later, and its parameters may be live game objects — so holding one renders somebody
+  else's message later and pins an object graph meanwhile.
+- ⚠ **Level colours need TWO-CLASS selectors** (`.list-cell.es-log-error`): `.list-cell` already sets
+  `-fx-text-fill` at one-class specificity. All five are existing `ContrastTest` tokens, so they are
+  measured in six palettes; **`-es-dim-3` is not available** — it is the greeble token, exempt from the
+  floor, and the network map is where that already went wrong.
+- ⚠ **The ListCell clears every level class before adding one.** Cells are recycled, and a class left
+  behind paints an INFO line in the error colour.
+- **Logging is at CHOKEPOINTS**, the same rule the event bus follows: `changed()`/`announce()` in
+  `LocalGameSession` (FINE for a success, INFO for a refusal), `Shell.finish()`, the two disk writes,
+  `DeskManager.open/close`, `LocalDatabase` migration, and every previously-silent catch —
+  `AvatarChooser`, `CharacterSlots`, `EventBus`'s subscriber-failed handler. Instrumenting call sites
+  instead means the next one added goes unrecorded.
 
 **The client has an event bus, and it is CloudEvents v1.0.2 (2026-07-29)** — `client/.../events/`,
 over Spring's `SimpleApplicationEventMulticaster`. The LOG window gained an **EVENTS** tab beside

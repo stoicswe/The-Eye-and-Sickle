@@ -80,6 +80,10 @@ import javafx.util.Duration;
  */
 public class EyeAndSickleClient extends Application {
 
+    /** ⚠ JUL — captured by {@code log/ClientLog} for the CLIENT LOGS tab. */
+    private static final java.util.logging.Logger LOG =
+            java.util.logging.Logger.getLogger(EyeAndSickleClient.class.getName());
+
     private ClientProfile profile;
     private GameSession session;
     private ThemeManager themes;
@@ -104,6 +108,19 @@ public class EyeAndSickleClient extends Application {
 
     @Override
     public void start(Stage primaryStage) {
+        // ⚠ The first line of the session's log, and it names the environment rather than just
+        // saying "started". Almost every report that reaches a maintainer needs the JVM, the OS and
+        // the architecture before anything else can be ruled in or out, and a player cannot be
+        // expected to know how to find them.
+        LOG.log(
+                java.util.logging.Level.INFO,
+                "{0} starting — Java {1} on {2} {3}",
+                new Object[] {
+                    Launcher.APP_NAME,
+                    System.getProperty("java.version", "?"),
+                    System.getProperty("os.name", "?"),
+                    System.getProperty("os.arch", "?")
+                });
         this.stage = primaryStage;
         profile = ClientProfile.discover();
         themes = new ThemeManager(profile);
@@ -579,6 +596,7 @@ public class EyeAndSickleClient extends Application {
      * produce, rather than a special case written for this screen.
      */
     private void connectOnline(String serverAddress) {
+        LOG.log(java.util.logging.Level.INFO, "connecting to home server {0}", serverAddress);
         String address = serverAddress == null ? "" : serverAddress.trim();
         if (address.isBlank()) {
             alert(javafx.scene.control.Alert.AlertType.WARNING, "Enter a home server address first.");
@@ -679,6 +697,7 @@ public class EyeAndSickleClient extends Application {
 
     /** Opens a solo character and switches the window to the game. */
     private void startSolo(int slot, String handleIfNew) {
+        LOG.log(java.util.logging.Level.INFO, "opening solo character in slot {0}", slot);
         SaveStore store = slots.store(slot);
         String handle = handleIfNew != null && !handleIfNew.isBlank()
                 ? handleIfNew.trim()
@@ -1066,7 +1085,7 @@ public class EyeAndSickleClient extends Application {
             case FILES -> FileManagerView.create(session);
             case MAN -> ManView.create(terms);
             case LOG -> LogView.create(session);
-            case MARKET -> MoreViews.market(session);
+            case MARKET -> io.github.stoicswe.eyeandsickle.client.view.MarketView.create(session);
             // ⚠ RECON is the reports now, not the page about them. The cost model and what a scan
             // is a model of moved to `man port-scan` — reference a player reads once, in the place
             // they can find it deliberately, rather than above the data every single time.

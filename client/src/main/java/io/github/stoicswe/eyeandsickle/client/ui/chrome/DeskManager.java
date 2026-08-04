@@ -47,6 +47,10 @@ import javafx.scene.layout.Region;
  */
 public final class DeskManager {
 
+    /** ⚠ JUL — captured by {@code log/ClientLog} for the CLIENT LOGS tab. */
+    private static final java.util.logging.Logger LOG =
+            java.util.logging.Logger.getLogger(DeskManager.class.getName());
+
     /** How close to an edge counts as a resize grip. Wide enough to hit, narrow enough not to. */
     static final double RESIZE_MARGIN = 6;
 
@@ -230,6 +234,10 @@ public final class DeskManager {
      * @return the window, or empty if the Bandwidth cap refused it
      */
     public Optional<DeskWindow> open(Spec spec) {
+        // ⚠ FINE. A player opens and closes windows constantly, so this belongs below the lifecycle
+        // lines rather than beside them — but it is the single most useful thing to have when a
+        // panel misbehaves, because it says what was on screen and in what order.
+        LOG.log(java.util.logging.Level.FINE, "opening window {0}", spec.id());
         DeskWindow existing = windows.get(spec.id());
         if (existing != null) {
             existing.setMinimized(false);
@@ -316,11 +324,16 @@ public final class DeskManager {
     }
 
     public void close(String id) {
+        LOG.log(java.util.logging.Level.FINE, "closing window {0}", id);
         DeskWindow window = windows.remove(id);
         if (window == null) {
             return;
         }
         desk.getChildren().remove(window.frame);
+        // ⚠ The frame's own Pulse subscription, released here because nothing else will. Same defect
+        // class as CycleGrid.dispose and CoreCage.dispose, which were written, correct, and called
+        // by nobody — every open of the rig monitor leaked one.
+        window.frame.dispose();
         publish("closed", id);
         // ⚠ AFTER the window is off the desk, and it may re-enter close() for the same id — the
         // shell's callback ends the session, which is also what an `exit` typed inside the shell

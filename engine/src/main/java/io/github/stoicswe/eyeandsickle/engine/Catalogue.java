@@ -58,9 +58,39 @@ public final class Catalogue {
             String gateRequirement,
             UpgradeKind kind,
             String requiresSchematic,
-            String stopsTool) {
+            String stopsTool,
+            Durability durability,
+            java.util.List<String> tags) {
 
-        /** An ordinary software offering — the shape every entry had before firmware existed. */
+        /**
+         * What kind of thing this is — {@code defence}, {@code recon}, {@code stealth}, {@code mining}.
+         *
+         * <h2>⚠ The FIRST tag, by convention, and the convention is now enforced</h2>
+         *
+         * Every offering's tag list already opens with the word a player would file it under and
+         * continues with search terms ({@code "defence", "detection", "tripwire", "cheap"}). Reading
+         * the category off tag zero rather than adding a parallel field is what stops the two
+         * disagreeing — a separate {@code category} would be a second answer to a question the tags
+         * already settle, and the day somebody edited one and not the other the shelf and the search
+         * would file the same item in two places.
+         *
+         * <p>⚠ {@code CatalogueTest} holds that every offering has one, because an empty list here
+         * would silently file an item under "other" and it would be findable only by scrolling.
+         *
+         * @return the category, or {@code other} when an offering carries no tags at all
+         */
+        public String category() {
+            return tags.isEmpty() ? "other" : tags.getFirst();
+        }
+
+        /**
+         * An ordinary software offering — the shape every entry had before firmware existed.
+         *
+         * <p>⚠ Defaults to {@link Durability#PERMANENT}, which is the CAUTIOUS direction: permanent
+         * carries the shallower discount band, so an entry added without thinking about durability
+         * gets the smaller sale rather than the larger one. A default of consumable would put a new
+         * tool on the deepest discount in the game by omission.
+         */
         public Offering(
                 String id,
                 String name,
@@ -69,11 +99,102 @@ public final class Catalogue {
                 BigInteger priceWei,
                 long equippedCycles,
                 String gateRequirement) {
-            this(id, name, description, gate, priceWei, equippedCycles, gateRequirement, UpgradeKind.SOFTWARE, "", "");
+            this(
+                    id,
+                    name,
+                    description,
+                    gate,
+                    priceWei,
+                    equippedCycles,
+                    gateRequirement,
+                    UpgradeKind.SOFTWARE,
+                    "",
+                    "",
+                    Durability.PERMANENT,
+                    java.util.List.of());
+        }
+
+        /** An ordinary offering with search tags. */
+        public Offering(
+                String id,
+                String name,
+                String description,
+                UnlockGate gate,
+                BigInteger priceWei,
+                long equippedCycles,
+                String gateRequirement,
+                java.util.List<String> tags) {
+            this(
+                    id,
+                    name,
+                    description,
+                    gate,
+                    priceWei,
+                    equippedCycles,
+                    gateRequirement,
+                    UpgradeKind.SOFTWARE,
+                    "",
+                    "",
+                    Durability.PERMANENT,
+                    tags);
+        }
+
+        /** A consumable — spent, or bought again for the next use. See {@link Durability}. */
+        public static Offering consumable(
+                String id,
+                String name,
+                String description,
+                BigInteger priceWei,
+                long equippedCycles,
+                java.util.List<String> tags) {
+            return new Offering(
+                    id,
+                    name,
+                    description,
+                    UnlockGate.ETHECOIN,
+                    priceWei,
+                    equippedCycles,
+                    "",
+                    UpgradeKind.SOFTWARE,
+                    "",
+                    "",
+                    Durability.CONSUMABLE,
+                    tags);
+        }
+
+        /**
+         * Whether this offering answers a search.
+         *
+         * <p>⚠ Matches the NAME, the DESCRIPTION and the TAGS. Tags alone would miss a player typing
+         * a word straight off the card they are looking at, and name alone would make the tags
+         * decorative — the point of a tag is to find something whose name you do not know.
+         *
+         * @param query lower-cased, already trimmed
+         * @return whether it matches
+         */
+        public boolean matches(String query) {
+            if (query == null || query.isBlank()) {
+                return true;
+            }
+            String needle = query.toLowerCase(java.util.Locale.ROOT);
+            return name.toLowerCase(java.util.Locale.ROOT).contains(needle)
+                    || description.toLowerCase(java.util.Locale.ROOT).contains(needle)
+                    || tags.stream().anyMatch(tag -> tag.contains(needle));
         }
 
         public Offering {
             kind = kind == null ? UpgradeKind.SOFTWARE : kind;
+            durability = durability == null ? Durability.PERMANENT : durability;
+            // ⚠ Lower-cased at construction, so search never has to. A tag that differed only in case
+            // would be a second tag nobody could tell from the first — the shelf would show two
+            // "Defence" filters returning different sets.
+            tags = tags == null
+                    ? java.util.List.of()
+                    : tags.stream()
+                            .map(tag -> tag.toLowerCase(java.util.Locale.ROOT).trim())
+                            .filter(tag -> !tag.isBlank())
+                            .distinct()
+                            .toList();
             requiresSchematic = requiresSchematic == null ? "" : requiresSchematic;
             stopsTool = stopsTool == null ? "" : stopsTool;
             // ⚠ Firmware without a schematic would be a permanent capability reachable with money
@@ -105,16 +226,18 @@ public final class Catalogue {
      */
     public static List<Offering> offerings() {
         return List.of(
-                new Offering(
+                // ⚠ CONSUMABLE: a canary is planted and spent. It is bought repeatedly, which is
+                // what makes it the right side of a sale — a discount changes a decision a player
+                // makes often and never accumulates into a capability.
+                Offering.consumable(
                         "canary-token",
                         "Canary Token",
                         "A file with no purpose but to tell you somebody touched it, and to tag who. "
                                 + "The cheapest useful detection in the game, and the only one with "
                                 + "essentially no false alarms — nothing legitimate ever opens it.",
-                        UnlockGate.ETHECOIN,
                         Balance.DEFENSE_CANARY_PRICE,
                         Balance.DEFENSE_CANARY_CYCLES,
-                        ""),
+                        java.util.List.of("defence", "detection", "tripwire", "cheap", "starter")),
                 new Offering(
                         "tarpit",
                         "Tarpit",
@@ -123,7 +246,8 @@ public final class Catalogue {
                         UnlockGate.ETHECOIN,
                         Balance.DEFENSE_TARPIT_PRICE,
                         Balance.DEFENSE_TARPIT_CYCLES,
-                        ""),
+                        "",
+                        java.util.List.of("defence", "delay", "intruder", "response")),
                 // ── the sweep ladder (docs/design/17) ────────────────────────────────────────────
                 //
                 // ⚠ Both are ETHECOIN-gated, and that classification is the ordered procedure in
@@ -146,7 +270,8 @@ public final class Catalogue {
                         UnlockGate.ETHECOIN,
                         Balance.NET_SWEEP_WIDE_PRICE,
                         0,
-                        ""),
+                        "",
+                        java.util.List.of("recon", "sweep", "discovery", "network", "scanning")),
                 new Offering(
                         "net-sweep-deep",
                         "Net Sweep (Deep)",
@@ -155,16 +280,18 @@ public final class Catalogue {
                         UnlockGate.ETHECOIN,
                         Balance.NET_SWEEP_DEEP_PRICE,
                         0,
-                        ""),
-                new Offering(
+                        "",
+                        java.util.List.of("recon", "sweep", "discovery", "network", "scanning", "sensitive")),
+                // ⚠ CONSUMABLE, and the offering's own text says why: "charged per session rather
+                // than owned". This is the one entry where the classification is not a judgement.
+                Offering.consumable(
                         "relay-hop",
                         "Relay hop (one session)",
                         "One more hop in a relay chain. Harder to trace, slower to act — the trade is "
                                 + "the point, and it is charged per session rather than owned.",
-                        UnlockGate.ETHECOIN,
                         Balance.RELAY_HOP_UPKEEP,
                         0,
-                        ""),
+                        java.util.List.of("stealth", "relay", "anonymity", "per-session", "cheap")),
                 new Offering(
                         "detection-array-t1",
                         "Detection Array T1",
@@ -174,7 +301,8 @@ public final class Catalogue {
                         BigInteger.ZERO,
                         Balance.DEFENSE_DETECTION_ARRAY_T1_CYCLES,
                         "Requires the Detection Array schematic. Schematics are found or earned, never "
-                                + "bought — that is what stops ethecoin from buying a ceiling."),
+                                + "bought — that is what stops ethecoin from buying a ceiling.",
+                        java.util.List.of("defence", "detection", "standing", "schematic")),
                 new Offering(
                         "honeypot-stash",
                         "Honeypot Stash",
@@ -184,7 +312,8 @@ public final class Catalogue {
                         BigInteger.ZERO,
                         Balance.DEFENSE_HONEYPOT_STASH_CYCLES,
                         "Requires standing with a faction. Decoy infrastructure would distort the "
-                                + "economy if anyone could simply buy it."),
+                                + "economy if anyone could simply buy it.",
+                        java.util.List.of("defence", "decoy", "deception", "reputation")),
                 new Offering(
                         "auto-counter-daemon",
                         "Auto-Counter Daemon",
@@ -193,7 +322,8 @@ public final class Catalogue {
                         UnlockGate.SCHEMATIC,
                         BigInteger.ZERO,
                         Balance.DEFENSE_AUTO_COUNTER_CYCLES,
-                        "Requires the schematic, and the heaviest standing compute cost of any defence."),
+                        "Requires the schematic, and the heaviest standing compute cost of any defence.",
+                        java.util.List.of("defence", "counter-attack", "automation", "schematic")),
                 // ── firmware (docs/design/11-rig-infrastructure.md §3) ───────────────────────────
                 //
                 // ⚠ THE IMAGE IS THE PURCHASABLE HALF; THE SCHEMATIC IS THE CEILING.
@@ -226,7 +356,12 @@ public final class Catalogue {
                         "",
                         UpgradeKind.FIRMWARE,
                         FIRMWARE_IMPLANT_SCHEMATIC,
-                        MINING_TOOL));
+                        MINING_TOOL,
+                        // ⚠ PERMANENT, and the shallowest band in the game applies to it. Firmware is
+                        // flashed once and kept; a deep discount on it would take a fixed lump out of
+                        // the sink for a purchase a player makes exactly one time.
+                        Durability.PERMANENT,
+                        java.util.List.of("firmware", "mining", "persistence", "schematic", "flash")));
     }
 
     /**

@@ -241,6 +241,36 @@ public final class Balance {
     public static final long POOL_SHARE_NOISE_CYCLES = 2L;
 
     /**
+     * How loud buying from a server you do not own is, in cycles, for as long as the download runs.
+     *
+     * <h2>⚠ The asymmetry is the rule, and it is about WHOSE MACHINE is watching</h2>
+     *
+     * Noise is outbound traffic to a third party ({@code rules/NoiseRules}). So:
+     *
+     * <ul>
+     *   <li><b>Your own home server</b> — silent. The traffic goes to infrastructure you control, and
+     *       an operator does not surveil themselves. This is the same reasoning as <b>I9</b>:
+     *       defending your own rig never makes you wanted.
+     *   <li><b>A LAN server</b> — loud. It is somebody else's machine on somebody else's network, and
+     *       a LAN identity has no proof behind it; a purchase there is exactly the kind of outbound
+     *       transaction the Eye reads.
+     *   <li><b>A foreign federated server</b> — loud, for the same reason. Shopping somewhere you do
+     *       not belong is the observable act.
+     *   <li><b>Solo</b> — loud, matching LAN, because the vendor is not the player's own
+     *       infrastructure in the fiction either.
+     * </ul>
+     *
+     * <p>⚠ It rides on the download TASK rather than being a heat charge, so it is present-tense and
+     * ends by itself when the transfer does. Noise is a rate; heat is what a loud act leaves behind,
+     * and a purchase is not an aggression — turning it into heat would make shopping make you wanted.
+     *
+     * <p>⚠ Rated at the pool-share tier rather than the sweep tier. A purchase is one short outbound
+     * conversation, not an interrogation of somebody's estate, and {@code docs/design/08} §1 rates
+     * noise by what the act actually looks like from outside.
+     */
+    public static final long MARKET_FOREIGN_PURCHASE_NOISE_CYCLES = 3L;
+
+    /**
      * The pool settles up every sixty seconds.
      *
      * <h2>⚠ This exists because the ledger is the artefact, not because the maths needed it</h2>
@@ -619,6 +649,22 @@ public final class Balance {
 
     /** Upstream, bits per second. Asymmetric, the way a real consumer line is. */
     public static final long LINK_UP_BITS = 150_000_000L;
+
+    /**
+     * How fast this rig unpacks a {@code .tar.xz}.
+     *
+     * <h2>⚠ SLOWER THAN THE LINK, on purpose, and that is the whole teaching</h2>
+     *
+     * {@link #downloadBytesPerSecond()} is 18.75 MB/s. This is deliberately below it, so unpacking
+     * an archive takes visibly longer than fetching it did — which is the true and slightly
+     * surprising thing about {@code xz}: the format trades expensive decompression for small files,
+     * and on a fast line the squeeze, not the wire, is what you wait for.
+     *
+     * <p>⚠ Re-tuning this means re-checking {@link #transferTime} against it. The relationship
+     * between the two is the fact being taught; a decompression rate above the link speed would
+     * teach the opposite, with nothing anywhere reporting a problem.
+     */
+    public static final long EXTRACT_BYTES_PER_SECOND = 6_000_000L;
 
     /**
      * Connection setup, in milliseconds, before a byte moves.

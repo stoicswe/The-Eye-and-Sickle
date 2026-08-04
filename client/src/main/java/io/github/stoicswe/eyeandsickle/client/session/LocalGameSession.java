@@ -31,6 +31,11 @@ import java.util.function.Consumer;
  */
 public final class LocalGameSession implements GameSession {
 
+    /** ⚠ JUL, not SLF4J — the client has no logging dependency and needs none.
+     * Everything logged here is captured by {@code log/ClientLog} for the CLIENT LOGS tab. */
+    private static final java.util.logging.Logger LOG =
+            java.util.logging.Logger.getLogger(LocalGameSession.class.getName());
+
     private final GameEngine game;
     private final List<Consumer<GameSession>> listeners = new CopyOnWriteArrayList<>();
 
@@ -337,6 +342,12 @@ public final class LocalGameSession implements GameSession {
         }
         io.github.stoicswe.eyeandsickle.engine.rules.EventLog.error(
                 game.state(), facility, outcome.message(), game.now());
+        // ⚠ INFO, where a success is FINE. A refusal is the rarer event and the one somebody reading
+        // a log is looking for — "why did nothing happen when I pressed that" is answered here.
+        LOG.log(
+                java.util.logging.Level.INFO,
+                "refused [{0}] status {1}: {2}",
+                new Object[] {facility, outcome.status(), outcome.message()});
         // The log changed, so the toast poller and every log window have something to pick up. Not
         // routed through `changed()` above it, because that one is about GAME state changing and a
         // refusal is by definition the game not changing.
@@ -726,6 +737,112 @@ public final class LocalGameSession implements GameSession {
     @Override
     public Outcome purchase(String offeringId) {
         return announce("rig", purchaseIntent(offeringId));
+    }
+
+    @Override
+    public Outcome purchaseBundle() {
+        return announce("rig", purchaseBundleIntent());
+    }
+
+    @Override
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.DownloadOrder> downloads() {
+        return game.downloads();
+    }
+
+    @Override
+    public Outcome pauseDownload(String orderId) {
+        return announce(
+                "rig",
+                io.github.stoicswe.eyeandsickle.engine.rules.DownloadQueue.pause(game.state(), orderId)
+                        ? changed(Outcome.ok("download held."))
+                        : Outcome.refused("that download is not running."));
+    }
+
+    @Override
+    public Outcome resumeDownload(String orderId) {
+        return announce(
+                "rig",
+                io.github.stoicswe.eyeandsickle.engine.rules.DownloadQueue.resume(game.state(), orderId)
+                        ? changed(Outcome.ok("download resumed."))
+                        : Outcome.refused("that download is not held."));
+    }
+
+    @Override
+    public Outcome moveDownload(String orderId, int delta) {
+        return announce(
+                "rig",
+                io.github.stoicswe.eyeandsickle.engine.rules.DownloadQueue.move(game.state(), orderId, delta)
+                        ? changed(Outcome.ok("queue reordered."))
+                        : Outcome.refused("that download cannot move any further."));
+    }
+
+    @Override
+    public io.github.stoicswe.eyeandsickle.protocol.game.ShadowSnapshot shadowMarket(
+            String itemType, String interval, int candles) {
+        io.github.stoicswe.eyeandsickle.engine.rules.ShadowMarket.Interval width;
+        try {
+            width = io.github.stoicswe.eyeandsickle.engine.rules.ShadowMarket.Interval.valueOf(interval);
+        } catch (IllegalArgumentException | NullPointerException unknown) {
+            // ⚠ Falls back rather than throwing. The interval arrives as a string because it crosses
+            // the port, and a chart that crashed on an unrecognised one would take the window with it.
+            width = io.github.stoicswe.eyeandsickle.engine.rules.ShadowMarket.Interval.M5;
+        }
+        return game.shadowMarket(itemType, width, candles);
+    }
+
+    @Override
+    public java.util.List<String> shadowListings() {
+        return io.github.stoicswe.eyeandsickle.engine.rules.ShadowMarket.listings();
+    }
+
+    @Override
+    public Outcome placeShadowOrder(
+            String itemType, boolean buy, java.math.BigInteger limitPriceWei, int quantity, String heldItemId) {
+        var placed = io.github.stoicswe.eyeandsickle.engine.rules.ShadowMarket.place(
+                game.state(), itemType, buy, limitPriceWei, quantity, heldItemId, game.now());
+        if (!placed.succeeded()) {
+            return announce("market", Outcome.refused(switch (placed.refusal()) {
+                case NOT_LISTED -> "the shadow market does not list that.";
+                case MALFORMED -> "a price and a quantity, both above zero.";
+                case CANNOT_AFFORD -> "not enough ethecoin to escrow that order.";
+                case NOTHING_TO_SELL -> "you have no unequipped copy of that to sell.";
+                case NO_SUCH_ORDER -> "no such order.";
+            }));
+        }
+        return announce(
+                "market",
+                changed(Outcome.ok((buy ? "bid " : "offer ")
+                        + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.format(limitPriceWei)
+                        + " resting. It fills when the market comes to it.")));
+    }
+
+    @Override
+    public Outcome cancelShadowOrder(String orderId) {
+        return announce(
+                "market",
+                io.github.stoicswe.eyeandsickle.engine.rules.ShadowMarket.cancel(game.state(), orderId)
+                        ? changed(Outcome.ok("order withdrawn; the escrow is back."))
+                        : Outcome.refused("no such order."));
+    }
+
+    @Override
+    public Outcome extract(String path) {
+        var started = io.github.stoicswe.eyeandsickle.engine.rules.Archives.begin(game.state(), path, game.now());
+        if (!started.succeeded()) {
+            return announce("storage", Outcome.refused(switch (started.refusal()) {
+                case NOT_FOUND -> "no such file.";
+                case NOT_AN_ARCHIVE -> "that is not an archive -- there is nothing in it to get out.";
+                case ALREADY_RUNNING -> "that archive is already being unpacked.";
+            }));
+        }
+        return announce(
+                "storage",
+                changed(Outcome.ok(String.format(
+                        java.util.Locale.ROOT,
+                        "unpacking %s -- about %ds. xz trades slow decompression for small files, so "
+                                + "this takes longer than the download did.",
+                        io.github.stoicswe.eyeandsickle.engine.fs.VirtualFs.nameOf(path),
+                        started.duration().toSeconds()))));
     }
 
     // ── The breach ────────────────────────────────────────────────────────────────────────────
@@ -1183,6 +1300,49 @@ public final class LocalGameSession implements GameSession {
                 .orElseGet(() -> notEnoughCycles(cycles));
     }
 
+    @Override
+    public io.github.stoicswe.eyeandsickle.protocol.game.MarketWindow market() {
+        var window = io.github.stoicswe.eyeandsickle.engine.rules.MarketDeals.current(game.state(), game.now());
+        return new io.github.stoicswe.eyeandsickle.protocol.game.MarketWindow(
+                game.now(),
+                window.startsAt(),
+                window.endsAt(),
+                window.deals().stream()
+                        .map(deal -> new io.github.stoicswe.eyeandsickle.protocol.game.MarketWindow.Deal(
+                                deal.offeringId(), deal.percentOff(), deal.fullPriceWei(), deal.priceWei()))
+                        .toList(),
+                window.bundle()
+                        .map(bundle -> new io.github.stoicswe.eyeandsickle.protocol.game.MarketWindow.Bundle(
+                                bundle.offeringIds(),
+                                bundle.percentOff(),
+                                bundle.fullPriceWei(),
+                                bundle.priceWei())),
+                io.github.stoicswe.eyeandsickle.engine.rules.MarketStock.restocksAt(game.now()),
+                stockLevels(window));
+    }
+
+    /**
+     * ⚠ Only STOCKED items get a key. A gated offering is absent rather than zero — "0 left" reads as
+     * "come back tomorrow" for something that is never coming, which is the opposite of what a gate
+     * means.
+     */
+    private java.util.Map<String, Integer> stockLevels(
+            io.github.stoicswe.eyeandsickle.engine.rules.MarketDeals.Window window) {
+        var held = new io.github.stoicswe.eyeandsickle.engine.rules.SaveMarketStock(game.state());
+        java.util.Map<String, Integer> out = new java.util.LinkedHashMap<>();
+        for (var offering : io.github.stoicswe.eyeandsickle.engine.Catalogue.offerings()) {
+            if (!offering.purchasable()) {
+                continue;
+            }
+            boolean onOffer = window.dealFor(offering.id()).isPresent();
+            out.put(
+                    offering.id(),
+                    io.github.stoicswe.eyeandsickle.engine.rules.MarketStock.remaining(
+                            held, offering, onOffer, game.now()));
+        }
+        return out;
+    }
+
     private Outcome purchaseIntent(String offeringId) {
         var offering = io.github.stoicswe.eyeandsickle.engine.Catalogue.byId(offeringId);
         if (offering.isEmpty()) {
@@ -1199,13 +1359,17 @@ public final class LocalGameSession implements GameSession {
                     + o.gate().name().toLowerCase(Locale.ROOT).replace('_', '-')
                     + " gate. " + o.gateRequirement());
         }
-        // Already on its way, or already installed. Refused rather than charged twice.
-        if (game.state().items.stream().anyMatch(i -> o.id().equals(i.itemType))) {
-            return Outcome.refused("you already have " + o.name() + ".");
-        }
-        if (io.github.stoicswe.eyeandsickle.engine.net.TransferRules.running(game.state(), "/market/" + o.id() + ".pkg")
-                .isPresent()) {
-            return Outcome.refused(o.name() + " is already downloading.");
+        // ⚠ OWNING ONE IS NO LONGER A REASON TO REFUSE (2026-08-04). Items do not stack — each copy
+        // has its own id, tier and build — so a second Tarpit is a second thing, and a shop that
+        // refused to sell one was answering a question about inventory rather than about money.
+        //
+        // ⚠ What DOES refuse is having nowhere to put it. Bought goods land in the high-risk zone,
+        // and the check counts what is already there plus everything paid for and still on its way:
+        // without that a player queues a hundred against sixty slots and finds out forty installs
+        // later, with the money gone.
+        if (!io.github.stoicswe.eyeandsickle.engine.rules.StorageRules.roomFor(game.state(), 1)) {
+            return Outcome.refused(
+                    io.github.stoicswe.eyeandsickle.engine.rules.StorageRules.noRoomMessage(game.state(), 1));
         }
         // ⚠ THE ITEM IS NOT CREATED HERE ANY MORE (changed 2026-07-29).
         //
@@ -1218,34 +1382,158 @@ public final class LocalGameSession implements GameSession {
         // two — the purchase and a separate TX_FEE line — and only the first is broadcast, so
         // reaching for the end of the ledger gets the fee, which never confirms and would hold the
         // package forever with the money gone.
+        // ⚠ Stock BEFORE the debit. Checking after would take a player's money for a unit the shop
+        // then refuses to hand over — and on a server two buyers racing the last one must resolve to
+        // one sale and one refusal, which only holds if the check and the take bracket the payment.
+        var shelf = io.github.stoicswe.eyeandsickle.engine.rules.MarketDeals.current(game.state(), game.now());
+        var held = new io.github.stoicswe.eyeandsickle.engine.rules.SaveMarketStock(game.state());
+        boolean onOffer = shelf.dealFor(o.id()).isPresent();
+        if (!io.github.stoicswe.eyeandsickle.engine.rules.MarketStock.inStock(held, o, onOffer, game.now())) {
+            return Outcome.refused(o.name() + " is sold out. The shelf restocks daily.");
+        }
+
+        // ⚠ THE DEAL PRICE, not the catalogue price, and this is the ONE place it is resolved.
+        // The storefront renders from the same call, so the shop cannot advertise one number and the
+        // ledger record another — which is the single most damaging thing a sale can get wrong.
+        var deal = shelf.dealFor(o.id());
+        java.math.BigInteger price = deal.map(
+                        io.github.stoicswe.eyeandsickle.engine.rules.MarketDeals.Deal::priceWei)
+                .orElseGet(o::priceWei);
         var paid = game.spend(
-                o.priceWei(),
+                price,
                 "MARKET",
-                "Bought " + o.name(),
+                // ⚠ The ledger row says it was on offer. A player looking back at what they spent
+                // should be able to see why the number is not the catalogue price — otherwise the
+                // history reads as a pricing bug months later.
+                deal.map(d -> "Bought " + o.name() + " (" + d.percentOff() + "% off)")
+                        .orElseGet(() -> "Bought " + o.name()),
                 io.github.stoicswe.eyeandsickle.protocol.game.FeeTier.STANDARD,
                 "");
         if (paid.isEmpty()) {
             return Outcome.refused("not enough ethecoin — " + o.name() + " costs "
-                    + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.ofWei(o.priceWei())
+                    + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.ofWei(price)
                     + ", you have " + balance());
         }
-        var started = io.github.stoicswe.eyeandsickle.engine.net.TransferRules.beginPurchase(
-                game.state(), o.id(), o.id() + ".pkg", paid.get().entryId, game.now());
-        if (!started.succeeded()) {
-            // The money is already gone and the download did not start, which must never happen
-            // silently. Nothing here can currently produce it — the two refusals it can return are
-            // both checked above — so this is the branch that exists to be loud if that stops being
-            // true rather than to be taken.
-            return changed(
-                    Outcome.refused("paid for " + o.name() + ", but the download would not start. `ledger` has the "
-                            + "transaction; the package is not on its way."));
-        }
+        io.github.stoicswe.eyeandsickle.engine.rules.MarketStock.take(held, o.id(), game.now());
+        // ⚠ ENQUEUED, not started. One download progresses at a time — the transfer is commissioned
+        // by the tick when this order reaches the front. ⚠ foreign is decided HERE and carried,
+        // because the noise belongs to the transfer and the transfer may not start for minutes: a
+        // queued purchase makes no racket, since nothing is talking to anybody yet.
+        var order = new io.github.stoicswe.eyeandsickle.engine.state.DownloadOrderState();
+        order.itemType = o.id();
+        // ⚠ Named for the ORDER, so two copies are two files. See Repac.boughtPackageName.
+        order.fileName =
+                io.github.stoicswe.eyeandsickle.engine.rules.Repac.boughtPackageName(o.id(), order.orderId);
+        order.entryId = paid.get().entryId;
+        order.bytes = io.github.stoicswe.eyeandsickle.engine.fs.VirtualFs.upgradeBytes(o.id());
+        order.foreign = true;
+        order.label = o.name();
+        io.github.stoicswe.eyeandsickle.engine.rules.DownloadQueue.enqueue(game.state(), order, game.now());
+
+        int ahead = io.github.stoicswe.eyeandsickle.engine.rules.DownloadQueue.outstanding(game.state()) - 1;
         return changed(Outcome.ok(String.format(
                 Locale.ROOT,
-                "bought %s — downloading %.0f MB to Downloads. It installs once the block carrying "
-                        + "your payment confirms.",
+                ahead > 0
+                        ? "bought %s — %.0f MB, queued behind %d other%s. It installs once the block "
+                                + "carrying your payment confirms."
+                        : "bought %s — downloading %.0f MB to Downloads. It installs once the block "
+                                + "carrying your payment confirms.",
                 o.name(),
-                started.bytes() / (1024.0d * 1024.0d))));
+                order.bytes / (1024.0d * 1024.0d),
+                ahead,
+                ahead == 1 ? "" : "s")));
+    }
+
+    /**
+     * Buys the whole of today's bundle, once, at the bundle price.
+     *
+     * <h2>⚠ ALL OR NOTHING, and every check runs BEFORE the debit</h2>
+     *
+     * A bundle price is quoted for a specific set of things. Selling three-quarters of it at the
+     * full bundle price is a worse outcome than refusing, and refunding half a purchase is a
+     * mechanism this game does not have and should not grow for this. So every member is checked —
+     * still sold, not already owned, not already queued, in stock — and only then does any money
+     * move.
+     *
+     * <h2>⚠ ONE debit and ONE ledger row, which is what the archive hangs off</h2>
+     *
+     * The row's id is carried onto the archive and from there onto every package that comes out of
+     * it, so the whole bundle is released by the one payment that bought it. Looping over
+     * {@link #purchaseIntent} would charge retail per item, write a row each, and quietly throw away
+     * the discount the card advertised.
+     */
+    private Outcome purchaseBundleIntent() {
+        var shelf = io.github.stoicswe.eyeandsickle.engine.rules.MarketDeals.current(game.state(), game.now());
+        var bundle = shelf.bundle();
+        if (bundle.isEmpty()) {
+            return Outcome.refused("there is no bundle on this shelf.");
+        }
+        var members = bundle.get().offeringIds().stream()
+                .map(io.github.stoicswe.eyeandsickle.engine.Catalogue::byId)
+                .flatMap(java.util.Optional::stream)
+                .toList();
+        if (members.size() != bundle.get().offeringIds().size()) {
+            return Outcome.refused("part of that bundle is no longer offered.");
+        }
+
+        var held = new io.github.stoicswe.eyeandsickle.engine.rules.SaveMarketStock(game.state());
+        // ⚠ Room for EVERY member, checked once. A bundle is all-or-nothing, so asking per item
+        // would pass for the first two and fail on the third with the money already gone.
+        if (!io.github.stoicswe.eyeandsickle.engine.rules.StorageRules.roomFor(game.state(), members.size())) {
+            return Outcome.refused(io.github.stoicswe.eyeandsickle.engine.rules.StorageRules.noRoomMessage(
+                    game.state(), members.size()));
+        }
+        for (var member : members) {
+            boolean onOffer = shelf.dealFor(member.id()).isPresent();
+            if (!io.github.stoicswe.eyeandsickle.engine.rules.MarketStock.inStock(
+                    held, member, onOffer, game.now())) {
+                return Outcome.refused(
+                        "the bundle includes " + member.name() + ", which is sold out. The shelf restocks daily.");
+            }
+        }
+
+        var paid = game.spend(
+                bundle.get().priceWei(),
+                "MARKET",
+                "Bought bundle (" + bundle.get().percentOff() + "% off): "
+                        + members.stream()
+                                .map(io.github.stoicswe.eyeandsickle.engine.Catalogue.Offering::name)
+                                .collect(java.util.stream.Collectors.joining(", ")),
+                io.github.stoicswe.eyeandsickle.protocol.game.FeeTier.STANDARD,
+                "");
+        if (paid.isEmpty()) {
+            return Outcome.refused("not enough ethecoin — the bundle costs "
+                    + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.ofWei(bundle.get().priceWei())
+                    + ", you have " + balance());
+        }
+        for (var member : members) {
+            io.github.stoicswe.eyeandsickle.engine.rules.MarketStock.take(held, member.id(), game.now());
+        }
+
+        var order = new io.github.stoicswe.eyeandsickle.engine.state.DownloadOrderState();
+        order.memberItemTypes = members.stream()
+                .map(io.github.stoicswe.eyeandsickle.engine.Catalogue.Offering::id)
+                .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
+        // ⚠ Named after the ORDER, and the order id has to exist first — which it does, because
+        // DownloadOrderState generates one in its field initialiser rather than at enqueue time.
+        order.fileName = io.github.stoicswe.eyeandsickle.engine.rules.Archives.fileName(order.orderId);
+        order.entryId = paid.get().entryId;
+        // ⚠ The SUM of the members, not a made-up archive size. An archive that downloaded faster
+        // than its contents would be xz's compression showing up as free bandwidth, and the whole
+        // point of the format here is that the saving is paid for at extraction instead.
+        order.bytes = members.stream()
+                .mapToLong(member -> io.github.stoicswe.eyeandsickle.engine.fs.VirtualFs.upgradeBytes(member.id()))
+                .sum();
+        order.foreign = true;
+        order.label = "Bundle (" + members.size() + " items)";
+        io.github.stoicswe.eyeandsickle.engine.rules.DownloadQueue.enqueue(game.state(), order, game.now());
+
+        return changed(Outcome.ok(String.format(
+                Locale.ROOT,
+                "bought the bundle — %.0f MB as one %s. Unpack it when it lands; the packages install "
+                        + "once the block carrying your payment confirms.",
+                order.bytes / (1024.0d * 1024.0d),
+                io.github.stoicswe.eyeandsickle.engine.rules.Archives.SUFFIX)));
     }
 
     /** Standing reservations from {@code docs/design/09-defense-and-hardening.md} §1. */
@@ -1378,6 +1666,30 @@ public final class LocalGameSession implements GameSession {
         return outcome;
     }
 
+    /**
+     * ⚠ Logged at the CHOKEPOINT, so coverage cannot drift as intents are added.
+     *
+     * <p>The same reasoning the event bus already follows: instrumenting forty call sites means the
+     * forty-first is written without it and nobody notices. {@code changed()} and {@code announce()}
+     * are the two places every player action passes through, and between them they are the whole
+     * record of what a session did.
+     *
+     * <p>⚠ FINE, not INFO. A busy player produces several of these a second; at INFO they would bury
+     * the handful of lines that describe the client's own lifecycle, which is the alert-fatigue
+     * failure this game has a manual page about.
+     */
+    private void logIntent(String what, Outcome outcome) {
+        LOG.log(
+                java.util.logging.Level.FINE,
+                "intent {0} -> {1} ({2}){3}",
+                new Object[] {
+                    what,
+                    outcome.succeeded() ? "ok" : "refused",
+                    outcome.status(),
+                    outcome.message().isBlank() ? "" : ": " + outcome.message()
+                });
+    }
+
     /** Puts a completed intent on the bus, named for whatever called {@code changed}. */
     private void publishIntent(Outcome outcome) {
         String what = StackWalker.getInstance()
@@ -1387,6 +1699,7 @@ public final class LocalGameSession implements GameSession {
                         .filter(name -> !name.equals("changed") && !name.equals("publishIntent"))
                         .findFirst()
                         .orElse("unknown"));
+        logIntent(what, outcome);
         bus.publish(
                 io.github.stoicswe.eyeandsickle.client.events.EventTypes.of(
                         io.github.stoicswe.eyeandsickle.client.events.EventTypes.INTENT),

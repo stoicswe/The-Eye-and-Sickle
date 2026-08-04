@@ -461,6 +461,68 @@ public final class RemoteGameSession implements GameSession {
         return unavailable();
     }
 
+    @Override
+    public Outcome purchaseBundle() {
+        return unavailable();
+    }
+
+    /**
+     * ⚠ Empty, never a fabricated queue. An online storefront's downloads are the server's, and an
+     * empty list is the honest answer until the transport lands — showing the local queue would be
+     * this client inventing purchases the server has no record of.
+     */
+    @Override
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.DownloadOrder> downloads() {
+        return java.util.List.of();
+    }
+
+    @Override
+    public Outcome pauseDownload(String orderId) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome resumeDownload(String orderId) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome moveDownload(String orderId, int delta) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome extract(String path) {
+        return unavailable();
+    }
+
+    /**
+     * ⚠ Empty, never a locally simulated market. On a server the prints are REAL trades across the
+     * federation, and answering with a simulation would put invented prices on a screen whose whole
+     * subject is what a price is. {@code W-9}.
+     */
+    @Override
+    public io.github.stoicswe.eyeandsickle.protocol.game.ShadowSnapshot shadowMarket(
+            String itemType, String interval, int candles) {
+        return io.github.stoicswe.eyeandsickle.protocol.game.ShadowSnapshot.none(itemType);
+    }
+
+    @Override
+    public java.util.List<String> shadowListings() {
+        return java.util.List.of();
+    }
+
+    @Override
+    public Outcome placeShadowOrder(
+            String itemType, boolean buy, java.math.BigInteger limitPriceWei, int quantity, String heldItemId) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome cancelShadowOrder(String orderId) {
+        return unavailable();
+    }
+
     /**
      * Returns the refusal and records nothing.
      *
@@ -750,4 +812,14 @@ public final class RemoteGameSession implements GameSession {
     public Outcome fileNode(String address, String folderId) {
         return unavailable();
     }
+    /**
+     * ⚠ An EMPTY shelf, not an invented one. CL-8 has not wired the transport, and a storefront that
+     * showed catalogue prices with no deals would be a shop reporting confidently that nothing is on
+     * offer — which is a claim this session cannot make.
+     */
+    @Override
+    public io.github.stoicswe.eyeandsickle.protocol.game.MarketWindow market() {
+        return io.github.stoicswe.eyeandsickle.protocol.game.MarketWindow.none();
+    }
+
 }

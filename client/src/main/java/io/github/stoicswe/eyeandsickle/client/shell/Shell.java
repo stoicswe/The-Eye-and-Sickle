@@ -33,6 +33,10 @@ import java.util.Optional;
  */
 public final class Shell {
 
+    /** ⚠ JUL — captured by {@code log/ClientLog} for the CLIENT LOGS tab. */
+    private static final java.util.logging.Logger LOG =
+            java.util.logging.Logger.getLogger(Shell.class.getName());
+
     private final GameSession session;
     private final CommandRegistry registry;
     private final List<String> history = new ArrayList<>();
@@ -80,6 +84,10 @@ public final class Shell {
             return new Result(List.of(), lastStatus);
         }
         history.add(line);
+        // ⚠ FINER, i.e. TRACE. A shell line is the highest-volume thing a player produces and the
+        // most useful to have when reproducing a report — which is exactly the pair that trace
+        // exists for: captured always, shown only when somebody has gone looking.
+        LOG.log(java.util.logging.Level.FINER, "$ {0}", line);
 
         CommandLine parsed;
         try {
@@ -146,6 +154,17 @@ public final class Shell {
     }
 
     private Result finish(Result result) {
+        // ⚠ The ONE exit point — every path through run() returns through here, including the parse
+        // failure and the pipeline refusal above. Logging at the call sites instead would mean the
+        // next `return` somebody adds is the one that goes unrecorded.
+        if (result.status() != ExitStatus.OK) {
+            LOG.log(
+                    java.util.logging.Level.FINE,
+                    "command exited {0}: {1}",
+                    new Object[] {
+                        result.status(), result.lines().isEmpty() ? "" : result.lines().getFirst()
+                    });
+        }
         lastStatus = result.status();
         return result;
     }

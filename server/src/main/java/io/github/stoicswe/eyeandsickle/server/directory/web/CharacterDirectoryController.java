@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * REST over the character directory: home servers <em>publish</em> signed home records, and clients
@@ -51,6 +52,7 @@ import org.springframework.web.bind.annotation.RestController;
  * authorization is expected to sit in front of this controller as a filter and is a documented, known
  * gap rather than a silent one.
  */
+@Tag(name = "federation")
 @RestController
 @RequestMapping("/api/directory")
 @ConditionalOnProperty(prefix = "eyeandsickle.federation", name = "enabled", havingValue = "true")

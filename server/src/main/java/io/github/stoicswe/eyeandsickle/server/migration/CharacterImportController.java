@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * REST for the <strong>destination</strong> side of an untrusted, verifiable migration (Option C,
@@ -26,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
  * immigrating account — is the same identity-filter deferral the other character endpoints carry, and the
  * cap is the only backstop until it is wired.
  */
+@Tag(name = "federation")
 @RestController
 @RequestMapping("/api/migration/import")
 /**

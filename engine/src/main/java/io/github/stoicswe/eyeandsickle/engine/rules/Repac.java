@@ -92,6 +92,30 @@ public final class Repac {
     public static final String PAYLOAD_SUFFIX = ".pkg";
 
     /**
+     * What a bought package is called on disk.
+     *
+     * <h2>⚠ A short id in the NAME, because two copies must be two files</h2>
+     *
+     * A player may now buy a second Tarpit while the first is still in Downloads, and a filesystem
+     * where both are {@code tarpit.pkg} is broken in a way that shows up everywhere at once:
+     * {@link #find} resolves a path to <em>the first</em> match, so Get Info describes one of them,
+     * {@link #install} consumes one of them and {@code rm} deletes one of them, with nothing on
+     * screen saying which. The id makes the path the identifier it is supposed to be.
+     *
+     * <p>⚠ Six characters, not the whole UUID. It is a disambiguator a player reads in {@code ls} and
+     * types into {@code install}; a 36-character stem would push every other column off the line. The
+     * item's own {@code itemId} stays the full identity — this only has to be unique among the
+     * handful of packages one rig holds at once.
+     *
+     * @param itemType the catalogue id
+     * @param orderId the purchase this copy came from
+     */
+    public static String boughtPackageName(String itemType, String orderId) {
+        String tag = orderId == null || orderId.length() < 6 ? "000000" : orderId.substring(0, 6);
+        return itemType + "-" + tag + PAYLOAD_SUFFIX;
+    }
+
+    /**
      * What a resold upgrade fetches, as a fraction of its catalogue price, in percent.
      *
      * <p>⚠ Below retail on purpose and by a wide margin. At parity, stealing and reselling would
@@ -276,7 +300,6 @@ public final class Repac {
         NOT_INSTALLABLE,
 
         /** Already owned; installing a second copy would do nothing. */
-        ALREADY_OWNED,
 
         /** ⚠ Gated by something other than money, so it cannot be turned into money. See I2. */
         NOT_SELLABLE,
@@ -385,16 +408,13 @@ public final class Repac {
         if (!"package".equals(file.kind) || file.itemType.isBlank()) {
             return Result.refused(Refusal.NOT_INSTALLABLE, file.name + " is not an installable upgrade.");
         }
-        boolean owned = save.items.stream().anyMatch(i -> file.itemType.equals(i.itemType));
-        if (owned) {
-            // Refused rather than silently consumed. A player who installs a duplicate and watches
-            // the file vanish for nothing has been robbed by their own interface — and the duplicate
-            // is worth real ethecoin on the secondary market, which the refusal points at.
-            return Result.refused(
-                    Refusal.ALREADY_OWNED,
-                    "You already have " + displayName(file.itemType)
-                            + ". This copy is worth more sold than installed.");
-        }
+        // ⚠ A DUPLICATE INSTALLS (2026-08-04). This used to refuse, on the reasoning that a player
+        // who installs a second copy and watches the file vanish for nothing has been robbed by
+        // their own interface — which was right while a copy was worth more sold than installed and
+        // wrong once items stopped being one-per-type. They do not stack: each has its own
+        // `itemId`, its own tier and its own build, so a second copy is a second thing rather than a
+        // number going up. The warning survives where it belongs — `manifest()` still reports
+        // `owned`, so the package panel says you already have one BEFORE anything is consumed.
 
         // ── firmware: two conditions, in the order the player can act on them ─────────────────
         //
@@ -430,7 +450,14 @@ public final class Repac {
         ItemState item = new ItemState();
         item.itemType = file.itemType;
         item.displayName = displayName(file.itemType);
-        item.tier = StorageTier.VAULT.name();
+        // ⚠ A BOUGHT item lands in the HIGH-RISK zone, not the vault, and the player files it
+        // themselves. The vault is meant to be a decision — goods you have not put away are goods
+        // anybody can take — and a purchase that filed itself safely would make `design/01` §6's
+        // tiers a setting nobody ever touches. A STOLEN item keeps the vault: you already carried
+        // the risk of taking it, and charging it again on arrival is the same tax twice.
+        item.tier = TransferRules.VENDOR.equals(file.sourceAddress)
+                ? StorageRules.ARRIVALS.name()
+                : StorageTier.VAULT.name();
         item.acquiredAt = now;
         item.origin = file.sourceAddress.isBlank() ? "recovered" : "taken from " + file.sourceAddress;
         // The build carries over from the package. Without this an installed tool would have no
@@ -770,7 +797,9 @@ public final class Repac {
                 : save.files.stream().filter(f -> f.directory.equals(d)).toList();
     }
 
-    private static String displayName(String itemType) {
+    /** The catalogue name for an item type. ⚠ Package-private, not private: {@code ShadowMarket}
+     * names the same items and a second copy of this lookup would drift the moment one was renamed. */
+    static String displayName(String itemType) {
         return Catalogue.byId(itemType).map(Catalogue.Offering::name).orElse(itemType);
     }
 

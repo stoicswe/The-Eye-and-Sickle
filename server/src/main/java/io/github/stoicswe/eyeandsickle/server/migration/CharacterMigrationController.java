@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * REST for the <strong>source</strong> side of an untrusted, verifiable migration (Option C,
@@ -30,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
  * is the one-way retire that makes no double-play real (§6.1); it is deliberately separate so taking a
  * bundle does not, by itself, give up the character.
  */
+@Tag(name = "federation")
 @RestController
 @RequestMapping("/api/accounts/{accountDid}/characters/{characterId}/migration")
 /**

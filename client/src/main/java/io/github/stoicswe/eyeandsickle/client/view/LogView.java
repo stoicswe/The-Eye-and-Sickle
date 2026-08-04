@@ -169,7 +169,7 @@ public final class LogView {
         footer.setWrapText(true);
         footer.getStyleClass().add("es-text-secondary");
 
-        // ── the two tabs ──────────────────────────────────────────────────────────────────────
+        // ── the three tabs ────────────────────────────────────────────────────────────────────
         //
         // ⚠ OVERVIEW is everything this window already was, unchanged and in the same order. The
         // EVENTS tab is a debugging surface added beside it, not a replacement — a player who opens
@@ -180,6 +180,8 @@ public final class LogView {
         VBox.setVgrow(list, Priority.ALWAYS);
         Region events = EventLogView.create(session);
         VBox.setVgrow(events, Priority.ALWAYS);
+        Region clientLog = ClientLogView.create();
+        VBox.setVgrow(clientLog, Priority.ALWAYS);
 
         LogTab[] tab = {LogTab.OVERVIEW};
         HBox tabs = new HBox(UiTokens.SPACE_3);
@@ -208,10 +210,11 @@ public final class LogView {
             }
             show(overview, tab[0] == LogTab.OVERVIEW);
             show(events, tab[0] == LogTab.EVENTS);
+            show(clientLog, tab[0] == LogTab.CLIENT);
         };
         applyTab[0].run();
 
-        root.getChildren().addAll(heading, tabs, overview, events);
+        root.getChildren().addAll(heading, tabs, overview, events, clientLog);
         return root;
     }
 

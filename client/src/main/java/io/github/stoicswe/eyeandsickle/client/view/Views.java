@@ -559,6 +559,12 @@ public final class Views {
                 moves.getChildren().add(secondary("Select a slot to move what is in it."));
             } else {
                 moves.getChildren().add(Ui.small(picked.displayName() + "  →"));
+                // ⚠ The FULL id here, not the short one. This is the inspect surface — it is what
+                // `verify <id>` takes, and a truncated identifier that looks copyable and is not is
+                // worse than none.
+                Label pickedId = Ui.micro(picked.itemId());
+                pickedId.getStyleClass().add("es-slot-id");
+                moves.getChildren().add(pickedId);
                 for (StorageTier target : StorageTier.values()) {
                     if (target == picked.tier()) {
                         continue;
@@ -684,8 +690,11 @@ public final class Views {
                 box.getChildren().add(secondary("(empty)"));
             }
             for (GameSession.InventoryItem item : items) {
-                Label row = new Label(item.displayName() + (item.equipped() ? "  [equipped]" : ""));
+                Label row = new Label(item.displayName()
+                        + (item.equipped() ? "  [equipped]" : "")
+                        + "   " + shortId(item.itemId()));
                 row.getStyleClass().add("es-mono");
+                row.setTooltip(new javafx.scene.control.Tooltip(item.itemId()));
                 if (item.itemId().equals(selected[0])) {
                     row.getStyleClass().add("es-slot-selected");
                 }
@@ -835,6 +844,18 @@ public final class Views {
             // A marker, not a colour — §4.4 wants state to survive greyscale and a screen reader.
             cell.getChildren().add(Ui.micro("[eq]"));
         }
+        // ⚠ THE ID IS ON THE TILE, because items stopped being one-per-type (2026-08-04). Two
+        // Tarpits are two things — different builds, different tiers, different histories — and a
+        // grid of identical names with no way to tell which is which makes every decision about
+        // them a guess. Six characters is what fits and what a player types; the full id is on the
+        // tooltip and in `verify`.
+        Label id = Ui.micro(shortId(item.itemId()));
+        id.getStyleClass().add("es-slot-id");
+        cell.getChildren().add(id);
+        // ⚠ Tooltip.install, not setTooltip — a slot is a VBox and only a Control carries a tooltip
+        // property. The static form is the one that works on any node.
+        javafx.scene.control.Tooltip.install(
+                cell, new javafx.scene.control.Tooltip(item.displayName() + "\n" + item.itemId()));
         cell.getStyleClass().add("es-slot-filled");
         if (item.itemId().equals(selected[0])) {
             cell.getStyleClass().add("es-slot-selected");
@@ -854,8 +875,21 @@ public final class Views {
         draggableItem(cell, item);
         cell.setAccessibleText(item.displayName()
                 + (item.equipped() ? ", equipped" : "")
+                + ", id " + shortId(item.itemId())
                 + ". Select to move it, or drag it to another mount.");
         return cell;
+    }
+
+    /**
+     * The first six characters of an item id.
+     *
+     * <p>⚠ Six, matching {@code Repac.boughtPackageName}'s tag, so a package in Downloads and the
+     * item it installs as read the same length — a player learning to tell two copies apart learns
+     * one habit rather than two. Never used where the id is meant to be copied: a truncated
+     * identifier that looks copyable and is not is worse than showing none.
+     */
+    static String shortId(String itemId) {
+        return itemId == null || itemId.length() < 6 ? String.valueOf(itemId) : itemId.substring(0, 6);
     }
 
     private static GameSession.InventoryItem findItem(GameSession session, String itemId) {

@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * Where a player joins a LAN server: a username in, an identity out.
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
  * ({@code docs/architecture/09-player-state-portability.md} §1). Minting a character here would give
  * anyone who can reach the port an unbounded way to fill the database.
  */
+@Tag(name = "lan")
 @RestController
 @RequestMapping("/api/lan/join")
 public class LanJoinController {

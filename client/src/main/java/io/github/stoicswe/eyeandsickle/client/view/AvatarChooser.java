@@ -48,6 +48,10 @@ import javafx.stage.Window;
  */
 public final class AvatarChooser {
 
+    /** ⚠ JUL — captured by {@code log/ClientLog} for the CLIENT LOGS tab. */
+    private static final java.util.logging.Logger LOG =
+            java.util.logging.Logger.getLogger(AvatarChooser.class.getName());
+
     private AvatarChooser() {}
 
     /** Side of the crop viewport on screen. Larger than the stored image, so cropping is precise. */
@@ -71,7 +75,10 @@ public final class AvatarChooser {
             file = chooser.showOpenDialog(owner);
         } catch (RuntimeException dialogFailed) {
             // A file dialog that will not open is the desktop's problem, not something to end a
-            // session over.
+            // session over. ⚠ Silent ON SCREEN, not silent in the log — "I clicked it and nothing
+            // happened" is unanswerable without this line, and it is the whole reason the CLIENT
+            // LOGS tab exists.
+            LOG.log(java.util.logging.Level.WARNING, "the file dialog would not open", dialogFailed);
             return;
         }
         if (file == null) {
@@ -81,9 +88,11 @@ public final class AvatarChooser {
         try {
             image = new Image(file.toURI().toString(), false);
         } catch (RuntimeException unreadable) {
+            LOG.log(java.util.logging.Level.WARNING, "could not read the chosen picture " + file, unreadable);
             return;
         }
         if (image.isError() || image.getWidth() <= 0 || image.getHeight() <= 0) {
+            LOG.log(java.util.logging.Level.WARNING, "the chosen picture is not a usable image: {0}", file);
             return;
         }
         showCropper(owner, image, handle, onChosen);

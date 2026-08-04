@@ -970,6 +970,29 @@
     -fx-text-fill: -es-amber;
 }
 .list-cell:empty, .table-row-cell:empty { -fx-background-color: -es-void; -fx-border-width: 0; }
+
+/*
+ * CLIENT LOGS — one colour per severity.
+ *
+ * ⚠ TWO-CLASS SELECTORS, and the reason is three lines above: `.list-cell` already sets
+ * -fx-text-fill at one-class specificity, so a bare `.es-log-error` ties with it and the winner is
+ * whichever appears later in the file. That is the trap CLAUDE.md records — a new `.es-thing` whose
+ * text fill silently does nothing while every other property in the same block applies. `.list-cell`
+ * plus the level class is 0,2,0 and beats it whatever the order.
+ *
+ * ⚠ Every colour here is a TOKEN already in ContrastTest's TEXT_TOKENS, so all five are measured
+ * against both panel colours in all six palettes on every build. Reaching for -es-dim-3 to get a
+ * dimmer trace line would be the exact bug that test was written for: it is the greeble token, it is
+ * exempt from the floor, and it vanished on the network map at 1.77:1.
+ *
+ * ⚠ -es-alarm for ERROR is inside §2.1's ration — loss and hostile state, twice a screen. An error
+ * line IS a loss, and a log of them is a screen a player is on because something went wrong.
+ */
+.list-cell.es-log-error { -fx-text-fill: -es-alarm; }
+.list-cell.es-log-warn  { -fx-text-fill: -es-warn; }
+.list-cell.es-log-info  { -fx-text-fill: -es-text; }
+.list-cell.es-log-debug { -fx-text-fill: -es-dim-1; }
+.list-cell.es-log-trace { -fx-text-fill: -es-dim-2; }
 .table-view .column-header,
 .table-view .column-header-background,
 .table-view .filler {
@@ -3115,3 +3138,298 @@
 
 .es-disk-lamp    { -fx-fill: -es-dim-3; }
 .es-disk-lamp-on { -fx-fill: -es-text-hi; }
+
+
+/* ---------------------------------------------------------------------------
+ * MARKET — the storefront.
+ *
+ * ⚠ Every colour is a TOKEN, so the five palettes follow for free and ContrastTest
+ * measures them. In particular the sale price is -es-gain rather than a literal
+ * green: uOS Classic runs the ramp the other way, and a hard-coded colour would be
+ * invisible on one palette or glaring on another — the DiskLamp trap.
+ *
+ * ⚠ -es-alarm is NOT used here. §2.1 rations it to loss and hostile state, twice a
+ * screen; a shop is neither, and painting a sale flash in the colour that means
+ * "you are being attacked" would spend the one signal the interface cannot afford
+ * to dilute. The flash is amber — §2.1's "cycles doing work and income", which is
+ * what a price IS.
+ * --------------------------------------------------------------------------- */
+.es-market-header {
+    -fx-padding: 0 0 6 0;
+    -fx-border-color: transparent transparent -es-rule transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.es-market-balance { -fx-font-size: 15px; }
+.es-market-section { -fx-font-size: 12px; }
+
+/* ⚠ The page needs a GUTTER, and without one a card is not a card. Every card is bounded on all
+ * four sides now, so a page flush to the window body puts each left-hand border on x=0 where the
+ * window's own edge clips it — the cards read as full-bleed bands again, which is the thing the
+ * lift and the hairline were added to stop. More at the foot than the head so the last row of tiles
+ * is not sitting on the window's bottom edge. */
+.es-market { -fx-padding: 12 14 16 14; }
+
+/* A card, in the deck's one card recipe — the same two properties `.es-block` and `.es-package`
+ * carry, because a third spelling of "card" is how a look stops being one look.
+ *
+ * ⚠ LIFTED GROUND, and this is the whole reason these used to read as slabs. A tool window's body
+ * is already `-es-panel` (`WindowFrame`'s inner), so a card filled `-es-panel` is exactly the
+ * colour of what is behind it and only its border — which it did not have — could have said where
+ * it ended. §2.1's "depth from brightness, never shadow" is the only lever available here, since §9
+ * makes drop shadows and blur build-blocking: the lift IS the float.
+ *
+ * ⚠ Correct on uOS Classic for free. That palette runs the ramp the other way, and `-es-panel-hi`
+ * is lighter there too (#F4F4F4 over #E4E4E4) — a card reads as paper raised off the desk rather
+ * than as a hole in it. A literal colour would have inverted. The `DiskLamp` rule.
+ *
+ * ⚠ Square. §9's rounded-corner ban is unamended outside `.es-rounded`. */
+.es-market-card {
+    -fx-background-color: -es-panel-hi;
+    -fx-border-color: -es-rule;
+    -fx-border-width: 1;
+    -fx-padding: 12;
+}
+.es-market-card:hover { -fx-border-color: -es-rule-hi; }
+
+/* ⚠ A one-pixel accent edge, NOT a fill. A filled card would make the deals strip the
+ * brightest thing on the desk, and §4.4 wants position and structure carrying the
+ * emphasis rather than colour shouting it.
+ *
+ * ⚠ TWO CLASSES, AND DECLARED AFTER THE HOVER RULE — both halves are needed. `.es-market-card:hover`
+ * is a class plus a pseudo-class, which is the same 0,2,0 specificity as `.es-market-card.es-market-deal`,
+ * so at equal weight the later rule wins. A one-class `.es-market-deal` would lose outright and the
+ * amber edge would vanish under the pointer — the exact trap `.es-block-yours` records above, which
+ * bit the one card a player is most likely to be pointing at. These two therefore keep a FIXED edge
+ * and take no hover feedback: the edge already means "this is an offer", and brightening it would
+ * make one border say two things. */
+.es-market-card.es-market-deal {
+    -fx-border-color: -es-amber -es-rule -es-rule -es-rule;
+    -fx-border-width: 2 1 1 1;
+}
+.es-market-card.es-market-bundle {
+    -fx-border-color: -es-gain -es-rule -es-rule -es-rule;
+    -fx-border-width: 2 1 1 1;
+}
+
+.es-market-flash {
+    -fx-text-fill: -es-amber;
+    -fx-font-size: 10px;
+    -fx-font-weight: 700;
+}
+/* ⚠ The old price. -es-dim-1, not -es-dim-3: this is TEXT a reader compares against, so it is held
+ * to ContrastTest's floor like every other text token.
+ *
+ * ⚠ THE LINE THROUGH IT IS DRAWN, and `-fx-strikethrough` was here and did NOTHING. That property
+ * belongs to `Text`, not to `Labeled` — `Labeled` has `-fx-underline` and no strikethrough — and
+ * JavaFX drops an unrecognised property without failing, the same way it drops an unknown looked-up
+ * colour (`-es-accent`). It was declared, applied, and never drew a pixel; the shop showed two
+ * prices with nothing saying which was cancelled. `MarketView.struck` draws the rule as a Region.
+ *
+ * ⚠ The rule takes the TEXT's colour, not an accent. A strikethrough is part of the word it crosses;
+ * §2.1 rations `-es-alarm` to loss and hostile state, and a price that is no longer being charged is
+ * neither. */
+.es-market-was {
+    -fx-text-fill: -es-dim-1;
+    -fx-font-size: 11px;
+}
+.es-market-was-rule { -fx-background-color: -es-dim-1; }
+
+/* An item's short id, on its storage tile and in the ROWS listing.
+ * ⚠ `-es-dim-1`, not `-es-dim-3`: this is text a player reads to tell two copies of one tool apart,
+ * so it is held to ContrastTest's floor. The greeble token is exempt from that floor, which is what
+ * made the network map's CONTACT/LOCKED labels vanish. */
+.es-slot-id { -fx-text-fill: -es-dim-1; }
+.es-market-now { -fx-font-size: 14px; }
+.es-market-chip {
+    -fx-text-fill: -es-dim-1;
+    -fx-font-size: 9px;
+}
+.es-market-buy { -fx-min-width: 84; }
+
+
+/* GROUP OF HACKS — the storefront's masthead and shop chrome.
+ *
+ * ⚠ The wordmark is AMBER, which §2.1 already spends on "cycles doing work and income". A shop is
+ * about income, so this is inside the reservation rather than a new meaning — and -es-alarm stays
+ * rationed to loss and hostile state, which a shop is not.
+ *
+ * ⚠ There is deliberately NO account-level nav bar. The deck already carries the player's identity
+ * and balance in its top strip and its navigation on the rail, so a STORE/LIBRARY/COMMUNITY row
+ * inside one window would be the same navigation twice.
+ */
+.es-market-wordmark {
+    -fx-text-fill: -es-amber;
+    -fx-font-size: 17px;
+    -fx-font-weight: 700;
+}
+.es-market-tagline { -fx-text-fill: -es-dim-1; }
+.es-market-masthead {
+    -fx-padding: 2 0 8 0;
+}
+.es-market-nav {
+    -fx-padding: 0 0 8 0;
+    -fx-border-color: transparent transparent -es-rule transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.es-market-search { -fx-min-width: 240; }
+/* ⚠ An unstyled ScrollPane paints Modena's WHITE viewport over a dark theme — style the viewport
+ * too, not just the pane. Recorded on PackageView and true every time. */
+.es-market-scroll,
+.es-market-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+.es-market-scroll { -fx-background-color: transparent; -fx-padding: 0; }
+
+
+/* The offers carousel.
+ *
+ * ⚠ NO transition, NO easing — §5 permits none anywhere and UiContractTest rations AnimationTimer to
+ * two files by name, so a sliding carousel is build-blocking. A page swap is instantaneous, which is
+ * also simply better for reading a price.
+ *
+ * ⚠ The dots are DRAWN Regions, never glyphs. GlyphCoverageTest fails the build on any codepoint
+ * missing from the bundled faces and has already rejected four block elements and the warning sign;
+ * a styled Region cannot be uncovered.
+ */
+.es-market-carousel { -fx-padding: 0; }
+.es-market-stage { -fx-alignment: TOP-LEFT; }
+.es-market-hero { -fx-padding: 16; }
+.es-market-hero-name { -fx-font-size: 15px; }
+.es-market-hero-price { -fx-font-size: 19px; }
+.es-market-saving { -fx-text-fill: -es-gain; }
+
+/* ⚠ Square, per §9 — the rounded-corner ban is unamended and a pill here would need `.es-rounded`.
+ * A 7px square dot reads as a position marker perfectly well. */
+.es-market-dot {
+    -fx-min-width: 7; -fx-pref-width: 7; -fx-max-width: 7;
+    -fx-min-height: 7; -fx-pref-height: 7; -fx-max-height: 7;
+    -fx-background-color: -es-dim-3;
+}
+.es-market-dot-on { -fx-background-color: -es-amber; }
+
+.es-market-arrow {
+    -fx-min-width: 30;
+    -fx-font-size: 13px;
+}
+
+/* THE DOWNLOAD DOCK — what is coming down the wire, over the foot of the store.
+ *
+ * ⚠ It sits ABOVE the page in a StackPane and takes no layout space, so the shelf does not move
+ * when a download starts. Same rule the balance delta had to learn: nothing transient may occupy
+ * space in something that has a width budget.
+ *
+ * ⚠ It needs a ground of its own — `-es-panel-hi` like every card here — because it is floating
+ * over scrolling content and a transparent one would have shelf text running through it. The border
+ * is what separates it from whatever it happens to be covering; §9's ban on shadows means the edge
+ * is the only thing that can do that job.
+ */
+.es-market-dock {
+    -fx-background-color: -es-panel-hi;
+    -fx-border-color: -es-rule-hi;
+    -fx-border-width: 1;
+    -fx-padding: 8 10 8 10;
+}
+.es-market-dock-summary { -fx-min-width: 460; }
+/* ⚠ `-es-dim-1`, not `-es-dim-3`. The greeble token is exempt from ContrastTest's 3:1 floor and
+ * this is text a player reads a state off — the network map is where that already went wrong. */
+.es-market-dock-state { -fx-text-fill: -es-dim-1; }
+/* Held is the one state the player caused, so it is the one that is marked. Amber is inside §2.1's
+ * reservation here rather than beside it: a download is a purchase in flight, which is income
+ * leaving. Not `-es-alarm` — a paused download is not a loss and §2.1 rations alarm to two a screen. */
+.es-market-dock-held { -fx-text-fill: -es-amber; }
+.es-market-dock-contents { -fx-text-fill: -es-dim-1; -fx-padding: 0 0 2 22; }
+.es-market-dock-rule {
+    -fx-min-height: 1; -fx-pref-height: 1; -fx-max-height: 1;
+    -fx-background-color: -es-rule;
+}
+.es-market-dock-row { -fx-padding: 2 0 2 0; }
+.es-market-dock-action { -fx-min-width: 66; -fx-font-size: 10px; }
+.es-market-dock-arrow  { -fx-min-width: 26; -fx-font-size: 11px; }
+.es-market-dock-toggle { -fx-min-width: 26; -fx-font-size: 11px; }
+.es-market-bundle-buy  { -fx-min-width: 132; }
+
+
+/* THE SIZE READOUT — `840 × 520` in a window's corner while it is being resized.
+ *
+ * ⚠ A SOLID ground, not a translucent chip. It is read against whatever the window happens to
+ * contain, and over a table of figures a see-through badge is two sets of numbers on top of each
+ * other. `text-hi` because it is a measurement and measurements are the brightest text there is.
+ *
+ * ⚠ Square. §9's rounded-corner ban is unamended outside `.es-rounded`, and a soft corner on a
+ * readout of a size is the exact case §9.3 singles out — a measurement must not look approximate.
+ *
+ * ⚠ NOT amber. §2.1 spends amber on cycles doing work and income; a window's pixel size is neither,
+ * and it would read as though the number meant something about the game. */
+.es-size-readout {
+    -fx-background-color: -es-panel-hi;
+    -fx-border-color: -es-rule-hi;
+    -fx-border-width: 1;
+    -fx-padding: 3 7 3 7;
+    -fx-text-fill: -es-text-hi;
+    -fx-font-size: 11px;
+}
+
+
+/* SHADOW MARKET — the darknet secondary market, as a trading desk.
+ *
+ * ⚠ The wordmark is `-es-alarm`, and this is the ONE place §2.1's reservation for "loss and hostile
+ * state" is the right reading rather than a borrowed one: this market is hostile state. Nobody here
+ * is bonded, the cheapest offer is the one nobody vouches for, and the money can simply not come
+ * back. GROUP OF HACKS is amber because a shop is income; this is not a shop.
+ *
+ * ⚠ Up and down are `-es-gain` and `-es-alarm` — the tokens the ledger already spends on money
+ * arriving and money lost, which is exactly what a price moving is. Not a new semantic colour
+ * system (§2.1): the same two meanings, on a second surface.
+ */
+.es-shmark-wordmark {
+    -fx-text-fill: -es-alarm;
+    -fx-font-size: 17px;
+    -fx-font-weight: 700;
+}
+.es-shmark-price { -fx-font-size: 19px; }
+.es-shmark-ticker {
+    -fx-padding: 0 0 6 0;
+    -fx-border-color: transparent transparent -es-rule transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.es-shmark-up   { -fx-text-fill: -es-gain; }
+.es-shmark-down { -fx-text-fill: -es-alarm; }
+/* Read off a probe node by the Canvas — a Canvas cannot resolve a looked-up colour, and a hex
+ * literal in Java is what §10 criterion 2 forbids. */
+.es-shmark-grid { -fx-text-fill: -es-rule; }
+.es-shmark-mid {
+    -fx-text-fill: -es-text-hi;
+    -fx-padding: 3 0 3 0;
+    -fx-border-color: -es-rule transparent -es-rule transparent;
+    -fx-border-width: 1 0 1 0;
+}
+/* ⚠ Standing is TEXT a player reads to price a counterparty, so every one of these is held to
+ * ContrastTest's floor. `-es-dim-3` is not available — it is the greeble token, exempt from that
+ * floor, and the network map is where that already went wrong. */
+.es-shmark-trusted { -fx-text-fill: -es-gain; }
+.es-shmark-known   { -fx-text-fill: -es-text; }
+.es-shmark-unrated { -fx-text-fill: -es-dim-1; }
+.es-shmark-shady   { -fx-text-fill: -es-warn; }
+.es-shmark-chart, .es-shmark-book {
+    -fx-border-color: -es-rule;
+    -fx-border-width: 1;
+    -fx-padding: 8;
+}
+.es-shmark-interval { -fx-min-width: 34; -fx-font-size: 10px; }
+.es-shmark-picker   { -fx-min-width: 150; }
+.es-shmark-cancel   { -fx-font-size: 10px; }
+.es-shmark-buy, .es-shmark-sell { -fx-min-width: 78; }
+
+/* The two markets. ⚠ Square, per §9 — the rounded-corner ban is unamended outside `.es-rounded`. */
+.es-market-tabs > .tab-header-area > .headers-region > .tab { -fx-padding: 4 14 4 14; }
+
+/* The buy/sell drawer. ⚠ The handle is the only part visible at rest, so it carries the card recipe
+ * — lifted ground and a hairline — or it reads as a smudge on the panel edge rather than a control. */
+.es-shmark-tab {
+    -fx-background-color: -es-panel-hi;
+    -fx-border-color: -es-rule;
+    -fx-border-width: 1;
+}
+.es-shmark-tab:hover { -fx-border-color: -es-rule-hi; }
+.es-shmark-tab-label { -fx-text-fill: -es-text-hi; -fx-font-size: 10px; }
+.es-shmark-drawer { -fx-padding: 0; }

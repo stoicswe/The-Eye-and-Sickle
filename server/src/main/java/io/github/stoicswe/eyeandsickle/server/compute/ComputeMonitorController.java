@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * REST over the compute ledger: read the rig monitor, and allocate or release cycles.
@@ -48,6 +49,7 @@ import org.springframework.web.bind.annotation.RestController;
  * allocations. Opening a control channel and charging a host for a parasite are cross-rig, deployment
  * -driven operations and are intentionally not exposed as a rig-owner endpoint here.
  */
+@Tag(name = "compute")
 @RestController
 @RequestMapping("/api/rigs/{rigId}/compute")
 public class ComputeMonitorController {

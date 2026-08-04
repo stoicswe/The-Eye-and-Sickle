@@ -119,6 +119,10 @@ public final class DeckShell {
     private final Actions actions;
 
     private final javafx.scene.layout.StackPane root = new javafx.scene.layout.StackPane();
+
+    /** {@code 1280 × 800} in the corner while the window is being dragged, then gone. */
+    private final io.github.stoicswe.eyeandsickle.client.ui.chrome.SizeReadout sizeReadout =
+            new io.github.stoicswe.eyeandsickle.client.ui.chrome.SizeReadout();
     private final BorderPane deckRoot = new BorderPane();
     private final PauseMenu pause;
     private final Notifications notices;
@@ -343,7 +347,23 @@ public final class DeckShell {
         // ⚠ Above the desk and BELOW the pause menu, in the same band as the notices. It hangs off
         // a strip cell, so it has to paint over any window tiled under the strip; and a player who
         // hits Escape mid-report should get the pause menu on top of it rather than behind it.
-        root.getChildren().addAll(deckRoot, notices, balanceDelta, syncBanner, pause, bezel, crt);
+        // ⚠ The OUTER window gets one too, and it is the one players will actually use — the deck's
+        // breakpoints (the rail at NARROW_WIDTH, the cycle grid's 25/20/10 rows) are properties of
+        // this window's width, not of a panel's.
+        // ⚠ Placed UNDER the bezel and the CRT overlay, which paint the screen's edge: a readout on
+        // top of them would sit outside the fiction's screen. Above `deckRoot` so it is not covered
+        // by whatever is on the desk.
+        root.getChildren().addAll(deckRoot, notices, balanceDelta, syncBanner, sizeReadout, pause, bezel, crt);
+        // ⚠ Driven off `root`, not the Stage. A Stage's width includes any OS chrome and is set
+        // before the scene lays out, so it reports a size the deck never has; `root` is the surface
+        // everything inside is measured against, which is the number a player resizing to hit a
+        // breakpoint actually needs.
+        javafx.beans.value.ChangeListener<Number> resized = (obs, was, now) -> {
+            sizeReadout.report(root.getWidth(), root.getHeight());
+            sizeReadout.placeIn(root.getWidth(), root.getHeight());
+        };
+        root.widthProperty().addListener(resized);
+        root.heightProperty().addListener(resized);
 
         buildRail();
         applyPlacementSetting();

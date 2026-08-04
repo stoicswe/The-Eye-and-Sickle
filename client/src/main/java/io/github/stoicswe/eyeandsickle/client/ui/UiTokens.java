@@ -149,6 +149,56 @@ public final class UiTokens {
     public static final double SOCIAL_MARK = 13;
 
     /**
+     * One tile on the market's shelf.
+     *
+     * <p>Fed to a {@code TilePane}, which sizes <b>every</b> tile alike, so this is the shelf's
+     * whole geometry: a store reads as a store because the boxes are the same box repeated, and
+     * ragged tiles read as a list that has been styled rather than a shelf.
+     */
+    public static final double MARKET_CARD_WIDTH = 300;
+
+    /**
+     * The storefront's content column.
+     *
+     * <h2>⚠ ONE measure for the whole page, and that is what makes it a shop</h2>
+     *
+     * The masthead, the search bar, the carousel, the bundle and the shelf all take this and are
+     * centred in whatever the window happens to be. Every real storefront does this, and the reason
+     * is legibility rather than fashion: text that reflows to 2560px is a line nobody's eye tracks
+     * back from, and a shelf that silently goes from three tiles to eight is a different shop at
+     * every window size.
+     *
+     * <p>⚠ A <b>maximum</b>, not a preferred width. A market window narrower than this still works —
+     * the column simply stops being the constraint and the tiles wrap to two, then one.
+     *
+     * <p>Sized to hold three {@link #MARKET_CARD_WIDTH} tiles and their gaps with a little slack, so
+     * the shelf's natural row and the column's edge agree instead of leaving a ragged gutter.
+     */
+    public static final double MARKET_CONTENT_WIDTH = 960;
+
+    /**
+     * The clear space above and below the bundle.
+     *
+     * <p>⚠ On top of the page's own spacing, not instead of it. The bundle is a different <em>kind</em>
+     * of offer from the carousel above it and the shelf below — one price for several things — and
+     * without a band around it the three read as one undifferentiated stack of cards. Inside §2.3's
+     * closed scale, because a bespoke gutter here is the first step towards sixty of them.
+     */
+    public static final double MARKET_BAND_GAP = SPACE_6;
+
+    /**
+     * The Shadow Market's buy/sell drawer handle.
+     *
+     * <p>⚠ A fixed box, because the caption inside it is <b>rotated</b> — a rotation is a transform
+     * and leaves the node's layout bounds alone, so a rotated label left to size itself reserves its
+     * horizontal width and the handle comes out as wide as "BUY / SELL" is long.
+     */
+    public static final double SHMARK_TAB_WIDTH = 22;
+
+    /** @see #SHMARK_TAB_WIDTH */
+    public static final double SHMARK_TAB_HEIGHT = 104;
+
+    /**
      * The drive activity lamp at the head of the command strip.
      *
      * <p>Small on purpose: an indicator lamp that competes with the prompt beside it has stopped

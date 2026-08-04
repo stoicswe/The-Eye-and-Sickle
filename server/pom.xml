@@ -235,6 +235,27 @@
       <version>${bouncycastle.version}</version>
     </dependency>
 
+    <!--
+      OpenAPI 3.1 generation for the REST surface (docs/architecture/14).
+
+      ⚠ The SPEC is the deliverable; Swagger UI comes with the starter and is a
+      convenience. Both are OFF BY DEFAULT — see application.yml. A self-hosted
+      home server is closed by default (allowlist, docs/architecture/03 §1), and
+      an interactive API console answering to whoever can reach the port is not
+      the kind of thing to switch on for somebody else's box without asking.
+
+      ⚠ The `-ui` starter rather than the bare `-api` one, because the two
+      properties that disable them are independent: `springdoc.api-docs.enabled`
+      and `springdoc.swagger-ui.enabled`. Taking the smaller artifact would mean
+      an operator who wants the console has to change a dependency rather than a
+      setting, which is how a documented API ends up undocumented in practice.
+    -->
+    <dependency>
+      <groupId>org.springdoc</groupId>
+      <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+      <version>${springdoc.version}</version>
+    </dependency>
+
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
@@ -262,6 +283,20 @@
         <executions>
           <execution>
             <goals><goal>repackage</goal></goals>
+          </execution>
+          <!--
+            Writes META-INF/build-info.properties, which Boot turns into a
+            BuildProperties bean. The OpenAPI document reads its version from
+            there rather than carrying a literal: a hard-coded version string is
+            correct on the day it is written and wrong from the next release,
+            and a reader has no way to tell a stale one from a current one.
+            ⚠ The bean is ABSENT when the goal has not run (an IDE launch, a
+            plain `mvn test`), so OpenApiConfiguration takes it as an
+            ObjectProvider and falls back rather than failing to start.
+          -->
+          <execution>
+            <id>build-info</id>
+            <goals><goal>build-info</goal></goals>
           </execution>
         </executions>
       </plugin>

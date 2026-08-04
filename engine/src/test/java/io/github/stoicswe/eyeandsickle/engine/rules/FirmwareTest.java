@@ -130,7 +130,9 @@ class FirmwareTest {
                             "",
                             UpgradeKind.FIRMWARE,
                             "",
-                            "mining"))
+                            "mining",
+                            io.github.stoicswe.eyeandsickle.engine.Durability.PERMANENT,
+                            java.util.List.of()))
                     .isInstanceOf(IllegalArgumentException.class)
                     .hasMessageContaining("schematic");
         }

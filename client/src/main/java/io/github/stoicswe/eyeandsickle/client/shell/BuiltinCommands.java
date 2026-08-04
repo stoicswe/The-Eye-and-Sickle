@@ -680,12 +680,20 @@ public final class BuiltinCommands {
                                     i.itemId().equals(item) || i.displayName().equalsIgnoreCase(item))
                             .findFirst()
                             .map(i -> i.hasProvenance()
-                                    ? List.of(i.displayName() + ": chain verified to genesis")
+                                    ? List.of(
+                                            i.displayName() + " (" + i.itemId() + ")",
+                                            "chain verified to genesis")
                                     // Honest rather than reassuring. A solo item has nobody to prove
                                     // anything to, and a chain signed by a key on the same disk would
                                     // prove only that the disk agreed with itself.
                                     : List.of(
-                                            i.displayName() + ": no provenance chain.",
+                                            // ⚠ The id is PRINTED, not merely accepted. `verify`
+                                            // has always taken an itemId and nothing showed one, so
+                                            // the handle existed and was unreachable — and with
+                                            // duplicates allowed it is the only way to say which of
+                                            // two identically named items this is.
+                                            i.displayName() + " (" + i.itemId() + ")",
+                                            "no provenance chain.",
                                             "",
                                             "This is a solo game. Items here are not signed, because there is",
                                             "nobody to prove anything to and nothing to prove it against. A chain",

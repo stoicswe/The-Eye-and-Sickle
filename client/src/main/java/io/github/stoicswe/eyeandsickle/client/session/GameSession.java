@@ -753,6 +753,84 @@ public interface GameSession extends AutoCloseable {
     Outcome purchase(String offeringId);
 
     /**
+     * Buys today's bundle as one act, at the bundle price.
+     *
+     * <h2>⚠ NOT a loop over {@link #purchase}, and that is the whole reason it exists</h2>
+     *
+     * Buying the members one at a time charges the retail price for each and silently discards the
+     * bundle discount — the shop advertising one number and the ledger recording another, which is
+     * the single most damaging thing a sale can get wrong. One call, one debit, one ledger row, one
+     * archive.
+     *
+     * <p>Refused when any member is sold out, already owned or already on its way: a bundle is
+     * all-or-nothing, because a partial one charged the bundle price for fewer things than the
+     * bundle price was quoted for.
+     */
+    Outcome purchaseBundle();
+
+    /**
+     * Everything bought and not yet arrived, in the order it will arrive.
+     *
+     * <p>Empty when nothing is owed. The first entry that is not paused is the one downloading —
+     * flagged on the record rather than left for the client to work out, because deriving it needs
+     * the queue policy and a client holding the policy can predict it wrongly.
+     */
+    List<io.github.stoicswe.eyeandsickle.protocol.game.DownloadOrder> downloads();
+
+    /** Holds a queued download. Pausing the active one promotes the next. */
+    Outcome pauseDownload(String orderId);
+
+    /** Releases a held download. */
+    Outcome resumeDownload(String orderId);
+
+    /**
+     * Moves a download through the queue.
+     *
+     * @param delta how far, negative towards the front
+     */
+    Outcome moveDownload(String orderId, int delta);
+
+    /**
+     * Unpacks a {@code .tar.xz}, which takes real time.
+     *
+     * <p>⚠ Slower than fetching it was — {@code xz} trades expensive decompression for small files,
+     * and on a fast line the squeeze is what you wait for. That is the fact the wait exists to
+     * teach, so it is a task with a countdown rather than an instant rename.
+     */
+    Outcome extract(String path);
+
+    /**
+     * The Shadow Market for one listing.
+     *
+     * <p>⚠ Always answerable, even in solo — the darknet market's listings are readable whether or
+     * not there is anybody real on the other side. In solo the counterparties are simulated; on a
+     * server they are players, and the client cannot tell, which is the point of this port.
+     *
+     * @param itemType which listing
+     * @param interval the candle width, as a {@code ShadowMarket.Interval} name
+     * @param candles how many candles to draw
+     */
+    io.github.stoicswe.eyeandsickle.protocol.game.ShadowSnapshot shadowMarket(
+            String itemType, String interval, int candles);
+
+    /** Everything this market lists. ⚠ Ethecoin-gated items only — I2 and I8. */
+    List<String> shadowListings();
+
+    /**
+     * Rests a limit order.
+     *
+     * <p>⚠ A buy escrows the ethecoin immediately; a sell reserves one specific copy by id. Both are
+     * returned by {@link #cancelShadowOrder}.
+     *
+     * @param heldItemId for a sell, which copy — blank picks any unequipped one
+     */
+    Outcome placeShadowOrder(
+            String itemType, boolean buy, java.math.BigInteger limitPriceWei, int quantity, String heldItemId);
+
+    /** Withdraws an order and returns its escrow in full. */
+    Outcome cancelShadowOrder(String orderId);
+
+    /**
      * Records a refusal the <em>client</em> made before it asked the rules anything.
      *
      * <h2>Why this exists rather than the view printing it somewhere</h2>
@@ -997,4 +1075,16 @@ public interface GameSession extends AutoCloseable {
             return FREE_WINDOWS + Math.max(1, bandwidth);
         }
     }
+    /**
+     * What the market is charging right now, deals included.
+     *
+     * <p>⚠ Read from here rather than from the rules directly. The engine runs on a server for LAN
+     * and federated play, so a view that called {@code MarketDeals} would render a shop in single
+     * player and an empty shelf online.
+     *
+     * @return the current window; {@link io.github.stoicswe.eyeandsickle.protocol.game.MarketWindow#none()}
+     *     when this session cannot price anything
+     */
+    io.github.stoicswe.eyeandsickle.protocol.game.MarketWindow market();
+
 }

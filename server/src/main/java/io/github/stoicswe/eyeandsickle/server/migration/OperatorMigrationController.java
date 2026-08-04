@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * REST for the trusted, cooperative full-state migration (Option B,
@@ -28,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>These paths live under {@code /api/operator/...} rather than the player-facing {@code /api/accounts/...}
  * tree precisely so the two are never confused at the routing layer.
  */
+@Tag(name = "federation")
 @RestController
 @RequestMapping("/api/operator/migration")
 /**

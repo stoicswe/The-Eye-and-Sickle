@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * The game transport — two endpoints, closing the first slice of <b>CL-8</b>.
@@ -34,6 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
  * javadoc says the DID comes "from the authenticated principal in a real deployment". See
  * {@code 13} §4 step 4, where the channel supplies it.
  */
+@Tag(name = "session")
 @RestController
 @RequestMapping("/api/session/{characterId}")
 public class GameSessionController {

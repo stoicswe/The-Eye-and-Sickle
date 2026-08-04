@@ -206,6 +206,13 @@ public final class NodeCommands {
                     "Delete a file from your own rig. Not undoable, and it does not ask.",
                     List.of(),
                     List.of(new CommandArgument("file", "Which file.", true, true))),
+            new NodeCommand(
+                    "unxz",
+                    "Take",
+                    "Unpack a .tar.xz on your own rig. Slower than the download was -- xz trades "
+                            + "expensive decompression for small files.",
+                    List.of(),
+                    List.of(new CommandArgument("archive", "Which archive.", true, true))),
             new NodeCommand("help", "Session", "List these commands.", List.of(), List.of()),
             new NodeCommand("exit", "Session", "Close this shell and hand its cycles back.", List.of(), List.of()));
 
@@ -272,6 +279,7 @@ public final class NodeCommands {
             case "df" -> df(session, address, stage);
             case "get" -> get(session, address, cwd, stage);
             case "rm" -> rm(session, address, cwd, stage);
+            case "unxz" -> unxz(session, cwd, stage);
             case "help" -> help();
             case "exit" -> new Result(List.of("logout"), true);
             default -> Result.of(stage.verb() + ": not implemented");
@@ -474,6 +482,22 @@ public final class NodeCommands {
      * <p>The refusal for somebody else's machine comes from the rules, not from here, so the terminal
      * and the file manager give the same answer for the same reason.
      */
+    /**
+     * ⚠ Named {@code unxz} because that is what really unpacks one, and the manual documents real
+     * command names. An invented {@code extract} would teach a verb no terminal has.
+     *
+     * <p>⚠ It does not take an address. Extraction removes the archive, which is a write — and a
+     * remote write is the thing {@code AccessLog}'s rule refuses. The refusal comes from the rules
+     * rather than from a check here, since the rules are where "this rig's files" is decided.
+     */
+    private static Result unxz(GameSession session, String cwd, CommandLine.Stage stage) {
+        String named = stage.argument(0).orElse("");
+        if (named.isBlank()) {
+            return Result.of("unxz: missing operand");
+        }
+        return Result.of(session.extract(VirtualFs.resolve(cwd, named)).message());
+    }
+
     private static Result rm(GameSession session, String address, String cwd, CommandLine.Stage stage) {
         String named = stage.argument(0).orElse("");
         if (named.isBlank()) {

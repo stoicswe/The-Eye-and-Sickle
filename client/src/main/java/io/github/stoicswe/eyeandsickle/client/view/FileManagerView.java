@@ -20,6 +20,7 @@ import javafx.scene.Node;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
+import io.github.stoicswe.eyeandsickle.engine.rules.Archives;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SeparatorMenuItem;
@@ -634,6 +635,14 @@ public final class FileManagerView {
             MenuItem sell = new MenuItem("Sell on the secondary market");
             sell.setOnAction(event -> refusal.setText(session.sell(entry.path()).message()));
             menu.getItems().addAll(new SeparatorMenuItem(), install, inspect, sell);
+        }
+        // ⚠ Own rig only. Unpacking somebody else's archive over a session would be a remote write,
+        // and AccessLog's rule already holds that a remote actor blanks a log line rather than
+        // deleting one — extraction removes the archive, which is a delete by another name.
+        if (here.rig() && Archives.isArchiveName(entry.name())) {
+            MenuItem extract = new MenuItem("Extract");
+            extract.setOnAction(event -> refusal.setText(session.extract(entry.path()).message()));
+            menu.getItems().addAll(new SeparatorMenuItem(), extract);
         }
         // ⚠ Own rig only, and on ANY file rather than only packages — the point of being able to
         // delete is the accumulated junk, and most of it is not a package. The rules refuse anything

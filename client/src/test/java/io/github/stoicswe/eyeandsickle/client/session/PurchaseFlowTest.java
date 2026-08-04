@@ -115,8 +115,13 @@ class PurchaseFlowTest {
         // ── installed ─────────────────────────────────────────────────────────────────────────
         var installed = Repac.install(game.state(), upg.path(), game.now());
         assertThat(installed.ok()).isTrue();
-        assertThat(session.items(StorageTier.VAULT))
+        // ⚠ THE HIGH-RISK ZONE, not the vault (changed 2026-08-04). Bought goods arrive exposed and
+        // the player files them somewhere safer themselves — the vault is meant to be a decision,
+        // and a purchase that filed itself safely would make design/01 §6's tiers a setting nobody
+        // ever touches. A STOLEN package still lands in the vault: that risk was already carried.
+        assertThat(session.items(StorageTier.HIGH_HACKABLE_ZONE))
                 .anyMatch(i -> i.displayName().equals("Canary Token"));
+        assertThat(session.items(StorageTier.VAULT)).isEmpty();
         assertThat(game.state().files).isEmpty();
     }
 
@@ -186,12 +191,48 @@ class PurchaseFlowTest {
 
         assertThat(session.purchase(OFFERING).succeeded()).isTrue();
         java.math.BigInteger after = session.balance().wei();
-        // ⚠ The download is in flight and there is no item yet, so neither the old "already owned"
-        // check nor a vault scan would catch this. Without the in-flight check the player pays twice
-        // for one tool and the second package collides with the first.
-        assertThat(session.purchase(OFFERING).succeeded()).isFalse();
-        assertThat(session.balance().wei()).isEqualTo(after);
-        assertThat(session.transfers()).hasSize(1);
+
+        // ⚠ A SECOND COPY IS ALLOWED (changed 2026-08-04) and this test used to assert the opposite.
+        // Items stopped stacking: each has its own id, tier and build, so a second Canary Token is a
+        // second thing and a shop that refused to sell one was answering a question about inventory
+        // rather than about money.
+        assertThat(session.purchase(OFFERING).succeeded()).isTrue();
+        assertThat(session.balance().wei())
+                .as("and it is charged again — two things cost twice")
+                .isLessThan(after);
+        assertThat(session.downloads()).as("both are owed").hasSize(2);
+        assertThat(session.transfers())
+                .as("but only one moves at a time — the queue is a queue")
+                .hasSize(1);
+    }
+
+    @Test
+    @DisplayName("⚠ two copies are two FILES, or the path stops being an identifier")
+    void twoCopiesAreTwoFiles(@TempDir Path dir) {
+        Winding clock = new Winding(T0);
+        GameEngine game = GameEngine.open(
+                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("save.json")),
+                "operator",
+                clock);
+        LocalGameSession session = new LocalGameSession(game);
+        game.credit(Balance.ec("500"), "TEST", "seed");
+
+        session.purchase(OFFERING);
+        session.purchase(OFFERING);
+        for (int i = 0; i < 40 && !session.downloads().isEmpty(); i++) {
+            clock.advance(Duration.ofSeconds(5));
+            game.tick();
+        }
+
+        // Both landed, and they are distinguishable. `Repac.find` resolves a path to the FIRST
+        // match, so two files called `canary-token.pkg` would make Get Info describe one of them,
+        // `install` consume one of them and `rm` delete one of them, with nothing on screen saying
+        // which — a filesystem where the path is not an identifier.
+        assertThat(game.state().files).hasSize(2);
+        assertThat(game.state().files.stream().map(f -> f.name).distinct())
+                .as("distinct names")
+                .hasSize(2);
+        assertThat(game.state().files.stream().map(f -> f.fileId).distinct()).hasSize(2);
     }
 
     // ────────────────────────────────────────────────────────────── the installer's manifest

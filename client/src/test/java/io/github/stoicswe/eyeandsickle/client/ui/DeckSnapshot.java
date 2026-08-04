@@ -196,6 +196,20 @@ public final class DeckSnapshot {
             // openStartingWindows defers tiling to runLater, which never fires in a synchronous
             // render. Tiling directly here is the same call it would have made.
             deck.desk().tileAll();
+
+            // ⚠ The size readout only appears AFTER a size change — a window opening at its saved
+            // size is not a resize, and the first report is deliberately swallowed. So a single-pass
+            // render photographs the one state indistinguishable from the feature being absent, and
+            // proving it works needs a second layout at a different size.
+            // ⚠ It also never fades here: the step-down runs on Pulse, and no Pulse frame fires in a
+            // synchronous render — which is exactly what makes it photographable.
+            if (System.getProperty("deck.resize") != null) {
+                double to = Double.parseDouble(System.getProperty("deck.resize"));
+                deck.root().resize(to, height - 40);
+                deck.root().layout();
+                deck.desk().tileAll();
+                deck.root().layout();
+            }
             // ⚠ Opt-in: the chain-sync report only exists after a real absence, so a deck built from
             // a fresh save has nothing to show. `-Ddeck.sync=1` feeds it a literal one through
             // DeckShell's seam, which is the only way to render the banner without doctoring a save's

@@ -65,6 +65,11 @@ import org.springframework.jdbc.core.simple.JdbcClient;
  */
 public final class LocalDatabase {
 
+    /** ⚠ JUL, matching the client's capture. Flyway logs to JUL too, so a migration and
+     * the code that asked for it land in ONE ordered stream on the CLIENT LOGS tab. */
+    private static final java.util.logging.Logger LOG =
+            java.util.logging.Logger.getLogger(LocalDatabase.class.getName());
+
     private final JdbcClient jdbcClient;
     private final Path file;
 
@@ -113,11 +118,18 @@ public final class LocalDatabase {
         // ⚠ Deliberately NOT `baseline-on-migrate`, matching the server. If the history is ever
         // unexpected the honest outcome is a failure, not a silent baseline that pretends the earlier
         // migrations ran — and here the cost of getting that wrong is somebody's character.
-        Flyway.configure()
+        LOG.log(java.util.logging.Level.INFO, "opening character database at {0}", file == null ? "memory" : file);
+        var result = Flyway.configure()
                 .dataSource(dataSource)
                 .locations("classpath:db/migration/engine")
                 .load()
                 .migrate();
+        // ⚠ Says how many ran, which is the difference between "first launch" and "already there" —
+        // the single most useful fact when a character does not appear.
+        LOG.log(
+                java.util.logging.Level.INFO,
+                "character database ready at schema version {0} ({1} migration(s) applied)",
+                new Object[] {result.targetSchemaVersion, result.migrationsExecuted});
         return new LocalDatabase(JdbcClient.create(dataSource), file);
     }
 

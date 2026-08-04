@@ -337,6 +337,13 @@ public final class GameEngine {
         // while the game was closed would sit at 100% forever, never completing and never logging
         // its finding. Offline work belongs on the offline path, next to the miner accrual that
         // already lives here for exactly the same reason.
+        // ⚠ The absence is the delta here, so a queue paused across four days is still paused when
+        // the player returns. Without this every held transfer would find its deadline long past and
+        // complete on the first tick back — the pause doing precisely the opposite of what it says,
+        // and only ever for a player who closed the client.
+        java.time.Duration absence = java.time.Duration.between(save.lastPlayedAt, now);
+        io.github.stoicswe.eyeandsickle.engine.rules.DownloadQueue.settle(
+                save, absence.isNegative() ? java.time.Duration.ZERO : absence, now);
         settleTasks(now);
         // Second sweep, and it is not redundant. Under UI-6's hold-then-recover a finished task only
         // becomes RECOVERING inside settleTasks above, dated from when it ended — so a scan that
@@ -486,6 +493,39 @@ public final class GameEngine {
         }
         boolean changed = false;
 
+        // ⚠ The queue settles BEFORE tasks, and the order matters both ways. A download promoted to
+        // the front needs its transfer commissioned in the same pass it was promoted, or the queue
+        // spends a tick with nothing running; and a HELD transfer needs its clock pushed forward
+        // before settleTasks looks at deadlines, or a task the player paused finishes anyway.
+        changed |= io.github.stoicswe.eyeandsickle.engine.rules.DownloadQueue.settle(save, elapsed, now);
+        // ⚠ The Shadow Market settles on the TICK, not when the panel is open. An order that only
+        // filled while its window was on screen would make the market a thing that happens to people
+        // who are watching, and a player would learn to leave the panel open — which is the opposite
+        // of what a resting order is for.
+        for (var fill : io.github.stoicswe.eyeandsickle.engine.rules.ShadowMarket.settle(
+                save, now, now.getEpochSecond())) {
+            changed = true;
+            EventLog.notice(
+                    save,
+                    "market",
+                    fill.bought()
+                            ? (fill.delivered()
+                                    ? "bought " + fill.itemType() + " on the shadow market from "
+                                            + fill.counterparty() + " for "
+                                            + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.format(
+                                                    fill.price())
+                                    // ⚠ Loud, and the money is NOT returned. That is what a rating is
+                                    // for: an undelivered purchase that refunded itself would make
+                                    // reputation free to ignore.
+                                    : fill.counterparty() + " took your "
+                                            + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.format(
+                                                    fill.price())
+                                            + " and delivered nothing. That is what an unrated seller is.")
+                            : "sold " + fill.itemType() + " on the shadow market to " + fill.counterparty()
+                                    + " for "
+                                    + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.format(fill.price()),
+                    now);
+        }
         // Tasks first: under UI-6 a finished scan releases its held cycles into RECOVERING, and a
         // short scan on a lean rig can finish and fully recover inside one tick. Settling recovery
         // first would leave those cycles a tick behind the readout that just said the scan was done.
@@ -1380,6 +1420,139 @@ public final class GameEngine {
      * <p>A host that is not in the topology at all falls back to tier 1. That is the honest reading
      * rather than a guess: nothing is known about it, so it gets the floor.
      */
+    /**
+     * Everything bought and not yet arrived.
+     *
+     * <h2>⚠ Progress is computed HERE, not in the client</h2>
+     *
+     * The view draws a bar; it does not own the transfer model. Sending {@code startedAt} and
+     * {@code endsAt} and letting it do the arithmetic would put a second copy of that model in the
+     * client, and the two would part company the first time a download was <em>held</em> — which is
+     * precisely the case the readout exists for, since holding works by moving both ends of the
+     * clock and only the rules know that.
+     */
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.DownloadOrder> downloads() {
+        var queue = io.github.stoicswe.eyeandsickle.engine.rules.DownloadQueue.orders(save);
+        if (queue.isEmpty()) {
+            return java.util.List.of();
+        }
+        Instant now = clock.instant();
+        String activeId = io.github.stoicswe.eyeandsickle.engine.rules.DownloadQueue.active(save)
+                .map(order -> order.orderId)
+                .orElse("");
+        java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.DownloadOrder> out =
+                new java.util.ArrayList<>();
+        for (var order : queue) {
+            var task = io.github.stoicswe.eyeandsickle.engine.rules.DownloadQueue.taskFor(save, order);
+            boolean active = order.orderId.equals(activeId);
+            double progress = task.map(t -> t.progressAt(now)).orElse(0.0d);
+            // ⚠ ZERO for anything not moving. A held download's deadline is pushed forward every
+            // tick, so the literal time-until-endsAt is a real number that means nothing — it would
+            // render as "4s left" on a bar that has been frozen for ten minutes.
+            Duration remaining = active
+                    ? task.map(t -> {
+                                Duration left = Duration.between(now, t.endsAt);
+                                return left.isNegative() ? Duration.ZERO : left;
+                            })
+                            .orElse(Duration.ZERO)
+                    : Duration.ZERO;
+            out.add(new io.github.stoicswe.eyeandsickle.protocol.game.DownloadOrder(
+                    order.orderId,
+                    order.label,
+                    order.bytes,
+                    progress,
+                    remaining,
+                    order.paused,
+                    active,
+                    order.isBundle(),
+                    order.memberItemTypes.stream()
+                            .map(id -> io.github.stoicswe.eyeandsickle.engine.Catalogue.byId(id)
+                                    .map(io.github.stoicswe.eyeandsickle.engine.Catalogue.Offering::name)
+                                    .orElse(id))
+                            .toList()));
+        }
+        return out;
+    }
+
+    /**
+     * The Shadow Market for one listing, at one instant.
+     *
+     * <p>⚠ ONE clock reading for the chart, the book, the tape and the form. Building them from
+     * separate calls means separate instants, and a book quoting one price beside a candle drawing
+     * another is the single most damaging thing a trading screen can do.
+     */
+    public io.github.stoicswe.eyeandsickle.protocol.game.ShadowSnapshot shadowMarket(
+            String itemType, io.github.stoicswe.eyeandsickle.engine.rules.ShadowMarket.Interval interval, int candles) {
+        if (itemType == null
+                || !io.github.stoicswe.eyeandsickle.engine.rules.ShadowMarket.listings().contains(itemType)) {
+            return io.github.stoicswe.eyeandsickle.protocol.game.ShadowSnapshot.none(String.valueOf(itemType));
+        }
+        Instant now = clock.instant();
+        java.math.BigInteger mid = io.github.stoicswe.eyeandsickle.engine.rules.ShadowMarket.midAt(save, itemType, now);
+        var candleList = io.github.stoicswe.eyeandsickle.engine.rules.ShadowMarket.candles(
+                save, itemType, interval, candles, now);
+        var book = io.github.stoicswe.eyeandsickle.engine.rules.ShadowMarket.bookAt(save, itemType, now);
+
+        double change = 0;
+        if (!candleList.isEmpty()) {
+            java.math.BigInteger open = candleList.getFirst().open();
+            if (open.signum() > 0) {
+                change = mid.subtract(open).doubleValue() / open.doubleValue() * 100.0d;
+            }
+        }
+        return new io.github.stoicswe.eyeandsickle.protocol.game.ShadowSnapshot(
+                itemType,
+                io.github.stoicswe.eyeandsickle.engine.Catalogue.byId(itemType)
+                        .map(io.github.stoicswe.eyeandsickle.engine.Catalogue.Offering::name)
+                        .orElse(itemType),
+                now,
+                mid,
+                change,
+                candleList.stream()
+                        .map(c -> new io.github.stoicswe.eyeandsickle.protocol.game.ShadowCandle(
+                                c.openedAt(), c.open(), c.high(), c.low(), c.close(), c.volume()))
+                        .toList(),
+                book.bids().stream().map(GameEngine::level).toList(),
+                book.asks().stream().map(GameEngine::level).toList(),
+                io.github.stoicswe.eyeandsickle.engine.rules.ShadowMarket.tape(save, itemType, 24, now).stream()
+                        .map(t -> new io.github.stoicswe.eyeandsickle.protocol.game.ShadowPrint(
+                                t.at(), t.price(), t.size(), t.buyerTaker(), t.handle(), false))
+                        .toList(),
+                shadowOrders(),
+                (int) save.items.stream()
+                        .filter(item -> itemType.equals(item.itemType))
+                        .filter(item -> !item.equipped)
+                        .count());
+    }
+
+    private static io.github.stoicswe.eyeandsickle.protocol.game.ShadowLevel level(
+            io.github.stoicswe.eyeandsickle.engine.rules.ShadowMarket.Level level) {
+        return new io.github.stoicswe.eyeandsickle.protocol.game.ShadowLevel(
+                level.price(),
+                level.size(),
+                level.trader().handle(),
+                level.trader().standing(),
+                level.trader().fillPercent(),
+                false);
+    }
+
+    /** The player's resting Shadow Market orders. */
+    public java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.ShadowOrder> shadowOrders() {
+        return io.github.stoicswe.eyeandsickle.engine.rules.ShadowMarket.orders(save).stream()
+                .map(order -> new io.github.stoicswe.eyeandsickle.protocol.game.ShadowOrder(
+                        order.orderId,
+                        order.itemType,
+                        io.github.stoicswe.eyeandsickle.engine.Catalogue.byId(order.itemType)
+                                .map(io.github.stoicswe.eyeandsickle.engine.Catalogue.Offering::name)
+                                .orElse(order.itemType),
+                        order.buy,
+                        order.limitPriceWei,
+                        order.quantity,
+                        order.placedAt,
+                        order.escrowWei))
+                .toList();
+    }
+
     public io.github.stoicswe.eyeandsickle.protocol.game.UpgradeVersion upgradeVersionFor(
             String itemType, String address) {
         if (itemType == null || itemType.isBlank()) {
@@ -1811,7 +1984,60 @@ public final class GameEngine {
                         task.endsAt);
                 continue;
             }
+            if (io.github.stoicswe.eyeandsickle.engine.rules.Archives.EXTRACT_KIND.equals(task.kind)) {
+                var unpacked = io.github.stoicswe.eyeandsickle.engine.rules.Archives.complete(save, task, task.endsAt);
+                if (unpacked.isEmpty()) {
+                    // ⚠ Says so rather than passing silently. The archive was deleted underneath the
+                    // extraction, and a wait that ends with nothing on disk and nothing in the log is
+                    // indistinguishable from the feature being broken.
+                    EventLog.notice(
+                            save,
+                            "storage",
+                            "an extraction ended with no archive to unpack -- nothing was written.",
+                            task.endsAt);
+                    continue;
+                }
+                EventLog.notice(
+                        save,
+                        "storage",
+                        "extracted " + VirtualFs.nameOf(task.outcome) + ": "
+                                + unpacked.stream().map(file -> file.name).collect(java.util.stream.Collectors.joining(", "))
+                                + ". The archive is gone; the packages install once your payment confirms.",
+                        task.endsAt);
+                continue;
+            }
             if (TransferRules.KIND.equals(task.kind)) {
+                // ⚠ An order is forgotten when its TRANSFER lands, not when its contents install. A
+                // bundle's members sit in Downloads for as long as the player leaves them there, and
+                // a queue that waited for an install would never empty.
+                io.github.stoicswe.eyeandsickle.engine.rules.DownloadQueue.completed(save, task);
+                if (TransferRules.isArchive(task)) {
+                    // ⚠ NOT repacked and NOT locked as a package — an archive is not an upgrade. It
+                    // is a file with things inside it, and what those things are is recorded on the
+                    // file because it is recorded nowhere else.
+                    var archive = io.github.stoicswe.eyeandsickle.engine.rules.Repac.arrive(
+                            save,
+                            TransferRules.destinationOf(task).isBlank()
+                                    ? io.github.stoicswe.eyeandsickle.engine.rules.Repac.defaultDestination(save.handle)
+                                    : TransferRules.destinationOf(task),
+                            VirtualFs.nameOf(TransferRules.pathOf(task)),
+                            TransferRules.addressOf(task),
+                            TransferRules.bytesOf(task),
+                            "",
+                            null,
+                            task.endsAt);
+                    archive.kind = "archive";
+                    archive.archiveItemTypes = new java.util.ArrayList<>(TransferRules.membersOf(task));
+                    archive.lockedByEntryId = TransferRules.entryIdOf(task);
+                    EventLog.notice(
+                            save,
+                            "net",
+                            archive.name + " arrived from " + TransferRules.addressOf(task) + " in "
+                                    + archive.directory + " -- "
+                                    + archive.archiveItemTypes.size() + " packages inside. Extract it to unpack them.",
+                            task.endsAt);
+                    continue;
+                }
                 // Arriving is the whole of it. What the file BECOMES — an item, a schematic, a
                 // recovered fragment — is the receiving rule's business and is deliberately not
                 // decided here; TR-2 in docs/design/15 has what is still open about that.
