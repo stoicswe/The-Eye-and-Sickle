@@ -294,6 +294,12 @@ public final class DeckSnapshot {
             // and NO QUEUED RUNNABLE EXECUTES during a synchronous Scene.snapshot. Without this the
             // glass palettes photograph with nothing behind them — the one state indistinguishable
             // from the feature being absent. Same stand-in as tileAll() above.
+            // ⚠ `-Ddeck.operator=1` slides the operator profile out of the strip. It opens on a
+            // click, and a synchronous render never delivers one — so without this flag the panel
+            // photographs as absent, which is the state indistinguishable from it being broken.
+            if (System.getProperty("deck.operator") != null) {
+                deck.openOperatorPanel();
+            }
             deck.desk().frostNow();
             deck.root().layout();
             // ⚠ `-Ddeck.frostBench=N` times N full re-frosts and prints the cost. The frost is the

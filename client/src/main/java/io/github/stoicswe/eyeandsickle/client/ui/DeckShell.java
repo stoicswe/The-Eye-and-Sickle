@@ -151,6 +151,22 @@ public final class DeckShell {
     private final SyncBanner syncBanner = new SyncBanner();
 
     /**
+     * The OPERATOR cell's profile panel — a second {@link SyncBanner}, not a shared one.
+     *
+     * <p>⚠ Its own instance deliberately. {@code SyncBanner} holds one panel, one clip and one dwell;
+     * sharing it would mean the chain-sync report and the profile evicting each other, and a player
+     * who opened their profile while a sync report was on screen would watch the report vanish with
+     * no explanation. A sliding overlay is cheap — the state it carries is not shareable.
+     */
+    private final SyncBanner operatorPanel = new SyncBanner();
+
+    /** The strip cell the profile hangs from. Held because {@code WrapStrip}'s children are protected. */
+    private Region operatorSlot;
+
+    /** Whether the operator panel is open, so a second click closes it rather than re-showing it. */
+    private boolean operatorOpen;
+
+    /**
      * The money that just moved, drawn under the balance rather than inside it.
      *
      * <p>⚠ An overlay because it is transient: as a cell child it widened the strip while it showed
@@ -354,7 +370,8 @@ public final class DeckShell {
         // ⚠ Placed UNDER the bezel and the CRT overlay, which paint the screen's edge: a readout on
         // top of them would sit outside the fiction's screen. Above `deckRoot` so it is not covered
         // by whatever is on the desk.
-        root.getChildren().addAll(deckRoot, notices, balanceDelta, syncBanner, sizeReadout, pause, bezel, crt);
+        root.getChildren()
+                .addAll(deckRoot, notices, balanceDelta, syncBanner, operatorPanel, sizeReadout, pause, bezel, crt);
         // ⚠ The notices float over the WHOLE deck, so their backdrop is a different capture from any
         // window's — a window sees the desk, a notice sees the desk plus every window on it. Driven
         // from the desk's paced frost clock rather than a second one, so the two cannot drift and the
@@ -501,7 +518,13 @@ public final class DeckShell {
         operatorFace.getStyleClass().add("es-avatar");
         HBox operatorCell = new HBox(UiTokens.SPACE_3, operatorFace, stacked(operator, operatorHex));
         operatorCell.setAlignment(Pos.CENTER_LEFT);
-        topStrip.add(cell(operatorCell));
+        Region operatorSlot = cell(operatorCell);
+        this.operatorSlot = operatorSlot;
+        // ⚠ The cell is now a control, so it says so: a hand cursor is the only cue that the strip
+        // has anything clickable on it, and without one nobody discovers this panel at all.
+        operatorSlot.getStyleClass().add("es-focusable");
+        operatorSlot.setOnMouseClicked(event -> toggleOperatorPanel(operatorSlot));
+        topStrip.add(operatorSlot);
         // The thermometer and the band name together. §2.2.4 requires the name; the thermometer
         // adds "how close to the next band", which the name cannot carry.
         // ⚠ Stacked, not side by side, since the meter turned horizontal on 2026-07-27. `heat` is
@@ -1176,6 +1199,45 @@ public final class DeckShell {
                 .frostsBackdrop());
         // The focused-window outline, same shape: static flag plus a walk of the live frames.
         desk.setFocusRing(profile.appearance().focusRing, profile.appearance().focusRingColor);
+    }
+
+    /**
+     * Slides the operator's profile out of the strip, or puts it away.
+     *
+     * <p>⚠ A TOGGLE, not a show. The cell stays where it is while the panel is open, so a second
+     * click on it has to mean "close" — re-showing would make the one obvious way to dismiss the
+     * panel the one thing that does not.
+     *
+     * <p>⚠ Rebuilt on every open rather than kept. It reports heat, balance and standing, all of
+     * which move while the deck runs, and a panel built once would show whatever was true the first
+     * time it was opened — the same staleness {@code DeskManager} avoids by calling the window
+     * factory afresh.
+     *
+     * @param anchor the strip cell the panel hangs from
+     */
+    private void toggleOperatorPanel(Region anchor) {
+        if (operatorOpen) {
+            operatorPanel.dismiss();
+            operatorOpen = false;
+            return;
+        }
+        operatorOpen = true;
+        operatorPanel.show(
+                anchor,
+                topStrip,
+                io.github.stoicswe.eyeandsickle.client.view.Views.operatorProfile(session, profile),
+                () -> operatorOpen = false);
+    }
+
+    /**
+     * Opens the operator panel. A render seam — the panel exists only after a click, and a
+     * synchronous snapshot never delivers one.
+     */
+    public void openOperatorPanel() {
+        if (operatorSlot != null) {
+            operatorOpen = false;
+            toggleOperatorPanel(operatorSlot);
+        }
     }
 
     /** Applies the desk-window control order (order only; never the side). */

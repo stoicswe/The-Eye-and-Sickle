@@ -1133,7 +1133,6 @@ public class EyeAndSickleClient extends Application {
                         session, arming, nodeActions(), terms, profile);
             case STORAGE -> Views.storage(session);
             case LEDGER -> Views.ledger(session);
-            case IDENTITY -> Views.identity(session);
             case SETTINGS ->
                 Views.settings(
                         profile,

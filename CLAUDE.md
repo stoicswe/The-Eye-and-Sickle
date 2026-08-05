@@ -421,6 +421,21 @@ conditions. ⚠ **Drop shadows and blur are NOT included and stay build-blocking
   light palette one token has to be both the surface a pane lifts off and the recess sunk into it.
   uOS Classic lands on a mid grey for exactly this reason.
 
+⚠ **`GameSession.scanReports()` IS NEWEST FIRST, and the SECURITY CENTER read it backwards
+(2026-08-05).** `GameEngine` reverses the stored list to deliver it that way and the interface says
+so; `SecurityCenterView` called `getLast()`, which is therefore the **oldest** audit on file — so the
+verdict was pinned to the player's very first scan and never moved again. Reported from a rig with
+eleven audits on file still reading *"the last quick audit was clean, but that was a while ago"*
+straight after a full audit.
+⚠ **It is silent and it gets MORE wrong with use**: on a fresh rig the first audit is also the last,
+so the panel is correct exactly until the second scan — the point at which nobody is watching it any
+more. ⚠ `AuditView` consumes the same list correctly, so the contract was right and one caller was
+wrong; **an ordering contract stated only in prose is one `getLast()` away from being inverted.**
+⚠ Fixed behind `SecurityCenterView.latestOf`, pure and package-private **so it can be tested without
+a toolkit** — the same seam `markStateFor` already exists for, and for the same reason: the previous
+verdict bug shipped because the rule lived inside a repaint that needed a live scene to reach.
+Negative-tested against the unfixed code.
+
 ⚠ **Contrast is MEASURED, not assumed — `ui/ContrastTest` (2026-07-30).** It computes real WCAG
 ratios for every text token against `-es-panel` and `-es-panel-hi` in all eight palettes and fails the
 build below **3:1**. It caught the network map drawing CONTACT/LOCKED in `-es-dim-3` — the *greeble*
@@ -1548,6 +1563,36 @@ audits on a timer.
 - ⚠ **No `⚠` glyph in UI strings, and `GlyphCoverageTest` scans SOURCE** — a placeholder literal that
   gets overwritten at runtime still fails the build.
 
+**THE RAIL WAS REORDERED AND IDENTITY REMOVED (2026-08-05).** `WindowSpec`'s declaration order IS
+the rail order (`DeckShell` walks `values()`), so the catalogue is now: rig monitor · security ·
+terminal · files · vaultstore · ledger · network · market · assembl · **COMPort** · log · calc ·
+manual · settings. Fourteen windows.
+
+- ⚠ **`COMMS` KEPT ITS ID and changed only its label** to COMPort. An id keys saved desk layouts and
+  accelerator bindings; renaming it to follow a display name moves three things to change what one
+  screen says. Same rule the liquid themes' ids record.
+- ⚠ **IDENTITY DID NOT SIMPLY GO AWAY — it became the OPERATOR panel.** `Views.operatorProfile`
+  slides out of the top strip's operator cell (a second `SyncBanner`; the chain-sync one is not
+  shared, or the two would evict each other). The operator's name and face were already sitting on
+  the strip doing nothing when clicked, and "who am I" in the rail put identity on the same footing
+  as a tool. ⚠ Everything the window carried — handle, mode, heat, balance — is on the panel, **plus**
+  the identifier and the three standings it never showed. Verified before deleting.
+- ⚠ **The identifier line follows the MODE**: the local UUID in solo, the DID once federated, and the
+  label says which. A solo character has **no DID** structurally — it has no route to a server, which
+  is half of what keeps **I14** true — so a panel that always said "did" would claim an identity that
+  does not exist. `GameSession.identityCard()`; `RemoteGameSession` returns **zero** standings rather
+  than invented ones, because those are the server's to report and the snapshot does not carry them.
+- ⚠ **Three reputations, never merged** — trader, faction (eye/sickle separately), and validator,
+  which is the server's and is deliberately absent. A Sickle hero can be a thief.
+- ⚠ **The panel is REBUILT on every open**, not kept: it reports heat, balance and standing, all of
+  which move while the deck runs.
+- ⚠ **`toggleOperatorPanel` is a TOGGLE.** The cell stays put while the panel is open, so a second
+  click has to close it — re-showing would make the obvious way to dismiss it the one thing that does
+  not. ⚠ The avatar is **unmanaged when absent**, or a character with no picture opens the panel on a
+  96px square of nothing that reads as a failed load.
+- ⚠ **`-Ddeck.operator=1`** on the render harness slides it out; it opens on a click and a synchronous
+  render never delivers one.
+
 **THE WINDOW CATALOGUE WAS RESHAPED (2026-08-04).** `recon`, `breach` and `botnet` → **NETWORK**
 (`view/NetworkView`, in that operational order: find, study, get in, what you left running);
 `mining` → **LEDGER**; `audit` + `defense` → the new **SECURITY CENTER**. New: **ASSEMBL COMPILER**
@@ -1604,6 +1649,34 @@ and **SECURITY CENTER**. Twenty windows became fifteen.
   made. ⚠ The storefront drops schematic-gated items entirely but **keeps the other gates listed**:
   `design/02`'s taxonomy exists so a refusal is legible, and deleting those turns a legible gate into
   a missing item.
+
+**The right-hand column is one TRADE CARD PER HOLDING, and it no longer follows the selection
+(2026-08-05).** `AnonShareView.paintQuote` builds a card per `positions()` entry — name, symbol,
+shares held, price, and its own stepper + Buy + Sell. The POSITIONS table went back to being a table.
+
+- ⚠ **It was a single quote card aimed at WHATEVER WAS LAST CLICKED**, anywhere, including a LISTINGS
+  row glanced at several actions ago. So the one Buy button on the panel pointed at something the
+  player may not have meant, and topping up a holding meant finding it again first. It is derived
+  from `positions()` and nothing else now.
+- ⚠ **Opening a position in something NOT held still goes through the detail overlay** and the
+  right-click `Buy 1`. **Checked before removing the shared ticket** — without it the panel would
+  have had no route to buy anything at all.
+- ⚠ **NO CONTROLS IN THE POSITIONS TABLE.** Buy/Sell in both places puts the same two actions twice
+  on one screen, which is worse than either placement: the player has to work out whether they are
+  the same thing.
+- ⚠ **A STEPPER, NEVER A TEXT FIELD** — the cards are rebuilt by `repaint[0]`, which runs on every
+  `session.onChange` as well as the price cadence, so a `TextField` is torn down mid-keystroke
+  (**UI-7**, `ReconView`). The quantity lives in a map **outside** the rebuild, keyed by symbol, or
+  it resets to one on every price refresh.
+- ⚠ **Sell sells the SAME quantity the stepper shows**, capped at what is held, and says so on the
+  button (`Sell 3`). One number driving both sides. A Sell that quietly disposed of the whole
+  position while the stepper read 3 is the worst surprise this panel could spring.
+- ⚠ **Reset on SUCCESS only** — a count left under the card after it went through is a loaded gun the
+  next click fires; left after a **refusal** the player still wants that many and would have to dial
+  it back up to learn why they cannot have them.
+- ⚠ **The actions are TWO ROWS.** One row of stepper + Buy + Sell overran the narrow side column and
+  JavaFX clipped Sell to `Sel` — a control whose whole meaning is its word. **Found by rendering**,
+  and it fits at a wide window, so a single-width check would have missed it.
 
 **Selecting a share opens a DETAIL OVERLAY; the chart stays the account's (2026-08-05).** Clicking a
 row in LISTINGS or in the search results opens a modal card over the whole panel — name, symbol,

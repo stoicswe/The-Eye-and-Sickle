@@ -3628,6 +3628,23 @@
  * the other. A real finding is exactly the hostile state the token is reserved for. */
 .es-secmark-bio { -fx-fill: transparent; -fx-stroke: -es-alarm; }
 
+/* ── Section illustrations: the detective, the castle, the alarm clock (SectionMark) ───────────
+ *
+ * ⚠ NEUTRAL RAMP ONLY. §2.1 spends amber on cycles doing work and income, and rations `alarm` to
+ * loss and hostile state at twice a screen — which `.es-secmark-*` above already spends entirely on
+ * the verdict. An illustration captioning a section is neither, and colouring one would both claim
+ * a meaning it does not have and compete with the one mark on this panel that is allowed to shout.
+ *
+ * ⚠ `-es-dim-3` is deliberately NOT used: it is the greeble token, exempt from ContrastTest's floor
+ * because it draws texture, and these are shapes a player is meant to recognise. */
+.es-sectionmark-ink  { -fx-fill: -es-dim-1; }
+.es-sectionmark-line { -fx-stroke: -es-dim-1; -fx-fill: transparent; }
+.es-sectionmark-lens { -fx-stroke: -es-text; -fx-fill: transparent; }
+.es-sectionmark-face { -fx-stroke: -es-dim-1; -fx-fill: transparent; }
+/* The castle's gate: the panel showing THROUGH the silhouette rather than a mark painted on it —
+   the same reasoning the casing's vents and ports are drawn with. */
+.es-sectionmark-cut  { -fx-fill: -es-panel; }
+
 /* AnonShare's broker layout: account column, value chart, positions table.
  *
  * ⚠ No gradient fill under the line and no shadow behind the cards — §9 makes both build-blocking.

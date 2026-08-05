@@ -25,7 +25,6 @@ import javafx.scene.input.KeyCombination;
  * #MAX_MINIMUM_WIDTH} exists so a test can enforce it rather than a reviewer having to notice.
  */
 public enum WindowSpec {
-
     /**
      * The compute readout. Never closable, because {@code docs/design/01-core-resources.md} §1.4
      * makes it mandatory and always visible — client pillar C2. It collapses to a strip instead.
@@ -44,6 +43,27 @@ public enum WindowSpec {
             false,
             true),
 
+    /**
+     * The Security Center.
+     *
+     * <p>⚠ Its own tool rather than tabs in the rig monitor. The monitor <em>asks</em> whether
+     * something is wrong; these two are what you do about it, and burying them four tabs into a
+     * window titled something else made the answer harder to reach than the question.
+     */
+    SECURITY(
+            "security",
+            "Security Center",
+            "ps / netstat / df / a firewall console",
+            "What got in, and what was supposed to stop it. Auditing your own rig costs cycles and never heat (I9).",
+            900,
+            620,
+            640,
+            420,
+            KeyCode.DIGIT6,
+            false,
+            true,
+            false),
+
     TERMINAL(
             "terminal",
             "Terminal",
@@ -57,6 +77,73 @@ public enum WindowSpec {
             false,
             true,
             false),
+
+    /**
+     * The file manager.
+     *
+     * <p>⚠ A twentieth window, logged against <b>WL-1</b> with {@code man}, {@code log},
+     * {@code breach} and {@code calc}. It is GNOME Files' shape — places sidebar, breadcrumb path
+     * bar, detail list — because that is the arrangement an Ubuntu user already knows and this
+     * window's purpose is that what a player learns in it transfers to a real machine.
+     *
+     * <p>⚠ The accelerator is <b>H</b>, for Home, and not F. {@code Shortcut+F} is per-window find
+     * (§6.3) and {@code Shortcut+Shift+F} is already spoken for by {@code recon}'s search-all
+     * (§2.6); taking either would break a documented binding to gain a better mnemonic.
+     */
+    FILES(
+            "files",
+            "Files",
+            "nautilus / ls / mount",
+            "Your rig's filesystem, and every machine you hold mounted onto it. Ubuntu's layout, because it is the one worth learning.",
+            980,
+            660,
+            640,
+            440,
+            KeyCode.H,
+            true,
+            true,
+            false),
+
+    /**
+     * Items across the three tiers.
+     *
+     * <p>⚠ Renamed from "Storage" to <b>VaultStore</b> on 2026-07-28, and the id stays
+     * {@code storage} deliberately — the id is what saved desk layouts, accelerator bindings and
+     * {@code window storage} in the shell are keyed on, and renaming it would silently discard every
+     * player's remembered geometry for this window to gain nothing.
+     *
+     * <p>The Unix analogue changed with it: the tiers stopped being mount points at {@code /mnt} and
+     * moved into {@code ~/.VaultStore}, because nobody mounted them and a {@code /mnt/vault} in the
+     * sidebar of a machine an intruder is standing on is a signpost to the one place meant to be safe.
+     */
+    STORAGE(
+            "storage",
+            "VaultStore",
+            "ls ~/.VaultStore",
+            "Your items across the three tiers. Moving one changes how exposed it is.",
+            840,
+            620,
+            560,
+            420,
+            KeyCode.DIGIT3,
+            false,
+            true,
+            false),
+
+    LEDGER(
+            "ledger",
+            "Ledger",
+            "a transaction log",
+            "Every ethecoin movement and what caused it. The audit trail for your own balance.",
+            880,
+            560,
+            600,
+            360,
+            KeyCode.DIGIT4,
+            false,
+            true,
+            false),
+
     /**
      * The network, as a graph you read and a list you sort. <b>The only network tool.</b>
      *
@@ -92,44 +179,7 @@ public enum WindowSpec {
             false,
             true,
             false),
-    /**
-     * Items across the three tiers.
-     *
-     * <p>⚠ Renamed from "Storage" to <b>VaultStore</b> on 2026-07-28, and the id stays
-     * {@code storage} deliberately — the id is what saved desk layouts, accelerator bindings and
-     * {@code window storage} in the shell are keyed on, and renaming it would silently discard every
-     * player's remembered geometry for this window to gain nothing.
-     *
-     * <p>The Unix analogue changed with it: the tiers stopped being mount points at {@code /mnt} and
-     * moved into {@code ~/.VaultStore}, because nobody mounted them and a {@code /mnt/vault} in the
-     * sidebar of a machine an intruder is standing on is a signpost to the one place meant to be safe.
-     */
-    STORAGE(
-            "storage",
-            "VaultStore",
-            "ls ~/.VaultStore",
-            "Your items across the three tiers. Moving one changes how exposed it is.",
-            840,
-            620,
-            560,
-            420,
-            KeyCode.DIGIT3,
-            false,
-            true,
-            false),
-    LEDGER(
-            "ledger",
-            "Ledger",
-            "a transaction log",
-            "Every ethecoin movement and what caused it. The audit trail for your own balance.",
-            880,
-            560,
-            600,
-            360,
-            KeyCode.DIGIT4,
-            false,
-            true,
-            false),
+
     // The core loop (docs/design/05). Given a letter rather than a digit because the digit row is
     // full, and B is the one accelerator a player will reach for without being told.
 
@@ -146,26 +196,7 @@ public enum WindowSpec {
             true,
             true,
             false),
-    /**
-     * The Security Center.
-     *
-     * <p>⚠ Its own tool rather than tabs in the rig monitor. The monitor <em>asks</em> whether
-     * something is wrong; these two are what you do about it, and burying them four tabs into a
-     * window titled something else made the answer harder to reach than the question.
-     */
-    SECURITY(
-            "security",
-            "Security Center",
-            "ps / netstat / df / a firewall console",
-            "What got in, and what was supposed to stop it. Auditing your own rig costs cycles and never heat (I9).",
-            900,
-            620,
-            640,
-            420,
-            KeyCode.DIGIT6,
-            false,
-            true,
-            false),
+
     /**
      * The Assembl Compiler.
      *
@@ -186,22 +217,10 @@ public enum WindowSpec {
             false,
             true,
             false),
-    IDENTITY(
-            "identity",
-            "Identity",
-            "whoami / id",
-            "Your handle, faction standing and heat. Who the Eye thinks you are.",
-            560,
-            640,
-            420,
-            440,
-            KeyCode.I,
-            true,
-            true,
-            false),
+
     COMMS(
             "comms",
-            "Comms",
+            "COMPort",
             "mail / who",
             "Messages and contacts. Who is talking to you, and who can see that they did.",
             720,
@@ -210,19 +229,6 @@ public enum WindowSpec {
             400,
             KeyCode.P,
             true,
-            true,
-            false),
-    SETTINGS(
-            "settings",
-            "Settings",
-            "~/.config",
-            "Theme, teaching level, desk behaviour, notices, pointer and motion.",
-            760,
-            620,
-            560,
-            440,
-            KeyCode.COMMA,
-            false,
             true,
             false),
 
@@ -252,34 +258,6 @@ public enum WindowSpec {
             320,
             KeyCode.L,
             true,
-            true,
-            false),
-
-    /**
-     * The manual and the term index.
-     *
-     * <p>⚠ <b>A sixteenth window that {@code docs/client/05} §2.1's table does not list.</b>
-     * {@code docs/client/04-terminology-and-education.md} §4.6 adds it — "Window id {@code man}
-     * (a fourteenth id — §2.2, <b>T-1</b>)" — and §2.2 of the catalogue document never absorbed it,
-     * because that document added {@code comms} and {@code settings} without knowing about this one.
-     * The two documents therefore disagree about the size of a table both call closed.
-     *
-     * <p>It is included here because the alternative is worse: the teaching layer is client pillar
-     * <b>C6</b>, {@code man} is how a player reaches it deliberately, and a window that exists in one
-     * document and not the other should be resolved by building the thing and reporting the
-     * discrepancy rather than by silently dropping it. Logged against <b>T-1</b> and <b>WL-1</b>.
-     */
-    MAN(
-            "man",
-            "Manual",
-            "man / apropos",
-            "The offline manual. Every term the game uses, and what the real thing is called.",
-            820,
-            680,
-            520,
-            420,
-            KeyCode.SLASH,
-            false,
             true,
             false),
 
@@ -315,28 +293,44 @@ public enum WindowSpec {
             false),
 
     /**
-     * The file manager.
+     * The manual and the term index.
      *
-     * <p>⚠ A twentieth window, logged against <b>WL-1</b> with {@code man}, {@code log},
-     * {@code breach} and {@code calc}. It is GNOME Files' shape — places sidebar, breadcrumb path
-     * bar, detail list — because that is the arrangement an Ubuntu user already knows and this
-     * window's purpose is that what a player learns in it transfers to a real machine.
+     * <p>⚠ <b>A sixteenth window that {@code docs/client/05} §2.1's table does not list.</b>
+     * {@code docs/client/04-terminology-and-education.md} §4.6 adds it — "Window id {@code man}
+     * (a fourteenth id — §2.2, <b>T-1</b>)" — and §2.2 of the catalogue document never absorbed it,
+     * because that document added {@code comms} and {@code settings} without knowing about this one.
+     * The two documents therefore disagree about the size of a table both call closed.
      *
-     * <p>⚠ The accelerator is <b>H</b>, for Home, and not F. {@code Shortcut+F} is per-window find
-     * (§6.3) and {@code Shortcut+Shift+F} is already spoken for by {@code recon}'s search-all
-     * (§2.6); taking either would break a documented binding to gain a better mnemonic.
+     * <p>It is included here because the alternative is worse: the teaching layer is client pillar
+     * <b>C6</b>, {@code man} is how a player reaches it deliberately, and a window that exists in one
+     * document and not the other should be resolved by building the thing and reporting the
+     * discrepancy rather than by silently dropping it. Logged against <b>T-1</b> and <b>WL-1</b>.
      */
-    FILES(
-            "files",
-            "Files",
-            "nautilus / ls / mount",
-            "Your rig's filesystem, and every machine you hold mounted onto it. Ubuntu's layout, because it is the one worth learning.",
-            980,
-            660,
-            640,
-            440,
-            KeyCode.H,
+    MAN(
+            "man",
+            "Manual",
+            "man / apropos",
+            "The offline manual. Every term the game uses, and what the real thing is called.",
+            820,
+            680,
+            520,
+            420,
+            KeyCode.SLASH,
+            false,
             true,
+            false),
+
+    SETTINGS(
+            "settings",
+            "Settings",
+            "~/.config",
+            "Theme, teaching level, desk behaviour, notices, pointer and motion.",
+            760,
+            620,
+            560,
+            440,
+            KeyCode.COMMA,
+            false,
             true,
             false);
 

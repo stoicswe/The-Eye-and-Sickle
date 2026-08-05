@@ -5,16 +5,15 @@ import io.github.stoicswe.eyeandsickle.client.shell.Shell;
 import io.github.stoicswe.eyeandsickle.client.ui.Pulse;
 import io.github.stoicswe.eyeandsickle.client.ui.Ui;
 import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
+import io.github.stoicswe.eyeandsickle.client.ui.widgets.SectionMark;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.SecurityMark;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch;
 import io.github.stoicswe.eyeandsickle.protocol.game.ScanScheduleView;
 import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
-import javafx.geometry.Pos;
 import javafx.scene.control.Button;
 import javafx.scene.control.Label;
-import javafx.scene.control.ScrollPane;
 import javafx.scene.control.Slider;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -90,10 +89,11 @@ public final class SecurityCenterView {
     public static Region create(GameSession session, Shell shell) {
         Section[] section = {Section.HOME};
 
-        Region audit = AuditView.create(session, shell);
-        Region defense = Views.defense(session);
+        Region audit = withMark(AuditView.create(session, shell), SectionMark.Kind.DETECTIVE);
+        Region defense = withMark(Views.defense(session), SectionMark.Kind.CASTLE);
         VBox home = new VBox(UiTokens.SPACE_4);
         VBox schedule = new VBox(UiTokens.SPACE_3);
+        Region scheduleSection = withMark(schedule, SectionMark.Kind.CLOCK);
 
         Label result = new Label();
         result.setWrapText(true);
@@ -106,7 +106,7 @@ public final class SecurityCenterView {
 
         VBox body = new VBox();
         VBox.setVgrow(body, Priority.ALWAYS);
-        body.getChildren().addAll(home, audit, defense, schedule);
+        body.getChildren().addAll(home, audit, defense, scheduleSection);
 
         Runnable[] repaint = new Runnable[1];
         List<Label> chips = new java.util.ArrayList<>();
@@ -134,7 +134,7 @@ public final class SecurityCenterView {
             visible(home, section[0] == Section.HOME);
             visible(audit, section[0] == Section.AUDIT);
             visible(defense, section[0] == Section.DEFENSE);
-            visible(schedule, section[0] == Section.SCHEDULE);
+            visible(scheduleSection, section[0] == Section.SCHEDULE);
         };
 
         // ⚠ Survives the repaint, so the mark's animation is not reset every second. See buildHome.
@@ -189,6 +189,62 @@ public final class SecurityCenterView {
      * <p>⚠ Pure and package-private so it can be tested without a toolkit. The derivation is the part
      * that can be wrong; the rendering is not.
      */
+    /**
+     * The most recent audit, or null if the rig has never been scanned.
+     *
+     * <h2>⚠ {@code scanReports()} IS NEWEST FIRST, and this read it backwards</h2>
+     *
+     * {@code GameSession.scanReports} documents "newest first" and {@code GameEngine} reverses the
+     * stored list to deliver it that way. This panel called {@code getLast()}, which is therefore the
+     * <b>oldest</b> audit on file — so the verdict was pinned to the player's very first scan and
+     * never moved again however many they ran. Reported from a rig with eleven audits on file still
+     * reading "the last quick audit was clean, but that was a while ago".
+     *
+     * <p>⚠ <b>It is silent, and it gets MORE wrong with use.</b> On a fresh rig the first audit is
+     * also the last one, so the panel is correct exactly until the second scan — which is the point
+     * at which nobody is looking at it any more.
+     *
+     * <p>⚠ Pure and package-private <b>so it can be tested without a toolkit</b>, which is the same
+     * reason {@link #markStateFor} is, and for the same reason: the last verdict bug shipped because
+     * the rule lived inside a repaint that needed a live scene to reach. {@code AuditView} consumes
+     * the same list correctly, so the contract was right and only this caller was wrong.
+     *
+     * @param reports the session's audits, newest first
+     * @return the newest, or null if there are none
+     */
+    /**
+     * Puts a section's illustration in its top-right corner, over the section's own content.
+     *
+     * <h2>⚠ An OVERLAY, not a row, and the difference is that the sections are not ours</h2>
+     *
+     * AUDIT is {@code AuditView} and DEFENSE is {@code Views.defense} — both are complete panels that
+     * predate this window and are used elsewhere. Reaching inside them to add a header cell would
+     * mean editing two views to decorate a third, and would put the mark in a different place in each
+     * depending on what their first row happens to be. A {@code StackPane} keeps the mark's placement
+     * identical across all three sections and leaves both views untouched.
+     *
+     * <p>⚠ The mark is <b>mouse-transparent</b> ({@code SectionMark}'s constructor) so it cannot
+     * swallow a click meant for the panel beneath it — the corner of these sections holds real
+     * controls, and a silent dead zone there is the sort of bug nobody manages to describe.
+     *
+     * @param content the section's own panel, untouched
+     * @param kind which illustration
+     * @return the section with its mark laid over the top-right corner
+     */
+    private static Region withMark(Region content, SectionMark.Kind kind) {
+        SectionMark mark = new SectionMark(kind);
+        javafx.scene.layout.StackPane stacked = new javafx.scene.layout.StackPane(content, mark);
+        javafx.scene.layout.StackPane.setAlignment(mark, javafx.geometry.Pos.TOP_RIGHT);
+        javafx.scene.layout.StackPane.setMargin(
+                mark, new javafx.geometry.Insets(UiTokens.SPACE_5, UiTokens.SPACE_6, 0, 0));
+        return stacked;
+    }
+
+    static io.github.stoicswe.eyeandsickle.protocol.game.ScanReport latestOf(
+            java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.ScanReport> reports) {
+        return reports == null || reports.isEmpty() ? null : reports.getFirst();
+    }
+
     static SecurityMark.State markStateFor(boolean everScanned, boolean clean, boolean stale) {
         if (everScanned && !clean) {
             return SecurityMark.State.QUARANTINE;
@@ -206,16 +262,11 @@ public final class SecurityCenterView {
     // ── the verdict ───────────────────────────────────────────────────────────────────────────
 
     private static void buildHome(
-            VBox box,
-            GameSession session,
-            Section[] section,
-            Runnable[] repaint,
-            Label result,
-            SecurityMark[] mark) {
+            VBox box, GameSession session, Section[] section, Runnable[] repaint, Label result, SecurityMark[] mark) {
         box.getChildren().clear();
 
         var reports = session.scanReports();
-        var latest = reports.isEmpty() ? null : reports.getLast();
+        var latest = latestOf(reports);
         // ⚠ The verdict is derived from the LAST SCAN, not from live state, and the distinction is
         // the whole honesty of this panel: a security product can only tell you what it found when
         // it last looked. "Nothing found" and "nobody has looked" are different sentences and a
@@ -237,21 +288,23 @@ public final class SecurityCenterView {
 
         Label lead = new Label("Your rig is");
         lead.getStyleClass().add("es-sec-lead");
-        Label verdict = new Label(switch (markState) {
-            case QUARANTINE -> "Compromised";
-            case CHECK -> everScanned ? "Unverified" : "Unaudited";
-            case CLEAR -> "Clear";
-        });
+        Label verdict = new Label(
+                switch (markState) {
+                    case QUARANTINE -> "Compromised";
+                    case CHECK -> everScanned ? "Unverified" : "Unaudited";
+                    case CLEAR -> "Clear";
+                });
         verdict.getStyleClass().add("es-sec-verdict");
         // ⚠ The ONE place -es-alarm is spent on this screen. §2.1 rations it to loss and hostile
         // state and asks for at most twice a screen; a finding is exactly that, and keeping
         // everything else neutral is what makes the change mean something.
         verdict.getStyleClass()
-                .add(switch (markState) {
-                    case QUARANTINE -> "es-sec-hit";
-                    case CHECK -> "es-sec-unknown";
-                    case CLEAR -> "es-sec-clear";
-                });
+                .add(
+                        switch (markState) {
+                            case QUARANTINE -> "es-sec-hit";
+                            case CHECK -> "es-sec-unknown";
+                            case CLEAR -> "es-sec-clear";
+                        });
         // ⚠ Never ellipsised. This one word is the whole panel; "Compromi..." is worse than no
         // verdict at all, because a player reads the shape rather than the letters and "Clear" and
         // "Compromised" have different shapes only if both are complete.
@@ -269,8 +322,7 @@ public final class SecurityCenterView {
                         ? "Last " + latest.tier() + " audit named " + latest.found()
                                 + (latest.found() == 1 ? " process." : " processes.")
                         : stale
-                                ? "The last " + latest.tier() + " audit was clean, but that was a "
-                                        + "while ago."
+                                ? "The last " + latest.tier() + " audit was clean, but that was a " + "while ago."
                                 // ⚠ The defence gap is STILL SAID, it just no longer drives the
                                 // mark. It is a statement about the future rather than about what is
                                 // on the rig now, and the DEFENSE card carries it too.
@@ -342,8 +394,7 @@ public final class SecurityCenterView {
         // maximum is set. So the column reported itself ~900px wide, the pair did not fit, and the
         // mark dropped to the next row while the panel plainly had room. `setPrefWidth` is the fix;
         // `setMaxWidth` alone looks like it should work and silently does not.
-        javafx.scene.layout.FlowPane top =
-                new javafx.scene.layout.FlowPane(UiTokens.SPACE_6, UiTokens.SPACE_3);
+        javafx.scene.layout.FlowPane top = new javafx.scene.layout.FlowPane(UiTokens.SPACE_6, UiTokens.SPACE_3);
         top.setRowValignment(javafx.geometry.VPos.TOP);
         headline.setPrefWidth(UiTokens.SECURITY_HEADLINE_WIDTH);
         headline.setMaxWidth(UiTokens.SECURITY_HEADLINE_WIDTH);
@@ -389,8 +440,8 @@ public final class SecurityCenterView {
         open_.getStyleClass().add("es-shmark-cancel");
         open_.setOnAction(event -> open.run());
 
-        VBox card = new VBox(UiTokens.SPACE_2, Ui.row(UiTokens.SPACE_3, heading, Ui.spacer(), open_),
-                stateLabel, detailLabel);
+        VBox card = new VBox(
+                UiTokens.SPACE_2, Ui.row(UiTokens.SPACE_3, heading, Ui.spacer(), open_), stateLabel, detailLabel);
         card.getStyleClass().add("es-market-card");
         card.setMaxWidth(UiTokens.SECURITY_CARD_WIDTH);
         return card;
@@ -446,30 +497,29 @@ public final class SecurityCenterView {
         // ⚠ Applied on RELEASE, not on every value change. The slider fires continuously while it is
         // dragged, and writing the schedule on each frame would persist the save dozens of times per
         // drag and light the disk lamp like a fault.
-        every.setOnMouseReleased(event ->
-                apply(session, on.isSelected(), tier[0], (int) Math.round(every.getValue()), result, repaint));
+        every.setOnMouseReleased(
+                event -> apply(session, on.isSelected(), tier[0], (int) Math.round(every.getValue()), result, repaint));
 
-        on.selectedProperty().addListener((o, was, now) ->
-                apply(session, now, tier[0], (int) Math.round(every.getValue()), result, repaint));
+        on.selectedProperty()
+                .addListener((o, was, now) ->
+                        apply(session, now, tier[0], (int) Math.round(every.getValue()), result, repaint));
 
         // ⚠ No warning glyph in the string — U+26A0 is in neither bundled face and
         // GlyphCoverageTest scans SOURCE, so a placeholder literal that gets overwritten at runtime
         // still fails the build. The emphasis is the sentence.
-        Label note = Views.wrapped(
-                "A scheduled audit costs the same cycles as one you run yourself. If the rig cannot "
-                        + "pay when the timer comes round, that audit is skipped rather than queued — a "
-                        + "scan landing at an unpredictable moment could take cycles you were counting "
-                        + "on. However long you are away, at most one scheduled audit runs when you "
-                        + "come back.");
+        Label note = Views.wrapped("A scheduled audit costs the same cycles as one you run yourself. If the rig cannot "
+                + "pay when the timer comes round, that audit is skipped rather than queued — a "
+                + "scan landing at an unpredictable moment could take cycles you were counting "
+                + "on. However long you are away, at most one scheduled audit runs when you "
+                + "come back.");
         note.getStyleClass().add("es-text-secondary");
         note.setMaxWidth(UiTokens.SECURITY_CARD_WIDTH);
 
-        Label next = Ui.micro(view.enabled()
-                ? "Next audit in " + human(view.untilNext()) + "  ·  " + view.cycles() + " cycles"
-                : "");
+        Label next = Ui.micro(
+                view.enabled() ? "Next audit in " + human(view.untilNext()) + "  ·  " + view.cycles() + " cycles" : "");
 
-        box.getChildren().addAll(heading, on, Ui.micro("Depth"), tiers, Ui.micro("How often"), every,
-                everyValue, next, note);
+        box.getChildren()
+                .addAll(heading, on, Ui.micro("Depth"), tiers, Ui.micro("How often"), every, everyValue, next, note);
     }
 
     private static double sliderValue(VBox box) {

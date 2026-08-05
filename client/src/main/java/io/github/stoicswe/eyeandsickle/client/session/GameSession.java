@@ -94,6 +94,35 @@ public interface GameSession extends AutoCloseable {
     /** Long-horizon Eye attention. Distinct from noise, which is short-horizon and decays. */
     int personalHeat();
 
+    /**
+     * Who the player is, for the operator panel that replaced the IDENTITY window.
+     *
+     * <h2>⚠ The identifier is the MODE's identifier, and that is the point of carrying it here</h2>
+     *
+     * A solo character has a local {@code characterId} and <b>no DID</b> — deliberately, and
+     * structurally: {@code CLAUDE.md} records that a solo character has no route to a server, which
+     * is half of what keeps <b>I14</b> true. So this reports the UUID offline and the DID once
+     * federated, and the panel does not have to know which game it is in to label the line.
+     *
+     * <p>⚠ <b>Three reputations, and they may never share a field</b> ({@code design/glossary}):
+     * {@code trader} is whether you deliver what you were paid for, {@code faction} is standing with
+     * the Eye or the Sickle, and {@code validator} is federation trust and is the server's — it is
+     * absent here on purpose rather than by oversight.
+     */
+    IdentityCard identityCard();
+
+    /**
+     * @param handle the operator name
+     * @param identifier the local UUID in solo, the DID once federated
+     * @param federated whether {@code identifier} is a DID rather than a local id
+     * @param heat personal heat
+     * @param trader whether they deliver what they were paid for
+     * @param eye standing with the Eye
+     * @param sickle standing with the Sickle
+     */
+    record IdentityCard(
+            String handle, String identifier, boolean federated, int heat, int trader, int eye, int sickle) {}
+
     List<InventoryItem> items(StorageTier tier);
 
     /**
@@ -1186,5 +1215,4 @@ public interface GameSession extends AutoCloseable {
      *     when this session cannot price anything
      */
     io.github.stoicswe.eyeandsickle.protocol.game.MarketWindow market();
-
 }

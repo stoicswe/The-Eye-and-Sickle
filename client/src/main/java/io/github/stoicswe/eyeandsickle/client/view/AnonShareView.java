@@ -18,9 +18,9 @@ import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.Button;
 import javafx.scene.control.ContextMenu;
+import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
 import javafx.scene.control.MenuItem;
-import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TextInputDialog;
@@ -172,8 +172,10 @@ public final class AnonShareView {
         scrim.setVisible(false);
         scrim.setManaged(false);
 
-        TextField amount = new TextField("1");
-        amount.setPrefWidth(60);
+        // ⚠ Outside the repaint, keyed by symbol — see paintQuote. These cards are rebuilt on every
+        // session change, so a quantity a player has dialled in has to survive that or it is unusable.
+        java.util.Map<String, Integer> buyQty = new java.util.HashMap<>();
+
         TextField detailAmount = new TextField("1");
         detailAmount.setPrefWidth(60);
 
@@ -194,14 +196,16 @@ public final class AnonShareView {
         // ⚠ Zero minimum, or the Canvas's own width becomes the column's floor and the symbol column
         // beside it is pushed off the panel. Same trap as the account row's quote card.
         watchColumn.setMinWidth(0);
-        watchColumn.layoutBoundsProperty().addListener((obs, was, now) ->
-                watchChart.setWidth(Math.max(160, now.getWidth())));
+        watchColumn
+                .layoutBoundsProperty()
+                .addListener((obs, was, now) -> watchChart.setWidth(Math.max(160, now.getWidth())));
 
         Runnable[] relist = new Runnable[1];
         Runnable[] repaint = new Runnable[1];
         repaint[0] = () -> {
             if (session instanceof LocalGameSession local) {
-                local.setShareQuery(search.getText() == null ? "" : search.getText().trim());
+                local.setShareQuery(
+                        search.getText() == null ? "" : search.getText().trim());
             }
             SharesSnapshot snapshot = session.shares(symbol[0]);
             if (snapshot == null) {
@@ -209,18 +213,18 @@ public final class AnonShareView {
                 return;
             }
             last[0] = snapshot;
-            feed.setText(snapshot.feedIsLive()
-                    ? "Live — " + snapshot.feedLabel() + ". $1 = 1 EC."
-                    : "NOT REAL PRICES — " + snapshot.feedLabel()
-                            + ". Add your own API key in Settings → AnonShare for live quotes. $1 = 1 EC.");
+            feed.setText(
+                    snapshot.feedIsLive()
+                            ? "Live — " + snapshot.feedLabel() + ". $1 = 1 EC."
+                            : "NOT REAL PRICES — " + snapshot.feedLabel()
+                                    + ". Add your own API key in Settings → AnonShare for live quotes. $1 = 1 EC.");
             feed.getStyleClass().removeAll("es-shmark-promised", "es-shmark-inhand");
             feed.getStyleClass().add(snapshot.feedIsLive() ? "es-shmark-inhand" : "es-shmark-promised");
             sessionLabel.setText(sessionText(snapshot));
 
             totalValue.setText(Ethecoin.formatApprox(snapshot.portfolioValueWei(), 2));
             BigInteger gain = snapshot.portfolioValueWei().subtract(snapshot.portfolioCostWei());
-            totalChange.setText((gain.signum() >= 0 ? "+" : "-")
-                    + Ethecoin.formatApprox(gain.abs(), 2) + " on cost");
+            totalChange.setText((gain.signum() >= 0 ? "+" : "-") + Ethecoin.formatApprox(gain.abs(), 2) + " on cost");
             totalChange.getStyleClass().removeAll("es-shmark-up", "es-shmark-down");
             totalChange.getStyleClass().add(gain.signum() >= 0 ? "es-shmark-up" : "es-shmark-down");
 
@@ -228,11 +232,20 @@ public final class AnonShareView {
             drawValue(chart, snapshot.valueHistory(), rangeDays[0], snapshot.asOf(), palette, hoverIndex[0]);
             refreshIn.setText(refreshText(snapshot));
             paintPositions(positions, session, snapshot, symbol, result, repaint);
-            paintQuote(quote, session, snapshot, amount, result, repaint);
+            paintQuote(quote, session, snapshot, result, repaint, buyQty);
             paintResults(results, snapshot, symbol, repaint, search, session, result, detailOpen);
             paintHistory(history, snapshot);
-            paintWatching(watching, session, snapshot, openList, watchPick, result, repaint,
-                    watchColumn, watchTitle, watchPrice);
+            paintWatching(
+                    watching,
+                    session,
+                    snapshot,
+                    openList,
+                    watchPick,
+                    result,
+                    repaint,
+                    watchColumn,
+                    watchTitle,
+                    watchPrice);
             if (relist[0] != null) {
                 relist[0].run();
             }
@@ -251,11 +264,14 @@ public final class AnonShareView {
                 return;
             }
             double plotWidth = Math.max(1, watchChart.getWidth() - UiTokens.ANON_AXIS_GUTTER);
-            int index = (int) Math.round(
-                    (event.getX() - UiTokens.ANON_AXIS_GUTTER) / plotWidth * (points.size() - 1));
+            int index = (int) Math.round((event.getX() - UiTokens.ANON_AXIS_GUTTER) / plotWidth * (points.size() - 1));
             watchHover[0] = Math.max(0, Math.min(points.size() - 1, index));
             SharesSnapshot.Point point = points.get(watchHover[0]);
-            place(watchReadout, watchPlot, event.getX(), event.getY(),
+            place(
+                    watchReadout,
+                    watchPlot,
+                    event.getX(),
+                    event.getY(),
                     Ethecoin.formatApprox(point.wei(), 2) + "   " + LOCAL_CLOCK.format(point.at()));
             drawValue(watchChart, points, 0, last[0].asOf(), palette, watchHover[0]);
         });
@@ -294,7 +310,8 @@ public final class AnonShareView {
             // a ticker and remembers what it has already asked, including the misses.
             String typed = now == null ? "" : now.trim();
             if (!typed.isEmpty()
-                    && io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.search(typed).isEmpty()) {
+                    && io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.search(typed)
+                            .isEmpty()) {
                 session.discoverSymbol(typed);
             }
         });
@@ -303,8 +320,7 @@ public final class AnonShareView {
 
         // ⚠ The PLAYER'S cadence. A share price moves on a scale of minutes and every refresh spends
         // part of an allowance they pay for; this is data, so Pulse.every rather than animate.
-        AutoCloseable clock =
-                Pulse.shared().every(Math.max(1, refreshSeconds) * 1000.0d, () -> repaint[0].run());
+        AutoCloseable clock = Pulse.shared().every(Math.max(1, refreshSeconds) * 1000.0d, () -> repaint[0].run());
 
         // ⚠ THE CANVAS IS REDRAWN ON LAYOUT, or its colours are whatever they were before CSS. The
         // panel paints once during construction, when nothing is in a Scene and no stylesheet has
@@ -323,11 +339,14 @@ public final class AnonShareView {
             // the marker sit a fixed distance right of the pointer, which reads as the chart being
             // out by a few samples.
             double plotWidth = Math.max(1, chart.getWidth() - UiTokens.ANON_AXIS_GUTTER);
-            int index = (int) Math.round(
-                    (event.getX() - UiTokens.ANON_AXIS_GUTTER) / plotWidth * (points.size() - 1));
+            int index = (int) Math.round((event.getX() - UiTokens.ANON_AXIS_GUTTER) / plotWidth * (points.size() - 1));
             hoverIndex[0] = Math.max(0, Math.min(points.size() - 1, index));
             SharesSnapshot.Point point = points.get(hoverIndex[0]);
-            place(hoverReadout, chartPlot, event.getX(), event.getY(),
+            place(
+                    hoverReadout,
+                    chartPlot,
+                    event.getX(),
+                    event.getY(),
                     Ethecoin.formatApprox(point.wei(), 2) + "   " + LOCAL_CLOCK.format(point.at()));
             drawValue(chart, last[0].valueHistory(), rangeDays[0], last[0].asOf(), palette, hoverIndex[0]);
         });
@@ -352,9 +371,8 @@ public final class AnonShareView {
         // together, and the countdown is about the feed rather than about the money.
         HBox rangeRow = Ui.row(UiTokens.SPACE_3, ranges, Ui.spacer(), refreshIn);
         rangeRow.setAlignment(Pos.CENTER_LEFT);
-        VBox chartColumn = new VBox(UiTokens.SPACE_2,
-                Ui.row(UiTokens.SPACE_3, totalValue, totalChange),
-                rangeRow, chartPlot);
+        VBox chartColumn =
+                new VBox(UiTokens.SPACE_2, Ui.row(UiTokens.SPACE_3, totalValue, totalChange), rangeRow, chartPlot);
         chartColumn.getChildren().addAll(palette.nodes());
         chartColumn.layoutBoundsProperty().addListener((obs, was, now) -> {
             chart.setWidth(Math.max(160, now.getWidth() - UiTokens.SPACE_6));
@@ -423,7 +441,8 @@ public final class AnonShareView {
 
         double[] shown = {0};
         AutoCloseable slide = Pulse.shared().every(UiTokens.REVEAL_MS / UiTokens.REVEAL_STEPS, () -> {
-            boolean wanted = search.getText() != null && !search.getText().trim().isEmpty();
+            boolean wanted =
+                    search.getText() != null && !search.getText().trim().isEmpty();
             double target = wanted ? 1 : 0;
             if (shown[0] == target) {
                 return;
@@ -451,8 +470,7 @@ public final class AnonShareView {
 
         VBox overview = new VBox(UiTokens.SPACE_3, nav, host);
         overview.getStyleClass().add("es-anon-tab");
-        javafx.scene.control.Tab overviewTab =
-                new javafx.scene.control.Tab("Overview", Views.scrollable(overview));
+        javafx.scene.control.Tab overviewTab = new javafx.scene.control.Tab("Overview", Views.scrollable(overview));
 
         TextField listingSearch = new TextField();
         listingSearch.setPromptText("Symbol, name or sector");
@@ -461,8 +479,7 @@ public final class AnonShareView {
         // there is nothing on it a refresh could change — and five hundred rows rebuilt every
         // repaint is work with no observer while the player is on another tab.
         relist[0] = () -> paintListings(
-                listings, listingCount, listingSearch.getText(), symbol, repaint,
-                session, last[0], result, detailOpen);
+                listings, listingCount, listingSearch.getText(), symbol, repaint, session, last[0], result, detailOpen);
         // ⚠ Its own query, and it never touches the session's. Two search boxes writing one piece of
         // state means whichever repainted last decides what the OTHER tab is showing. This one
         // filters what is already known; the overview's is the one that spends a lookup.
@@ -470,27 +487,24 @@ public final class AnonShareView {
             relist[0].run();
             String typed = now == null ? "" : now.trim();
             if (!typed.isEmpty()
-                    && io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.search(typed).isEmpty()) {
+                    && io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.search(typed)
+                            .isEmpty()) {
                 session.discoverSymbol(typed);
             }
         });
         relist[0].run();
-        VBox listingPage = new VBox(UiTokens.SPACE_2,
-                Ui.row(UiTokens.SPACE_3, listingSearch, listingCount), listings);
+        VBox listingPage = new VBox(UiTokens.SPACE_2, Ui.row(UiTokens.SPACE_3, listingSearch, listingCount), listings);
         listingPage.getStyleClass().add("es-anon-tab");
         HBox.setHgrow(listingSearch, Priority.ALWAYS);
-        javafx.scene.control.Tab listingTab =
-                new javafx.scene.control.Tab("Listings", Views.scrollable(listingPage));
+        javafx.scene.control.Tab listingTab = new javafx.scene.control.Tab("Listings", Views.scrollable(listingPage));
 
         VBox watchPage = new VBox(UiTokens.SPACE_2, watching);
         watchPage.getStyleClass().add("es-anon-tab");
-        javafx.scene.control.Tab watchTab =
-                new javafx.scene.control.Tab("Watching", Views.scrollable(watchPage));
+        javafx.scene.control.Tab watchTab = new javafx.scene.control.Tab("Watching", Views.scrollable(watchPage));
 
         VBox historyPage = new VBox(UiTokens.SPACE_2, history);
         historyPage.getStyleClass().add("es-anon-tab");
-        javafx.scene.control.Tab historyTab =
-                new javafx.scene.control.Tab("History", Views.scrollable(historyPage));
+        javafx.scene.control.Tab historyTab = new javafx.scene.control.Tab("History", Views.scrollable(historyPage));
 
         tabs.getTabs().addAll(overviewTab, listingTab, watchTab, historyTab);
         VBox.setVgrow(tabs, Priority.ALWAYS);
@@ -562,7 +576,8 @@ public final class AnonShareView {
         double w = readout.getWidth();
         double h = readout.getHeight();
         readout.setLayoutX(Math.max(0, Math.min(Math.max(0, holder.getWidth() - w), x + UiTokens.ANON_HOVER_OFFSET)));
-        readout.setLayoutY(Math.max(0, Math.min(Math.max(0, holder.getHeight() - h), y - h - UiTokens.ANON_HOVER_OFFSET)));
+        readout.setLayoutY(Math.max(
+                0, Math.min(Math.max(0, holder.getHeight() - h), y - h - UiTokens.ANON_HOVER_OFFSET)));
         readout.setVisible(true);
     }
 
@@ -631,7 +646,8 @@ public final class AnonShareView {
         return days <= 0
                 ? snapshot.valueHistory()
                 : snapshot.valueHistory().stream()
-                        .filter(point -> Duration.between(point.at(), snapshot.asOf()).toDays() < days)
+                        .filter(point ->
+                                Duration.between(point.at(), snapshot.asOf()).toDays() < days)
                         .toList();
     }
 
@@ -748,10 +764,7 @@ public final class AnonShareView {
                     .movePointLeft(18)
                     .setScale(decimals, java.math.RoundingMode.HALF_UP)
                     .toPlainString();
-            g.fillText(
-                    i == 0 ? text + " EC" : text,
-                    0,
-                    Math.min(plotH, y + UiTokens.ANON_AXIS_TEXT_RISE));
+            g.fillText(i == 0 ? text + " EC" : text, 0, Math.min(plotH, y + UiTokens.ANON_AXIS_TEXT_RISE));
         }
         // ⚠ Three time labels, not one per point. A tick per sample would be 240 overlapping strings;
         // start, middle and end is what a reader actually uses to place the line in time.
@@ -851,8 +864,7 @@ public final class AnonShareView {
          */
         javafx.scene.text.Font font() {
             grid.applyCss();
-            return javafx.scene.text.Font.font(
-                    grid.getFont().getFamily(), UiTokens.ANON_AXIS_TEXT_SIZE);
+            return javafx.scene.text.Font.font(grid.getFont().getFamily(), UiTokens.ANON_AXIS_TEXT_SIZE);
         }
 
         private static Color read(Label label) {
@@ -872,18 +884,14 @@ public final class AnonShareView {
      * broker does when you do not name one.
      */
     private static void paintPositions(
-            VBox box,
-            GameSession session,
-            SharesSnapshot snapshot,
-            String[] symbol,
-            Label result,
-            Runnable[] repaint) {
+            VBox box, GameSession session, SharesSnapshot snapshot, String[] symbol, Label result, Runnable[] repaint) {
         box.getChildren().clear();
         if (snapshot.positions().isEmpty()) {
             box.getChildren().add(Ui.micro("Nothing held. Buying happens while the market is open."));
             return;
         }
-        HBox header = Ui.row(UiTokens.SPACE_2,
+        HBox header = Ui.row(
+                UiTokens.SPACE_2,
                 column(Ui.micro("SYMBOL"), 62),
                 column(Ui.micro("QTY"), 44),
                 column(Ui.micro("LAST"), 82),
@@ -901,19 +909,17 @@ public final class AnonShareView {
             Label pnl = Ui.small((gain.signum() >= 0 ? "+" : "-") + Ethecoin.formatApprox(gain.abs(), 2));
             pnl.getStyleClass().add(gain.signum() >= 0 ? "es-shmark-up" : "es-shmark-down");
 
-            Button sell = new Button("Sell");
-            sell.getStyleClass().add("es-shmark-cancel");
-            sell.setDisable(!snapshot.tradable());
-            sell.setOnAction(event -> {
-                GameSession.Outcome outcome = session.sellPosition(position.symbol(), position.shares());
-                result.setText(outcome.message());
-                Views.styleByOutcome(result, outcome);
-                repaint[0].run();
-            });
-
-            HBox row = Ui.row(UiTokens.SPACE_2,
-                    column(sym, 62), column(qty, 44), column(lastPrice, 82),
-                    column(value, 92), column(pnl, 92), Ui.spacer(), sell);
+            // ⚠ NO CONTROLS IN THIS TABLE. Trading lives on the per-position cards in the right
+            // column; a second Buy/Sell here would put the same two actions twice on one screen,
+            // which is worse than either placement because a player then has to work out whether
+            // the two are the same thing.
+            HBox row = Ui.row(
+                    UiTokens.SPACE_2,
+                    column(sym, 62),
+                    column(qty, 44),
+                    column(lastPrice, 82),
+                    column(value, 92),
+                    column(pnl, 92));
             row.setAlignment(Pos.CENTER_LEFT);
             row.getStyleClass().add("es-shmark-listing");
             row.setOnMouseClicked(event -> {
@@ -921,7 +927,7 @@ public final class AnonShareView {
                 repaint[0].run();
             });
             row.setAccessibleText(position.shares() + " " + position.displayName() + ", worth "
-                    + Ethecoin.format(position.valueWei()) + ". Select to quote it.");
+                    + Ethecoin.format(position.valueWei()) + ". Traded from the card beside it.");
             box.getChildren().add(row);
         }
     }
@@ -974,7 +980,8 @@ public final class AnonShareView {
 
         var portfolio = open.get();
         if (!portfolio.watching().contains(watchPick[0])) {
-            watchPick[0] = portfolio.watching().isEmpty() ? "" : portfolio.watching().getFirst();
+            watchPick[0] =
+                    portfolio.watching().isEmpty() ? "" : portfolio.watching().getFirst();
         }
 
         Button back = new Button("< Watchlists");
@@ -992,10 +999,11 @@ public final class AnonShareView {
                 .filter(each -> each.symbol().equals(watchPick[0]))
                 .findFirst();
         watchTitle.setText(picked.map(SharesSnapshot.Tracked::displayName).orElse("Nothing on this list"));
-        watchPrice.setText(picked.map(each -> Ethecoin.formatApprox(each.priceWei(), 2)).orElse(""));
+        watchPrice.setText(
+                picked.map(each -> Ethecoin.formatApprox(each.priceWei(), 2)).orElse(""));
         watchPrice.getStyleClass().removeAll("es-shmark-up", "es-shmark-down");
-        picked.ifPresent(each ->
-                watchPrice.getStyleClass().add(each.changePercent() >= 0 ? "es-shmark-up" : "es-shmark-down"));
+        picked.ifPresent(
+                each -> watchPrice.getStyleClass().add(each.changePercent() >= 0 ? "es-shmark-up" : "es-shmark-down"));
 
         VBox members = new VBox(1);
         members.setMinWidth(UiTokens.ANON_WATCH_WIDTH);
@@ -1003,8 +1011,7 @@ public final class AnonShareView {
         members.getStyleClass().add("es-shmark-book");
         members.getChildren().add(Ui.micro("ON THIS LIST"));
         if (portfolio.watching().isEmpty()) {
-            members.getChildren()
-                    .add(Ui.micro("Nothing yet. Right-click a share in LISTINGS to add one."));
+            members.getChildren().add(Ui.micro("Nothing yet. Right-click a share in LISTINGS to add one."));
         }
         for (String each : portfolio.watching()) {
             var quote = snapshot.tracked().stream()
@@ -1013,7 +1020,8 @@ public final class AnonShareView {
             Label sym = Ui.small(each);
             sym.setMinWidth(58);
             sym.setPrefWidth(58);
-            Label price = Ui.small(quote.map(q -> Ethecoin.formatApprox(q.priceWei(), 2)).orElse("--"));
+            Label price = Ui.small(
+                    quote.map(q -> Ethecoin.formatApprox(q.priceWei(), 2)).orElse("--"));
             price.getStyleClass()
                     .add(quote.map(q -> q.changePercent() >= 0).orElse(true) ? "es-shmark-up" : "es-shmark-down");
             HBox row = Ui.row(UiTokens.SPACE_2, sym, price);
@@ -1083,7 +1091,9 @@ public final class AnonShareView {
             row.setAccessibleText(portfolio.name() + ", " + count + " symbols. Select to open it.");
             row.setOnMouseClicked(event -> {
                 openList[0] = portfolio.portfolioId();
-                watchPick[0] = portfolio.watching().isEmpty() ? "" : portfolio.watching().getFirst();
+                watchPick[0] = portfolio.watching().isEmpty()
+                        ? ""
+                        : portfolio.watching().getFirst();
                 repaint[0].run();
             });
             box.getChildren().add(row);
@@ -1102,44 +1112,140 @@ public final class AnonShareView {
 
     // ── the quote and the ticket ──────────────────────────────────────────────────────────────
 
+    /**
+     * The right-hand column: one trade card per HELD position, each with its own buy and sell.
+     *
+     * <h2>⚠ It does NOT follow the selection, and that was the whole complaint</h2>
+     *
+     * This column used to be a single quote card aimed at whatever the player last clicked —
+     * anywhere, including a row in LISTINGS they had glanced at several actions ago. So the one
+     * place on the panel with a Buy button pointed at something they may not have meant, and topping
+     * up a holding meant going and finding it again first.
+     *
+     * <p>It is derived from {@code positions()} and from nothing else now. Every card is something
+     * the player owns, each carries its own controls, and clicking around the other sub-tabs cannot
+     * change what any of them will trade.
+     *
+     * <p>⚠ Opening a position in something NOT yet held still goes through the detail overlay and
+     * the right-click {@code Buy 1}, which quote and confirm together. That route was checked before
+     * the shared ticket was removed — without it the panel would have had no way to buy at all.
+     *
+     * <h2>⚠ Steppers, never text fields</h2>
+     *
+     * These cards are rebuilt by {@code repaint[0]}, which runs on every {@code session.onChange} as
+     * well as on the price cadence, so a {@code TextField} here would be torn down mid-keystroke —
+     * the failure {@code ReconView} records as <b>UI-7</b>. The quantity lives in {@code buyQty},
+     * outside the rebuild, or it would reset to one every time a price refreshed.
+     */
     private static void paintQuote(
             VBox box,
             GameSession session,
             SharesSnapshot snapshot,
-            TextField amount,
             Label result,
-            Runnable[] repaint) {
+            Runnable[] repaint,
+            java.util.Map<String, Integer> buyQty) {
         box.getChildren().clear();
+        if (snapshot.positions().isEmpty()) {
+            Label empty = Ui.micro("Nothing held yet. Open a position from LISTINGS — pick a share "
+                    + "there and buy it, and it appears here with its own controls.");
+            empty.setWrapText(true);
+            box.getChildren().add(empty);
+            return;
+        }
+        for (var position : snapshot.positions()) {
+            box.getChildren().add(tradeCard(session, snapshot, position, result, repaint, buyQty));
+        }
+    }
 
-        Label name = new Label(snapshot.displayName());
+    /** One holding's card: what it is, what it is worth, and the two things you can do to it. */
+    private static Region tradeCard(
+            GameSession session,
+            SharesSnapshot snapshot,
+            SharesSnapshot.Position position,
+            Label result,
+            Runnable[] repaint,
+            java.util.Map<String, Integer> buyQty) {
+        Label name = new Label(position.displayName());
         name.getStyleClass().addAll("es-panel-title", "es-market-hero-name");
-        Label ticker = Ui.micro(snapshot.symbol() + "  ·  " + snapshot.sector());
+        Label held = Ui.micro(position.symbol() + "  ·  " + position.shares()
+                + (position.shares() == 1 ? " share held" : " shares held"));
 
-        Label price = new Label(Ethecoin.formatApprox(snapshot.priceWei(), 2));
+        Label price = new Label(Ethecoin.formatApprox(position.priceWei(), 2));
         price.getStyleClass().addAll("es-numeric", "es-ethecoin", "es-shmark-price");
-        price.setTooltip(new javafx.scene.control.Tooltip(Ethecoin.format(snapshot.priceWei())));
-        Label change = Ui.small(String.format(Locale.ROOT, "%+.2f%%", snapshot.changePercent()));
-        change.getStyleClass().add(snapshot.changePercent() >= 0 ? "es-shmark-up" : "es-shmark-down");
+        price.setTooltip(new javafx.scene.control.Tooltip(Ethecoin.format(position.priceWei())));
+        Label change = Ui.small(String.format(Locale.ROOT, "%+.2f%%", position.changePercent()));
+        change.getStyleClass().add(position.changePercent() >= 0 ? "es-shmark-up" : "es-shmark-down");
 
-        Label yield = Ui.micro(snapshot.annualYieldBp() > 0
-                ? String.format(Locale.ROOT, "pays %.2f%% a year, quarterly", snapshot.annualYieldBp() / 100.0d)
-                : "pays no dividend");
+        int want = buyQty.getOrDefault(position.symbol(), 1);
+        Label count = Ui.small(String.valueOf(want));
+        count.setMinWidth(24);
+        count.setPrefWidth(24);
+        count.setAlignment(Pos.CENTER);
+        Button fewer = new Button("-");
+        fewer.getStyleClass().add("es-shmark-interval");
+        fewer.setDisable(want <= 1);
+        fewer.setOnAction(event -> {
+            buyQty.put(position.symbol(), Math.max(1, want - 1));
+            repaint[0].run();
+        });
+        Button more = new Button("+");
+        more.getStyleClass().add("es-shmark-interval");
+        more.setOnAction(event -> {
+            buyQty.put(position.symbol(), want + 1);
+            repaint[0].run();
+        });
 
         Button buy = new Button("Buy");
         buy.getStyleClass().add("es-market-buy");
+        buy.setMinWidth(Region.USE_PREF_SIZE);
         buy.setDisable(!snapshot.tradable());
         buy.setOnAction(event -> {
-            GameSession.Outcome outcome = session.buyShares(snapshot.symbol(), parse(amount));
+            GameSession.Outcome outcome = session.buyShares(position.symbol(), want);
             result.setText(outcome.message());
             Views.styleByOutcome(result, outcome);
+            // ⚠ Reset on SUCCESS only. A count of twenty left under the card after it went through
+            // is a loaded gun the next click fires; left after a REFUSAL it is the opposite — the
+            // player still wants twenty and would have to dial it back up to learn why they cannot.
+            if (outcome.succeeded()) {
+                buyQty.remove(position.symbol());
+            }
             repaint[0].run();
         });
+
+        // ⚠ Sells the SAME quantity the stepper shows, capped at what is held — one number driving
+        // both sides of the card. A Sell that quietly disposed of the whole position while the
+        // stepper read "3" is the worst surprise this panel could spring.
+        int selling = Math.min(want, position.shares());
+        Button sell = new Button("Sell " + selling);
+        sell.getStyleClass().add("es-shmark-cancel");
+        sell.setMinWidth(Region.USE_PREF_SIZE);
+        sell.setDisable(!snapshot.tradable() || selling <= 0);
+        sell.setOnAction(event -> {
+            GameSession.Outcome outcome = session.sellPosition(position.symbol(), selling);
+            result.setText(outcome.message());
+            Views.styleByOutcome(result, outcome);
+            if (outcome.succeeded()) {
+                buyQty.remove(position.symbol());
+            }
+            repaint[0].run();
+        });
+
+        // ⚠ TWO ROWS, not one. The side column is narrow and a single row of stepper + Buy + Sell
+        // ran past its edge — JavaFX clipped the Sell button to "Sel", a control whose whole meaning
+        // is its word. Found by rendering; the row fits at a wide window and does not at this one,
+        // which is exactly the case a single-width check would have missed.
+        HBox stepper = Ui.row(UiTokens.SPACE_1, fewer, count, more, Ui.micro("at a time"));
+        stepper.setAlignment(Pos.CENTER_LEFT);
+        HBox buttons = Ui.row(UiTokens.SPACE_2, buy, sell);
+        buttons.setAlignment(Pos.CENTER_LEFT);
+        VBox actions = new VBox(UiTokens.SPACE_2, stepper, buttons);
+
         Label closed = Ui.micro(snapshot.tradable() ? "" : "market shut");
         closed.getStyleClass().add("es-shmark-promised");
 
-        box.getChildren()
-                .addAll(name, ticker, Ui.row(UiTokens.SPACE_3, price, change), yield,
-                        Ui.row(UiTokens.SPACE_2, Ui.micro("qty"), amount, buy), closed);
+        VBox card = new VBox(UiTokens.SPACE_2, name, held, Ui.row(UiTokens.SPACE_3, price, change), actions, closed);
+        card.getStyleClass().add("es-market-card");
+        return card;
     }
 
     private static int parse(TextField field) {
@@ -1164,8 +1270,7 @@ public final class AnonShareView {
             // ⚠ Says the lookup is happening. "Nothing matches that" alone would be wrong for the
             // second or so a provider search takes, and a player would conclude the symbol does not
             // exist rather than that the answer has not arrived.
-            box.getChildren()
-                    .add(Ui.micro("Nothing known by that name. If it is a real ticker, looking it up..."));
+            box.getChildren().add(Ui.micro("Nothing known by that name. If it is a real ticker, looking it up..."));
             return;
         }
         for (var hit : snapshot.results()) {
@@ -1350,19 +1455,25 @@ public final class AnonShareView {
         });
 
         card.getChildren()
-                .addAll(head,
+                .addAll(
+                        head,
                         Ui.micro(snapshot.symbol() + "  ·  " + snapshot.sector()),
                         Ui.row(UiTokens.SPACE_3, price, change),
-                        Ui.micro(snapshot.annualYieldBp() > 0
-                                ? String.format(Locale.ROOT,
-                                        "pays %.2f%% a year, quarterly", snapshot.annualYieldBp() / 100.0d)
-                                : "pays no dividend"),
-                        Ui.micro(held > 0
-                                ? "you hold " + held + (held == 1 ? " share" : " shares")
-                                : "you hold none of this"),
-                        Ui.micro(snapshot.feedIsLive()
-                                ? "priced by " + snapshot.feedLabel()
-                                : "NOT A REAL PRICE — " + snapshot.feedLabel()),
+                        Ui.micro(
+                                snapshot.annualYieldBp() > 0
+                                        ? String.format(
+                                                Locale.ROOT,
+                                                "pays %.2f%% a year, quarterly",
+                                                snapshot.annualYieldBp() / 100.0d)
+                                        : "pays no dividend"),
+                        Ui.micro(
+                                held > 0
+                                        ? "you hold " + held + (held == 1 ? " share" : " shares")
+                                        : "you hold none of this"),
+                        Ui.micro(
+                                snapshot.feedIsLive()
+                                        ? "priced by " + snapshot.feedLabel()
+                                        : "NOT A REAL PRICE — " + snapshot.feedLabel()),
                         Ui.row(UiTokens.SPACE_2, Ui.micro("qty"), amount, buy));
         if (!snapshot.tradable()) {
             Label shut = Ui.micro("market shut");
@@ -1398,19 +1509,20 @@ public final class AnonShareView {
             boolean[] detailOpen) {
         box.getChildren().clear();
         var matches = io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.search(query);
-        count.setText(matches.size() > LISTINGS_LIMIT
-                ? matches.size() + " known — showing the first " + LISTINGS_LIMIT
-                : matches.size() + (matches.size() == 1 ? " listing" : " listings"));
+        count.setText(
+                matches.size() > LISTINGS_LIMIT
+                        ? matches.size() + " known — showing the first " + LISTINGS_LIMIT
+                        : matches.size() + (matches.size() == 1 ? " listing" : " listings"));
         if (matches.isEmpty()) {
-            box.getChildren()
-                    .add(Ui.micro("Nothing known by that name. If it is a real ticker, looking it up..."));
+            box.getChildren().add(Ui.micro("Nothing known by that name. If it is a real ticker, looking it up..."));
             return;
         }
         for (var listing : matches.stream().limit(LISTINGS_LIMIT).toList()) {
             // ⚠ column(), not setMinWidth. A minimum alone leaves the label's COMPUTED preferred
             // width in charge, so one long invented name widens its own cell and pushes the sector
             // out of line for that row only — the table looks like it has lost a column.
-            HBox row = Ui.row(UiTokens.SPACE_2,
+            HBox row = Ui.row(
+                    UiTokens.SPACE_2,
                     column(Ui.small(listing.symbol()), 72),
                     column(Ui.small(listing.displayName()), 300),
                     Ui.micro(listing.sector()));
@@ -1418,8 +1530,7 @@ public final class AnonShareView {
             // carry .es-shmark-listing, so a lookup for one finds whichever the scene graph reaches
             // first — the render harness clicked a POSITIONS row believing it was a listing.
             row.getStyleClass().addAll("es-shmark-listing", "es-anon-listing");
-            row.setAccessibleText(
-                    listing.displayName() + ", " + listing.symbol() + ". Select for details.");
+            row.setAccessibleText(listing.displayName() + ", " + listing.symbol() + ". Select for details.");
             row.setOnMouseClicked(event -> {
                 if (event.getButton() != javafx.scene.input.MouseButton.PRIMARY) {
                     return;
@@ -1458,7 +1569,8 @@ public final class AnonShareView {
             return;
         }
         box.getChildren()
-                .add(Ui.row(UiTokens.SPACE_2,
+                .add(Ui.row(
+                        UiTokens.SPACE_2,
                         column(Ui.micro("WHEN"), 128),
                         column(Ui.micro("SIDE"), 44),
                         column(Ui.micro("SYMBOL"), 62),
@@ -1473,14 +1585,16 @@ public final class AnonShareView {
             // client, and a red BUY beside a green SELL says buying was the mistake — which is not a
             // claim a transaction log gets to make. Colour is spent on REALISED, where it is a fact.
             Label side = Ui.small(trade.buy() ? "BUY" : "SELL");
-            Label realised = Ui.small(trade.buy()
-                    ? "—"
-                    : (trade.realisedWei().signum() >= 0 ? "+" : "-")
-                            + Ethecoin.formatApprox(trade.realisedWei().abs(), 2));
+            Label realised = Ui.small(
+                    trade.buy()
+                            ? "—"
+                            : (trade.realisedWei().signum() >= 0 ? "+" : "-")
+                                    + Ethecoin.formatApprox(trade.realisedWei().abs(), 2));
             if (!trade.buy()) {
                 realised.getStyleClass().add(trade.realisedWei().signum() >= 0 ? "es-shmark-up" : "es-shmark-down");
             }
-            HBox row = Ui.row(UiTokens.SPACE_2,
+            HBox row = Ui.row(
+                    UiTokens.SPACE_2,
                     column(Ui.small(TRADE_STAMP.format(trade.at())), 128),
                     column(side, 44),
                     column(Ui.small(trade.symbol()), 62),

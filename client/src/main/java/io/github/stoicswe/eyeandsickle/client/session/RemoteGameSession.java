@@ -170,6 +170,16 @@ public final class RemoteGameSession implements GameSession {
     }
 
     @Override
+    public IdentityCard identityCard() {
+        // ⚠ The DID, and the reputations are ZERO rather than invented. A federated character's
+        // trader and faction standing are the SERVER's to report (I14) and the snapshot does not
+        // carry them yet — showing a plausible number the server never sent is the failure this
+        // whole session class is written to avoid. When the snapshot grows the fields, they land
+        // here and nowhere else.
+        return new IdentityCard(handle(), identity == null ? "" : identity.did(), true, lastHeat, 0, 0, 0);
+    }
+
+    @Override
     public List<InventoryItem> items(StorageTier tier) {
         return List.of();
     }
@@ -898,5 +908,4 @@ public final class RemoteGameSession implements GameSession {
     public io.github.stoicswe.eyeandsickle.protocol.game.MarketWindow market() {
         return io.github.stoicswe.eyeandsickle.protocol.game.MarketWindow.none();
     }
-
 }

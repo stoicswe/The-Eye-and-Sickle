@@ -1,15 +1,15 @@
 package io.github.stoicswe.eyeandsickle.client.session;
 
-import io.github.stoicswe.eyeandsickle.protocol.game.ComputeBudget;
-import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
-import io.github.stoicswe.eyeandsickle.protocol.game.RemoteSession;
-import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
 import io.github.stoicswe.eyeandsickle.engine.Balance;
 import io.github.stoicswe.eyeandsickle.engine.GameEngine;
 import io.github.stoicswe.eyeandsickle.engine.state.DefenseState;
 import io.github.stoicswe.eyeandsickle.engine.state.ItemState;
 import io.github.stoicswe.eyeandsickle.engine.state.LedgerEntryState;
 import io.github.stoicswe.eyeandsickle.engine.state.NodeState;
+import io.github.stoicswe.eyeandsickle.protocol.game.ComputeBudget;
+import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
+import io.github.stoicswe.eyeandsickle.protocol.game.RemoteSession;
+import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -101,6 +101,21 @@ public final class LocalGameSession implements GameSession {
     @Override
     public int personalHeat() {
         return game.state().personalHeat;
+    }
+
+    @Override
+    public IdentityCard identityCard() {
+        // ⚠ `federated` is FALSE and the identifier is the local UUID. A solo character has no DID
+        // and no `players` row by construction — inventing one here would put a federated-looking
+        // identity on a character that has no route to a server, which is the boundary I14 rests on.
+        return new IdentityCard(
+                game.state().handle,
+                game.state().characterId,
+                false,
+                game.state().personalHeat,
+                game.state().traderReputation,
+                game.state().factionReputationEye,
+                game.state().factionReputationSickle);
     }
 
     @Override
@@ -344,10 +359,9 @@ public final class LocalGameSession implements GameSession {
                 game.state(), facility, outcome.message(), game.now());
         // ⚠ INFO, where a success is FINE. A refusal is the rarer event and the one somebody reading
         // a log is looking for — "why did nothing happen when I pressed that" is answered here.
-        LOG.log(
-                java.util.logging.Level.INFO,
-                "refused [{0}] status {1}: {2}",
-                new Object[] {facility, outcome.status(), outcome.message()});
+        LOG.log(java.util.logging.Level.INFO, "refused [{0}] status {1}: {2}", new Object[] {
+            facility, outcome.status(), outcome.message()
+        });
         // The log changed, so the toast poller and every log window have something to pick up. Not
         // routed through `changed()` above it, because that one is about GAME state changing and a
         // refusal is by definition the game not changing.
@@ -677,9 +691,10 @@ public final class LocalGameSession implements GameSession {
                 game.state(), enabled, tier, everyHours, game.now());
         return announce(
                 "scan",
-                changed(Outcome.ok(enabled
-                        ? "scheduled " + tier + " audit every " + everyHours + "h."
-                        : "scheduled audits off.")));
+                changed(Outcome.ok(
+                        enabled
+                                ? "scheduled " + tier + " audit every " + everyHours + "h."
+                                : "scheduled audits off.")));
     }
 
     @Override
@@ -834,13 +849,16 @@ public final class LocalGameSession implements GameSession {
         var placed = io.github.stoicswe.eyeandsickle.engine.rules.ShadowMarket.place(
                 game.state(), itemType, buy, limitPriceWei, quantity, heldItemId, game.now());
         if (!placed.succeeded()) {
-            return announce("market", Outcome.refused(switch (placed.refusal()) {
-                case NOT_LISTED -> "the shadow market does not list that.";
-                case MALFORMED -> "a price and a quantity, both above zero.";
-                case CANNOT_AFFORD -> "not enough ethecoin to escrow that order.";
-                case NOTHING_TO_SELL -> "you have no unequipped copy of that to sell.";
-                case NO_SUCH_ORDER -> "no such order.";
-            }));
+            return announce(
+                    "market",
+                    Outcome.refused(
+                            switch (placed.refusal()) {
+                                case NOT_LISTED -> "the shadow market does not list that.";
+                                case MALFORMED -> "a price and a quantity, both above zero.";
+                                case CANNOT_AFFORD -> "not enough ethecoin to escrow that order.";
+                                case NOTHING_TO_SELL -> "you have no unequipped copy of that to sell.";
+                                case NO_SUCH_ORDER -> "no such order.";
+                            }));
         }
         return announce(
                 "market",
@@ -900,8 +918,8 @@ public final class LocalGameSession implements GameSession {
 
     @Override
     public Outcome cancelShadowListing(String listingId) {
-        var result = io.github.stoicswe.eyeandsickle.engine.rules.ShadowTrading.cancel(
-                game.state(), listingId, game.now());
+        var result =
+                io.github.stoicswe.eyeandsickle.engine.rules.ShadowTrading.cancel(game.state(), listingId, game.now());
         return announce(
                 "market", result.ok() ? changed(Outcome.ok(result.message())) : Outcome.refused(result.message()));
     }
@@ -944,12 +962,14 @@ public final class LocalGameSession implements GameSession {
     @Override
     public void discoverSymbol(String query) {
         if (lookup != null) {
-            lookup.discover(query, found -> javafx.application.Platform.runLater(() -> {
-                if (onDiscovery != null) {
-                    onDiscovery.run();
-                }
-                changedQuietly();
-            }));
+            lookup.discover(
+                    query,
+                    found -> javafx.application.Platform.runLater(() -> {
+                        if (onDiscovery != null) {
+                            onDiscovery.run();
+                        }
+                        changedQuietly();
+                    }));
         }
     }
 
@@ -1019,8 +1039,7 @@ public final class LocalGameSession implements GameSession {
 
     @Override
     public Outcome fileHolding(String holdingId, String portfolioId) {
-        var result = io.github.stoicswe.eyeandsickle.engine.rules.Brokerage.file(
-                game.state(), holdingId, portfolioId);
+        var result = io.github.stoicswe.eyeandsickle.engine.rules.Brokerage.file(game.state(), holdingId, portfolioId);
         return announce(
                 "market", result.ok() ? changed(Outcome.ok(result.message())) : Outcome.refused(result.message()));
     }
@@ -1029,11 +1048,14 @@ public final class LocalGameSession implements GameSession {
     public Outcome extract(String path) {
         var started = io.github.stoicswe.eyeandsickle.engine.rules.Archives.begin(game.state(), path, game.now());
         if (!started.succeeded()) {
-            return announce("storage", Outcome.refused(switch (started.refusal()) {
-                case NOT_FOUND -> "no such file.";
-                case NOT_AN_ARCHIVE -> "that is not an archive -- there is nothing in it to get out.";
-                case ALREADY_RUNNING -> "that archive is already being unpacked.";
-            }));
+            return announce(
+                    "storage",
+                    Outcome.refused(
+                            switch (started.refusal()) {
+                                case NOT_FOUND -> "no such file.";
+                                case NOT_AN_ARCHIVE -> "that is not an archive -- there is nothing in it to get out.";
+                                case ALREADY_RUNNING -> "that archive is already being unpacked.";
+                            }));
         }
         return announce(
                 "storage",
@@ -1513,10 +1535,7 @@ public final class LocalGameSession implements GameSession {
                         .toList(),
                 window.bundle()
                         .map(bundle -> new io.github.stoicswe.eyeandsickle.protocol.game.MarketWindow.Bundle(
-                                bundle.offeringIds(),
-                                bundle.percentOff(),
-                                bundle.fullPriceWei(),
-                                bundle.priceWei())),
+                                bundle.offeringIds(), bundle.percentOff(), bundle.fullPriceWei(), bundle.priceWei())),
                 io.github.stoicswe.eyeandsickle.engine.rules.MarketStock.restocksAt(game.now()),
                 stockLevels(window));
     }
@@ -1596,8 +1615,7 @@ public final class LocalGameSession implements GameSession {
         // The storefront renders from the same call, so the shop cannot advertise one number and the
         // ledger record another — which is the single most damaging thing a sale can get wrong.
         var deal = shelf.dealFor(o.id());
-        java.math.BigInteger price = deal.map(
-                        io.github.stoicswe.eyeandsickle.engine.rules.MarketDeals.Deal::priceWei)
+        java.math.BigInteger price = deal.map(io.github.stoicswe.eyeandsickle.engine.rules.MarketDeals.Deal::priceWei)
                 .orElseGet(o::priceWei);
         var paid = game.spend(
                 price,
@@ -1622,8 +1640,7 @@ public final class LocalGameSession implements GameSession {
         var order = new io.github.stoicswe.eyeandsickle.engine.state.DownloadOrderState();
         order.itemType = o.id();
         // ⚠ Named for the ORDER, so two copies are two files. See Repac.boughtPackageName.
-        order.fileName =
-                io.github.stoicswe.eyeandsickle.engine.rules.Repac.boughtPackageName(o.id(), order.orderId);
+        order.fileName = io.github.stoicswe.eyeandsickle.engine.rules.Repac.boughtPackageName(o.id(), order.orderId);
         order.entryId = paid.get().entryId;
         order.bytes = io.github.stoicswe.eyeandsickle.engine.fs.VirtualFs.upgradeBytes(o.id());
         order.foreign = true;
@@ -1685,8 +1702,7 @@ public final class LocalGameSession implements GameSession {
         }
         for (var member : members) {
             boolean onOffer = shelf.dealFor(member.id()).isPresent();
-            if (!io.github.stoicswe.eyeandsickle.engine.rules.MarketStock.inStock(
-                    held, member, onOffer, game.now())) {
+            if (!io.github.stoicswe.eyeandsickle.engine.rules.MarketStock.inStock(held, member, onOffer, game.now())) {
                 return Outcome.refused(
                         "the bundle includes " + member.name() + ", which is sold out. The shelf restocks daily.");
             }
@@ -1703,7 +1719,8 @@ public final class LocalGameSession implements GameSession {
                 "");
         if (paid.isEmpty()) {
             return Outcome.refused("not enough ethecoin — the bundle costs "
-                    + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.ofWei(bundle.get().priceWei())
+                    + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.ofWei(
+                            bundle.get().priceWei())
                     + ", you have " + balance());
         }
         for (var member : members) {
@@ -1879,15 +1896,12 @@ public final class LocalGameSession implements GameSession {
      * failure this game has a manual page about.
      */
     private void logIntent(String what, Outcome outcome) {
-        LOG.log(
-                java.util.logging.Level.FINE,
-                "intent {0} -> {1} ({2}){3}",
-                new Object[] {
-                    what,
-                    outcome.succeeded() ? "ok" : "refused",
-                    outcome.status(),
-                    outcome.message().isBlank() ? "" : ": " + outcome.message()
-                });
+        LOG.log(java.util.logging.Level.FINE, "intent {0} -> {1} ({2}){3}", new Object[] {
+            what,
+            outcome.succeeded() ? "ok" : "refused",
+            outcome.status(),
+            outcome.message().isBlank() ? "" : ": " + outcome.message()
+        });
     }
 
     /** Puts a completed intent on the bus, named for whatever called {@code changed}. */

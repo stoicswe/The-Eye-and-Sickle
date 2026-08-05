@@ -2241,6 +2241,104 @@ public final class Views {
         return scrollable(root);
     }
 
+    // ------------------------------------------------------------------ operator profile
+
+    /**
+     * The panel that slides out of the OPERATOR cell — who you are, at a glance.
+     *
+     * <h2>⚠ This replaced the IDENTITY window, and the reasoning is where it belongs</h2>
+     *
+     * Identity was a tool in the rail beside the terminal and the market, which put "who am I" on the
+     * same footing as "what can I do" — and the operator's name and face were already on the top
+     * strip, two inches away, doing nothing when clicked. Hanging it off the cell that already names
+     * the player is where an operating system puts it, and it hands the rail's slot back to a tool.
+     *
+     * <p>⚠ <b>The identifier line changes with the MODE, and that is not cosmetic.</b> A solo
+     * character has a local UUID and <b>no DID</b> — structurally, because a solo character has no
+     * route to a server, which is half of what keeps <b>I14</b> true. Federated, it is the DID. The
+     * label says which, so the panel never implies a character has an identity it does not have.
+     *
+     * <p>⚠ <b>Three reputations, never merged</b> ({@code design/glossary}). Trader standing is
+     * whether you deliver what you were paid for; faction standing is the Eye and the Sickle, and
+     * they are separate numbers because a Sickle hero can be a thief. Validator reputation is the
+     * federation's and is the server's — it is absent here deliberately.
+     */
+    public static Region operatorProfile(GameSession session, ClientProfile profile) {
+        VBox root = new VBox(UiTokens.SPACE_4);
+        root.getStyleClass().add("es-market-card");
+        root.setMaxWidth(Region.USE_PREF_SIZE);
+        root.setPrefWidth(420);
+
+        GameSession.IdentityCard card = session.identityCard();
+
+        // ⚠ The picture the player chose, at a size worth choosing one for. The strip's copy is
+        // 23px; this is the only place in the client it is shown large enough to look at.
+        javafx.scene.image.ImageView face = new javafx.scene.image.ImageView();
+        face.setFitWidth(96);
+        face.setFitHeight(96);
+        face.setPreserveRatio(true);
+        face.getStyleClass().add("es-avatar");
+        String png = session.avatar();
+        if (png != null && !png.isBlank()) {
+            try {
+                face.setImage(new javafx.scene.image.Image(new java.io.ByteArrayInputStream(
+                        java.util.Base64.getDecoder().decode(png))));
+            } catch (RuntimeException unreadable) {
+                // ⚠ Silent, like AvatarChooser: a picture that will not decode is not worth an error
+                // on a panel about who you are.
+                face.setImage(null);
+            }
+        }
+        // ⚠ UNMANAGED when there is no picture, not merely blank. A character who never chose one is
+        // the common case, and an invisible-but-managed ImageView still holds its full 96px — the
+        // panel would open with a square of nothing where a face should be, which reads as a failed
+        // load rather than as a choice not yet made. Same rule as the strip's empty refusal cell.
+        boolean hasFace = face.getImage() != null;
+        face.setVisible(hasFace);
+        face.setManaged(hasFace);
+
+        Label handle = new Label(card.handle());
+        handle.getStyleClass().addAll("es-panel-title", "es-market-hero-name");
+        Label mode = Ui.micro(session.mode().label());
+
+        VBox who = new VBox(UiTokens.SPACE_1, handle, mode);
+        who.setAlignment(Pos.CENTER_LEFT);
+        HBox head = Ui.row(UiTokens.SPACE_5, face, who);
+        head.setAlignment(Pos.CENTER_LEFT);
+
+        VBox rows = new VBox(UiTokens.SPACE_2);
+        // ⚠ Wrapped, and the whole value: a DID is long and an elided identifier that looks copyable
+        // and is not is worse than none — the same rule the storage tile's item id records.
+        Label id = wrapped(card.identifier());
+        id.getStyleClass().add("es-mono");
+        rows.getChildren()
+                .addAll(
+                        field(card.federated() ? "did" : "local id", ""),
+                        id,
+                        field("heat", String.valueOf(card.heat())),
+                        field("balance", session.balance().toString()),
+                        field("trader standing", standing(card.trader())),
+                        field("eye", standing(card.eye())),
+                        field("sickle", standing(card.sickle())));
+
+        Label note = wrapped(session.mode().explanation());
+        note.getStyleClass().add("es-text-secondary");
+
+        root.getChildren().addAll(head, new Separator(), rows, new Separator(), note);
+        return root;
+    }
+
+    /**
+     * A reputation as a word and a number.
+     *
+     * <p>⚠ Never colour alone (§4.4) and never a bare integer: "0" is meaningless to a player who
+     * has never seen the scale, and the word is what makes it readable the first time.
+     */
+    private static String standing(int value) {
+        String word = value >= 40 ? "trusted" : value <= -40 ? "shady" : "standard";
+        return word + "  (" + (value > 0 ? "+" : "") + value + ")";
+    }
+
     // ------------------------------------------------------------------ identity
 
     /** Who you are, and — more importantly here — which kind of game you are in. */

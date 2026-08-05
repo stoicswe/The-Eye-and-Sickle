@@ -254,6 +254,15 @@ public final class UiTokens {
     public static final double SECURITY_MARK = 128;
 
     /**
+     * The illustration in the top-right of a Security Center SECTION — see {@code SectionMark}.
+     *
+     * <p>⚠ Smaller than {@link #SECURITY_MARK}. That one is the panel's verdict and is meant to be
+     * the loudest thing on the screen; these label a section the player has already navigated to, so
+     * a mark at the same size would compete with the content it is captioning.
+     */
+    public static final double SECTION_MARK = 92;
+
+    /**
      * The verdict block that pairs with the mark.
      *
      * <p>⚠ A <b>preferred</b> width, and it has to be. A {@code FlowPane} places children at their

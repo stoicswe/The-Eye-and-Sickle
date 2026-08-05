@@ -81,7 +81,14 @@ class WindowCatalogueTest {
         // windows and the puzzle's anti-bot property (I10) depends on cross-referencing two
         // documents at once. Nothing breaks while the minigame is unbuilt; UI-8 records that it
         // probably has to come back out when it is.
-        assertThat(WindowSpec.values()).hasSize(15);
+        // ⚠ `identity` was REMOVED on 2026-08-05 and did NOT simply go away: the operator's name and
+        // face were already on the top strip doing nothing when clicked, and "who am I" sitting in
+        // the rail beside the terminal and the market put it on the same footing as a tool. It is a
+        // panel that slides out of the OPERATOR cell now (`Views.operatorProfile`), which is where an
+        // operating system puts it, and it hands the rail's slot back. ⚠ Verified before deleting:
+        // everything the window carried — handle, mode, heat, balance — is on that panel, plus the
+        // identifier and the standings it never showed.
+        assertThat(WindowSpec.values()).hasSize(14);
         assertThat(java.util.Arrays.stream(WindowSpec.values())
                         .map(WindowSpec::id)
                         .toList())
@@ -93,7 +100,6 @@ class WindowCatalogueTest {
                         "market",
                         "security",
                         "assembl",
-                        "identity",
                         "comms",
                         "settings",
                         "man",
