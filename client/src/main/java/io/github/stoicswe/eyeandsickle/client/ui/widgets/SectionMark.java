@@ -57,7 +57,9 @@ public final class SectionMark extends Pane {
 
     private final Kind kind;
     private final Group art = new Group();
-    private Group magnifier;
+    private Rectangle glare;
+    private double glareTravel;
+    private double glareHome;
     private AutoCloseable ticker;
     private int step;
 
@@ -85,7 +87,7 @@ public final class SectionMark extends Pane {
         sceneProperty().addListener((observable, was, now) -> {
             if (now == null) {
                 dispose();
-            } else if (ticker == null && magnifier != null) {
+            } else if (ticker == null && glare != null) {
                 ticker = Pulse.shared().animate(UiTokens.SECURITY_MARK_STEP_MS, this::advance);
             }
         });
@@ -95,20 +97,27 @@ public final class SectionMark extends Pane {
         return kind;
     }
 
-    /** The sweep: the glass tracks a short arc and comes back, in whole steps. */
+    /**
+     * The glare crosses the lens, in whole steps, and rests off it for most of the cycle.
+     *
+     * <p>⚠ It is a light passing the glass, so it <b>sweeps one way and starts again</b> rather than
+     * travelling out and back — a reflection that retraces its path reads as the lens rocking. The
+     * long dark tail is what makes it a passing light rather than a blinking one.
+     */
     private void advance() {
-        if (magnifier == null) {
+        if (glare == null) {
             return;
         }
         step = (step + 1) % STEPS;
-        // A triangle envelope over the cycle, so it travels out and back rather than snapping home.
-        // ⚠ Triangle rather than a sine for the reason §5 gives: an eased envelope is an easing
-        // curve however it is spelled.
-        int half = STEPS / 2;
-        double travel = (step < half ? step : STEPS - step) / (double) half;
-        double s = UiTokens.SECTION_MARK;
-        magnifier.setTranslateX(travel * s * 0.10);
-        magnifier.setTranslateY(travel * s * 0.06);
+        // ⚠ Only the first part of the cycle moves it across; the rest is the glass sitting dark.
+        // A glare present on every frame is a highlight painted on, not a light going past.
+        double sweep = STEPS * 0.45;
+        if (step >= sweep) {
+            glare.setVisible(false);
+            return;
+        }
+        glare.setVisible(true);
+        glare.setX(glareHome + (step / sweep) * glareTravel * 2);
     }
 
     private String describe() {
@@ -120,60 +129,89 @@ public final class SectionMark extends Pane {
     }
 
     /**
-     * A detective in silhouette, with a magnifying glass in the raised hand.
+     * A detective in silhouette — fedora, trench coat, magnifying glass held up.
      *
-     * <p>⚠ The hat is what makes the silhouette legible at this size. A head-and-shoulders outline
-     * alone reads as a generic person; the brim and crown are the two shapes that say "detective"
-     * without a single line of detail, which is the whole point of a silhouette.
+     * <h2>⚠ The hat and the coat collar are what make it a DETECTIVE</h2>
+     *
+     * A head-and-shoulders outline with a circle beside it is a person holding a lens. What names
+     * the figure is the fedora's <b>pinched crown and wide brim</b> and the coat's <b>peaked
+     * lapels</b> — three shapes, no face. Faceless is not a shortcut: the reference is faceless too,
+     * and a silhouette that grows eyes at this size reads as a cartoon rather than as a mark.
+     *
+     * <p>⚠ The glass is held at the LEFT, in front of the body, and is large — a small lens tucked
+     * beside the head reads as a lollipop. It overlaps the shoulder deliberately, which is what puts
+     * it in front of the figure rather than beside it.
      */
     private void buildDetective() {
         double s = UiTokens.SECTION_MARK;
 
-        // Shoulders and torso — one filled shape, so it stays a silhouette rather than an outline.
-        Polygon body = new Polygon(
-                s * 0.22, s * 0.98,
-                s * 0.26, s * 0.62,
-                s * 0.40, s * 0.52,
-                s * 0.60, s * 0.52,
-                s * 0.74, s * 0.62,
-                s * 0.78, s * 0.98);
-        body.getStyleClass().add("es-sectionmark-ink");
+        // The coat: wide shoulders falling away, with the collar cut as two peaks at the neck.
+        Polygon coat = new Polygon(
+                s * 0.12, s * 1.00,
+                s * 0.17, s * 0.72,
+                s * 0.30, s * 0.60,
+                s * 0.44, s * 0.56,
+                s * 0.50, s * 0.68,
+                s * 0.56, s * 0.56,
+                s * 0.70, s * 0.60,
+                s * 0.83, s * 0.72,
+                s * 0.88, s * 1.00);
+        coat.getStyleClass().add("es-sectionmark-ink");
 
-        Circle head = new Circle(s * 0.50, s * 0.40, s * 0.13);
+        // Head and neck, the neck squared off so the collar has something to sit against.
+        Circle head = new Circle(s * 0.50, s * 0.42, s * 0.135);
         head.getStyleClass().add("es-sectionmark-ink");
+        Rectangle neck = new Rectangle(s * 0.43, s * 0.50, s * 0.14, s * 0.10);
+        neck.getStyleClass().add("es-sectionmark-ink");
 
-        // The hat: a crown and a brim. Both filled, both part of the silhouette.
-        Rectangle crown = new Rectangle(s * 0.37, s * 0.17, s * 0.26, s * 0.14);
-        crown.getStyleClass().add("es-sectionmark-ink");
-        Rectangle brim = new Rectangle(s * 0.28, s * 0.29, s * 0.44, s * 0.05);
+        // The fedora. ⚠ The brim is a flattened ELLIPSE and the crown a tapered polygon — a
+        // rectangle crown and a rectangle brim read as a top hat, which is a different character.
+        javafx.scene.shape.Ellipse brim = new javafx.scene.shape.Ellipse(s * 0.50, s * 0.305, s * 0.255, s * 0.052);
         brim.getStyleClass().add("es-sectionmark-ink");
+        Polygon crown = new Polygon(
+                s * 0.345, s * 0.305,
+                s * 0.385, s * 0.165,
+                s * 0.615, s * 0.165,
+                s * 0.655, s * 0.305);
+        crown.getStyleClass().add("es-sectionmark-ink");
+        // The pinch: a notch of panel colour bitten out of the crown's top, which is the single
+        // detail that separates a fedora from a bowler at this size.
+        Polygon pinch = new Polygon(
+                s * 0.455, s * 0.165,
+                s * 0.500, s * 0.225,
+                s * 0.545, s * 0.165);
+        pinch.getStyleClass().add("es-sectionmark-cut");
 
-        // The raised arm, drawn as a stroke so it reads as a limb rather than a slab.
-        Line arm = new Line(s * 0.68, s * 0.62, s * 0.80, s * 0.48);
-        arm.getStyleClass().add("es-sectionmark-line");
-        arm.setStrokeWidth(s * 0.055);
-        arm.setStrokeLineCap(StrokeLineCap.ROUND);
-
-        // The glass itself — a ring and a handle, grouped so the sweep moves them together.
-        Circle lens = new Circle(0, 0, s * 0.115);
-        lens.getStyleClass().add("es-sectionmark-lens");
-        lens.setStrokeWidth(s * 0.045);
-        Line handle = new Line(s * 0.075, s * 0.075, s * 0.16, s * 0.16);
+        // The glass: a heavy ring, a handle running down to the right, and the lens itself.
+        double lensX = s * 0.245;
+        double lensY = s * 0.545;
+        double lensR = s * 0.175;
+        Circle ring = new Circle(lensX, lensY, lensR);
+        ring.getStyleClass().add("es-sectionmark-lens");
+        ring.setStrokeWidth(s * 0.070);
+        Line handle = new Line(
+                lensX + lensR * 0.70, lensY + lensR * 0.70,
+                lensX + lensR * 1.55, lensY + lensR * 1.55);
         handle.getStyleClass().add("es-sectionmark-line");
-        handle.setStrokeWidth(s * 0.05);
+        handle.setStrokeWidth(s * 0.070);
         handle.setStrokeLineCap(StrokeLineCap.ROUND);
 
-        magnifier = new Group(lens, handle);
-        // ⚠ PLACED WITH layoutX/Y, NEVER translateX/Y — `advance` owns translate, and sharing one
-        // property between placement and animation destroys the placement. It did: `Pulse.animate`
-        // invokes its action ONCE IMMEDIATELY (documented, and a trap for an action that moves
-        // something rather than paints it), so the very first tick overwrote the offset that put the
-        // glass in the detective's hand and it rendered outside the widget's own box entirely.
-        // Found by rendering; it compiles and reads correctly.
-        magnifier.setLayoutX(s * 0.82);
-        magnifier.setLayoutY(s * 0.42);
+        // ⚠ THE GLARE MOVES, THE GLASS DOES NOT. A bar of light travelling across the lens, clipped
+        // to the lens, so it reads as a reflection crossing curved glass rather than as the prop
+        // being waved about. Same construction as SecurityMark's shield sweep, and the same reason:
+        // a clipped bar is a reflection, an unclipped one is a stripe drawn over the picture.
+        glare = new Rectangle(lensR * 0.42, lensR * 2.8);
+        glare.getStyleClass().add("es-sectionmark-glare");
+        glare.setRotate(28);
+        Group lensGroup = new Group(glare);
+        Circle lensClip = new Circle(lensX, lensY, lensR - s * 0.035);
+        lensGroup.setClip(lensClip);
+        glareTravel = lensR * 2.2;
+        glareHome = lensX - glareTravel / 2;
+        glare.setY(lensY - lensR * 1.4);
+        glare.setX(glareHome);
 
-        art.getChildren().addAll(body, head, crown, brim, arm, magnifier);
+        art.getChildren().addAll(coat, neck, head, brim, crown, pinch, lensGroup, ring, handle);
     }
 
     /**

@@ -3644,6 +3644,10 @@
 /* The castle's gate: the panel showing THROUGH the silhouette rather than a mark painted on it —
    the same reasoning the casing's vents and ports are drawn with. */
 .es-sectionmark-cut  { -fx-fill: -es-panel; }
+/* The reflection crossing the lens. ⚠ Brighter than the ink and NOT the accent: §2.1 spends amber on
+   cycles doing work and income, and a highlight on a prop is neither. It is the one part of these
+   marks that is allowed to be near-white, because that is what a specular glare is. */
+.es-sectionmark-glare { -fx-fill: -es-text-hi; -fx-opacity: 0.55; }
 
 /* AnonShare's broker layout: account column, value chart, positions table.
  *

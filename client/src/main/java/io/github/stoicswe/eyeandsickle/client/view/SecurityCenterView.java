@@ -237,6 +237,18 @@ public final class SecurityCenterView {
         javafx.scene.layout.StackPane.setAlignment(mark, javafx.geometry.Pos.TOP_RIGHT);
         javafx.scene.layout.StackPane.setMargin(
                 mark, new javafx.geometry.Insets(UiTokens.SPACE_5, UiTokens.SPACE_6, 0, 0));
+        // ⚠ THE CONTENT IS INSET BY THE MARK'S COLUMN, or the illustration lands ON the panel's text.
+        // It did: the castle sat across the DEFENSE paragraph and the detective across the AUDIT
+        // tab strip, because a StackPane layers its children and reserves nothing for the one on top.
+        // Insetting the content is what turns an overlay into a column — the paragraph wraps before
+        // it reaches the mark rather than running underneath it.
+        //
+        // ⚠ It costs that width down the WHOLE panel, not just beside the mark, which is the honest
+        // price of not editing AuditView and Views.defense to make room. Those two are complete
+        // panels used elsewhere; reaching into them to decorate this window would put the mark in a
+        // different place in each depending on what their first row happens to be.
+        javafx.scene.layout.StackPane.setMargin(
+                content, new javafx.geometry.Insets(0, UiTokens.SECTION_MARK + UiTokens.SPACE_6 * 2, 0, 0));
         return stacked;
     }
 

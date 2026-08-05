@@ -23,6 +23,21 @@ import javafx.scene.input.KeyCombination;
  * 1366×768 laptop with the rig strip still visible. That is not a style guideline — it is what keeps
  * the multi-window fantasy usable on the machine most players actually have, and {@link
  * #MAX_MINIMUM_WIDTH} exists so a test can enforce it rather than a reviewer having to notice.
+ *
+ * <h2>⚠ Accelerators are POSITIONAL, not mnemonic (reassigned 2026-08-05)</h2>
+ *
+ * The rail reads {@code 0 1 2 3 4 R F G A S D X / ,} top to bottom, and the enum's declaration order
+ * IS the rail order — so the binding a player learns is where the tool sits, not what it is called.
+ * That is a deliberate trade and it cost something real: {@code market} was <b>B</b> because "B is
+ * the one accelerator a player will reach for without being told", {@code files} was <b>H</b> for
+ * Home, {@code calc} was <b>C</b>. Those mnemonics are gone.
+ *
+ * <p>⚠ <b>{@code Shortcut+F} now opens the network map, and §6.3 reserves it for per-window find.</b>
+ * Nothing collides today — no window binds find — so no test fails, and {@code FILES} carries the
+ * note explaining why it used to avoid F. The day a find bar is added, one of the two has to move.
+ *
+ * <p>⚠ Every one is a plain {@code Shortcut+key}: five of them required Shift before and now do not,
+ * which is what makes the row read as a sequence rather than as a list of exceptions.
  */
 public enum WindowSpec {
     /**
@@ -59,7 +74,7 @@ public enum WindowSpec {
             620,
             640,
             420,
-            KeyCode.DIGIT6,
+            KeyCode.DIGIT1,
             false,
             true,
             false),
@@ -73,7 +88,7 @@ public enum WindowSpec {
             620,
             560,
             360,
-            KeyCode.DIGIT1,
+            KeyCode.DIGIT2,
             false,
             true,
             false),
@@ -86,8 +101,9 @@ public enum WindowSpec {
      * bar, detail list — because that is the arrangement an Ubuntu user already knows and this
      * window's purpose is that what a player learns in it transfers to a real machine.
      *
-     * <p>⚠ The accelerator is <b>H</b>, for Home, and not F. {@code Shortcut+F} is per-window find
-     * (§6.3) and {@code Shortcut+Shift+F} is already spoken for by {@code recon}'s search-all
+     * <p>⚠ The accelerator is now <b>3</b>, its position in the rail. It was <b>H</b>, for Home, and
+     * that reasoning has moved rather than vanished: {@code Shortcut+F} is per-window find (§6.3) and
+     * {@code Shortcut+Shift+F} is {@code recon}'s search-all
      * (§2.6); taking either would break a documented binding to gain a better mnemonic.
      */
     FILES(
@@ -99,8 +115,8 @@ public enum WindowSpec {
             660,
             640,
             440,
-            KeyCode.H,
-            true,
+            KeyCode.DIGIT3,
+            false,
             true,
             false),
 
@@ -125,7 +141,7 @@ public enum WindowSpec {
             620,
             560,
             420,
-            KeyCode.DIGIT3,
+            KeyCode.DIGIT4,
             false,
             true,
             false),
@@ -139,7 +155,7 @@ public enum WindowSpec {
             560,
             600,
             360,
-            KeyCode.DIGIT4,
+            KeyCode.R,
             false,
             true,
             false),
@@ -163,7 +179,7 @@ public enum WindowSpec {
      * while the working tool sat behind a letter key. Reported as networking and breaching having
      * regressed; nothing had regressed, and both tools were fine.
      *
-     * <p>⚠ It inherits {@code Shortcut+2} deliberately. The habit that caused the confusion now
+     * <p>⚠ It inherited {@code Shortcut+2} for that reason; it is {@code Shortcut+F} now. The habit
      * lands on the tool that works, and the digit row stays contiguous.
      */
     NETMAP(
@@ -175,13 +191,14 @@ public enum WindowSpec {
             780,
             720,
             480,
-            KeyCode.DIGIT2,
+            KeyCode.F,
             false,
             true,
             false),
 
     // The core loop (docs/design/05). Given a letter rather than a digit because the digit row is
-    // full, and B is the one accelerator a player will reach for without being told.
+    // full. ⚠ Its accelerator is positional now (G) rather than mnemonic — see the note on the
+    // enum about what the 2026-08-05 reassignment traded away.
 
     MARKET(
             "market",
@@ -192,8 +209,8 @@ public enum WindowSpec {
             640,
             600,
             440,
-            KeyCode.M,
-            true,
+            KeyCode.G,
+            false,
             true,
             false),
 
@@ -213,7 +230,7 @@ public enum WindowSpec {
             640,
             560,
             420,
-            KeyCode.DIGIT5,
+            KeyCode.A,
             false,
             true,
             false),
@@ -227,8 +244,8 @@ public enum WindowSpec {
             620,
             480,
             400,
-            KeyCode.P,
-            true,
+            KeyCode.S,
+            false,
             true,
             false),
 
@@ -256,8 +273,8 @@ public enum WindowSpec {
             620,
             460,
             320,
-            KeyCode.L,
-            true,
+            KeyCode.D,
+            false,
             true,
             false),
 
@@ -287,8 +304,8 @@ public enum WindowSpec {
             700,
             560,
             460,
-            KeyCode.C,
-            true,
+            KeyCode.X,
+            false,
             true,
             false),
 

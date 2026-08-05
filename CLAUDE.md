@@ -1563,6 +1563,33 @@ audits on a timer.
 - ⚠ **No `⚠` glyph in UI strings, and `GlyphCoverageTest` scans SOURCE** — a placeholder literal that
   gets overwritten at runtime still fails the build.
 
+**The Security Center's section marks: detective · castle · alarm clock (2026-08-05).**
+`ui/widgets/SectionMark`, top-right of AUDIT, DEFENSE and SCHEDULE.
+
+- ⚠ **DRAWN, never a glyph.** `GlyphCoverageTest` has already rejected `U+26A0` in this very panel and
+  §9 bans icon sets, so these are `Polygon`s, `Circle`s, `Ellipse`s and `Line`s — the decision
+  `SecurityMark`, the flash overlay's warning mark and the carousel's dots all record.
+- ⚠ **THE CONTENT IS INSET BY THE MARK'S COLUMN.** A `StackPane` layers its children and reserves
+  nothing for the one on top, so the first version put the castle across the DEFENSE paragraph and
+  the detective across the AUDIT tab strip. Insetting the content is what turns an overlay into a
+  column. ⚠ It costs that width down the **whole** panel — the honest price of not editing
+  `AuditView` and `Views.defense`, which are complete panels used elsewhere.
+- ⚠ **THE GLARE MOVES, THE GLASS DOES NOT.** A bar of light clipped to the lens, sweeping one way and
+  starting again — a reflection that retraces its path reads as the lens rocking rather than as a
+  light going past, and a glare present on every frame is a highlight painted on. The first version
+  moved the whole magnifier, which read as waving the prop about.
+- ⚠ **The fedora's PINCH and the coat's LAPEL are what name the figure.** A head-and-shoulders
+  outline beside a circle is a person holding a lens; three shapes make it a detective, with no face
+  — the reference is faceless too, and a silhouette that grows eyes at this size becomes a cartoon.
+  ⚠ The brim is a flattened **ellipse** and the crown a tapered polygon: two rectangles read as a top
+  hat.
+- ⚠ **Placement uses `layoutX/Y`, animation owns `translate`.** `Pulse.animate` **invokes once
+  immediately** — a trap for an action that moves something rather than paints it — so the first tick
+  overwrote the offset that put the glass in the hand and it rendered outside the widget entirely.
+  **Found by rendering.**
+- ⚠ Neutral ramp only: `SecurityMark` already spends this panel's whole `alarm` budget on the verdict,
+  and the glare is the one part allowed near-white, because that is what a specular highlight is.
+
 **THE RAIL WAS REORDERED AND IDENTITY REMOVED (2026-08-05).** `WindowSpec`'s declaration order IS
 the rail order (`DeckShell` walks `values()`), so the catalogue is now: rig monitor · security ·
 terminal · files · vaultstore · ledger · network · market · assembl · **COMPort** · log · calc ·
@@ -1631,9 +1658,15 @@ and **SECURITY CENTER**. Twenty windows became fifteen.
   tab is correct by declaring what it is. ⚠ The `columns()` switch caught the same addition **at
   compile time** — an exhaustive switch over an enum is the one place a new constant cannot be
   forgotten, which is why it is worth keeping one.
-- ⚠ **Accelerators were RENUMBERED** (0 rig · 1 terminal · 2 network · 3 storage · 4 ledger ·
-  5 assembl · 6 security). `WindowCatalogueTest` fails the build on a duplicate, which is how the
-  first collision surfaced. ⚠ `Shortcut+Shift+J` is free now that the switcher is gone.
+- ⚠ **Accelerators are POSITIONAL now (reassigned 2026-08-05)** — the rail reads
+  `0 1 2 3 4 R F G A S D X / ,` top to bottom, and `WindowSpec`'s declaration order IS the rail
+  order. The binding a player learns is **where a tool sits**, not what it is called.
+  ⚠ **That traded away every mnemonic**: market was **B** ("the one accelerator a player will reach
+  for without being told"), files was **H** for Home, calc was **C**. ⚠ **`Shortcut+F` now opens the
+  network map and §6.3 reserves it for per-window find** — nothing collides today because no window
+  binds find, so no test fails; the day a find bar is added, one of the two has to move.
+  ⚠ Every binding is a plain `Shortcut+key`; five needed Shift before and now do not.
+  `WindowCatalogueTest` fails the build on a duplicate and `ShortcutsTest` on a clash with a global.
 - ⚠ **The views were REPARENTED, not rewritten.** `AuditView`, `Views.defense`, `Views.mining`,
   `ReconView` and `BreachView` are unchanged — rebuilding any of them would have been another place
   for the rig's own diagnosis to drift from itself.
