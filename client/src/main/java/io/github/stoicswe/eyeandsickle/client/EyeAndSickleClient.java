@@ -10,7 +10,6 @@ import io.github.stoicswe.eyeandsickle.client.shell.Shell;
 import io.github.stoicswe.eyeandsickle.client.teaching.ManCommands;
 import io.github.stoicswe.eyeandsickle.client.teaching.TermDatabase;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeManager;
-import io.github.stoicswe.eyeandsickle.client.view.BreachView;
 import io.github.stoicswe.eyeandsickle.client.view.CalcView;
 import io.github.stoicswe.eyeandsickle.client.view.CommandPalette;
 import io.github.stoicswe.eyeandsickle.client.view.FileManagerView;
@@ -112,15 +111,12 @@ public class EyeAndSickleClient extends Application {
         // saying "started". Almost every report that reaches a maintainer needs the JVM, the OS and
         // the architecture before anything else can be ruled in or out, and a player cannot be
         // expected to know how to find them.
-        LOG.log(
-                java.util.logging.Level.INFO,
-                "{0} starting — Java {1} on {2} {3}",
-                new Object[] {
-                    Launcher.APP_NAME,
-                    System.getProperty("java.version", "?"),
-                    System.getProperty("os.name", "?"),
-                    System.getProperty("os.arch", "?")
-                });
+        LOG.log(java.util.logging.Level.INFO, "{0} starting — Java {1} on {2} {3}", new Object[] {
+            Launcher.APP_NAME,
+            System.getProperty("java.version", "?"),
+            System.getProperty("os.name", "?"),
+            System.getProperty("os.arch", "?")
+        });
         this.stage = primaryStage;
         profile = ClientProfile.discover();
         themes = new ThemeManager(profile);
@@ -142,6 +138,18 @@ public class EyeAndSickleClient extends Application {
         terms = TermDatabase.load(language.tag());
 
         themes.followSystemPreferences();
+
+        // ⚠ A THEME CAN CHANGE THE GEOMETRY NOW, so something has to re-shape the windows when one
+        // is picked — and this is the chokepoint rather than the pickers, deliberately. Rounding is
+        // applied by a clip and a style class, neither of which a stylesheet swap touches, and there
+        // are four places a theme changes: Settings, the login screen, the `theme` command's cycle,
+        // and reloadAppearance() when a character is loaded. Wiring the pickers means the next one
+        // added silently stops re-shaping, which is the failure DeskManager's own notes record as
+        // "a global appearance flag that reached new objects and not live ones".
+        themes.currentProperty().addListener((observable, was, now) -> {
+            applyRootRounding(stage.getScene());
+            applyDeskSettings();
+        });
 
         // §0 and §10 criterion 1: no OS chrome visible on macOS, Windows or Linux. This has to be
         // set before the Stage is shown — JavaFX rejects a style change on a Stage that has already
@@ -559,7 +567,11 @@ public class EyeAndSickleClient extends Application {
         // ⚠ With a native frame the OS owns the outer corners, so clipping the scene root would cut
         // the game away INSIDE a square window — a visible gap between the content and the frame.
         // Desk windows still round; that is the deck's own furniture and stays the deck's business.
-        if (!profile.appearance().roundedWindows || profile.settings().nativeWindowBorder) {
+        // ⚠ The theme can imply rounding without the player's §9.3 switch being on — one place knows
+        // that rule (ThemeId.cornersAreRounded) so this and DeckShell.applyRoundedSetting cannot
+        // disagree and leave a round outer window full of square panels.
+        if (!io.github.stoicswe.eyeandsickle.client.theme.ThemeId.cornersAreRounded(profile.appearance())
+                || profile.settings().nativeWindowBorder) {
             root.setClip(null);
             return;
         }
@@ -720,30 +732,27 @@ public class EyeAndSickleClient extends Application {
         // or not there is a key, a network, or a provider having a bad day.
         // ⚠ Discovered symbols are replayed into the registry BEFORE anything reads it, so a
         // character opened offline still knows every ticker a previous session looked up.
-        profile.settings().discoveredSymbols.forEach(
-                io.github.stoicswe.eyeandsickle.engine.stocks.Tickers::register);
+        profile.settings().discoveredSymbols.forEach(io.github.stoicswe.eyeandsickle.engine.stocks.Tickers::register);
         var offline = new io.github.stoicswe.eyeandsickle.engine.stocks.SimulatedStockFeed(
                 engine.state().characterId.hashCode());
         String apiKey = profile.settings().stockApiKey;
-        engine.useStockFeed(apiKey == null || apiKey.isBlank()
-                ? offline
-                : new io.github.stoicswe.eyeandsickle.client.stocks.HttpStockFeed(
-                        io.github.stoicswe.eyeandsickle.engine.stocks.StockProvider.parse(
-                                profile.settings().stockProvider),
-                        apiKey,
-                        offline,
-                        java.time.Duration.ofSeconds(
-                                Math.max(1, profile.settings().stockRefreshSeconds)),
-                        // ⚠ A supplier, read at refresh time. What the player holds and watches
-                        // changes while the client runs; a set captured here would leave anything
-                        // bought this session on the once-a-day cadence until a restart.
-                        () -> io.github.stoicswe.eyeandsickle.engine.rules.Brokerage.tracked(
-                                engine.state())));
+        engine.useStockFeed(
+                apiKey == null || apiKey.isBlank()
+                        ? offline
+                        : new io.github.stoicswe.eyeandsickle.client.stocks.HttpStockFeed(
+                                io.github.stoicswe.eyeandsickle.engine.stocks.StockProvider.parse(
+                                        profile.settings().stockProvider),
+                                apiKey,
+                                offline,
+                                java.time.Duration.ofSeconds(Math.max(1, profile.settings().stockRefreshSeconds)),
+                                // ⚠ A supplier, read at refresh time. What the player holds and watches
+                                // changes while the client runs; a set captured here would leave anything
+                                // bought this session on the once-a-day cadence until a restart.
+                                () -> io.github.stoicswe.eyeandsickle.engine.rules.Brokerage.tracked(engine.state())));
         LocalGameSession local = new LocalGameSession(engine);
         if (apiKey != null && !apiKey.isBlank()) {
             local.useSymbolLookup(new io.github.stoicswe.eyeandsickle.client.stocks.SymbolLookup(
-                    io.github.stoicswe.eyeandsickle.engine.stocks.StockProvider.parse(
-                            profile.settings().stockProvider),
+                    io.github.stoicswe.eyeandsickle.engine.stocks.StockProvider.parse(profile.settings().stockProvider),
                     apiKey));
         }
         // ⚠ Persisted as soon as the universe grows, not at shutdown. A player who discovers a
@@ -755,8 +764,7 @@ public class EyeAndSickleClient extends Application {
             // ⚠ Bounded, trimmed from the front — a settings file is one a human should be able to
             // open, and years of searching would otherwise turn it into a symbol table.
             var iterator = kept.entrySet().iterator();
-            while (kept.size() > io.github.stoicswe.eyeandsickle.client.profile.ClientProfile.Settings
-                            .DISCOVERED_LIMIT
+            while (kept.size() > io.github.stoicswe.eyeandsickle.client.profile.ClientProfile.Settings.DISCOVERED_LIMIT
                     && iterator.hasNext()) {
                 iterator.next();
                 iterator.remove();
@@ -1140,11 +1148,11 @@ public class EyeAndSickleClient extends Application {
             case LOG -> LogView.create(session);
             // ⚠ The refresh cadence is read HERE, at open, not cached — a player who moves the
             // slider and reopens the window gets the new rate without a restart.
-            case SECURITY ->
-                io.github.stoicswe.eyeandsickle.client.view.SecurityCenterView.create(session, shell);
+            case SECURITY -> io.github.stoicswe.eyeandsickle.client.view.SecurityCenterView.create(session, shell);
             case ASSEMBL -> io.github.stoicswe.eyeandsickle.client.view.AssemblView.create(session);
-            case MARKET -> io.github.stoicswe.eyeandsickle.client.view.MarketView.create(
-                    session, profile.settings().stockRefreshSeconds);
+            case MARKET ->
+                io.github.stoicswe.eyeandsickle.client.view.MarketView.create(
+                        session, profile.settings().stockRefreshSeconds);
             // ⚠ RECON is the reports now, not the page about them. The cost model and what a scan
             // is a model of moved to `man port-scan` — reference a player reads once, in the place
             // they can find it deliberately, rather than above the data every single time.

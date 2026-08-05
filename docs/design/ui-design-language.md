@@ -419,7 +419,7 @@ If screen real estate is attention, the UI is a system rather than a skin.
 
 Any of these individually undoes the look. Treat as build-blocking.
 
-- ~~**Rounded corners**~~ — **amended 2026-07-28, see §9.3.** Permitted as an opt-in setting, off by default, and narrowly scoped. Drop shadows, blur and glassmorphism are unchanged and still cut.
+- ~~**Rounded corners**~~ — **amended 2026-07-28, see §9.3.** Permitted as an opt-in setting, off by default, and narrowly scoped. Drop shadows and blur are unchanged and still cut. ~~**Glassmorphism**~~ — **amended 2026-08-05, see §9.4:** permitted as a theme, off by default, under §9.1's four conditions. Shadows and blur are *not* included in that and remain build-blocking — and unreachable anyway, since JavaFX exposes no backdrop filter.
 - A second accent hue, or a semantic color system
 - Easing curves — spring, bounce, ease-in-out, ease-out
 - ~~**Native window chrome of any kind**~~ — **amended 2026-07-28, see §0.1.** Permitted as an opt-in for the main window only, off by default. Tool windows are still drawn by the deck and always will be; §0's cancellation of the `Stage`-per-tool model is unchanged.
@@ -448,6 +448,125 @@ Any of these individually undoes the look. Treat as build-blocking.
 That boundary is machine-checked — `UiContractTest.RoundedOptIn` fails the build if a non-zero radius appears outside an `.es-rounded` rule, or if such a rule names any of the measurement classes. The older assertion ("radius is 0 everywhere") was replaced rather than deleted, so the contract still has teeth; what changed is what it is a contract *about*.
 
 **Why an opt-in rather than a straight reversal.** The failure §1 names is *a competent dark-mode developer tool*, and hard edges are most of what keeps this deck from being one. A player who prefers soft corners on their own screen is not a design problem; a shipped default that quietly drifts toward the generic is. Off-by-default keeps the identity and gives the choice away.
+
+### 9.4 Glassmorphism — permitted as a theme, on the same conditions (amended 2026-08-05)
+
+**§9.3 said in as many words that "drop shadows, blur and glassmorphism are unchanged and still cut".** Glassmorphism is permitted now, on explicit direction, by the same mechanism and under §9.1's identical four conditions. **Drop shadows and blur are NOT permitted and nothing below relaxes them.** Two themes ship, in Settings → Appearance:
+
+| Theme | Id | What it is |
+|---|---|---|
+| **uOS Modern Liquid Abs — dark** | `liquid-dark` | Translucent graphite glass on a cold desk, under a lit rim |
+| **uOS Modern Liquid Abs — light** | `liquid-light` | Bright glass on a cool grey desk |
+
+The reference is macOS Tahoe's Liquid Glass. What was taken from it is the **material**; what was not taken is its colour vocabulary — see the accent note below.
+
+**The four conditions, and why two of them are structural here rather than maintained by hand:**
+
+1. **Off by default, switchable off permanently.** `Deck` is still the default and these are two entries in a picker. A theme is opt-in *by construction* — unlike a scanline setting there is no state in which a player gets this without having chosen it, and choosing something else removes it completely.
+2. **No artefact may reduce the legibility of a figure the player is required to read.** Measured, not asserted — see the legibility section below, which is the whole of the engineering here.
+3. **No blur *as a stylesheet effect* — and a real backdrop blur, which is a different thing.** ⚠ This condition read *"still no blur; JavaFX makes it impossible"* until **2026-08-05**, and that was true only of CSS: there is no `backdrop-filter`, and `-fx-effect: gaussianblur(...)` blurs a node's *own* content, i.e. the panel's text. It was never true of the toolkit. `ui/chrome/Frost` snapshots what is beneath each window, blurs the image, and paints it under the panel — a genuine backdrop blur, reached the long way round.
+
+   What §9 actually objects to is **blur and shadow applied to the interface itself**, which softens edges the design language spends its whole geometry budget keeping hard. That ban is untouched, and `UiContractTest.rejectionListHolds` still scans **every** stylesheet for it — a palette overlay being exactly where "just a touch of blur to sell the glass" would land. Blurring *a picture of what is behind a window* leaves every edge, hairline and glyph in the interface exactly as sharp as before.
+4. **Motion obeys §5.** Neither palette animates anything. §5 never comes up.
+
+**Nothing about the component sheet changed.** These are palette overlays of about forty lines, like every other theme (`ThemeId`), so the argument §0 makes for one hand-written stylesheet is untouched: a widget still cannot look right in one variant and broken in another, because there is still exactly one set of component rules.
+
+#### What "glass" is built from, given there is no blur
+
+Three things, and the first is the one everybody reaches for and the least important:
+
+1. **Transmission** — the panel is translucent, so the desk shows faintly through it.
+2. **A specular rim** — a lit edge along every panel boundary. This does most of the work. It costs no new component rule: `-es-rule-hi` already paints `.es-panel-edge`, the 1px band the base sheet draws around every window, so brightening that token lights every panel at once.
+3. **Elevation by brightness** — a raised surface is lighter. §2.1's *"depth comes from brightness, never from shadow or blur"* was already the rule, and it is exactly what glass wants; here the lift does the job a shadow does in the reference.
+
+⚠ **The first build tuned the desk-to-panel step against the deck palette's and was wrong.** The deck's step is nearly invisible, which is correct for an interface built of hairlines with no fills and wrong for glass, **where the lift *is* the material.** A pane level with its ground is not a pane.
+
+#### ⚠ Transmission is bounded above, and this is the part that will be got wrong again
+
+Without blur, a translucent panel does not soften what is behind it — **it shows it, sharp.** Desk windows overlap. So the alpha is bounded by two separate failures, and **both were found by rendering, neither by review:**
+
+- **Content behind.** A window under another window shows its text through it. Two columns of interleaved monospace is not a material, it is a rendering fault. Residual contrast is `(1 − alpha)` times the original.
+- **Texture behind, and this is the binding constraint.** At 12% transmission the desk substrate's rows of hex came through every panel as horizontal **banding** — on the light palette, indistinguishable from a failing display. It is content-behind-glass again, but the content is *texture*, so it slips under a bound written for text while looking worse.
+
+⚠ **Those two findings are why the palettes were tuned twice, and they are what a real blur then made obsolete.** With `ui/chrome/Frost` behind them the panels run at **80% (dark) and 68% (light)** transmission — roughly twice what was survivable without it — because what shows through is no longer a picture of the desk but a Gaussian blur of it. The two findings below stand as the record of what transparency costs *without* a blur, and as the constraint any future unfrosted palette is still held to:
+
+- **The film must be LIGHT, and that is physics rather than taste.** A frosted pane scatters additively — it lifts what is behind it toward grey rather than tinting it darker, which is why a macOS glass panel over a black desktop is a mid grey. Measured at the same alpha and desk: a mid-toned film leaves the text behind it at **4.95:1** (plainly readable, a second screen), a light film at **2.03:1** (present, not readable). The authentic choice is also the only survivable one. The cost is that the dark palette's panel composites to a mid graphite and its greys are near-whites — again what the reference actually looks like.
+- **⚠ The numeric bound is necessary and NOT sufficient.** A build measuring **2.78:1** — comfortably legal — rendered the notification stack over the LOG window as two columns of text occupying the same pixels: each individually below the legibility floor, the pair unreadable. A per-pair luminance ratio cannot see two texts competing for the same glyph cells. **Passing the test does not mean a palette is legible. Render it.**
+
+`ContrastTest.whatShowsThroughIsNotReadable` holds the floor, and the shipped palettes sit well under it.
+
+#### How the blur is actually done (`ui/chrome/Frost`)
+
+There is no backdrop filter, so the blur is built from `Node.snapshot`: render what is beneath a window to an image, blur *the image*, and put it under the window's translucent panel. Three decisions make it affordable, and each is a trap avoided:
+
+- **The capture is the whole desk, not the window's rectangle.** That sounds wasteful and is the opposite: a window's backdrop then changes only when the *content* behind it changes, never when the window moves. Dragging repositions an existing image — free, and pixel-accurate, since a translation over a static backdrop is exactly a translation of the backdrop.
+- **It is captured at 0.4 scale.** A blur discards high frequencies by definition, so capturing them first is work whose only product is thrown away. The smoothed upscale contributes to the softening rather than fighting it. ⚠ The radius is therefore in *downscaled* pixels and is ~2.5× larger on screen — and JavaFX caps `GaussianBlur` at 63, which is a cap on the small number, not the visible one.
+- **One capture per window, bottom-up.** A window must not see itself or anything above it. Hiding everything once and revealing one frame at a time gives frame *n* exactly frames *0..n-1*.
+
+⚠ **It is deferred and coalesced, never synchronous.** `snapshot` forces a CSS and layout pass, so calling it from inside one — where most of these events originate — re-enters layout. And a single window opening fires several notifications, each of which would otherwise re-render the desk once per window.
+
+**It refreshes at 24 fps, on its own clock** (`UiTokens.FROST_MS`) — deliberately *not* `Pulse`, which ticks at 100 ms and quantises every subscriber to a multiple of it, so a request for 24 fps rounds silently to 10; reaching 24 through Pulse would mean speeding up every decorative widget in the client to fix one of them.
+
+⚠ **Every decision here came out of the numbers.** Four windows at 1600×1000, per full refresh:
+
+| | cost | ceiling |
+|---|---|---|
+| One capture per window *(a real compositor's semantics)* | **~40 ms** | 24 fps — the entire thread |
+| …each cut to its own window's rectangle | **~37 ms** | 27 fps |
+| One shared capture for everything | **~9 ms** | ~110 fps |
+| **What ships:** shared + one per *overlapping* window | **8–34 ms** | 127 fps tiled |
+
+⚠ **Row two is the counter-intuitive finding: `snapshot` renders the whole node whatever the viewport says — the viewport only crops the result.** Cost is the *number* of snapshots and barely at all their size, which is why shrinking them bought 7% and taking fewer bought everything. It is also why the capture scale has diminishing returns: at 0.22 a cascaded cycle was still 32 ms.
+
+#### Shared where that is exact; per-window where it is not
+
+A single capture is taken with every frame hidden, so it is the desk. Handing it to a window sitting on top of another shows blurred *desk* where the window beneath should be — a hole punched through the stack rather than glass. **That shipped for one build and was wrong.**
+
+⚠ The resolution is that a shared capture is not an approximation for most windows, it is **exact**: if a window's rectangle does not overlap any lower window, the desk genuinely is all that is under it. So only windows that really do overlap get their own capture — **none of them in the tiled layout**, where windows abut and share edges. Correctness everywhere, paid for in the worst case rather than in every case.
+
+⚠ **The tiled layout is therefore the wrong one to check this in**, which is exactly how it went unnoticed: every render was tiled. `-Ddeck.cascade` on the render harness leaves windows overlapping.
+
+#### 24 fps is a ceiling, not a rate
+
+⚠ Paced against `UiTokens.FROST_BUDGET`: the desk measures each refresh and will not start the next until the gap is at least `cost / budget`. A fixed 24 fps would hand the thread to the blur exactly when the player has the most on screen — the deck would stutter under the interaction that caused it. So the frost stays **correct** at any window count and only its *frequency* degrades: the full 24 fps tiled, around 7 fps with four windows cascaded.
+
+⚠ **Reduced motion stops the clock and falls back to the event-driven path**, so the frost is still correct after every interaction and simply never moves on its own — WCAG 2.2.2 satisfied without withdrawing the effect. A frost that merely froze would be *wrong* rather than still: it would show a desk that has since changed.
+
+#### ⚠ A window may be glass; a well sunk into one must transmit; a thing that floats over content must not.
+
+Three grounds, three rules, and the middle one was missed on the first frosted build:
+
+- **`-es-panel`** — the window body. Glass.
+- **`-es-well`** — anything sunk *into* a panel: a terminal's scrollback, a table body, a text field, the cycle grid's field, the map canvas, the calculator. It **aliases `-es-void`**, so on the six opaque palettes a well is the app ground exactly as before. ⚠ It exists because `-es-void` does two unrelated jobs — it is the desk *and* every recess — and glass needs those to part company: the desk stays opaque (it is the bottom of the stack), while a well painted with it punches a **black box through the glass**, which is exactly what the terminal, file manager, map, manual and calculator looked like. In the glass palettes it is a *tint over the frost*, darker than the panel (a recess reads as a recess by being darker — §2.1's depth-from-brightness, in the one direction that is not "raised") and more opaque than it (a terminal's whole content sits directly on it, and a blurred bright patch behind small monospace is where transmission costs real legibility).
+- **`-es-float`** — anything floating over content: toasts, dialogs, context menus, tooltips, the download dock, the sync banner. Opaque.
+
+#### ⚠ A window may be glass. A thing that floats over content may not.
+
+`-es-float` is the ground for anything that floats: toasts, dialogs, context menus, tooltips, the download dock, the sync banner. It **aliases `-es-panel-hi`**, so on the six opaque palettes it changes nothing and a floating surface is the raised surface exactly as before; the two glass palettes override it with an opaque literal.
+
+The rule it encodes is the one the render taught: a window body may transmit because what is behind it is *usually the desk*, but an alert is over content by definition, and **an alert you cannot read is not an alert.**
+
+#### ⚠ Measuring a translucent palette needs compositing, and the naive reading is worse than no check
+
+`ContrastTest`'s token pattern was `#[0-9A-Fa-f]{6}`. Against an eight-digit `#RRGGBBAA` **that does not fail — it matches the first six digits and silently drops the alpha**, so every contrast assertion in the client would have gone on measuring text against a panel colour that is never on screen, and reported a pass. A check that quietly measures the wrong thing is worse than no check, because it is believed.
+
+The class composites now: the panel is measured over the desk, and the raised surface over the **panel** (a header strip sits inside a window, so two glass layers stack). Both liquid palettes clear the 3:1 floor with better margins than the deck palette itself.
+
+#### The accent stays warm amber (explicit direction)
+
+The reference is unmistakably blue-accented and this is **not**. §2.1 calls the warm-accent-on-cool-ground temperature split load-bearing, and a blue accent standing beside the existing `gain` green, `warn` orange and `alarm` red is the semantic colour system §2.1 bans, arriving one token at a time. So `-es-amber` keeps its single meaning — cycles doing work, or income — in each palette's own register: a lighter sodium on the dark glass, and a burnt amber on the light one for the reason uOS Classic already records (bright sodium measures ~1.7:1 on a near-white panel, which would turn the one meaningful colour into decoration).
+
+**The material is the reference's. The vocabulary is the game's.**
+
+#### ⚠ These themes round windows, and §9.3's boundary is what makes that safe
+
+Glass with hard corners is not the material, so `ThemeId.roundsCorners()` is true for both. It does **not** write the player's §9.3 setting — a costume has to come off cleanly, and a player who tried the theme for thirty seconds must not find their deck permanently round with nothing to say why. The setting is OR-ed with the theme at the two places that shape a window, via one helper so they cannot disagree.
+
+⚠ **It reuses the existing `.es-rounded` class rather than introducing a theme-scoped radius**, deliberately. §9.3's ⚠ *"never round a measurement"* is machine-checked against that one selector; a parallel one would have been a second place for that boundary to be forgotten. Under Settings → Windows the switch shows the **effective** state and is disabled with a line saying who decided it — a control that appears to do nothing reads as broken, and players blame the control.
+
+**§9.3's rejection-list entry is otherwise unamended.** The shipped client is still square-cornered, because the shipped theme is still `Deck`.
+
+---
 
 ### 9.1 Screen artefacts — permitted, on conditions (amended 2026-07-26)
 

@@ -207,7 +207,7 @@ The client **runs offline out of the box**: `mvn install -DskipTests && mvn -pl 
 playable solo game with no network, no account and **nothing to install** — the character lives in an
 embedded H2 file in the profile directory, created and migrated on first launch (⚠ "no database" was
 true until 2026-08-03 and is not any more; what is still true, and is the part that mattered, is that
-there is nothing for a player to set up). Twenty tool windows, five themes, a shell with real pipelines
+there is nothing for a player to set up). Fifteen tool windows, eight themes, a shell with real pipelines
 and globs, and a 23-page offline manual parsed from `client/src/main/resources/.../terms/`.
 
 ⚠ **Window controls sit on the LEFT on macOS, in macOS's order** (close, minimise, zoom) and on the
@@ -267,8 +267,162 @@ open of the rig monitor leaked another Pulse subscription. `RigMonitorView` now 
 on the scene listener, guarded by an `attached` flag because that listener fires with null *before*
 the panel is ever added as well as after it is removed.
 
+**uOS MODERN LIQUID ABS — two glass themes, dark and light (2026-08-05).** `ThemeId.{LIQUID_DARK,
+LIQUID_LIGHT}` + `theme-liquid-{dark,light}.css`. `docs/design/ui-design-language.md` **§9.4** amends
+§9's ban on **glassmorphism** into an opt-in, on explicit direction, under §9.1's same four
+conditions. ⚠ **Drop shadows and blur are NOT included and stay build-blocking.**
+
+- ⚠ **THE BACKDROP BLUR IS REAL — `ui/chrome/Frost` (2026-08-05), and it is NOT CSS.** There is no
+  `backdrop-filter`, and `-fx-effect: gaussianblur` blurs a node's **own** text; that is a fact about
+  the *stylesheet*, and it was wrongly recorded here as a fact about the toolkit. `Node.snapshot` is
+  the way round: capture what is beneath a window, blur the image, paint it under the panel.
+  ⚠ **§9's ban is untouched** — it objects to blur/shadow *on the interface*, which softens the edges
+  the geometry budget exists to keep hard. Blurring a **picture of what is behind** a window leaves
+  every hairline and glyph exactly as sharp. The CSS scan still runs on all eight stylesheets.
+- ⚠ **THREE DECISIONS MAKE IT AFFORDABLE, and each is a trap avoided.** (1) The capture is the
+  **whole desk**, not the window's rectangle — so a backdrop changes only when the *content* behind
+  changes, and **dragging is free and pixel-accurate** (a translation over a static backdrop is
+  exactly a translation of the backdrop). (2) Captured at **0.4 scale**: a blur discards high
+  frequencies by definition, so capturing them is work whose only product is thrown away, and the
+  smoothed upscale helps. ⚠ The radius is in *downscaled* pixels, ~2.5× larger on screen — and
+  JavaFX caps `GaussianBlur` at **63**, a cap on the small number and not the visible one. (3) One
+  capture per window, **bottom-up**, hiding everything once and revealing one frame at a time, so
+  frame *n* sees exactly frames *0..n-1*.
+- ⚠ **DEFERRED AND COALESCED, NEVER SYNCHRONOUS.** `snapshot` forces a CSS and layout pass, so
+  calling it from inside one — which is where most of these events originate — re-enters layout.
+  Scheduled at the `notifyListeners()` chokepoint, not at the twelve call sites.
+- ⚠ **`DeskManager.frostNow()` exists ONLY for the render harness.** No queued runnable executes
+  during a synchronous `Scene.snapshot`, so a harness on the normal path photographs every glass
+  window with nothing behind it and reports the feature as working.
+- ⚠ **IT REFRESHES AT 24 FPS ON ITS OWN CLOCK** (`UiTokens.FROST_MS`), deliberately **not** `Pulse` —
+  Pulse ticks at 100ms and **quantises every subscriber to a multiple of it**, so a request for 24fps
+  rounds silently to 10, and reaching 24 through Pulse means speeding up every decorative widget in
+  the client to fix one. A `Timeline` with an action-only `KeyFrame` interpolates nothing, so §5's
+  easing ban is not in play and neither contract test fires: this is a sampling rate, not a tween.
+- ⚠ **THE MEASUREMENTS ARE THE WHOLE DESIGN.** Four windows at 1600×1000, per refresh: one capture
+  **per window** (a real compositor's semantics) = **~40ms**, a 24fps *ceiling*, i.e. the whole
+  thread; each cut to its own window's rectangle = **~37ms**; **one shared capture = ~9ms**. What
+  ships is shared + one per **overlapping** window: **8ms tiled, ~34ms fully cascaded**.
+  ⚠ The middle number is the counter-intuitive finding: **`snapshot` renders the whole node whatever
+  the viewport says — the viewport only crops the result.** Cost is the *number* of snapshots and
+  barely at all their size, which is why shrinking bought 7% and taking fewer bought everything, and
+  why `SCALE` has diminishing returns (0.22 was still 32ms cascaded).
+- ⚠ **SHARED WHERE THAT IS EXACT, PER-WINDOW WHERE IT IS NOT — and the first version got this wrong.**
+  A shared capture hides every frame, so it is the desk; handing it to a window sitting **on** another
+  shows blurred desk where the window beneath should be, which reads as a hole punched through the
+  stack. ⚠ The resolution: a shared capture is not an approximation for most windows, it is **exact** —
+  if a window's rectangle overlaps no lower window, the desk genuinely is all that is under it. Only
+  real overlaps get their own capture, which in the **tiled layout is none of them**.
+  ⚠ **Overlap must be STRICTLY POSITIVE**: tiled windows abut, and a plain `intersects` counts a
+  zero-width touch, putting every window on the expensive path to produce an identical picture.
+- ⚠ **THE TILED LAYOUT IS THE WRONG ONE TO CHECK STACKING IN**, which is exactly why it shipped wrong:
+  every render was tiled. `-Ddeck.cascade` on the harness leaves windows overlapping.
+- ⚠ **24 FPS IS A CEILING, NOT A RATE** — paced against `UiTokens.FROST_BUDGET`. `DeskManager`
+  measures each refresh and will not start the next until the gap is `cost / budget`. A fixed 24fps
+  hands the thread to the blur exactly when the player has the most on screen. The frost stays
+  **correct** at any window count and only its *frequency* degrades: full 24fps tiled, ~7fps cascaded.
+  ⚠ It reads **`System.nanoTime`**, the one place this client's "always the session clock" rule
+  inverts — this is not a game deadline, it is how long *this machine* took, and a wound clock would
+  make the pacing believe a 34ms capture was instant. Same reasoning as the event bus's `time`.
+- ⚠ **A CAPTURE CLOSES AN OPEN DROPDOWN, and this shipped as a real bug.** A capture hides every
+  frame for one snapshot, and a JavaFX `PopupWindow` **dismisses itself when its owner node becomes
+  invisible** — so the frost clock closed every dropdown and context menu within 42ms of it opening.
+  Reported as "it appears, then disappears". `Frost.popupShowing()` skips the refresh while one is
+  up. ⚠ **Invisible to every render harness**, because a popup is a separate window and never appears
+  in a `Scene.snapshot` of the deck; and impossible before the frost went on a clock, since opening a
+  menu is not a desk event.
+- ⚠ **NOTICES are frosted; POPUPS are not, and cannot be by this mechanism.** `Notifications` lives in
+  the deck's scene graph, so `Frost.overlayBackdrop` captures what it floats over — the deck INCLUDING
+  its windows, which is a different picture from any window's own backdrop — and `-es-notice` (aliasing
+  `-es-float`) lets it transmit. ⚠ Context menus, dropdown lists and tooltips are **JavaFX
+  PopupWindows**: separate OS windows with their own Scene, so there is nothing beneath them to
+  capture and `-es-float` keeps them **opaque**. Making those glass needs a different mechanism.
+  ⚠ The toast's frost view must be **unmanaged** — the image is the whole desk, so a managed one
+  reports ~1600×1000 as its preferred size and the first notice renders hundreds of pixels tall.
+- ⚠ **Reduced motion STOPS THE CLOCK and falls back to the event-driven path** — still correct after
+  every interaction, never moving on its own. A frost that merely froze would be *wrong* rather than
+  still: it would show a desk that has since changed.
+- ⚠ **THREE GROUNDS, THREE RULES, and the middle one was missed on the first frosted build.**
+  `-es-panel` is the window body (glass). **`-es-well`** is anything sunk INTO a panel — a terminal's
+  scrollback, a table body, a text field, the cycle grid's field, the map canvas, the calculator — and
+  it **aliases `-es-void`**, so the six opaque palettes are unchanged. ⚠ It exists because `-es-void`
+  does two unrelated jobs, desk AND recess, and glass needs them separated: the desk stays opaque
+  (nothing is behind it), while a well painted with it **punches a black box through the glass** —
+  exactly what the terminal, file manager, map, manual and calculator looked like. In the glass
+  palettes it is a *tint over the frost*: **darker** than the panel (a recess reads as a recess by
+  being darker) and **more opaque** than it (a terminal's content sits directly on it, and a blurred
+  bright patch behind small monospace is where transmission costs real legibility). `-es-float` is
+  the third — floating over content, opaque.
+- ⚠ **`ContrastTest.transmissionRequiresFrost` couples the two.** A panel at 80% transmission is safe
+  only because a blur sits behind it; lowering a future palette's alpha without declaring
+  `frostsBackdrop()` puts a sharp, fully readable second screen under every window.
+- ⚠ **THE RIM IS THE MATERIAL, NOT THE TRANSPARENCY.** `-es-rule-hi` already paints `.es-panel-edge`,
+  the 1px band the base sheet draws round every window, so brightening that one token lights every
+  panel at once and costs **no new component rule**. Transmission alone does not read as glass.
+- ⚠ **THE FILM IS LIGHT, NOT DARK, AND THAT IS THE DECISION THE WHOLE PALETTE RESTS ON.** A frosted
+  pane scatters *additively* — it lifts what is behind it toward grey rather than tinting it darker,
+  which is why macOS glass over a black desktop is a mid grey. Measured at one alpha and desk: a
+  mid-toned film leaves the text behind at **4.95:1** (a readable second screen), a light film at
+  **2.03:1**. The authentic choice is the only survivable one. ⚠ Cost: the panel composites to a mid
+  graphite and the greys above it are near-whites, so the ramp is compressed — that is what heavy
+  glass buys and it is what the reference looks like.
+- ⚠ **TRANSMISSION IS 80% (dark) / 68% (light) WITH THE BLUR** — about twice what was survivable
+  without it. The two failures below are the record of what transparency costs UNFROSTED, and the
+  constraint any future unfrosted palette is still held to. Both were found only by looking:
+  both found only by looking: (1) at 12% the desk substrate's rows of hex came through as horizontal
+  **banding** — it slips under a bound written for *text* because it is *texture*; (2) at 64% the
+  notification stack over the LOG window was two columns of text in the same pixels.
+- ⚠ **THE NUMERIC BOUND IS NECESSARY AND NOT SUFFICIENT.** That 64% build measured **2.78:1** and
+  passed comfortably: each text was individually below the legibility floor and the pair was
+  unreadable, because a **per-pair luminance ratio cannot see two texts competing for the same glyph
+  cells**. `ContrastTest.whatShowsThroughIsNotReadable` holds the floor; the palettes sit well under
+  it. **Passing that test does not mean a palette is legible — render it.**
+- ⚠ **`-es-float`: a WINDOW may be glass, a thing that FLOATS over content may not.** Toasts,
+  dialogs, context menus, tooltips, the download dock, the sync banner. It **aliases `-es-panel-hi`**
+  (verified: a looked-up colour may reference another, and a theme may override it), so the six
+  opaque palettes are unchanged and only the glass ones override it with an opaque literal. A window
+  body transmits because what is behind it is *usually the desk*; an alert is over content by
+  definition, and an alert you cannot read is not an alert.
+- ⚠ **The wallpaper is not behind the interface any more, it is INSIDE every panel** — `theme.css`
+  drops the substrate and greeble under `.es-theme-liquid-*`. Load-bearing, not decoration.
+- ⚠ **A SIX-DIGIT REGEX SILENTLY TRUNCATES `#RRGGBBAA` — WORSE THAN NO CHECK.** `ContrastTest` matched
+  `#[0-9A-Fa-f]{6}`; against an eight-digit token it does not fail, it **takes the first six digits and
+  drops the alpha**, so every assertion would have measured a panel colour never on screen and passed.
+  It composites now: panel over the desk, raised surface over the **panel** (two glass layers stack).
+- ⚠ **Eight-digit hex, never `rgba()`.** Both parse (verified on JavaFX 26, alpha survives the
+  looked-up-colour indirection); one spelling means one parser for the tests that read these files.
+- ⚠ **The accent stays WARM AMBER** though the reference is blue — §2.1's warm-on-cool split is
+  load-bearing, and blue beside `gain`/`warn`/`alarm` is the semantic colour system §2.1 bans arriving
+  one token at a time. Burnt amber on the light palette, for uOS Classic's reason (bright sodium is
+  ~1.7:1 on near-white, which turns the one meaningful colour into decoration).
+- ⚠ **They round windows WITHOUT writing the player's §9.3 setting** — a costume must come off
+  cleanly. `ThemeId.cornersAreRounded` is the single place that knows the rule, because the two sites
+  that shape a window (the Scene-root clip, the desk frames) are otherwise one edit from disagreeing.
+  ⚠ It reuses the existing **`.es-rounded`** class rather than a theme-scoped radius, so §9.3's
+  machine-checked "never round a measurement" keeps protecting it — and `UiContractTest` needed **no**
+  amendment. ⚠ Settings shows the **effective** state, disabled, with a line naming who decided it: a
+  control that appears to do nothing reads as broken, and players blame the control. ⚠ The sync must
+  guard its own `setSelected`, or displaying the effective state **writes** it and the player's square
+  deck is permanently round.
+- ⚠ **A theme can change GEOMETRY now, so `EyeAndSickleClient` listens on `themes.currentProperty()`**
+  — the chokepoint, not the four pickers. Rounding is a clip plus a style class and a stylesheet swap
+  touches neither.
+- ⚠ **`DeckSnapshot` had to be taught this or it photographs SQUARE frames** — the harness selects a
+  theme and never re-applied the geometry, which is this repo's recurring failure: a render capturing
+  the one state indistinguishable from the feature being absent, reported as a pass.
+- ⚠ **`UiContractTest`'s sheet lists were hand-kept and HAD ALREADY DRIFTED** — the cursor check named
+  five of the six sheets that existed, so `theme-cyberdeck.css` was exempt from a build-blocking rule
+  by clerical accident. Derived from `ThemeId` now, and the no-blur/no-shadow scan widened from
+  `theme.css` alone to **every** sheet: an overlay is exactly where "just a touch of blur" would land.
+- ⚠ **The first palette was tuned against the deck's desk-to-panel step and was wrong.** That step is
+  nearly invisible — right for hairlines with no fills, wrong for glass, **where the lift IS the
+  material**. A pane level with its ground is not a pane.
+- ⚠ **`-es-void` is the desk AND every inset well** (text fields, list grounds, empty rows), so on the
+  light palette one token has to be both the surface a pane lifts off and the recess sunk into it.
+  uOS Classic lands on a mid grey for exactly this reason.
+
 ⚠ **Contrast is MEASURED, not assumed — `ui/ContrastTest` (2026-07-30).** It computes real WCAG
-ratios for every text token against `-es-panel` and `-es-panel-hi` in all six palettes and fails the
+ratios for every text token against `-es-panel` and `-es-panel-hi` in all eight palettes and fails the
 build below **3:1**. It caught the network map drawing CONTACT/LOCKED in `-es-dim-3` — the *greeble*
 token — at **1.77:1** on the deck and **2.06:1** on Classic, where those nodes vanished outright;
 and the deck's own `-es-dim-2` at 2.78:1. ⚠ **uOS Classic is the palette that catches this class of
@@ -300,7 +454,7 @@ that is not enough.
 - ⚠ **The hues do NOT join the palette's semantic vocabulary (§2.1).** A ring colour *means nothing*;
   it says "the window you chose the colour for". Confined to `.es-focus-ring-*`, used nowhere else.
   **§4.4 holds** because the strip cue is still there — the ring is never the only marker.
-- ⚠ **THEME is first and default**: it resolves `-es-amber`, so it follows all five palettes.
+- ⚠ **THEME is first and default**: it resolves `-es-amber`, so it follows every palette.
 - ⚠ **It paints the frame's `edge` REGION, not a border on the frame.** Frames are clipped to a
   `Polygon` for the notch, so a border would be cut away and appear to do nothing — silently, CSS
   applying correctly. Same trap as the first rounded-corners attempt; rendered to confirm.
@@ -1306,7 +1460,7 @@ pushing every window down. The dead cell was three times the overflow.
   scene lays out, so it reports a size the deck never has.
 - ⚠ **Not amber.** §2.1 spends amber on cycles doing work and income; a pixel size is neither, and
   colouring it would imply the number meant something about the game. `text-hi` on `panel-hi` — a pair
-  `ContrastTest` already measures in all six palettes, so it inverts correctly on uOS Classic.
+  `ContrastTest` already measures in all eight palettes, so it inverts correctly on uOS Classic.
 
 **The SECURITY CENTER is a consumer security suite's LAYOUT in this deck's language (2026-08-04).**
 `view/SecurityCenterView` — a section rail (HOME · AUDIT · DEFENSE · SCHEDULE), a headline verdict,
@@ -1930,7 +2084,7 @@ review; found by magnifying a render.
   certain is not left to a property that can be dropped.
 - ⚠ **A `Text` node was the other option and is worse here.** It supports the property and colours
   with `-fx-fill` rather than `-fx-text-fill`, which would take the price out of `ContrastTest`'s
-  reach — and that test measures every text token against both panel grounds in six palettes.
+  reach — and that test measures every text token against both panel grounds in eight palettes.
 - ⚠ **The baseline must be delegated to the label.** A `Region`'s `getBaselineOffset()` is
   `BASELINE_OFFSET_SAME_AS_HEIGHT`, so in the `BASELINE_LEFT` rows these sit in, a bare `StackPane`
   aligns its *bottom edge* to the row's baseline and the struck price rides up above its neighbour.
@@ -2129,7 +2283,7 @@ toggle each. `client/log/{ClientLog,LogEntry,LogLevel}` capture; `view/ClientLog
   else's message later and pins an object graph meanwhile.
 - ⚠ **Level colours need TWO-CLASS selectors** (`.list-cell.es-log-error`): `.list-cell` already sets
   `-fx-text-fill` at one-class specificity. All five are existing `ContrastTest` tokens, so they are
-  measured in six palettes; **`-es-dim-3` is not available** — it is the greeble token, exempt from the
+  measured in eight palettes; **`-es-dim-3` is not available** — it is the greeble token, exempt from the
   floor, and the network map is where that already went wrong.
 - ⚠ **The ListCell clears every level class before adding one.** Cells are recycled, and a class left
   behind paints an INFO line in the error colour.

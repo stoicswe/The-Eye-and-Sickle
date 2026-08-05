@@ -10,8 +10,8 @@ import io.github.stoicswe.eyeandsickle.client.ui.Ui;
 import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
 import io.github.stoicswe.eyeandsickle.client.ui.cursors.Cursors;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.KeyValue;
-import io.github.stoicswe.eyeandsickle.client.window.WindowRegistry;
 import io.github.stoicswe.eyeandsickle.client.window.WindowSpec;
+import io.github.stoicswe.eyeandsickle.engine.Balance;
 import io.github.stoicswe.eyeandsickle.protocol.game.BlockContribution;
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainBlock;
 import io.github.stoicswe.eyeandsickle.protocol.game.ChainMempool;
@@ -23,7 +23,6 @@ import io.github.stoicswe.eyeandsickle.protocol.game.MiningPool;
 import io.github.stoicswe.eyeandsickle.protocol.game.MiningSnapshot;
 import io.github.stoicswe.eyeandsickle.protocol.game.PoolScheme;
 import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
-import io.github.stoicswe.eyeandsickle.engine.Balance;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -690,9 +689,8 @@ public final class Views {
                 box.getChildren().add(secondary("(empty)"));
             }
             for (GameSession.InventoryItem item : items) {
-                Label row = new Label(item.displayName()
-                        + (item.equipped() ? "  [equipped]" : "")
-                        + "   " + shortId(item.itemId()));
+                Label row = new Label(
+                        item.displayName() + (item.equipped() ? "  [equipped]" : "") + "   " + shortId(item.itemId()));
                 row.getStyleClass().add("es-mono");
                 row.setTooltip(new javafx.scene.control.Tooltip(item.itemId()));
                 if (item.itemId().equals(selected[0])) {
@@ -2410,10 +2408,18 @@ public final class Views {
                 return ThemeId.DECK;
             }
         });
+        // ⚠ Declared before the rounded switch exists because the picker is built first and the
+        // switch has to follow it — a liquid palette rounds windows on its own (ThemeId.roundsCorners),
+        // so changing the theme with this page open leaves that switch describing the wrong deck.
+        // The same holder pattern the focus-ring swatches below already use.
+        Runnable[] syncRoundedSwitch = new Runnable[1];
         theme.valueProperty().addListener((o, was, now) -> {
             if (now != null) {
                 themes.select(now);
                 profile.save();
+                if (syncRoundedSwitch[0] != null) {
+                    syncRoundedSwitch[0].run();
+                }
             }
         });
 
@@ -2505,13 +2511,55 @@ public final class Views {
                 new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch(
                         t("settings.windows.rounded", "Rounded window corners"));
         rounded.setSelected(profile.appearance().roundedWindows);
+        // ⚠ THE SYNC BELOW DRIVES THIS SWITCH, AND WITHOUT THIS GUARD IT DESTROYS THE SETTING IT IS
+        // DISPLAYING. Showing the effective state under a liquid palette means calling setSelected
+        // (true), which fires this listener, which writes roundedWindows = true and saves — so a
+        // player who tried the theme for ten seconds would find their square deck permanently
+        // round, with nothing on screen having said so. The flag is what keeps "display the
+        // effective state" from meaning "adopt it".
+        boolean[] syncingRounded = {false};
         rounded.selectedProperty().addListener((o, was, now) -> {
+            if (syncingRounded[0]) {
+                return;
+            }
             profile.appearance().roundedWindows = now;
             profile.save();
             if (onDeskSettingsChanged != null) {
                 onDeskSettingsChanged.run();
             }
         });
+        // ⚠ A LIQUID PALETTE ROUNDS WINDOWS ITSELF, so under one the switch is shown ON and disabled
+        // rather than left alive and apparently broken. This is the failure the security centre's
+        // verdict already recorded: a player cannot tell "your setting changed nothing" from "the
+        // control is broken", and they assume the control. Reporting the EFFECTIVE state and saying
+        // who decided it is the only honest option.
+        //
+        // ⚠ The stored setting is NOT overwritten — see ThemeId.roundsCorners. It is restored on
+        // screen the moment a non-liquid palette is picked, which is why this reads the appearance
+        // back rather than trusting what it last displayed.
+        Label roundedForced = wrapped(t(
+                "settings.windows.rounded.themed",
+                "uOS Modern Liquid Abs rounds windows itself — glass with hard corners is not the "
+                        + "material. Your own setting is remembered untouched and comes back as "
+                        + "soon as you choose another look."));
+        syncRoundedSwitch[0] = () -> {
+            boolean themed = ThemeId.byId(profile.appearance().themeId)
+                    .orElse(ThemeId.DECK)
+                    .roundsCorners();
+            syncingRounded[0] = true;
+            try {
+                rounded.setDisable(themed);
+                rounded.setSelected(themed || profile.appearance().roundedWindows);
+            } finally {
+                syncingRounded[0] = false;
+            }
+            // ⚠ setManaged too, not setVisible alone: an invisible-but-managed Label holds its full
+            // wrapped height, so the page would carry a paragraph of empty space under the switch on
+            // every palette that is not a liquid one.
+            roundedForced.setVisible(themed);
+            roundedForced.setManaged(themed);
+        };
+        syncRoundedSwitch[0].run();
 
         // ── the focused-window outline (opt-in) ──────────────────────────────────────────────
         //
@@ -2938,6 +2986,7 @@ public final class Views {
                                         + "acting as a drag handle, because your title bar already does both.")),
                         new Separator(),
                         rounded,
+                        roundedForced,
                         wrapped(t(
                                 "settings.windows.rounded.note",
                                 "Off by default, and deliberately: this deck is drawn in hard edges "
@@ -3174,10 +3223,11 @@ public final class Views {
             // how much of their own free-tier allowance the panel spends, and calls-per-day is the
             // figure the provider's limit is quoted in.
             long perDay = 86400L / Math.max(1, seconds);
-            refreshValue.setText(seconds < 60
-                    ? seconds + "s  ·  up to " + perDay + " calls a day per symbol"
-                    : (seconds / 60) + "m " + (seconds % 60) + "s  ·  up to " + perDay
-                            + " calls a day per symbol");
+            refreshValue.setText(
+                    seconds < 60
+                            ? seconds + "s  ·  up to " + perDay + " calls a day per symbol"
+                            : (seconds / 60) + "m " + (seconds % 60) + "s  ·  up to " + perDay
+                                    + " calls a day per symbol");
         };
         describeRefresh.run();
         refresh.valueProperty().addListener((o, was, now) -> {

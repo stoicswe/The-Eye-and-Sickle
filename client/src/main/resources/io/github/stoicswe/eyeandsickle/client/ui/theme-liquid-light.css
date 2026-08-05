@@ -1,0 +1,115 @@
+/*
+ * theme-liquid-light.css — uOS Modern Liquid Abs, light. Bright glass on a cool grey desk.
+ *
+ * A palette overlay; see ThemeId's class comment, and read theme-liquid-dark.css first — the
+ * argument for how glass is built without a backdrop filter is there and is not repeated here.
+ * Permitted by docs/design/ui-design-language.md §9.4.
+ *
+ * ── The inversion, and why it is re-derived rather than flipped ────────────────────────────────
+ *
+ * This is the second light palette in the client, and uOS Classic's header already records the trap
+ * the hard way: a straight numeric inversion of a dark ramp produces an unreadable screen, because
+ * -es-dim-3 carries greeble and the desk wallpaper. Near-invisible against a dark ground BY DESIGN,
+ * it becomes a black scrawl on a light one. So the ramp is re-derived, and dim-3 sits close to the
+ * panel rather than far from it.
+ *
+ * ⚠ THE DESK IS A MID GREY, NOT WHITE, AND THAT IS STRUCTURAL RATHER THAN TASTE. Glass is only
+ * legible as a material when it is brighter than what it sits on — that is the whole of how a light
+ * pane reads. A white desk makes every panel boundary vanish and turns the deck into one
+ * undifferentiated sheet, and the specular rim has nothing to be brighter than. It also has to stay
+ * light enough that -es-dim-3 can be darker than it and still be texture rather than a stain.
+ *
+ * ⚠ THE RIM INVERTS ITS JOB HERE, AND FOLLOWING THE DARK PALETTE WOULD DELETE IT. In the dark
+ * variant -es-rule-hi is a bright white-blue: light catching the edge of a pane against a dark
+ * desk. Copying that idea literally — a white rim — onto a light desk gives a white line on a pale
+ * grey ground, so every window loses its boundary. What a real light-mode pane does is carry a soft
+ * DARK outer edge (and a white highlight inboard of it, which one token cannot express, so the
+ * boundary wins — a window with no edge is a worse loss than a window with no highlight).
+ */
+
+.root {
+    /* The desk. Opaque, and deliberately grey — see the note above.
+       ⚠ It is ALSO every inset well: text fields, list grounds, empty table rows. uOS Classic hits
+       exactly this and lands on a mid grey for the same reason — one token has to be both the
+       surface a pane is lifted off and the recess sunk into it, and the two want the same value. */
+    -es-void:      #B6BFCD;
+
+    /* ⚠ Eight-digit #RRGGBBAA; see the dark palette for why this spelling and not rgba().
+
+       ⚠ 0x52 is 32% — SIXTY-EIGHT PERCENT TRANSMISSION, over the Gaussian blur `ui/chrome/Frost`
+       paints behind it. The film is pure white because a frosted pane scatters additively: it lifts
+       what is behind it rather than tinting it.
+
+       ⚠ Less transparent than the dark palette (68% against 80%), and that is not an oversight. A
+       light desk leaves less range between itself and the panel to spend, so the same transparency
+       washes text out faster here. The two numbers differ because the physics does. */
+    -es-panel:     #FFFFFF1F;
+    /* A second sheet over the first — see the dark palette's note on why this alpha is not the
+       panel's. Composites to nearly white, which is what a raised glass surface on a light desk is. */
+    -es-panel-hi:  #FFFFFF1A;
+
+    /* Hairlines. A dark scrim rather than a drawn line — the internal edges of a bright pane. */
+    -es-rule:      #16233A2E;
+
+    /* The panel boundary. Dark here, bright in the dark palette; see the note above. */
+    -es-rule-hi:   #2A3C5473;
+
+    /* Re-derived, not inverted. dim-3 is texture and must stay just darker than the desk. */
+    -es-dim-3:     #97A1B1;
+    -es-dim-2:     #5A6474;
+    -es-dim-1:     #46505F;
+    -es-text:      #1F2733;
+    -es-text-hi:   #070A0F;
+
+    /* ⚠ The accent is a BURNT amber, for the reason uOS Classic records: the bright sodium amber
+       every dark palette uses measures around 1.7:1 on a near-white panel, which would turn §2.1's
+       one meaningful colour into decoration. Dark enough to be read as a value, still unmistakably
+       the warm accent and not a second neutral. */
+    -es-amber:     #8A5200;
+    -es-amber-mid: #B07A28;
+    -es-amber-low: #D9BC92;
+
+    -es-alarm:     #B3241B;
+
+    /* §2.1a's two state hues, in this palette's register. Both re-derived for a light ground. */
+    -es-gain:      #137A3B;
+    /* ⚠ Darkened from #A85D0A when the panel went to 88% transmission. The composite moved almost
+       all the way to the desk colour, and warn fell to 2.91:1 — under ContrastTest's build-blocking
+       floor. The transparency was the explicit ask and the readability cost was accepted; a token
+       that fails an accessibility check is a different question, and the cheaper answer is a darker
+       orange than a weaker check. */
+    -es-warn:      #8F4E06;
+
+
+    /* ⚠ OPAQUE, and the ONE token in this palette that is. See -es-float in theme.css: a window body
+       may be glass because what is behind it is usually the desk, but a toast, a dialog, a menu or a
+       tooltip is ALWAYS over content. Rendered at 40% transmission, the notification stack and the
+       LOG window under it were both legible and neither readable — the same pixels carrying two
+       columns of text. This is the composited value of -es-panel-hi over the panel, so a floating
+       surface looks exactly like a raised one and simply does not transmit.
+       ⚠ Re-derive it if the panel tokens above change; nothing computes it. */
+
+    /* ⚠ A WELL IS A TINT OVER THE FROST, NOT A HOLE IN IT. See -es-well in theme.css. The terminal's
+       scrollback, the file list, the map canvas, the manual and the calculator are all sunk into a
+       panel, and painting them with the opaque desk colour punched a black box through the glass in
+       every one of them — which is what made the first frosted build look half-finished.
+
+       ⚠ It is DARKER than the panel and more opaque than it, and both halves matter. Darker, because
+       a recess reads as a recess by being darker than the surface it is cut into — §2.1's
+       depth-from-brightness, in the one direction that is not "raised". More opaque, because a
+       terminal's whole content sits directly on this: at the panel's alpha the blur would come
+       through under every line of output, and a blurred bright patch behind small monospace is the
+       one place transmission costs real legibility. */
+    -es-well:      #D8DEE966;
+
+
+    /* ⚠ Transmits, unlike -es-float, because a notice is the ONE floating surface with a real blur
+       behind it — see -es-notice in theme.css. Context menus, dropdowns and tooltips are JavaFX
+       PopupWindows with their own Scene and nothing capturable underneath, so they stay opaque. */
+    -es-notice:    #FFFFFF33;
+
+    -es-float:     #F9FAFB;
+
+    -es-tool:      #D4DAE3;
+}
+

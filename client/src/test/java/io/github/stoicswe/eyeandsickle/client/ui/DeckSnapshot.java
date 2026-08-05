@@ -9,9 +9,9 @@ import io.github.stoicswe.eyeandsickle.client.theme.ThemeManager;
 import io.github.stoicswe.eyeandsickle.client.view.CalcView;
 import io.github.stoicswe.eyeandsickle.client.view.LogView;
 import io.github.stoicswe.eyeandsickle.client.view.MoreViews;
-import io.github.stoicswe.eyeandsickle.client.view.SecurityCenterView;
 import io.github.stoicswe.eyeandsickle.client.view.NetMapView;
 import io.github.stoicswe.eyeandsickle.client.view.RigMonitorView;
+import io.github.stoicswe.eyeandsickle.client.view.SecurityCenterView;
 import io.github.stoicswe.eyeandsickle.client.view.TerminalView;
 import io.github.stoicswe.eyeandsickle.client.view.Views;
 import io.github.stoicswe.eyeandsickle.client.window.WindowSpec;
@@ -147,10 +147,10 @@ public final class DeckSnapshot {
                 // ⚠ The real Security Center, for the same reason as the map: its verdict, its rail
                 // and its cards are all visual claims no text assertion can check.
                 case SECURITY -> (Region) SecurityCenterView.create(session, shell);
-                    // ⚠ -Dsec.state=clear|check|quarantine drives the mark directly. The three
-                    // states depend on scan history, defences and elapsed time, so a plain render
-                    // only ever photographs whichever one this fixture happens to be in — and a
-                    // stepped animation shows nothing at all in a synchronous frame.
+                // ⚠ -Dsec.state=clear|check|quarantine drives the mark directly. The three
+                // states depend on scan history, defences and elapsed time, so a plain render
+                // only ever photographs whichever one this fixture happens to be in — and a
+                // stepped animation shows nothing at all in a synchronous frame.
                 default -> (Region) MoreViews.recon(session);
             });
         }
@@ -177,9 +177,28 @@ public final class DeckSnapshot {
 
         for (ThemeId id : ThemeId.selectable()) {
             themes.select(id);
+            // ⚠ A THEME CAN IMPLY GEOMETRY NOW (ThemeId.roundsCorners, §9.4), and selecting one does
+            // not apply it — rounding is a clip plus a style class, neither of which a stylesheet
+            // swap touches. The running client re-applies it from a listener on the theme property
+            // (EyeAndSickleClient); this is that listener's stand-in, and without it every liquid
+            // frame here photographs SQUARE. That is the trap this harness exists to catch: a render
+            // that captures the one state indistinguishable from the feature being absent, and
+            // reports it as a pass.
+            deck.applyRoundedSetting();
             deck.desk().closeAll();
+            // ⚠ `-Ddeck.windows=TERMINAL,NETWORK,CALC,STORAGE` opens a different set. The default four
+            // are a good cross-section of PANELS, and they are therefore a poor test of anything
+            // whose subject is an inset WELL — the terminal's scrollback, the map canvas, the file
+            // list, the calculator keypad. Those are the surfaces a theme change most easily leaves
+            // behind, and until this flag existed rendering them meant editing this line.
+            String chosen = System.getProperty("deck.windows");
             deck.openStartingWindows(
-                    List.of(WindowSpec.RIG_MONITOR, WindowSpec.SETTINGS, WindowSpec.LOG, WindowSpec.SECURITY));
+                    chosen == null
+                            ? List.of(WindowSpec.RIG_MONITOR, WindowSpec.SETTINGS, WindowSpec.LOG, WindowSpec.SECURITY)
+                            : java.util.Arrays.stream(chosen.split(","))
+                                    .map(String::trim)
+                                    .map(name -> WindowSpec.valueOf(name.toUpperCase(java.util.Locale.ROOT)))
+                                    .toList());
 
             // Two passes. The first resolves CSS and sizes the panels; the desk then places windows
             // against a desk whose width is finally known, and the second pass lays those out. One
@@ -201,7 +220,13 @@ public final class DeckSnapshot {
             deck.root().layout();
             // openStartingWindows defers tiling to runLater, which never fires in a synchronous
             // render. Tiling directly here is the same call it would have made.
-            deck.desk().tileAll();
+            // ⚠ `-Ddeck.cascade` leaves them CASCADED — overlapping — instead. The tiled layout is
+            // the one case where no window sits over another, so it is exactly the wrong layout for
+            // checking anything about what a window shows THROUGH itself. The frost's stacking was
+            // wrong for a whole build because every render was tiled.
+            if (System.getProperty("deck.cascade") == null) {
+                deck.desk().tileAll();
+            }
 
             // ⚠ The size readout only appears AFTER a size change — a window opening at its saved
             // size is not a resize, and the first report is deliberately swallowed. So a single-pass
@@ -265,6 +290,28 @@ public final class DeckSnapshot {
 
             scene.getRoot().applyCss();
             deck.root().layout();
+            // ⚠ The blurred backdrop is captured through Platform.runLater in the running client,
+            // and NO QUEUED RUNNABLE EXECUTES during a synchronous Scene.snapshot. Without this the
+            // glass palettes photograph with nothing behind them — the one state indistinguishable
+            // from the feature being absent. Same stand-in as tileAll() above.
+            deck.desk().frostNow();
+            deck.root().layout();
+            // ⚠ `-Ddeck.frostBench=N` times N full re-frosts and prints the cost. The frost is the
+            // one thing in this client whose viability is a number rather than a look: refreshing it
+            // on a clock is only defensible if a whole cycle fits inside a frame, and that is
+            // measured here rather than assumed.
+            if (System.getProperty("deck.frostBench") != null) {
+                int rounds = Integer.parseInt(System.getProperty("deck.frostBench"));
+                deck.desk().frostNow(); // warm: first call pays for image allocation and pipeline setup
+                long start = System.nanoTime();
+                for (int i = 0; i < rounds; i++) {
+                    deck.desk().frostNow();
+                }
+                double perRefresh = (System.nanoTime() - start) / 1_000_000.0d / rounds;
+                System.out.printf(
+                        "frost %s: %.2f ms per refresh, %d windows -> %.1f fps ceiling%n",
+                        id.id(), perRefresh, deck.desk().windowCount(), 1000.0d / perRefresh);
+            }
 
             // Scene.snapshot takes only a target image — SnapshotParameters is Node's overload.
             WritableImage image = scene.snapshot(null);

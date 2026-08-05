@@ -6,7 +6,6 @@ import io.github.stoicswe.eyeandsickle.client.theme.ThemeId;
 import io.github.stoicswe.eyeandsickle.engine.Balance;
 import io.github.stoicswe.eyeandsickle.engine.GameEngine;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
@@ -212,12 +211,42 @@ class CharacterSlotsTest {
         @Test
         @DisplayName("the palette variants each have their own overlay, so they can actually differ")
         void variantsAreDistinct() {
-            assertThat(java.util.Set.of(
-                            ThemeId.DECK_HC.overlayStylesheet().orElseThrow(),
-                            ThemeId.PHOSPHOR.overlayStylesheet().orElseThrow(),
-                            ThemeId.AMBER_TUBE.overlayStylesheet().orElseThrow(),
-                            ThemeId.CLASSIC.overlayStylesheet().orElseThrow()))
-                    .hasSize(4);
+            // ⚠ Walks the ENUM rather than naming four themes, which is what it used to do. A
+            // hand-kept list here does not fail when a theme is added — it silently stops covering
+            // it, so two palettes sharing one overlay file (the copy-paste that makes a "new" theme
+            // identical to the one it was cloned from) would ship green. The two liquid variants are
+            // exactly that risk: they are a pair, written together, and differ only in their values.
+            var overlays = java.util.Arrays.stream(ThemeId.values())
+                    .filter(id -> id != ThemeId.DECK)
+                    .map(id -> id.overlayStylesheet().orElseThrow())
+                    .toList();
+            assertThat(overlays)
+                    .as("every non-default theme has an overlay of its own")
+                    .doesNotHaveDuplicates()
+                    .hasSize(ThemeId.values().length - 1);
+        }
+
+        @Test
+        @DisplayName("⚠ the shipped default is square-cornered — a theme that rounds is opt-in (§9.3, §9.4)")
+        void roundingThemesAreOptIn() {
+            // §9.4 permits uOS Modern Liquid Abs to round windows without the player's §9.3 switch, on
+            // the condition every other amendment runs on: the shipped client is unchanged. DECK is
+            // what a new character gets, and it must never be a theme that implies geometry.
+            assertThat(ThemeId.DECK.roundsCorners()).isFalse();
+            assertThat(new VisualSettings().roundedWindows).isFalse();
+            assertThat(ThemeId.cornersAreRounded(new VisualSettings()))
+                    .as("a fresh character has square corners")
+                    .isFalse();
+
+            // ⚠ And the theme must not WRITE the setting — a costume has to come off cleanly.
+            VisualSettings appearance = new VisualSettings();
+            appearance.themeId = ThemeId.LIQUID_DARK.id();
+            assertThat(ThemeId.cornersAreRounded(appearance))
+                    .as("a liquid palette rounds on its own")
+                    .isTrue();
+            assertThat(appearance.roundedWindows)
+                    .as("...without touching what the player chose")
+                    .isFalse();
         }
     }
 }

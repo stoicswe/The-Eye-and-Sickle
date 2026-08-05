@@ -45,6 +45,26 @@ import javafx.scene.shape.Shape;
 public final class WindowFrame extends Pane {
 
     private final Region edge = new Region();
+    /**
+     * The blurred picture of what is behind this window ({@link Frost}).
+     *
+     * <p>⚠ It holds a snapshot of the <b>whole desk</b>, positioned at the frame's negative offset,
+     * rather than a picture of this window's own rectangle. That is what makes dragging free: a move
+     * over a static backdrop is exactly a translation of the backdrop, so {@code layoutChildren}
+     * repositions this and nothing is re-rendered.
+     */
+    private final javafx.scene.image.ImageView backdrop = new javafx.scene.image.ImageView();
+
+    /**
+     * Carries the notch clip for the backdrop.
+     *
+     * <p>⚠ The clip lives here and not on the {@link #backdrop} itself, because a clip is expressed
+     * in its node's own local coordinates — and the image's local origin is the <em>desk's</em>
+     * origin, not the window's. Clipping it directly means offsetting the polygon by the window's
+     * position, which is one sign error away from a frost that drifts as the window moves.
+     */
+    private final Pane backdropHolder = new Pane(backdrop);
+
     private final BorderPane inner = new BorderPane();
     private final HBox strip = new HBox(UiTokens.SPACE_5);
     private final Label titleLabel;
@@ -78,10 +98,15 @@ public final class WindowFrame extends Pane {
         strip.setMinHeight(UiTokens.STRIP_HEIGHT);
 
         inner.setTop(strip);
-        // ⚠ A child of the FRAME, not of `inner` — `inner` is clipped to the notch polygon, and a
-        // readout in the bottom-right of a clipped region is fine until somebody turns rounded
-        // corners on and the clip starts eating the corner it sits in.
-        getChildren().addAll(edge, inner, sizeReadout);
+        // ⚠ The frost sits UNDER `inner`, so the translucent panel composites over the blur rather
+        // than replacing it, and OVER `edge`, so the specular rim still draws the window's boundary.
+        // Mouse-transparent: it is a picture of somewhere else and must never take a click.
+        backdropHolder.setMouseTransparent(true);
+        backdropHolder.setVisible(false);
+        // ⚠ `sizeReadout` is a child of the FRAME, not of `inner` — `inner` is clipped to the notch
+        // polygon, and a readout in the bottom-right of a clipped region is fine until somebody
+        // turns rounded corners on and the clip starts eating the corner it sits in.
+        getChildren().addAll(edge, backdropHolder, inner, sizeReadout);
 
         focused.addListener((obs, was, now) -> {
             getStyleClass().removeAll("es-window-focused");
@@ -270,12 +295,56 @@ public final class WindowFrame extends Pane {
         edge.setClip(clip(w, h));
         inner.setClip(clip(Math.max(0, w - 2 * UiTokens.HAIR), Math.max(0, h - 2 * UiTokens.HAIR)));
 
+        // The holder takes `inner`'s box and `inner`'s clip, so the notch and any rounded corner cut
+        // the frost too; without that the blur paints square corners over a rounded window.
+        double innerW = Math.max(0, w - 2 * UiTokens.HAIR);
+        double innerH = Math.max(0, h - 2 * UiTokens.HAIR);
+        backdropHolder.resizeRelocate(UiTokens.HAIR, UiTokens.HAIR, innerW, innerH);
+        backdropHolder.setClip(clip(innerW, innerH));
+
+        // ⚠ ONE SHARED IMAGE OF THE WHOLE DESK, anchored by this frame's position on it, negated.
+        // Every window is handed the same picture and simply looks at a different part of it — which
+        // is also why dragging costs nothing but this arithmetic: a move over a static backdrop is
+        // exactly a translation of the backdrop.
+        backdrop.relocate(-(getLayoutX() + UiTokens.HAIR), -(getLayoutY() + UiTokens.HAIR));
+
         // ⚠ Reported from the LAYOUT PASS, because that is the only place that knows the frame's
         // real size. `report` ignores a pass where nothing changed — layoutChildren runs whenever a
         // child asks for layout, so an unconditional call would light this up on every repaint of
         // whatever the window contains.
         sizeReadout.report(w, h);
         sizeReadout.placeIn(w, h);
+    }
+
+    /**
+     * Paints a blurred picture of the desk beneath this window as its ground.
+     *
+     * @param image a snapshot of the whole desk below this frame, already blurred
+     * @param deskWidth the desk's width, so the image is drawn at desk scale rather than at capture
+     *     scale — {@link Frost} captures reduced and this is where it is stretched back
+     * @param deskHeight the desk's height
+     */
+    void setFrost(javafx.scene.image.Image image, double deskWidth, double deskHeight) {
+        if (image == null) {
+            clearFrost();
+            return;
+        }
+        backdrop.setImage(image);
+        // ⚠ Not `setPreserveRatio` plus one dimension: the capture is rounded to whole pixels, so
+        // its aspect ratio is not exactly the desk's and preserving it leaves a seam down one edge.
+        backdrop.setFitWidth(deskWidth);
+        backdrop.setFitHeight(deskHeight);
+        backdrop.setSmooth(true);
+        backdropHolder.setVisible(true);
+        requestLayout();
+    }
+
+    /** Stops painting a backdrop — the theme does not ask for one, or the desk cannot be captured. */
+    void clearFrost() {
+        backdropHolder.setVisible(false);
+        // ⚠ Dropped, not merely hidden. A full-desk image per window is real memory, and a player
+        // switching away from a glass palette has no use for eight of them.
+        backdrop.setImage(null);
     }
 
     /**
@@ -286,6 +355,7 @@ public final class WindowFrame extends Pane {
      */
     public void dispose() {
         sizeReadout.stop();
+        clearFrost();
     }
 
     /**

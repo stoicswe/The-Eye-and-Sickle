@@ -48,8 +48,7 @@ import javafx.scene.layout.Region;
 public final class DeskManager {
 
     /** ⚠ JUL — captured by {@code log/ClientLog} for the CLIENT LOGS tab. */
-    private static final java.util.logging.Logger LOG =
-            java.util.logging.Logger.getLogger(DeskManager.class.getName());
+    private static final java.util.logging.Logger LOG = java.util.logging.Logger.getLogger(DeskManager.class.getName());
 
     /** How close to an edge counts as a resize grip. Wide enough to hit, narrow enough not to. */
     static final double RESIZE_MARGIN = 6;
@@ -107,8 +106,14 @@ public final class DeskManager {
         // the previous value at that moment. Windows survive it because they only clamp against the
         // desk; the backdrop does not, and the symptom is a wallpaper permanently sized 0×0 while
         // every widget test and every panel around it renders perfectly. Measured, not theorised.
-        desk.widthProperty().addListener((obs, was, now) -> layoutBackdrop());
-        desk.heightProperty().addListener((obs, was, now) -> layoutBackdrop());
+        desk.widthProperty().addListener((obs, was, now) -> {
+            layoutBackdrop();
+            scheduleFrost();
+        });
+        desk.heightProperty().addListener((obs, was, now) -> {
+            layoutBackdrop();
+            scheduleFrost();
+        });
     }
 
     public Region root() {
@@ -220,6 +225,177 @@ public final class DeskManager {
         for (Runnable listener : List.copyOf(listeners)) {
             listener.run();
         }
+        // ⚠ THE CHOKEPOINT for re-frosting, and it is here rather than at the twelve call sites for
+        // the reason this codebase records repeatedly: a per-caller hook is one new caller away from
+        // a window whose blur shows a stack that no longer exists. Opening, closing, raising,
+        // minimising, restoring and focusing all pass through here.
+        scheduleFrost();
+    }
+
+    // ── The frosted backdrop (§9.4) ──────────────────────────────────────────────────────────
+
+    /** Whether the palette in force asks for a blurred backdrop. */
+    private boolean frosted;
+
+    /** Set while a re-frost is already queued, so a burst of changes costs one capture. */
+    private boolean frostPending;
+
+    /**
+     * Turns the blurred backdrop on or off for the whole desk.
+     *
+     * @param enabled true under a glass palette; false clears every frame's image
+     */
+    public void setFrosted(boolean enabled) {
+        this.frosted = enabled;
+        scheduleFrost();
+        retimeFrost();
+    }
+
+    /**
+     * The frost's own clock — {@link UiTokens#FROST_MS}, i.e. 24fps.
+     *
+     * <p>⚠ <b>Not a {@code Pulse} subscription.</b> Pulse drives at 100ms and quantises every
+     * subscriber to a multiple of it, so a request for 24fps rounds silently to 10. Reaching 24
+     * through Pulse means lowering the shared driver, which speeds up every decorative widget in the
+     * client to fix one of them.
+     *
+     * <p>⚠ A {@code Timeline} with an action-only {@code KeyFrame} interpolates nothing, so §5's ban
+     * on easing is not in play and neither contract test fires: this is a sampling rate, not a tween.
+     */
+    private javafx.animation.Timeline frostClock;
+
+    /**
+     * Starts or stops the 24fps re-capture.
+     *
+     * <h2>⚠ Reduced motion falls back to event-driven, and does not simply stop</h2>
+     *
+     * A frost that froze entirely would be <em>wrong</em> rather than merely still — it would show a
+     * picture of a desk that has since changed, which is worse than a stale-but-plausible blur. So
+     * under reduced motion the clock stops and {@link #scheduleFrost} still refreshes on every
+     * structural change: correct after every interaction, and never moving on its own. That is what
+     * WCAG 2.2.2 asks for, and it is the same relationship {@code WallpaperMode.moves()} encodes.
+     */
+    private void retimeFrost() {
+        boolean shouldTick = frosted
+                && !io.github.stoicswe.eyeandsickle.client.ui.Pulse.shared().reducedMotion();
+        if (!shouldTick) {
+            if (frostClock != null) {
+                frostClock.stop();
+            }
+            return;
+        }
+        if (frostClock == null) {
+            frostClock = new javafx.animation.Timeline(new javafx.animation.KeyFrame(
+                    javafx.util.Duration.millis(io.github.stoicswe.eyeandsickle.client.ui.UiTokens.FROST_MS),
+                    event -> pacedFrost()));
+            frostClock.setCycleCount(javafx.animation.Animation.INDEFINITE);
+        }
+        if (frostClock.getStatus() != javafx.animation.Animation.Status.RUNNING) {
+            frostClock.play();
+        }
+    }
+
+    /** When the next capture is allowed to start, from {@link System#nanoTime}. */
+    private long frostReadyAt;
+
+    /**
+     * Run after each window re-frost, for overlays the desk does not own.
+     *
+     * <p>The notification stack floats above the whole deck rather than sitting on it, so its
+     * backdrop is a different picture from any window's — see {@code Frost.overlayBackdrop}. The
+     * shell owns that layer, so it supplies the callback rather than this class reaching upward.
+     * ⚠ It is inside the PACED section deliberately: an overlay backdrop is a second full capture,
+     * and running it on the raw clock would put the expensive path back.
+     */
+    private Runnable onFrosted;
+
+    public void setOnFrosted(Runnable onFrosted) {
+        this.onFrosted = onFrosted;
+    }
+
+    /**
+     * One tick of the frost clock, refusing to run more often than {@link UiTokens#FROST_BUDGET}.
+     *
+     * <h2>⚠ 24fps is a ceiling, not a rate, and this is where that is enforced</h2>
+     *
+     * A refresh costs one snapshot per overlapping window plus one shared, so it is ~9ms tiled and
+     * ~34ms with four windows fully cascaded. Running a 34ms job 24 times a second hands the thread
+     * to the blur precisely when the player has the most on screen. Measuring the last one and
+     * spacing the next by {@code cost / budget} keeps the frost <b>correct</b> at any window count
+     * and lets only its frequency degrade — 24fps when it is cheap, about 7fps when it is not.
+     *
+     * <p>⚠ <b>{@code System.nanoTime}, deliberately, and this is the one place that rule inverts.</b>
+     * Everything with a deadline in this client takes the session clock so a test can wind it. This
+     * is not a deadline in the game; it is a measurement of how long this machine took to do a piece
+     * of work, and a wound clock would make the pacing believe a 34ms capture was instant. Same
+     * reasoning as the event bus's {@code time} field.
+     */
+    private void pacedFrost() {
+        long now = System.nanoTime();
+        if (now < frostReadyAt) {
+            return;
+        }
+        Frost.refresh(desk, frosted);
+        if (onFrosted != null) {
+            onFrosted.run();
+        }
+        long spent = System.nanoTime() - now;
+        double gapMs = Math.max(UiTokens.FROST_MS, spent / 1_000_000.0d / UiTokens.FROST_BUDGET);
+        frostReadyAt = now + (long) (gapMs * 1_000_000.0d);
+    }
+
+    /** Stops the frost clock. Called when the deck goes away, so it does not tick over a dead desk. */
+    public void stopFrost() {
+        if (frostClock != null) {
+            frostClock.stop();
+        }
+    }
+
+    /**
+     * Queues a re-capture of every window's backdrop.
+     *
+     * <p>⚠ <b>Deferred, and never synchronous.</b> {@code snapshot} forces a CSS and layout pass, so
+     * calling it from inside one — which is where most of these events originate — re-enters layout
+     * and can loop. ⚠ <b>Coalesced</b>, because opening a window fires several notifications and
+     * each capture re-renders the desk once per window; without the flag, restoring a saved layout
+     * of six windows would capture thirty-odd times before the first frame was drawn.
+     */
+    /**
+     * Captures every window's backdrop <b>now</b>, rather than on the next pulse of the FX queue.
+     *
+     * <p>⚠ Exists for the render harness and for nothing else. {@link #scheduleFrost} defers through
+     * {@code Platform.runLater}, and <b>no queued runnable ever executes during a synchronous
+     * {@code Scene.snapshot}</b> — so a harness that only called the normal path would photograph
+     * every glass window with no blur behind it and report the feature as working. That is this
+     * repo's recurring failure mode: a render capturing the one state indistinguishable from the
+     * feature being absent.
+     */
+    public void frostNow() {
+        Frost.refresh(desk, frosted);
+        // ⚠ The overlay layer too, or a harness photographs frosted WINDOWS and unfrosted NOTICES —
+        // which is the same trap this method exists for, one layer up.
+        if (onFrosted != null) {
+            onFrosted.run();
+        }
+    }
+
+    /** How many windows are open. Used by the render harness's frost benchmark. */
+    public int windowCount() {
+        return windows.size();
+    }
+
+    private void scheduleFrost() {
+        // ⚠ Redundant while the clock is running — it will re-capture within 42ms anyway — and
+        // skipping it is what stops a burst of window events costing a second full cycle each.
+        if (frostPending
+                || (frostClock != null && frostClock.getStatus() == javafx.animation.Animation.Status.RUNNING)) {
+            return;
+        }
+        frostPending = true;
+        javafx.application.Platform.runLater(() -> {
+            frostPending = false;
+            Frost.refresh(desk, frosted);
+        });
     }
 
     // ── Opening and closing ──────────────────────────────────────────────────────────────────
@@ -570,6 +746,10 @@ public final class DeskManager {
                 window.placedByHand();
                 window.setGeometry(snapIfNeeded(new Geometry(window.x, window.y, window.width, window.height)));
             }
+            // ⚠ On RELEASE, not on drag. The dragged window's own frost needs no re-capture — its
+            // image is the whole desk and `layoutChildren` re-anchors it, so it stays pixel-correct
+            // for free. What does change is what the windows it moved off now have beneath them.
+            scheduleFrost();
             e.consume();
         });
         frame.headerStrip().setOnMouseClicked(e -> {

@@ -1,0 +1,173 @@
+/*
+ * theme-liquid-dark.css — uOS Modern Liquid Abs, dark. Cool graphite glass.
+ *
+ * A palette overlay; see ThemeId's class comment. Permitted by
+ * docs/design/ui-design-language.md §9.4, which amended §9's ban on glassmorphism into an opt-in on
+ * the same four conditions §9.1, §9.2 and §9.3 already run on. Read §9.4 before changing anything
+ * here — several values below are load-bearing for conditions 2 and 3 rather than for taste.
+ *
+ * ── ⚠ THE BLUR IS REAL NOW, AND THE ALPHAS BELOW ASSUME IT ────────────────────────────────────
+ *
+ * This file used to open by explaining that a frosted pane was "not expressible in this toolkit at
+ * any price". That was true of CSS and only of CSS: there is no `backdrop-filter`, and
+ * `-fx-effect: gaussianblur(...)` blurs the node's OWN content — i.e. this panel's text. It is not
+ * true of the toolkit. `ui/chrome/Frost` snapshots what is beneath each window, blurs the image and
+ * paints it under the panel, which is a genuine backdrop blur arrived at the long way round.
+ *
+ * ⚠ SO THE PANEL ALPHA HERE IS ONLY SAFE WHILE THAT EXISTS. At 80% transmission this palette is
+ * mostly a window onto whatever is behind it, and what makes that legible is that the picture is a
+ * Gaussian blur rather than a screen. `ThemeId.frostsBackdrop` is what couples the two, and
+ * `ContrastTest.transmissionRequiresFrost` fails the build if a palette this transmissive ever
+ * stops declaring it.
+ *
+ * The other three things glass is built from still carry most of the look:
+ *
+ *   1. TRANSMISSION — the panel is translucent, so the desk shows faintly through it.
+ *   2. SPECULAR EDGE — a bright rim catches light along every panel boundary. This does most of
+ *      the work. Look at any Liquid Glass screenshot: the lit rim is the material.
+ *   3. ELEVATION BY BRIGHTNESS — a raised surface is lighter. §2.1's "depth comes from brightness,
+ *      never from shadow or blur" was already the rule here, and it is exactly what glass wants.
+ *
+ * ── ⚠ THE FILM IS LIGHT, NOT DARK, AND THAT ONE DECISION IS WHAT MAKES THIS PALETTE POSSIBLE ────
+ *
+ * The obvious way to build a dark glass panel is a dark translucent film. It is wrong twice over,
+ * and the second reason is the one with teeth.
+ *
+ * Real dark-mode frosted glass is a LIGHT film: a frosted pane scatters light additively, so it
+ * *lifts* whatever is behind it toward grey rather than tinting it darker. That is why a macOS glass
+ * panel over a black desktop is a mid grey and not a darker black.
+ *
+ * The measured consequence is that a light film also stays LEGIBLE at transparencies a dark one
+ * cannot survive. Compositing text on a window behind the glass, at 40% transmission:
+ *
+ *     mid-toned film  #3E4757 → the text behind reads at 4.95:1  — plainly readable. A second screen.
+ *     light film      #7E89A0 → the text behind reads at 2.03:1  — present, and not readable.
+ *
+ * Same alpha, same desk. A light film compresses a dark backdrop's range hard, and that compression
+ * is doing the job the missing blur would do. **Darkening this film re-introduces a readable second
+ * screen under every overlapping window at the same transparency** — `ContrastTest
+ * .whatShowsThroughIsNotReadable` is what catches it, and it will not tell you the film is the cause.
+ *
+ * ⚠ THE PALETTE IS THEREFORE LIGHTER THAN A DARK THEME'S USUALLY IS, and the ramp had to move with
+ * it. The panel composites to a mid graphite, so the greys above it are near-whites — which is again
+ * what the reference actually looks like, rather than a compromise.
+ *
+ * ── ⚠ THE WALLPAPER IS NOT BEHIND THE INTERFACE ANY MORE, IT IS INSIDE EVERY PANEL ──────────────
+ *
+ * At 40% transmission the desk is a component of every window. Found by rendering, twice: at 12% the
+ * substrate's rows of hex already came through as horizontal BANDING, and at 40% they are a second
+ * document laid over the first. Real frosted glass scatters that into a wash and JavaFX cannot, so
+ * the only lever is to give the glass less to transmit — `theme.css` drops the wallpaper and greeble
+ * for these two themes under `.es-theme-liquid-*`. That rule is load-bearing, not decoration.
+ *
+ * ⚠ THE PANEL MUST SIT VISIBLY ABOVE THE DESK, and the first build got this wrong in the other
+ * direction. Tuned against the deck palette's own desk-to-panel step, it inherited a step that is
+ * nearly invisible — correct for a deck built of hairlines with no fills, and wrong for glass, where
+ * the lift IS the material (§2.1's depth-from-brightness, doing the job a shadow does elsewhere).
+ * A pane level with its ground is not a pane.
+ *
+ * ── The ramp ──────────────────────────────────────────────────────────────────────────────────
+ *
+ * Cool neutral, blue-grey rather than the deck's teal-grey. The accent stays WARM AMBER and keeps
+ * §2.1's meaning — cycles doing work, or income. It is not the reference's blue, on explicit
+ * direction: §2.1 calls the warm-accent-on-cool-ground temperature split load-bearing, and a blue
+ * accent beside the existing gain-green, warn-orange and alarm-red is the semantic colour system
+ * §2.1 bans, arriving one token at a time.
+ */
+
+.root {
+    /* The desk. OPAQUE — it is the bottom of the stack, with nothing behind it to transmit. */
+    -es-void:      #0B0D12;
+
+    /* ⚠ EIGHT-DIGIT #RRGGBBAA. Verified against JavaFX 26: it parses, and the alpha survives the
+       looked-up-colour indirection into -fx-background-color. `rgba()` also works and is NOT used —
+       the six-digit tokens elsewhere in this palette would then be spelled a second way, and
+       ContrastTest parses these values to composite them. One spelling, one parser.
+
+       ⚠ 0x33 is 20% — EIGHTY PERCENT TRANSMISSION. The panel is very nearly a hole, and it is only
+       legible because `ui/chrome/Frost` puts a Gaussian blur of the desk behind it. Composites (over
+       the flat desk, which is what ContrastTest models) to about #1F232B.
+
+       ⚠ THIS ALPHA IS NOT INDEPENDENTLY CHOOSABLE. Without the blur the ceiling was 40%, set by
+       rendering: at 64% the notification stack over the LOG window was two columns of text in the
+       same pixels, each individually "not legible" and the pair unreadable.
+       `ContrastTest.transmissionRequiresFrost` fails the build if a palette this transmissive stops
+       declaring `frostsBackdrop()`. */
+    -es-panel:     #99A6C114;
+    /* ⚠ A SECOND SHEET over the first, so its alpha is much lower than the panel's — it composites
+       over an already-lifted surface, not over the desk. Matching the panel's 0x66 here would put
+       the header strip at nearly #6F7A8E and leave the dim tokens with nowhere to sit above it;
+       four of them failed the contrast floor exactly that way. */
+    -es-panel-hi:  #C6D3EE10;
+
+    /* Hairlines. -es-rule is the inner divider — a light scrim, the way a pane's internal edges
+       catch light rather than a drawn line. */
+    -es-rule:      #D6E2F53D;
+
+    /* ⚠ THE SPECULAR RIM, and the single most load-bearing value in this file. It paints
+       `.es-panel-edge`, the 1px band the base sheet already draws around every window, so making it
+       a bright translucent white-blue lights every panel boundary at once and costs no new
+       component rule. This is what makes the material read as glass; the transmission alone does
+       not. Composites to roughly #6B717C over the desk — clearly lit, still a rim and not a stripe.
+       ⚠ It is also every strip's under-border and every key-cap's outline, so it cannot simply be
+       driven to white: bright enough to light a panel edge, quiet enough that a table of them does
+       not become a grid of stripes. */
+    -es-rule-hi:   #EEF4FF9E;
+
+    /* Cold grayscale. ⚠ -es-dim-3 is greeble and the desk wallpaper — exempt from ContrastTest's
+       floor by name, and it must stay well below body text or the texture stops being texture. */
+    -es-dim-3:     #798194;
+    -es-dim-2:     #C6D0E0;
+    -es-dim-1:     #D8DFEB;
+    -es-text:      #E8EEF6;
+    -es-text-hi:   #FCFDFF;
+
+    /* The single accent — warm sodium amber on cool glass. Cycles doing work, or income. Nothing
+       else. Slightly lighter and cleaner than the deck's #FFAE38, which reads muddy against a
+       lifted graphite panel rather than against the deck's near-black. */
+    -es-amber:     #FFC97F;
+    -es-amber-mid: #E0AC72;
+    -es-amber-low: #9A7A4A;
+
+    /* Loss and hostile state. At most twice per screen (§2.1). */
+    -es-alarm:     #FFB3A8;
+
+    /* §2.1a's two state hues, in this palette's register. ⚠ -es-warn is pushed orange and away from
+       the accent deliberately: it marks a patched node, and a warn that is indistinguishable from
+       amber says "earning" about a machine that has locked you out. */
+    -es-gain:      #85EDAB;
+    -es-warn:      #FFBA6E;
+
+    /* Equipped-tool cells. */
+
+    /* ⚠ OPAQUE, and the ONE token in this palette that is. See -es-float in theme.css: a window body
+       may be glass because what is behind it is usually the desk, but a toast, a dialog, a menu or a
+       tooltip is ALWAYS over content. Rendered at 40% transmission, the notification stack and the
+       LOG window under it were both legible and neither readable — the same pixels carrying two
+       columns of text. This is the composited value of -es-panel-hi over the panel, so a floating
+       surface looks exactly like a raised one and simply does not transmit.
+       ⚠ Re-derive it if the panel tokens above change; nothing computes it. */
+
+    /* ⚠ A WELL IS A TINT OVER THE FROST, NOT A HOLE IN IT. See -es-well in theme.css. The terminal's
+       scrollback, the file list, the map canvas, the manual and the calculator are all sunk into a
+       panel, and painting them with the opaque desk colour punched a black box through the glass in
+       every one of them — which is what made the first frosted build look half-finished.
+
+       ⚠ It is DARKER than the panel and more opaque than it, and both halves matter. Darker, because
+       a recess reads as a recess by being darker than the surface it is cut into — §2.1's
+       depth-from-brightness, in the one direction that is not "raised". More opaque, because a
+       terminal's whole content sits directly on this: at the panel's alpha the blur would come
+       through under every line of output, and a blurred bright patch behind small monospace is the
+       one place transmission costs real legibility. */
+    -es-well:      #070A115C;
+
+
+    /* ⚠ Transmits, unlike -es-float, because a notice is the ONE floating surface with a real blur
+       behind it — see -es-notice in theme.css. Context menus, dropdowns and tooltips are JavaFX
+       PopupWindows with their own Scene and nothing capturable underneath, so they stay opaque. */
+    -es-notice:    #99A6C124;
+
+    -es-float:     #656D7E;
+
+    -es-tool:      #727B8D;
+}

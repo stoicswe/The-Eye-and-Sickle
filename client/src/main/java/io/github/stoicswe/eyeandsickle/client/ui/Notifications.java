@@ -15,6 +15,7 @@ import javafx.geometry.Pos;
 import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.util.Duration;
 
@@ -202,7 +203,65 @@ public final class Notifications extends VBox {
         body.getStyleClass().addAll("es-toast", severe ? "es-toast-severe" : "es-toast-normal");
         body.setMaxWidth(340);
         body.setPrefWidth(340);
-        return body;
+
+        // ⚠ The frost goes UNDER the toast's own translucent fill, in a holder, rather than into its
+        // Background. A JavaFX Background paints its fills first and its images ON TOP of them, so a
+        // BackgroundImage would cover the tint instead of sitting beneath it — the layering would be
+        // exactly inverted, and only visibly so once the tint stopped being opaque.
+        javafx.scene.image.ImageView frost = new javafx.scene.image.ImageView();
+        frost.setMouseTransparent(true);
+        // ⚠ UNMANAGED, or the toast grows to the size of the desk. The image is a picture of the
+        // WHOLE deck, so a managed child reports ~1600×1000 as its preferred size and the Pane
+        // holding it asks for exactly that — the first notice rendered several hundred pixels tall
+        // with its text in the top corner. Unmanaged means it is placed by `relocate` and measured
+        // by nobody, which is what this needs.
+        frost.setManaged(false);
+        javafx.scene.layout.Pane frostHolder = new javafx.scene.layout.Pane(frost);
+        frostHolder.setMouseTransparent(true);
+        StackPane framed = new StackPane(frostHolder, body);
+        framed.getStyleClass().add("es-toast-framed");
+        framed.setMaxWidth(340);
+        framed.setPrefWidth(340);
+        framed.setMaxHeight(Region.USE_PREF_SIZE);
+        // Clipped to the toast's own box, or the whole-deck image paints across the screen.
+        javafx.scene.shape.Rectangle clip = new javafx.scene.shape.Rectangle();
+        clip.widthProperty().bind(framed.widthProperty());
+        clip.heightProperty().bind(framed.heightProperty());
+        frostHolder.setClip(clip);
+        frosted.put(framed, frost);
+        return framed;
+    }
+
+    /**
+     * Each live toast and the view carrying its blurred backdrop.
+     *
+     * <p>⚠ An {@link java.util.WeakHashMap} so a dismissed notice is not held here after the scene
+     * has dropped it — toasts are created and discarded continuously, and this map is the only thing
+     * that would otherwise keep every one of them alive for the life of the deck.
+     */
+    private final java.util.Map<Region, javafx.scene.image.ImageView> frosted = new java.util.WeakHashMap<>();
+
+    /**
+     * Re-aims every live notice at a fresh capture of what it is floating over.
+     *
+     * <p>⚠ Called by {@code DeckShell} from the frost clock, and <b>only when a notice is on
+     * screen</b>: an overlay backdrop is a second full capture of the deck, so paying for it while
+     * the notification stack is empty would roughly double the cost of the effect for nothing.
+     *
+     * @param deck the node the notices float over
+     */
+    public void refreshFrost(javafx.scene.Node deck) {
+        if (getChildren().isEmpty() || !isVisible()) {
+            return;
+        }
+        javafx.scene.image.Image backdrop =
+                io.github.stoicswe.eyeandsickle.client.ui.chrome.Frost.overlayBackdrop(deck, java.util.List.of(this));
+        for (javafx.scene.Node child : getChildren()) {
+            javafx.scene.image.ImageView view = frosted.get(child);
+            if (view != null) {
+                io.github.stoicswe.eyeandsickle.client.ui.chrome.Frost.placeOverlay(view, child, deck, backdrop);
+            }
+        }
     }
 
     /**

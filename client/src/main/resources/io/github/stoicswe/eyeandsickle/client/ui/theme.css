@@ -68,6 +68,44 @@
     /* equipped-tool cells: the one grey the palette table does not name, from the reference grid */
     -es-tool:      #242E2F;
 
+    /* ⚠ THE GROUND FOR ANYTHING THAT FLOATS OVER OTHER CONTENT — toasts, dialogs, menus, tooltips,
+       the download dock, the sync banner. It ALIASES -es-panel-hi, so on every opaque palette this
+       token changes nothing and a floating surface is the raised surface, exactly as before.
+       (Verified on JavaFX 26: a looked-up colour may reference another, and a theme may override it.)
+
+       It exists for the glass palettes (§9.4). A window body may be translucent because what is
+       behind it is usually the desk. A toast is ALWAYS over content — measured by rendering: at 64%
+       transmission the notification stack and the LOG window beneath it were both legible and
+       neither was readable, two columns of text occupying the same pixels. An alert you cannot read
+       is not an alert, so these surfaces stay opaque and only the windows are glass. */
+    -es-float:     -es-panel-hi;
+
+    /* ⚠ A NOTICE'S GROUND, and it is separate from -es-float for one reason: a notice is the only
+       floating surface in this client that HAS a blur behind it.
+
+       `Notifications` lives in the deck's own scene graph, so `Frost.overlayBackdrop` can capture
+       what it floats over and put it underneath. A context menu, a dropdown list and a tooltip are
+       JavaFX PopupWindows — separate OS windows with their own Scene — so there is nothing beneath
+       them to capture and they must stay opaque or they show sharp content straight through.
+
+       Aliases -es-float, so on every opaque palette a notice is a floating surface exactly as
+       before. Only the glass palettes make it transmit. */
+    -es-notice:    -es-float;
+
+    /* ⚠ THE GROUND FOR AN INSET WELL — a terminal's scrollback, a table body, a text field, the
+       cycle grid's field, the map canvas, the calculator. Anything sunk INTO a panel rather than
+       floating over one.
+
+       It ALIASES -es-void, so on every opaque palette a well is the app ground exactly as before and
+       this token changes nothing at all.
+
+       It exists because -es-void does two unrelated jobs — it is the desk AND every recess — and the
+       glass palettes need those to part company: the desk must stay opaque (it is the bottom of the
+       stack, with nothing behind it), while a well sunk into a frosted panel has to transmit or it
+       reads as a black box punched through the glass. Which is exactly what the first frosted build
+       looked like in the terminal, the file manager, the map and the calculator. */
+    -es-well:      -es-void;
+
     -fx-background-color: -es-void;
     -fx-font-family: "IBM Plex Mono", "SF Mono", Menlo, Consolas, monospace;
     -fx-font-size: 12px;
@@ -484,7 +522,7 @@
 
 /* Compute is countable, not a percentage: 100 cells on a void well. */
 .es-grid-well {
-    -fx-background-color: -es-void;
+    -fx-background-color: -es-well;
     -fx-border-color: -es-rule;
     -fx-border-width: 1;
     -fx-padding: 10;
@@ -601,7 +639,7 @@
 
 /* Only where something is genuinely in progress — a permanently-sweeping panel is a lie. */
 .es-working {
-    -fx-background-color: -es-void;
+    -fx-background-color: -es-well;
     -fx-border-color: -es-rule;
     -fx-border-width: 1;
     -fx-padding: 9 11 9 11;
@@ -759,6 +797,31 @@
    choice rather than something the accessibility theme decides for them. */
 .es-theme-deck-hc .es-substrate > .es-substrate-field { -fx-opacity: 0.14; }
 
+/* ── uOS Modern Liquid Abs: the desk is seen THROUGH the windows, so it has to be quieter ──────────
+ *
+ * §9.4. These two palettes transmit 29–40%, which means the wallpaper is not behind the interface
+ * any more — it is inside every panel. MEASURED by rendering, twice: at 12% transmission the
+ * substrate's rows of hex already came through as horizontal BANDING (indistinguishable on the light
+ * palette from a failing display), and higher up it is a second document laid over the first.
+ *
+ * ⚠ `ui/chrome/Frost` now blurs the backdrop for real, which softens the substrate along with
+ * everything else — but it does not make this rule redundant. A blurred field of hex at full
+ * strength is still a field of luminance variation under every readout, and the transmission these
+ * palettes run at is high enough that it competes with the text. Quiet AND blurred is what reads as
+ * frosted glass; blurred alone reads as a busy window.
+ *
+ * ⚠ QUIETER, NEVER ABSENT — §9 makes removing greeble build-blocking, and this is the same rule
+ * `.es-theme-deck-hc` above is already held to. A player who wants no wallpaper has
+ * Settings → Desk → Wallpaper: Off, which is their choice rather than the palette's.
+ *
+ * ⚠ These live HERE and not in the two overlays, because an overlay is a palette: opacity is not a
+ * colour, and `CharacterSlotsTest.overlaysAreColoursOnly` exists to keep that line. `.es-theme-*`
+ * in the component sheet is the sanctioned place for a theme-scoped structural rule. */
+.es-theme-liquid-dark  .es-substrate > .es-substrate-field,
+.es-theme-liquid-light .es-substrate > .es-substrate-field { -fx-opacity: 0.10; }
+.es-theme-liquid-dark  .es-greeble,
+.es-theme-liquid-light .es-greeble { -fx-opacity: 0.45; }
+
 /*
  * ⚠ NO -fx-cursor DECLARATIONS IN THIS FILE. MEASURED, not a preference.
  *
@@ -819,7 +882,7 @@
 .button.es-primary { -fx-border-color: -es-amber-mid; -fx-text-fill: -es-amber; }
 
 .text-field, .text-area, .text-area .content {
-    -fx-background-color: -es-void;
+    -fx-background-color: -es-well;
     -fx-background-radius: 0;
     -fx-background-insets: 0;
     -fx-border-color: -es-rule-hi;
@@ -850,7 +913,7 @@
 .choice-box:hover { -fx-border-color: -es-amber-low; }
 .choice-box .context-menu,
 .context-menu {
-    -fx-background-color: -es-panel;
+    -fx-background-color: -es-float;
     -fx-background-radius: 0;
     -fx-border-color: -es-rule-hi;
     -fx-border-width: 1;
@@ -863,7 +926,7 @@
 
 .check-box { -fx-text-fill: -es-text; -fx-font-size: 11px; }
 .check-box .box {
-    -fx-background-color: -es-void;
+    -fx-background-color: -es-well;
     -fx-background-radius: 0;
     -fx-background-insets: 0;
     -fx-border-color: -es-rule-hi;
@@ -900,7 +963,7 @@
  * because a wide bar next to an 11px cell grid looks like it belongs to a different application.
  */
 .scroll-bar:vertical, .scroll-bar:horizontal {
-    -fx-background-color: -es-void;
+    -fx-background-color: -es-well;
     -fx-padding: 0;
     -fx-pref-width: 9px;
     -fx-pref-height: 9px;
@@ -945,10 +1008,10 @@
     -fx-padding: 0;
     -fx-background-color: transparent;
 }
-.corner { -fx-background-color: -es-void; }
+.corner { -fx-background-color: -es-well; }
 
 .list-view, .table-view {
-    -fx-background-color: -es-void;
+    -fx-background-color: -es-well;
     -fx-background-insets: 0;
     -fx-border-color: -es-rule;
     -fx-border-width: 1;
@@ -969,7 +1032,7 @@
     -fx-background-color: -es-panel-hi;
     -fx-text-fill: -es-amber;
 }
-.list-cell:empty, .table-row-cell:empty { -fx-background-color: -es-void; -fx-border-width: 0; }
+.list-cell:empty, .table-row-cell:empty { -fx-background-color: -es-well; -fx-border-width: 0; }
 
 /*
  * CLIENT LOGS — one colour per severity.
@@ -1016,7 +1079,7 @@
 }
 .table-view .placeholder .label { -fx-text-fill: -es-dim-2; -fx-font-size: 11px; }
 
-.split-pane { -fx-background-color: -es-void; -fx-padding: 0; }
+.split-pane { -fx-background-color: -es-well; -fx-padding: 0; }
 .split-pane > .split-pane-divider {
     -fx-background-color: -es-rule-hi;
     -fx-padding: 0 1 0 1;
@@ -1074,7 +1137,7 @@
 .titled-pane > .title > .arrow-button .arrow { -fx-background-color: -es-dim-2; }
 
 .slider .track {
-    -fx-background-color: -es-void;
+    -fx-background-color: -es-well;
     -fx-background-radius: 0;
     -fx-border-color: -es-rule-hi;
     -fx-border-width: 1;
@@ -1091,7 +1154,7 @@
 
 .progress-bar { -fx-indeterminate-bar-animation-time: 0; }
 .progress-bar > .track {
-    -fx-background-color: -es-void;
+    -fx-background-color: -es-well;
     -fx-background-radius: 0;
     -fx-background-insets: 0;
     -fx-border-color: -es-rule;
@@ -1105,7 +1168,7 @@
 }
 
 .tooltip {
-    -fx-background-color: -es-panel-hi;
+    -fx-background-color: -es-float;
     -fx-background-radius: 0;
     -fx-border-color: -es-rule-hi;
     -fx-border-width: 1;
@@ -1222,7 +1285,7 @@
 .es-toasts { -fx-background-color: transparent; }
 
 .es-toast {
-    -fx-background-color: -es-panel-hi;
+    -fx-background-color: -es-notice;
     -fx-border-color: -es-rule-hi;
     -fx-border-width: 1;
     -fx-padding: 8 12 9 10;
@@ -1310,7 +1373,7 @@
  * freshly-swept network reads as mostly dark and resolves as you learn it. */
 
 .es-netmap, .es-netlist {
-    -fx-background-color: -es-void;
+    -fx-background-color: -es-well;
     -fx-border-color: -es-rule;
     -fx-border-width: 1;
     -fx-padding: 7;
@@ -1486,7 +1549,7 @@
  * while its background and border applied — the half-applied failure this stylesheet's header warns
  * about, and the one that is hardest to see because everything else in the block works. */
 .es-calc {
-    -fx-background-color: -es-void;
+    -fx-background-color: -es-well;
     -fx-border-color: -es-rule;
     -fx-border-width: 1;
 }
@@ -1596,7 +1659,7 @@
 
 .es-viewport, .es-matrix, .es-cipher, .es-attn, .es-ledger, .es-slate,
 .es-cost-strip {
-    -fx-background-color: -es-void;
+    -fx-background-color: -es-well;
     -fx-border-color: -es-rule;
     -fx-border-width: 1;
     -fx-padding: 7;
@@ -1670,7 +1733,7 @@
  * Above the process table, below the tabs. Framed like the other instrumentation panels so it
  * reads as a readout rather than as decoration hanging off the table. */
 .es-rig-history {
-    -fx-background-color: -es-void;
+    -fx-background-color: -es-well;
     -fx-border-color: -es-rule;
     -fx-border-width: 1;
     -fx-padding: 7;
@@ -1682,7 +1745,7 @@
  * is reserved across the whole deck for money you actually have, and a block you won is exactly
  * that. Everything else stays on the neutral ramp. */
 .es-block-strip {
-    -fx-background-color: -es-void;
+    -fx-background-color: -es-well;
     -fx-border-color: -es-rule;
     -fx-border-width: 1;
     -fx-padding: 7;
@@ -1800,7 +1863,7 @@
 .es-recon-pill > .es-recon-tagx:hover { -fx-text-fill: -es-alarm; }
 /* The two in-place editors. Narrow, flat, and clearly a field rather than a label. */
 .es-recon-rename, .es-recon-tagfield {
-    -fx-background-color: -es-void;
+    -fx-background-color: -es-well;
     -fx-border-color: -es-amber-mid;
     -fx-border-width: 1;
     -fx-text-fill: -es-text-hi;
@@ -1897,7 +1960,7 @@
 }
 
 .es-sync {
-    -fx-background-color: -es-void;
+    -fx-background-color: -es-float;
     -fx-border-color: -es-amber-mid;
     -fx-border-width: 0 0 0 2;
     -fx-padding: 9 9 9 12;
@@ -1948,7 +2011,7 @@
    cell child: as a child it widened the strip while it showed and wrapped the chrome onto two rows
    every time the player earned anything. Opaque, because it sits over the desk. */
 .es-balance-pop {
-    -fx-background-color: -es-void;
+    -fx-background-color: -es-float;
     -fx-border-color: transparent -es-rule-hi -es-rule-hi -es-rule-hi;
     -fx-border-width: 0 1 1 1;
     -fx-padding: 4 10 4 10;
@@ -2336,7 +2399,7 @@
  * actually rations. The one exception is `-error`, which is -es-alarm, the same rationed warning the
  * map allows on a suspected trap. */
 .es-nodeshell {
-    -fx-background-color: -es-void;
+    -fx-background-color: -es-well;
     -fx-border-color: -es-rule;
     -fx-border-width: 1;
 }
@@ -2413,7 +2476,7 @@
  * beats a one-class rule at equal specificity, so a bare `.es-files-name` would paint in body grey
  * while its background applied — the half-applied failure this stylesheet's header warns about. */
 .es-files {
-    -fx-background-color: -es-void;
+    -fx-background-color: -es-well;
     -fx-border-color: -es-rule;
     -fx-border-width: 1;
 }
@@ -2535,7 +2598,7 @@
 .es-flash-overlay {
     /* -es-panel, not a translucent wash: §9 bans blur/shadow and a half-transparent overlay over
        live text is unreadable at any opacity. It is opaque and bordered, so it reads as a takeover. */
-    -fx-background-color: -es-panel;
+    -fx-background-color: -es-float;
     -fx-padding: 28;
     -fx-border-color: -es-warn;
     -fx-border-width: 2;
@@ -2561,7 +2624,7 @@
 /* The connect-to-machine popup. Same argument as the node shell's builder: it hides nothing, its
    whole content is the list it is about, and it dismisses on any click outside. */
 .es-files-dialog {
-    -fx-background-color: -es-panel;
+    -fx-background-color: -es-float;
     -fx-border-color: -es-text-hi;
     -fx-border-width: 1;
 }
@@ -3048,6 +3111,20 @@
 .es-swatch-cyberdeck .es-swatch-pane   { -fx-background-color: #0A1218; }
 .es-swatch-cyberdeck .es-swatch-accent { -fx-background-color: #FF9B3D; }
 
+/* uOS Modern Liquid Abs (§9.4). ⚠ The pane and strip literals keep their ALPHA, and that is the swatch
+   working rather than a copy-paste slip: the tile is layered strip-over-pane-over-screen, so a
+   translucent literal composites here exactly as it does on the real deck and the tile shows the
+   actual glass. Flattening them to opaque would make the one screen whose job is "this is what that
+   one looks like" the only place in the client the material is absent. */
+.es-swatch-liquid-dark .es-swatch-screen { -fx-background-color: #0B0D12; -fx-border-color: #EEF4FF9E; }
+.es-swatch-liquid-dark .es-swatch-strip  { -fx-background-color: #C6D3EE10; }
+.es-swatch-liquid-dark .es-swatch-pane   { -fx-background-color: #99A6C114; }
+.es-swatch-liquid-dark .es-swatch-accent { -fx-background-color: #FFC97F; }
+.es-swatch-liquid-light .es-swatch-screen { -fx-background-color: #B6BFCD; -fx-border-color: #2A3C5473; }
+.es-swatch-liquid-light .es-swatch-strip  { -fx-background-color: #FFFFFF1A; }
+.es-swatch-liquid-light .es-swatch-pane   { -fx-background-color: #FFFFFF1F; }
+.es-swatch-liquid-light .es-swatch-accent { -fx-background-color: #8A5200; }
+
 /* ══════════════════════════════════════════════════════════════════════════════════════════════
  * THE MASCOT — rig monitor, ABOUT tab. NO RULE HERE, DELIBERATELY.
  *
@@ -3324,7 +3401,7 @@
  * is the only thing that can do that job.
  */
 .es-market-dock {
-    -fx-background-color: -es-panel-hi;
+    -fx-background-color: -es-float;
     -fx-border-color: -es-rule-hi;
     -fx-border-width: 1;
     -fx-padding: 8 10 8 10;
@@ -3569,7 +3646,7 @@
  * ⚠ The overlay carries the deck's card recipe — lifted ground and a hairline — because it floats
  * over the chart and needs an edge. §9 leaves brightness as the only lever; there is no shadow. */
 .es-anon-overlay {
-    -fx-background-color: -es-panel-hi;
+    -fx-background-color: -es-float;
     -fx-border-color: -es-rule;
     -fx-border-width: 1;
     -fx-padding: 8;

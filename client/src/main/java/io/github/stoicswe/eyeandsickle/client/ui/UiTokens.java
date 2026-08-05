@@ -342,6 +342,45 @@ public final class UiTokens {
      */
     public static final double FRAME_MS = 40;
 
+    /**
+     * How often the frosted backdrop re-captures, in milliseconds — 24 frames a second.
+     *
+     * <h2>⚠ Its own clock, and why it is not {@code Pulse}</h2>
+     *
+     * {@code Pulse} drives at 100ms and <b>quantises every subscription to a multiple of that</b>, so
+     * asking it for 24fps silently rounds up to 10fps. Reaching 24 through Pulse would mean lowering
+     * the shared driver's period, which speeds up every decorative widget in the client at once — a
+     * change to everything, to fix one thing.
+     *
+     * <h2>⚠ 24 is affordable ONLY because a refresh is one snapshot</h2>
+     *
+     * Measured on this project, four windows, 1600×1000: a per-window cycle cost <b>~40ms</b> (a
+     * 24fps <em>ceiling</em>, i.e. the whole thread), and a single shared capture costs <b>~9ms</b>
+     * and does not grow with the window count. At 24fps that is about 22% of the FX thread, which is
+     * real and is the price of the effect. ⚠ Raising this number raises that proportionally — 60fps
+     * would be over half the thread and the deck would start dropping input.
+     */
+    public static final double FROST_MS = 1000.0 / 24.0;
+
+    /**
+     * The largest share of wall-clock time the frosted backdrop may spend on itself.
+     *
+     * <h2>⚠ Why 24fps has to be a CEILING rather than a rate</h2>
+     *
+     * A refresh costs one snapshot per <em>overlapping</em> window plus one shared: tiled, that is
+     * <b>~9ms</b> and 24fps is comfortable; four windows fully cascaded is <b>~34ms</b>, and eight
+     * would be worse. A fixed 24fps would hand the whole thread to the blur exactly when the player
+     * has the most on screen — the deck would stutter under the interaction that caused it, which is
+     * the worst possible moment.
+     *
+     * <p>So {@code DeskManager} measures each refresh and refuses to start the next one until the
+     * gap is at least {@code cost / FROST_BUDGET}. At this share, a 9ms refresh is free to run at the
+     * full 24fps and a 34ms one paces itself down to about 7fps. The frost stays <b>correct</b> at
+     * every window count and only its <em>frequency</em> degrades, which is the right thing to give
+     * up: a slightly stale blur is invisible at this radius, and a stuttering desk is not.
+     */
+    public static final double FROST_BUDGET = 0.25;
+
     /** Stagger between panes, so the deck wakes up in sequence rather than all at once. */
     public static final double REVEAL_STAGGER_MS = 170;
 

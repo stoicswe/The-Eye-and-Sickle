@@ -37,6 +37,24 @@ class UiContractTest {
     private static final Path CLIENT_RESOURCES = Path.of("src/main/resources");
     private static final String UI_RESOURCES = "io/github/stoicswe/eyeandsickle/client/ui/";
 
+    /**
+     * Every stylesheet the client can load: the component sheet plus each theme's palette overlay.
+     *
+     * <p>⚠ <b>Derived from {@link io.github.stoicswe.eyeandsickle.client.theme.ThemeId}, never
+     * hand-kept.</b> The two checks below used to carry their own literal lists, and they had already
+     * drifted: the cursor check named five of the six sheets that existed, so {@code
+     * theme-cyberdeck.css} was exempt from a build-blocking rule by clerical accident and nothing
+     * anywhere said so. A list that is written out by hand is a list that is one new theme away from
+     * being wrong, and the failure is always silent — a rule that scans fewer files still passes.
+     */
+    private static final List<String> STYLESHEETS = Stream.concat(
+                    Stream.of("theme.css"),
+                    Stream.of(io.github.stoicswe.eyeandsickle.client.theme.ThemeId.values())
+                            .map(io.github.stoicswe.eyeandsickle.client.theme.ThemeId::overlayStylesheet)
+                            .flatMap(java.util.Optional::stream)
+                            .map(path -> path.substring(path.lastIndexOf('/') + 1)))
+            .toList();
+
     private static List<Path> javaSources() throws IOException {
         try (Stream<Path> files = Files.walk(CLIENT_SOURCE)) {
             return files.filter(p -> p.toString().endsWith(".java")).toList();
@@ -180,15 +198,14 @@ class UiContractTest {
             // `-fx-fill` would take the node out of ContrastTest's reach. The day a `Text` is styled
             // by class, this test is the right place to carve the exception — with the class named.
             // Until then a `-fx-strikethrough` in this file is a line somebody believes is on screen.
-            for (String sheet : new String[] {
-                "theme.css", "theme-amber.css", "theme-classic.css",
-                "theme-cyberdeck.css", "theme-hc.css", "theme-phosphor.css"
-            }) {
+            for (String sheet : STYLESHEETS) {
                 String body = Files.readString(CLIENT_RESOURCES.resolve(UI_RESOURCES + sheet))
                         .replaceAll("(?s)/\\*.*?\\*/", "");
                 assertThat(body)
-                        .as("%s must not declare -fx-strikethrough — draw the rule instead "
-                                + "(MarketView.struck)", sheet)
+                        .as(
+                                "%s must not declare -fx-strikethrough — draw the rule instead "
+                                        + "(MarketView.struck)",
+                                sheet)
                         .doesNotContain("-fx-strikethrough");
             }
         }
@@ -199,13 +216,24 @@ class UiContractTest {
             // §9, the parts a stylesheet can violate. -fx-background-radius and -fx-border-radius
             // appear only as explicit zeroes overriding Modena, which is why the assertion is on
             // "a non-zero radius" rather than on the property name.
+            // ⚠ EVERY SHEET, not just theme.css. This scanned the base sheet alone until uOS Modern
+            // Liquid landed, and a palette overlay is now precisely where "just a touch of blur to
+            // sell the glass" would be added — §9.4 permits the glass MATERIAL and leaves §9's ban
+            // on blur and shadow completely untouched, so the check has to reach the files the
+            // temptation lives in. (It is also unbreakable in practice: JavaFX has no backdrop
+            // filter, and `gaussianblur` on a panel blurs that panel's own text. This stops someone
+            // discovering that the expensive way.)
+            for (String sheet : STYLESHEETS) {
+                String body = Files.readString(CLIENT_RESOURCES.resolve(UI_RESOURCES + sheet))
+                        .replaceAll("(?s)/\\*.*?\\*/", "");
+                assertThat(body)
+                        .as("%s: no drop shadows, blurs or glows (§9, unamended by §9.4)", sheet)
+                        .doesNotContain("dropshadow(")
+                        .doesNotContain("gaussian")
+                        .doesNotContain("innershadow(");
+            }
             String css = Files.readString(CLIENT_RESOURCES.resolve(UI_RESOURCES + "theme.css"));
             String body = css.replaceAll("(?s)/\\*.*?\\*/", "");
-            assertThat(body)
-                    .as("no drop shadows, blurs or glows (§9)")
-                    .doesNotContain("dropshadow(")
-                    .doesNotContain("gaussian")
-                    .doesNotContain("innershadow(");
             // ⚠ §9 AMENDED 2026-07-28: a non-zero radius is permitted, but ONLY under `.es-rounded`
             // — the opt-in the player turns on in Settings, off by default. So the assertion is no
             // longer "radius is always 0"; it is "radius is 0 unless the rule is gated on that
@@ -388,8 +416,7 @@ class UiContractTest {
             //      ClassCastException: String incompatible with Cursor.
             // Together they mean cursors can only come from Java. This test is what stops a
             // well-meaning `-fx-cursor: hand` from reappearing on .button.
-            for (String sheet : List.of(
-                    "theme.css", "theme-hc.css", "theme-phosphor.css", "theme-amber.css", "theme-classic.css")) {
+            for (String sheet : STYLESHEETS) {
                 String css = Files.readString(CLIENT_RESOURCES.resolve(UI_RESOURCES + sheet));
                 String body = css.replaceAll("(?s)/\\*.*?\\*/", "");
                 assertThat(body).as("%s declares no cursor", sheet).doesNotContain("-fx-cursor");

@@ -284,7 +284,9 @@ class DownloadQueueFlowTest {
                 f.clock().wind(Duration.ofSeconds(5));
                 f.game().tick();
             }
-            assertThat(f.session().downloads()).as("the download should have landed by now").isEmpty();
+            assertThat(f.session().downloads())
+                    .as("the download should have landed by now")
+                    .isEmpty();
         }
 
         @Test
@@ -292,8 +294,7 @@ class DownloadQueueFlowTest {
         void oneDebitOneArchive(@TempDir Path dir) {
             Fixture f = open(dir);
             var window = f.session().market();
-            org.junit.jupiter.api.Assumptions.assumeTrue(
-                    window.bundle().isPresent(), "no bundle on this shelf");
+            org.junit.jupiter.api.Assumptions.assumeTrue(window.bundle().isPresent(), "no bundle on this shelf");
             var bundle = window.bundle().get();
             java.math.BigInteger before = f.session().balance().wei();
 
@@ -325,18 +326,18 @@ class DownloadQueueFlowTest {
             org.junit.jupiter.api.Assumptions.assumeTrue(
                     f.session().market().bundle().isPresent(), "no bundle on this shelf");
             int members = f.session().market().bundle().get().offeringIds().size();
+            // ⚠ BEFORE THE FIRST TICK, not before the first assertion. This guard used to sit below
+            // settle() — which winds the clock until the download lands — so a block could be found
+            // in that window, the payment confirmed, every member correctly released, and the
+            // assertion that they are still locked failed against code that was working. Rare
+            // enough to pass on a re-run, which is the worst frequency there is.
+            // See support/Chains for the measured numbers.
+            io.github.stoicswe.eyeandsickle.client.support.Chains.holdOff(f.game());
             f.session().purchaseBundle();
             settle(f);
 
             StoredFileState archive = f.game().state().files.getFirst();
             String path = archive.directory + "/" + archive.name;
-
-            // ⚠ THE CHAIN IS HELD OFF, and the first version of this test was not — it wound thirty
-            // minutes, the payment confirmed inside the extraction, MempoolRules.released correctly
-            // repacked every member, and the assertion that they land as vendor .pkg files failed
-            // against code that was working. networkWorkTarget is the outstanding Exp(1) draw, so a
-            // large value is simply a block nobody has found yet. Nothing is mocked.
-            f.game().state().chain.networkWorkTarget = 500.0d;
 
             assertThat(f.session().extract(path).succeeded()).isTrue();
             assertThat(f.game().state().files)
@@ -367,9 +368,11 @@ class DownloadQueueFlowTest {
             // And releasing that ONE payment releases the whole bundle — which is the other half of
             // the claim, and the half that would silently not work if the members had been given
             // their own entry ids.
-            f.game().state().chain.networkWorkTarget = 0.001d;
-            f.clock().wind(Duration.ofHours(3));
-            f.game().tick();
+            // ⚠ Waits for the payment to be MINED, not for a duration that usually contains it: a
+            // block landing and a transaction confirming are different events, and a standard fee
+            // wins its slot against the derived backlog only about 38% of blocks.
+            io.github.stoicswe.eyeandsickle.client.support.Chains.settlePayment(
+                    f.game(), () -> f.clock().wind(Duration.ofHours(1)));
             assertThat(f.game().state().files)
                     // ⚠ `installableSuffix`, NEVER a literal `.upg`. Firmware releases as `.frm` and
                     // software as `.upg`, and WHICH items a bundle holds is derived from the
@@ -393,8 +396,10 @@ class DownloadQueueFlowTest {
             // test is unchanged and only the way to provoke it moved. Buying the member out is the
             // honest provocation: the shelf genuinely cannot supply the bundle.
             String scarce = bundle.get().offeringIds().getFirst();
-            var offering = io.github.stoicswe.eyeandsickle.engine.Catalogue.byId(scarce).orElseThrow();
-            var held = new io.github.stoicswe.eyeandsickle.engine.rules.SaveMarketStock(f.game().state());
+            var offering = io.github.stoicswe.eyeandsickle.engine.Catalogue.byId(scarce)
+                    .orElseThrow();
+            var held = new io.github.stoicswe.eyeandsickle.engine.rules.SaveMarketStock(
+                    f.game().state());
             // ⚠ The item's REAL on-offer flag, not a hard-coded `true`. An item on offer is stocked
             // shorter, so taking against the on-offer ration when the item is NOT on offer empties
             // the smaller shelf and leaves the real one still stocked — the bundle then succeeds and
@@ -403,7 +408,8 @@ class DownloadQueueFlowTest {
             boolean onOffer = f.session().market().dealFor(scarce).isPresent();
             while (io.github.stoicswe.eyeandsickle.engine.rules.MarketStock.inStock(
                     held, offering, onOffer, f.game().now())) {
-                io.github.stoicswe.eyeandsickle.engine.rules.MarketStock.take(held, scarce, f.game().now());
+                io.github.stoicswe.eyeandsickle.engine.rules.MarketStock.take(
+                        held, scarce, f.game().now());
             }
             java.math.BigInteger before = f.session().balance().wei();
 

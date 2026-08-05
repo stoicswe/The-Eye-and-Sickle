@@ -123,6 +123,7 @@ public final class DeckShell {
     /** {@code 1280 × 800} in the corner while the window is being dragged, then gone. */
     private final io.github.stoicswe.eyeandsickle.client.ui.chrome.SizeReadout sizeReadout =
             new io.github.stoicswe.eyeandsickle.client.ui.chrome.SizeReadout();
+
     private final BorderPane deckRoot = new BorderPane();
     private final PauseMenu pause;
     private final Notifications notices;
@@ -354,6 +355,11 @@ public final class DeckShell {
         // top of them would sit outside the fiction's screen. Above `deckRoot` so it is not covered
         // by whatever is on the desk.
         root.getChildren().addAll(deckRoot, notices, balanceDelta, syncBanner, sizeReadout, pause, bezel, crt);
+        // ⚠ The notices float over the WHOLE deck, so their backdrop is a different capture from any
+        // window's — a window sees the desk, a notice sees the desk plus every window on it. Driven
+        // from the desk's paced frost clock rather than a second one, so the two cannot drift and the
+        // budget covers both.
+        desk.setOnFrosted(() -> notices.refreshFrost(deckRoot));
         // ⚠ Driven off `root`, not the Stage. A Stage's width includes any OS chrome and is set
         // before the scene lays out, so it reports a size the deck never has; `root` is the surface
         // everything inside is measured against, which is the number a player resizing to hit a
@@ -1140,7 +1146,12 @@ public final class DeckShell {
         // Reinstated 2026-07-29 for the block cards' miner pill, which is a chip when the setting is
         // off and a pill when it is on. ⚠ It must NEVER reach a measurement — the same test's second
         // half refuses a radius on any selector naming a meter, a cell or a block.
-        boolean rounded = profile.appearance().roundedWindows;
+        // ⚠ The THEME can imply this without the player's switch being on — see
+        // ThemeId.cornersAreRounded, which is the one place that knows the rule so this and
+        // EyeAndSickleClient.applyRootRounding cannot come to different answers. A liquid palette
+        // whose windows stayed square would be square-cornered glass, which is not the material.
+        // The player's setting is never written to; switching the theme away restores it.
+        boolean rounded = io.github.stoicswe.eyeandsickle.client.theme.ThemeId.cornersAreRounded(profile.appearance());
         // ⚠ On the ROOT, and toggled on every call, because this method is what the Settings switch
         // invokes on a live deck. A class added once at construction would make the setting appear
         // to work only for windows opened afterwards — the failure CLAUDE.md records three times.
@@ -1156,6 +1167,13 @@ public final class DeckShell {
         // above the deck. EyeAndSickleClient.applyRootRounding owns it, and putting it here would
         // have clipped the deck while the scale holder painted the corners back in.
         desk.setRoundedCorners(rounded);
+        // ⚠ The blurred backdrop is a property of the PALETTE, not a setting — see
+        // ThemeId.frostsBackdrop. It rides here because this method is what the theme-change
+        // listener already calls, and because being glass and being frosted are one decision: a
+        // translucent panel with nothing blurred behind it is the state that reads as a fault.
+        desk.setFrosted(io.github.stoicswe.eyeandsickle.client.theme.ThemeId.byId(profile.appearance().themeId)
+                .orElse(io.github.stoicswe.eyeandsickle.client.theme.ThemeId.DECK)
+                .frostsBackdrop());
         // The focused-window outline, same shape: static flag plus a walk of the live frames.
         desk.setFocusRing(profile.appearance().focusRing, profile.appearance().focusRingColor);
     }

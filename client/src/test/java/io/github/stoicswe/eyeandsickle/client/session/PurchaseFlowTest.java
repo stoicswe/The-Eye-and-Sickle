@@ -2,11 +2,11 @@ package io.github.stoicswe.eyeandsickle.client.session;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
 import io.github.stoicswe.eyeandsickle.engine.Balance;
 import io.github.stoicswe.eyeandsickle.engine.GameEngine;
 import io.github.stoicswe.eyeandsickle.engine.rules.Repac;
 import io.github.stoicswe.eyeandsickle.engine.state.StoredFileState;
+import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
@@ -49,9 +49,7 @@ class PurchaseFlowTest {
     void buyDownloadConfirmInstall(@TempDir Path dir) {
         Winding clock = new Winding(T0);
         GameEngine game = GameEngine.open(
-                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("save.json")),
-                "operator",
-                clock);
+                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("save.json")), "operator", clock);
         LocalGameSession session = new LocalGameSession(game);
         game.credit(Balance.ec("500"), "TEST", "seed");
         java.math.BigInteger before = session.balance().wei();
@@ -78,7 +76,7 @@ class PurchaseFlowTest {
         //
         // networkWorkTarget is the outstanding Exp(1) draw, so a large value is simply a block that
         // takes a very long time. Nothing here is mocked — the chain runs, it just has not found one.
-        game.state().chain.networkWorkTarget = 500.0d;
+        io.github.stoicswe.eyeandsickle.client.support.Chains.holdOff(game);
         clock.advance(Duration.ofMinutes(2));
         game.tick();
         assertThat(session.transfers()).isEmpty();
@@ -103,10 +101,14 @@ class PurchaseFlowTest {
         assertThat(Repac.sell(game.state(), pkg.path()).refusal()).isEqualTo(Repac.Refusal.UNCONFIRMED);
 
         // ── confirmed ─────────────────────────────────────────────────────────────────────────
-        // Let the chain go again: a tiny outstanding draw is a block that is about to be found.
-        game.state().chain.networkWorkTarget = 0.001d;
-        clock.advance(Duration.ofHours(3));
-        game.tick();
+        // ⚠ WAIT FOR THE PAYMENT TO BE MINED, not for a wall-clock span that usually contains it.
+        // This read "release the chain, advance three hours, tick", and three hours is ~13 blocks —
+        // but a block landing is not a transaction confirming. A STANDARD fee wins its slot against
+        // the derived backlog only about 38% of blocks (MempoolRules.clearingFeeAt), so ~13 of them
+        // miss roughly one run in five hundred, and the seed differs every run because a @TempDir
+        // path gives a fresh character id. See support/Chains for the arithmetic.
+        io.github.stoicswe.eyeandsickle.client.support.Chains.settlePayment(
+                game, () -> clock.advance(Duration.ofHours(1)));
 
         StoredFileState upg = onlyFile(game);
         assertThat(upg.name).as("confirmation is what runs Repac").endsWith(Repac.PACKAGE_SUFFIX);
@@ -130,13 +132,11 @@ class PurchaseFlowTest {
     void theLedgerRowIsTheKey(@TempDir Path dir) {
         Winding clock = new Winding(T0);
         GameEngine game = GameEngine.open(
-                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("save.json")),
-                "operator",
-                clock);
+                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("save.json")), "operator", clock);
         LocalGameSession session = new LocalGameSession(game);
         game.credit(Balance.ec("500"), "TEST", "seed");
         session.purchase(OFFERING);
-        game.state().chain.networkWorkTarget = 500.0d;
+        io.github.stoicswe.eyeandsickle.client.support.Chains.holdOff(game);
         clock.advance(Duration.ofMinutes(2));
         game.tick();
 
@@ -162,13 +162,11 @@ class PurchaseFlowTest {
     void anOrphanedHoldFailsOpen(@TempDir Path dir) {
         Winding clock = new Winding(T0);
         GameEngine game = GameEngine.open(
-                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("save.json")),
-                "operator",
-                clock);
+                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("save.json")), "operator", clock);
         LocalGameSession session = new LocalGameSession(game);
         game.credit(Balance.ec("500"), "TEST", "seed");
         session.purchase(OFFERING);
-        game.state().chain.networkWorkTarget = 500.0d;
+        io.github.stoicswe.eyeandsickle.client.support.Chains.holdOff(game);
         clock.advance(Duration.ofMinutes(2));
         game.tick();
 
@@ -183,9 +181,7 @@ class PurchaseFlowTest {
     void noDoubleBuy(@TempDir Path dir) {
         Winding clock = new Winding(T0);
         GameEngine game = GameEngine.open(
-                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("save.json")),
-                "operator",
-                clock);
+                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("save.json")), "operator", clock);
         LocalGameSession session = new LocalGameSession(game);
         game.credit(Balance.ec("500"), "TEST", "seed");
 
@@ -211,9 +207,7 @@ class PurchaseFlowTest {
     void twoCopiesAreTwoFiles(@TempDir Path dir) {
         Winding clock = new Winding(T0);
         GameEngine game = GameEngine.open(
-                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("save.json")),
-                "operator",
-                clock);
+                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("save.json")), "operator", clock);
         LocalGameSession session = new LocalGameSession(game);
         game.credit(Balance.ec("500"), "TEST", "seed");
 
@@ -241,7 +235,7 @@ class PurchaseFlowTest {
             Path dir, Winding clock, GameEngine game, LocalGameSession session) {
         game.credit(Balance.ec("500"), "TEST", "seed");
         session.purchase(OFFERING);
-        game.state().chain.networkWorkTarget = 500.0d;
+        io.github.stoicswe.eyeandsickle.client.support.Chains.holdOff(game);
         clock.advance(Duration.ofMinutes(2));
         game.tick();
         return session.packageAt(onlyFile(game).path()).orElseThrow();
@@ -252,9 +246,7 @@ class PurchaseFlowTest {
     void manifestDescribesThepackage(@TempDir Path dir) {
         Winding clock = new Winding(T0);
         GameEngine game = GameEngine.open(
-                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("save.json")),
-                "operator",
-                clock);
+                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("save.json")), "operator", clock);
         LocalGameSession session = new LocalGameSession(game);
         var pkg = bought(dir, clock, game, session);
 
@@ -286,9 +278,7 @@ class PurchaseFlowTest {
     void integrityIsCheckable(@TempDir Path dir) {
         Winding clock = new Winding(T0);
         GameEngine game = GameEngine.open(
-                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("save.json")),
-                "operator",
-                clock);
+                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("save.json")), "operator", clock);
         LocalGameSession session = new LocalGameSession(game);
         var pkg = bought(dir, clock, game, session);
 
@@ -313,9 +303,7 @@ class PurchaseFlowTest {
     void noManifestForAnythingElse(@TempDir Path dir) {
         Winding clock = new Winding(T0);
         GameEngine game = GameEngine.open(
-                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("save.json")),
-                "operator",
-                clock);
+                io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("save.json")), "operator", clock);
         LocalGameSession session = new LocalGameSession(game);
         // The panel falls back to the rules' own refusal for these rather than rendering blank.
         assertThat(session.packageAt("/Users/operator/Downloads/not-here.upg")).isEmpty();
