@@ -136,9 +136,7 @@ public final class DeckSnapshot {
                 case RIG_MONITOR -> (Region) RigMonitorView.create(session);
                 case TERMINAL -> (Region) TerminalView.create(shell);
                 case LOG -> (Region) LogView.create(session);
-                case MINING -> (Region) Views.mining(session);
                 case SETTINGS -> (Region) Views.settings(profile, themes, () -> {}, null, null, session);
-                case DEFENSE -> (Region) Views.defense(session);
                 case LEDGER -> (Region) Views.ledger(session);
                 // Real views rather than the recon stand-in, because both are visual checks that no
                 // text assertion can make: the map's legend is a column whose alignment depends on a
@@ -173,7 +171,7 @@ public final class DeckSnapshot {
             themes.select(id);
             deck.desk().closeAll();
             deck.openStartingWindows(
-                    List.of(WindowSpec.RIG_MONITOR, WindowSpec.SETTINGS, WindowSpec.LOG, WindowSpec.DEFENSE));
+                    List.of(WindowSpec.RIG_MONITOR, WindowSpec.SETTINGS, WindowSpec.LOG, WindowSpec.LEDGER));
 
             // Two passes. The first resolves CSS and sizes the panels; the desk then places windows
             // against a desk whose width is finally known, and the second pass lays those out. One

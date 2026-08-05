@@ -923,7 +923,10 @@ public class EyeAndSickleClient extends Application {
         registry.installAllAccelerators(scene, deck::show);
         // The map's BREACH control raises the breach window without knowing a deck exists. Wired
         // here because this is the first moment there is a deck to raise it on.
-        arming.setOpener(() -> deck.show(WindowSpec.BREACH));
+        // ⚠ The breach lives in the NETWORK tool now, so arming raises that. The tab it wants is
+        // not selected here — a breach that stole the player's tab while they were reading the map
+        // would be the focus theft docs/client/05 §75 forbids one level down.
+        arming.setOpener(() -> deck.show(WindowSpec.NETMAP));
         GlobalShortcuts.install(scene, globalHandlers());
 
         // Escape opens the pause menu. A filter rather than a handler, so it fires even while a text
@@ -1080,15 +1083,14 @@ public class EyeAndSickleClient extends Application {
      */
     private javafx.scene.Node contentFor(WindowSpec spec) {
         return switch (spec) {
-            case RIG_MONITOR -> RigMonitorView.create(session, terms, profile);
+            // ⚠ The shell is passed now: AUDIT is a tab in here and it needs the listings.
+            case RIG_MONITOR -> RigMonitorView.create(session, terms, profile, shell);
             case TERMINAL -> TerminalView.create(shell);
-            case BREACH -> BreachView.create(session, terms, profile, arming);
-            case NETMAP -> NetMapView.create(session, arming, nodeActions());
-            case AUDIT -> io.github.stoicswe.eyeandsickle.client.view.AuditView.create(session, shell);
-            case MINING -> Views.mining(session);
+            case NETMAP ->
+                io.github.stoicswe.eyeandsickle.client.view.NetworkView.create(
+                        session, arming, nodeActions(), terms, profile);
             case STORAGE -> Views.storage(session);
             case LEDGER -> Views.ledger(session);
-            case DEFENSE -> Views.defense(session);
             case IDENTITY -> Views.identity(session);
             case SWITCHER -> Views.switcher(registry);
             case SETTINGS ->
@@ -1105,14 +1107,12 @@ public class EyeAndSickleClient extends Application {
             case LOG -> LogView.create(session);
             // ⚠ The refresh cadence is read HERE, at open, not cached — a player who moves the
             // slider and reopens the window gets the new rate without a restart.
+            case ASSEMBL -> io.github.stoicswe.eyeandsickle.client.view.AssemblView.create(session);
             case MARKET -> io.github.stoicswe.eyeandsickle.client.view.MarketView.create(
                     session, profile.settings().stockRefreshSeconds);
             // ⚠ RECON is the reports now, not the page about them. The cost model and what a scan
             // is a model of moved to `man port-scan` — reference a player reads once, in the place
             // they can find it deliberately, rather than above the data every single time.
-            case RECON ->
-                io.github.stoicswe.eyeandsickle.client.view.ReconView.create(
-                        session, address -> nodeActions().info(address));
             case BOTNET -> MoreViews.botnet(session);
             case COMMS -> MoreViews.comms(session);
         };

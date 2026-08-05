@@ -1308,6 +1308,42 @@ pushing every window down. The dead cell was three times the overflow.
   colouring it would imply the number meant something about the game. `text-hi` on `panel-hi` — a pair
   `ContrastTest` already measures in all six palettes, so it inverts correctly on uOS Classic.
 
+**FIVE TOOLS BECAME TABS, and one new tool arrived (2026-08-04).** `recon` + `breach` → **NETWORK**
+(`view/NetworkView`); `audit` + `defense` → **RIG MONITOR** (after OVERVIEW, before the table tabs);
+`mining` → **LEDGER**. New: **ASSEMBL COMPILER**. Twenty windows became sixteen.
+
+- ⚠ **FOLDING THE BREACH IN CONTRADICTS `docs/client/05` §44, knowingly.** That section argues a
+  breach must span windows the way an operator's desk does, because the puzzle's anti-bot property
+  (**I10**) is that a human cross-references material a fixed heuristic cannot — *"cross-referencing
+  two documents is a simultaneity problem; a tabbed shell makes it a memory problem instead."*
+  Nothing breaks today because the minigame is a `[PROPOSAL]` and unbuilt, so the cost is real and
+  **currently unpaid**. ⚠ **UI-8**: when the puzzle is built, the breach probably comes back out.
+- ⚠ **`RigTab.isTable()` WAS AN EXCEPTION LIST AND IT BROKE AGAIN.** It read
+  `!= OVERVIEW && != ABOUT` — so adding AUDIT and DEFENSE silently made both "table tabs" and they
+  would have rendered the process listing under their own panels. Its own comment already recorded
+  this failure once, from ABOUT. It asks **`isPanel()`** now, the positive question, so a new panel
+  tab is correct by declaring what it is. ⚠ The `columns()` switch caught the same addition **at
+  compile time** — an exhaustive switch over an enum is the one place a new constant cannot be
+  forgotten, which is why it is worth keeping one.
+- ⚠ **Accelerators were RENUMBERED** (0 rig · 1 terminal · 2 network · 3 storage · 4 ledger ·
+  5 botnet · 7 assembl). `WindowCatalogueTest` fails the build on a duplicate, which is how the
+  collision surfaced.
+- ⚠ **The views were REPARENTED, not rewritten.** `AuditView`, `Views.defense`, `Views.mining`,
+  `ReconView` and `BreachView` are unchanged — rebuilding any of them would have been another place
+  for the rig's own diagnosis to drift from itself.
+- ⚠ **The `.app` bundles in `/Applications` stay**, by decision: they are where an eventual upgrade
+  path hangs off, and a tool being a tab in the deck is a fact about the deck rather than about the
+  filesystem.
+- **ASSEMBL COMPILER — a schematic is a BLUEPRINT, not a purchase gate.** ⚠ **I3 survives**: the item
+  still sits behind exactly one gate, the schematic; what changed is what holding one *lets you do* —
+  it was permission to buy and it is now the ability to build. ⚠ **I2 survives more comfortably than
+  before**: there is now **no path at all** from ethecoin to a schematic-gated item, where previously
+  there was a priced one behind a check. ⚠ **The mechanics are deliberately NOT designed** (AS-1) and
+  the window says so — a tool that invented a cost would put a rule in the code the design has not
+  made. ⚠ The storefront drops schematic-gated items entirely but **keeps the other gates listed**:
+  `design/02`'s taxonomy exists so a refusal is legible, and deleting those turns a legible gate into
+  a missing item.
+
 **MARKET has a THIRD tab, AnonShare — Anonymous Shares Inc. (2026-08-04).** Real US tickers, aliased
 company names, real market hours, portfolios and dividends. `engine/stocks/*`, `rules/Brokerage`,
 `client/stocks/HttpStockFeed`, `view/AnonShareView`.

@@ -1445,7 +1445,7 @@ public final class DeckShell {
             // an empty target list where the player left a live attempt, which reads as the game
             // having lost their progress rather than as the rule it is. Every other window is a
             // readout and comes back exactly as it was.
-            if (WindowSpec.BREACH.id().equals(window.id())) {
+            if (WindowSpec.NETMAP.id().equals(window.id())) {
                 continue;
             }
             var state = new ClientProfile.DeskWindowState();

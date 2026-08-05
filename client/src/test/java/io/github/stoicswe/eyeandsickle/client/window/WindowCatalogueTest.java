@@ -51,28 +51,37 @@ class WindowCatalogueTest {
         // now owns. It had no sweep control, so it was permanently empty for anyone who had not
         // swept elsewhere, and it carried a stale note reading "Breach targeting is not built".
         // `netmap` has had a LIST view on a chip the whole time, so nothing was lost with it.
-        assertThat(WindowSpec.values()).hasSize(20);
+        // ⚠ AMENDED 2026-08-04 — twenty became sixteen. FIVE TOOLS BECAME TABS: `recon` and
+        // `breach` into `netmap`, `audit` and `defense` into `rig-monitor`, `mining` into `ledger`.
+        // Nothing was deleted — the same views are reparented — and the count moving is the point of
+        // this assertion: a window quietly disappearing is exactly what it exists to catch.
+        //
+        // `assembl` was ADDED. A schematic is a blueprint now rather than a purchase gate, so the
+        // storefront no longer offers schematic-gated items at any price and the thing you do with a
+        // schematic needs somewhere to happen. Compile mechanics are open as AS-1.
+        //
+        // ⚠ Folding `breach` in CONTRADICTS docs/client/05 §44, knowingly: a breach is meant to span
+        // windows and the puzzle's anti-bot property (I10) depends on cross-referencing two
+        // documents at once. Nothing breaks while the minigame is unbuilt; UI-8 records that it
+        // probably has to come back out when it is.
+        assertThat(WindowSpec.values()).hasSize(16);
         assertThat(java.util.Arrays.stream(WindowSpec.values())
                         .map(WindowSpec::id)
                         .toList())
                 .containsExactlyInAnyOrder(
                         "rig-monitor",
                         "terminal",
-                        "recon",
-                        "audit",
-                        "mining",
                         "storage",
                         "ledger",
                         "botnet",
-                        "defense",
                         "market",
+                        "assembl",
                         "identity",
                         "comms",
                         "settings",
                         "switcher",
                         "man",
                         "log",
-                        "breach",
                         "netmap",
                         "calc",
                         "files");

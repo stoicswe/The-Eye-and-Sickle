@@ -109,20 +109,33 @@ The thirteen ids below marked **(00 §6.1)** come from `00-client-overview.md` �
 | — | `rig-monitor` | Rig monitor | `top` | 420×560 *(panel)* · 560×96 *(strip)* | 320×420 · 420×88 | `Shortcut+0` | no — collapses to strip | **yes** |
 | 1 | `terminal` | Terminal | a shell session | 880×620 | 560×360 | `Shortcut+1` | yes | no |
 | 2 | `netmap` | Network | `nmap` / a topology view | 1100×780 | 720×480 | `Shortcut+2` | yes | no |
-| 3 | `recon` | Recon | `less` | 760×640 | 480×400 | `Shortcut+3` | yes | no |
-| 4 | `audit` | Audit | `ps` / `netstat` / `df` | 900×600 | 640×400 | `Shortcut+4` | yes | no |
-| 5 | `mining` | Mining | a miner dashboard | 820×600 | 560×400 | `Shortcut+5` | yes | no |
-| 6 | `storage` | Storage | `ls` across three mounts | 840×620 | 560×420 | `Shortcut+6` | yes | no |
-| 7 | `ledger` | Ledger | a transaction log | 880×560 | 600×360 | `Shortcut+7` | yes | no |
-| 8 | `botnet` | Botnet | `jobs` / `systemctl` | 780×560 | 520×400 | `Shortcut+8` | yes | no |
-| 9 | `defense` | Defense | a firewall / IDS console | 780×560 | 520×380 | `Shortcut+9` | yes | no |
+| 3 | `storage` | Storage | `ls` across three mounts | 840×620 | 560×420 | `Shortcut+3` | yes | no |
+| 4 | `ledger` | Ledger | a transaction log | 880×560 | 600×360 | `Shortcut+4` | yes | no |
+| 5 | `botnet` | Botnet | `jobs` / `systemctl` | 780×560 | 520×400 | `Shortcut+5` | yes | no |
 | — | `market` | Market | a package manager | 900×640 | 600×440 | `Shortcut+Shift+M` | yes | no |
+| 7 | `assembl` | Assembl Compiler | `make` / a build system | 860×640 | 560×420 | `Shortcut+7` | yes | no |
 | — | `identity` | Identity | `whoami` / `id` | 560×640 | 420×440 | `Shortcut+Shift+I` | yes | no |
 | — | `comms` ✚ | Comms | `mail` / `who` | 720×620 | 480×400 | `Shortcut+Shift+P` | yes | no |
 | — | `settings` ✚ | Settings | `~/.config` | 760×620 | 560×440 | `Shortcut+,` | yes | no |
 | — | `calc` ✚ | Calculator | `bc` / `printf %x` | 820×700 | 560×460 | `Shortcut+Shift+C` | yes | no |
 | — | `files` ✚ | Files | `nautilus` / `ls` / `mount` | 980×660 | 640×440 | `Shortcut+Shift+H` | yes | no |
 | — | `switcher` | Windows | `jobs` | 280×520 | 240×320 | `Shortcut+Shift+J` | yes | **yes** |
+
+> **⚠ AMENDED 2026-08-04 — five tools became tabs, and one of those amendments contradicts §44.**
+>
+> `recon` and `breach` are tabs inside **`netmap`**; `audit` and `defense` are tabs inside
+> **`rig-monitor`** (after OVERVIEW, before the table tabs); `mining` is a tab inside **`ledger`**.
+> They are the same views, reparented — no behaviour moved with them.
+>
+> ⚠ **§44 argues against exactly this for the breach**, and the argument still stands: a breach is
+> meant to span windows the way an operator's desk does, and the puzzle's anti-bot property (**I10**)
+> depends on cross-referencing two documents *at once*. A tab makes that a memory problem. Nothing
+> breaks today because the minigame (`../design/05`) is a `[PROPOSAL]` and is not built — the cost is
+> real and currently unpaid. **If the puzzle is built, the breach probably has to come back out.**
+> Tracked as **UI-8** in `../design/15-open-questions.md`.
+>
+> `assembl` is new: a schematic is a blueprint now rather than a purchase gate, so the storefront no
+> longer offers schematic-gated items at any price. Compile mechanics are open as **AS-1**.
 
 `dock` is reserved as the id of the docked shell's single `Stage` (§5.2). It is not a tool and never appears in the switcher.
 

@@ -993,7 +993,30 @@ public final class Views {
      * balance" the way a player catches a hidden miner, so two surfaces that could disagree would
      * turn the game's central investigation into a false-positive generator.
      */
+    /**
+     * LEDGER — the money tool: where it comes from and what happened to it.
+     *
+     * <h2>Why mining is in here</h2>
+     *
+     * They are two halves of one subject. Mining is how ethecoin arrives; the ledger is the record of
+     * everything that then happened to it — and the CONTRIBUTOR tab was already the seam between
+     * them, listing every block this rig put hashrate into. Two windows made a player open one to
+     * find out why the other's number moved.
+     */
     public static Region ledger(GameSession session) {
+        javafx.scene.control.TabPane tabs = new javafx.scene.control.TabPane();
+        tabs.getStyleClass().add("es-market-tabs");
+        tabs.setTabClosingPolicy(javafx.scene.control.TabPane.TabClosingPolicy.UNAVAILABLE);
+        // ⚠ MINING first. It is the cause and the ledger is the effect, and a player who wants to
+        // change something can only change the mining side.
+        tabs.getTabs()
+                .addAll(
+                        new javafx.scene.control.Tab("MINING", mining(session)),
+                        new javafx.scene.control.Tab("LEDGER", ledgerPage(session)));
+        return tabs;
+    }
+
+    private static Region ledgerPage(GameSession session) {
         VBox root = panel("LEDGER");
 
         Label address = new Label();

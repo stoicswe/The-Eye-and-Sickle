@@ -37,6 +37,29 @@ public enum RigTab {
     OVERVIEW("OVERVIEW"),
 
     /**
+     * The rig's own audit — processes, connections and storage.
+     *
+     * <p>⚠ Second, immediately after the overview and <b>before</b> the table tabs. The overview says
+     * the numbers do not add up; this is where you go to find out why, and the four diagnostic tabs
+     * to its right are where you confirm it. Putting it after them would make a player walk past the
+     * evidence to reach the investigation.
+     *
+     * <p>⚠ Its three listings stay on ONE tab. {@code design/04} §3.1's whole mechanic is that
+     * {@code ps}, {@code ss} and {@code df} should agree — splitting them would split the mechanic.
+     */
+    AUDIT("AUDIT"),
+
+    /**
+     * What is standing between this rig and everybody else.
+     *
+     * <p>Beside the audit rather than beside the table, because they answer two halves of one
+     * question: the audit is what got in, this is what was supposed to stop it. ⚠ <b>I9</b> —
+     * defending your own rig never generates heat — so nothing here costs anything but cycles, and
+     * that is exactly what the overview's grid is showing one tab to the left.
+     */
+    DEFENSE("DEFENSE"),
+
+    /**
      * The processor.
      *
      * <p>⚠ {@code CPU TIME} sits immediately beside {@code % CPU}, and that adjacency is the mechanic.
@@ -87,6 +110,11 @@ public enum RigTab {
         return label;
     }
 
+    /** Whether this tab draws its own panel rather than the shared process table. */
+    public boolean isPanel() {
+        return this == OVERVIEW || this == AUDIT || this == DEFENSE || this == ABOUT;
+    }
+
     public boolean isOverview() {
         return this == OVERVIEW;
     }
@@ -97,9 +125,15 @@ public enum RigTab {
      * <p>⚠ Exists because {@code !isOverview()} used to mean "table", and adding a third kind of tab
      * made that false in a way nothing would have reported: ABOUT would have rendered the process
      * table underneath the mascot. Ask what a tab <em>is</em>, not what it is not.
+     *
+     * <p>⚠ <b>AND IT HAPPENED AGAIN.</b> This was {@code != OVERVIEW && != ABOUT} — a list of
+     * exceptions — so adding AUDIT and DEFENSE silently made both of them "table tabs" and they
+     * would have rendered the process listing under their own panels. An exception list grows a
+     * bug every time somebody adds a member. It asks {@link #isPanel} now, which is the positive
+     * question, so a new panel tab is correct by declaring what it is.
      */
     public boolean isTable() {
-        return this != OVERVIEW && this != ABOUT;
+        return !isPanel();
     }
 
     /** Brackets, not colour — §4.4, and it survives greyscale and a screen reader. */
@@ -118,10 +152,13 @@ public enum RigTab {
      */
     public List<Column> columns() {
         return switch (this) {
-            // Overview and About draw no table, but returning the CPU set rather than an empty list
-            // means the widget is never asked to render zero columns — and a tab switch back from
-            // CPU finds the sort it left, because the column list is the same object.
-            case OVERVIEW, ABOUT, CPU ->
+            // ⚠ Every PANEL tab lands here beside CPU. They draw no table at all, but returning the
+            // CPU set rather than an empty list means the widget is never asked to render zero
+            // columns — and a tab switch back from CPU finds the sort it left, because the column
+            // list is the same object. The compiler caught this when AUDIT and DEFENSE were added,
+            // which is the switch doing its job: an exhaustive switch over an enum is the one place
+            // a new constant cannot be forgotten.
+            case OVERVIEW, AUDIT, DEFENSE, ABOUT, CPU ->
                 List.of(
                         processColumn(),
                         number(

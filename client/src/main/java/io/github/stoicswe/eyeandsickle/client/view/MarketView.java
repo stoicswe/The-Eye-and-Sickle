@@ -553,8 +553,18 @@ public final class MarketView {
                 result,
                 refresh));
 
+        // ⚠ SCHEMATIC-GATED ITEMS ARE NOT LISTED HERE AT ALL any more (2026-08-04). They used to
+        // appear under NOT FOR SALE with their gate spelled out, which was honest while a schematic
+        // was a key you presented to the shop. It is a blueprint now — you build the item in the
+        // Assembl Compiler — so the shop has nothing to say about them beyond where to go, and a
+        // priced-looking card for something the shop will never sell is worse than no card.
+        //
+        // ⚠ The OTHER gates still appear. Proof-of-skill, reputation and zero-day items are still
+        // things the shop refuses to sell, and `design/02`'s taxonomy exists precisely so a refusal
+        // is legible — deleting those would turn a legible gate into a missing item.
         List<Catalogue.Offering> gated = Catalogue.offerings().stream()
                 .filter(offering -> !offering.purchasable())
+                .filter(offering -> offering.gate() != UnlockGate.SCHEMATIC)
                 .filter(offering -> offering.matches(query))
                 .toList();
         if (!gated.isEmpty()) {
@@ -567,6 +577,18 @@ public final class MarketView {
                     window,
                     result,
                     refresh));
+        }
+        boolean anySchematic = Catalogue.offerings().stream()
+                .anyMatch(offering -> offering.gate() == UnlockGate.SCHEMATIC);
+        if (anySchematic) {
+            VBox pointer = new VBox(UiTokens.SPACE_2);
+            pointer.getChildren()
+                    .addAll(
+                            heading("BUILT, NOT BOUGHT"),
+                            Views.wrapped("Anything a schematic gates is made in the Assembl Compiler "
+                                    + "from a blueprint you hold. It is not stocked here at any price — "
+                                    + "there is no amount of ethecoin that produces one."));
+            out.add(pointer);
         }
         return out;
     }
