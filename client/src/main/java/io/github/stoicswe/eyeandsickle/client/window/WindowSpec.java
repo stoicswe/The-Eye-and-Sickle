@@ -130,19 +130,6 @@ public enum WindowSpec {
             false,
             true,
             false),
-    BOTNET(
-            "botnet",
-            "Botnet",
-            "jobs / systemctl",
-            "Bot frames, their loadouts and what they are doing. Bots assist; they never solve it for you.",
-            780,
-            560,
-            520,
-            400,
-            KeyCode.DIGIT5,
-            false,
-            true,
-            false),
     // The core loop (docs/design/05). Given a letter rather than a digit because the digit row is
     // full, and B is the one accelerator a player will reach for without being told.
 
@@ -157,6 +144,26 @@ public enum WindowSpec {
             440,
             KeyCode.M,
             true,
+            true,
+            false),
+    /**
+     * The Security Center.
+     *
+     * <p>⚠ Its own tool rather than tabs in the rig monitor. The monitor <em>asks</em> whether
+     * something is wrong; these two are what you do about it, and burying them four tabs into a
+     * window titled something else made the answer harder to reach than the question.
+     */
+    SECURITY(
+            "security",
+            "Security Center",
+            "ps / netstat / df / a firewall console",
+            "What got in, and what was supposed to stop it. Auditing your own rig costs cycles and never heat (I9).",
+            900,
+            620,
+            640,
+            420,
+            KeyCode.DIGIT6,
+            false,
             true,
             false),
     /**
@@ -175,7 +182,7 @@ public enum WindowSpec {
             640,
             560,
             420,
-            KeyCode.DIGIT7,
+            KeyCode.DIGIT5,
             false,
             true,
             false),
@@ -331,22 +338,7 @@ public enum WindowSpec {
             KeyCode.H,
             true,
             true,
-            false),
-
-    /** The answer to losing a window behind another. Opens on first run alongside the rig monitor. */
-    SWITCHER(
-            "switcher",
-            "Windows",
-            "jobs",
-            "Every tool in the catalogue, open or not. The way back to a window you lost.",
-            280,
-            520,
-            240,
-            320,
-            KeyCode.J,
-            true,
-            true,
-            true);
+            false);
 
     /** No window's minimum may exceed this. See the class comment. */
     public static final double MAX_MINIMUM_WIDTH = 720;

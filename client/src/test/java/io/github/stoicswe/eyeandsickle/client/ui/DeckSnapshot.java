@@ -9,6 +9,7 @@ import io.github.stoicswe.eyeandsickle.client.theme.ThemeManager;
 import io.github.stoicswe.eyeandsickle.client.view.CalcView;
 import io.github.stoicswe.eyeandsickle.client.view.LogView;
 import io.github.stoicswe.eyeandsickle.client.view.MoreViews;
+import io.github.stoicswe.eyeandsickle.client.view.SecurityCenterView;
 import io.github.stoicswe.eyeandsickle.client.view.NetMapView;
 import io.github.stoicswe.eyeandsickle.client.view.RigMonitorView;
 import io.github.stoicswe.eyeandsickle.client.view.TerminalView;
@@ -143,6 +144,13 @@ public final class DeckSnapshot {
                 // fixed-width font resolving, and the calculator is a grid of sixty-four cells.
                 case NETMAP -> NetMapView.create(session);
                 case CALC -> CalcView.create();
+                // ⚠ The real Security Center, for the same reason as the map: its verdict, its rail
+                // and its cards are all visual claims no text assertion can check.
+                case SECURITY -> (Region) SecurityCenterView.create(session, shell);
+                    // ⚠ -Dsec.state=clear|check|quarantine drives the mark directly. The three
+                    // states depend on scan history, defences and elapsed time, so a plain render
+                    // only ever photographs whichever one this fixture happens to be in — and a
+                    // stepped animation shows nothing at all in a synchronous frame.
                 default -> (Region) MoreViews.recon(session);
             });
         }
@@ -171,7 +179,7 @@ public final class DeckSnapshot {
             themes.select(id);
             deck.desk().closeAll();
             deck.openStartingWindows(
-                    List.of(WindowSpec.RIG_MONITOR, WindowSpec.SETTINGS, WindowSpec.LOG, WindowSpec.LEDGER));
+                    List.of(WindowSpec.RIG_MONITOR, WindowSpec.SETTINGS, WindowSpec.LOG, WindowSpec.SECURITY));
 
             // Two passes. The first resolves CSS and sizes the panels; the desk then places windows
             // against a desk whose width is finally known, and the second pass lays those out. One

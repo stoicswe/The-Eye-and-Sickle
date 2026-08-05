@@ -421,6 +421,23 @@ public final class ClientProfile {
         public int stockRefreshSeconds = 60;
 
         /**
+         * Ticker symbols the search has learned, so the universe grows across sessions.
+         *
+         * <h2>⚠ MACHINE-WIDE reference data, not per character</h2>
+         *
+         * A symbol is the same symbol for everybody. Storing it per character would make each new
+         * one start from the bundled fifty and re-spend the player's API allowance discovering
+         * exactly what the last character already found.
+         *
+         * <p>⚠ Bounded. Persisted in the same settings file as everything else, and a player who
+         * searched for years would otherwise turn it into a symbol table.
+         */
+        public java.util.Map<String, String> discoveredSymbols = new java.util.LinkedHashMap<>();
+
+        /** The most discovered symbols kept. Beyond this the oldest are dropped. */
+        public static final int DISCOVERED_LIMIT = 500;
+
+        /**
          * Whether the deck takes the whole screen.
          *
          * <p><b>Off by default, and deliberately.</b> Full screen on macOS moves the window to its

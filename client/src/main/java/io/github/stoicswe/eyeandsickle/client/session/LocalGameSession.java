@@ -650,6 +650,39 @@ public final class LocalGameSession implements GameSession {
     }
 
     @Override
+    public io.github.stoicswe.eyeandsickle.protocol.game.ScanScheduleView scanSchedule() {
+        var schedule = game.state().scanSchedule;
+        if (schedule == null) {
+            return io.github.stoicswe.eyeandsickle.protocol.game.ScanScheduleView.off();
+        }
+        GameEngine.ScanTier tier;
+        try {
+            tier = GameEngine.ScanTier.valueOf(schedule.tier.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException unknown) {
+            tier = GameEngine.ScanTier.QUICK;
+        }
+        return new io.github.stoicswe.eyeandsickle.protocol.game.ScanScheduleView(
+                schedule.enabled,
+                schedule.tier,
+                schedule.everyHours,
+                io.github.stoicswe.eyeandsickle.engine.rules.ScanSchedule.nextDue(game.state()),
+                game.now(),
+                tier.cycles(),
+                computeBudget().available().cycles() >= tier.cycles());
+    }
+
+    @Override
+    public Outcome setScanSchedule(boolean enabled, String tier, int everyHours) {
+        io.github.stoicswe.eyeandsickle.engine.rules.ScanSchedule.configure(
+                game.state(), enabled, tier, everyHours, game.now());
+        return announce(
+                "scan",
+                changed(Outcome.ok(enabled
+                        ? "scheduled " + tier + " audit every " + everyHours + "h."
+                        : "scheduled audits off.")));
+    }
+
+    @Override
     public Outcome beginBreach(String targetId) {
         return announce("breach", beginBreachIntent(targetId));
     }
@@ -895,6 +928,43 @@ public final class LocalGameSession implements GameSession {
         this.shareQuery = query == null ? "" : query;
     }
 
+    /**
+     * The provider lookup, when one is configured.
+     *
+     * <p>⚠ Held rather than constructed per call, because it remembers what it has already asked —
+     * including the misses, which cost exactly as much to ask about twice.
+     */
+    private io.github.stoicswe.eyeandsickle.client.stocks.SymbolLookup lookup;
+
+    /** @param lookup the provider search, or null when there is no key */
+    public void useSymbolLookup(io.github.stoicswe.eyeandsickle.client.stocks.SymbolLookup lookup) {
+        this.lookup = lookup;
+    }
+
+    @Override
+    public void discoverSymbol(String query) {
+        if (lookup != null) {
+            lookup.discover(query, found -> javafx.application.Platform.runLater(() -> {
+                if (onDiscovery != null) {
+                    onDiscovery.run();
+                }
+                changedQuietly();
+            }));
+        }
+    }
+
+    /** Called on the FX thread when the ticker universe grew, so the client can persist it. */
+    private Runnable onDiscovery;
+
+    public void onSymbolsDiscovered(Runnable action) {
+        this.onDiscovery = action;
+    }
+
+    /** Nudges the views without announcing anything — a discovery is not an outcome. */
+    private void changedQuietly() {
+        changed(Outcome.ok(""));
+    }
+
     @Override
     public io.github.stoicswe.eyeandsickle.protocol.game.SharesSnapshot shares(String symbol) {
         return game.shares(symbol, shareQuery);
@@ -912,6 +982,14 @@ public final class LocalGameSession implements GameSession {
     public Outcome sellShares(String holdingId, int shares) {
         var result = io.github.stoicswe.eyeandsickle.engine.rules.Brokerage.sell(
                 game.state(), game.stockFeed(), holdingId, shares, game.now());
+        return announce(
+                "market", result.ok() ? changed(Outcome.ok(result.message())) : Outcome.refused(result.message()));
+    }
+
+    @Override
+    public Outcome sellPosition(String symbol, int shares) {
+        var result = io.github.stoicswe.eyeandsickle.engine.rules.Brokerage.sellPosition(
+                game.state(), game.stockFeed(), symbol, shares, game.now());
         return announce(
                 "market", result.ok() ? changed(Outcome.ok(result.message())) : Outcome.refused(result.message()));
     }

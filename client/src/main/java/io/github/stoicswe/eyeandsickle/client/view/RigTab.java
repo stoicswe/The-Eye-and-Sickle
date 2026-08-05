@@ -36,28 +36,6 @@ public enum RigTab {
     /** The panel that was already here: the grid, the cage, the activity list, the notes. */
     OVERVIEW("OVERVIEW"),
 
-    /**
-     * The rig's own audit — processes, connections and storage.
-     *
-     * <p>⚠ Second, immediately after the overview and <b>before</b> the table tabs. The overview says
-     * the numbers do not add up; this is where you go to find out why, and the four diagnostic tabs
-     * to its right are where you confirm it. Putting it after them would make a player walk past the
-     * evidence to reach the investigation.
-     *
-     * <p>⚠ Its three listings stay on ONE tab. {@code design/04} §3.1's whole mechanic is that
-     * {@code ps}, {@code ss} and {@code df} should agree — splitting them would split the mechanic.
-     */
-    AUDIT("AUDIT"),
-
-    /**
-     * What is standing between this rig and everybody else.
-     *
-     * <p>Beside the audit rather than beside the table, because they answer two halves of one
-     * question: the audit is what got in, this is what was supposed to stop it. ⚠ <b>I9</b> —
-     * defending your own rig never generates heat — so nothing here costs anything but cycles, and
-     * that is exactly what the overview's grid is showing one tab to the left.
-     */
-    DEFENSE("DEFENSE"),
 
     /**
      * The processor.
@@ -110,9 +88,16 @@ public enum RigTab {
         return label;
     }
 
-    /** Whether this tab draws its own panel rather than the shared process table. */
+    /**
+     * Whether this tab draws its own panel rather than the shared process table.
+     *
+     * <p>⚠ Kept even though the set is back to two. It exists because {@link #isTable} was twice
+     * written as a list of exceptions and twice grew a silent bug when a member was added — asking
+     * the positive question is what makes a new panel tab correct by declaring what it is, and that
+     * is worth keeping whether the list is two long or four.
+     */
     public boolean isPanel() {
-        return this == OVERVIEW || this == AUDIT || this == DEFENSE || this == ABOUT;
+        return this == OVERVIEW || this == ABOUT;
     }
 
     public boolean isOverview() {
@@ -155,10 +140,10 @@ public enum RigTab {
             // ⚠ Every PANEL tab lands here beside CPU. They draw no table at all, but returning the
             // CPU set rather than an empty list means the widget is never asked to render zero
             // columns — and a tab switch back from CPU finds the sort it left, because the column
-            // list is the same object. The compiler caught this when AUDIT and DEFENSE were added,
-            // which is the switch doing its job: an exhaustive switch over an enum is the one place
-            // a new constant cannot be forgotten.
-            case OVERVIEW, AUDIT, DEFENSE, ABOUT, CPU ->
+            // list is the same object. The compiler caught this when AUDIT and DEFENSE were briefly
+            // added here, which is the switch doing its job: an exhaustive switch over an enum is
+            // the one place a new constant cannot be forgotten.
+            case OVERVIEW, ABOUT, CPU ->
                 List.of(
                         processColumn(),
                         number(

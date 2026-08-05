@@ -502,6 +502,43 @@ public final class GameEngine {
         // filled while its window was on screen would make the market a thing that happens to people
         // who are watching, and a player would learn to leave the panel open — which is the opposite
         // of what a resting order is for.
+        // ⚠ A SCHEDULED SCAN fires here, at most ONE per absence however long it was. See
+        // ScanSchedule: sixteen missed scans and one missed scan produce the same result, which is
+        // what stops a schedule being farmed by quitting and what stops a four-day absence spending
+        // a day's compute on the first tick back.
+        if (io.github.stoicswe.eyeandsickle.engine.rules.ScanSchedule.due(save, now)) {
+            io.github.stoicswe.eyeandsickle.engine.rules.ScanSchedule.stamp(save, now);
+            ScanTier tier;
+            try {
+                tier = ScanTier.valueOf(save.scanSchedule.tier.toUpperCase(java.util.Locale.ROOT));
+            } catch (IllegalArgumentException unknown) {
+                tier = ScanTier.QUICK;
+            }
+            changed = true;
+            // ⚠ SKIPPED rather than queued when the rig cannot pay. Queueing would land a scan at an
+            // unpredictable later moment — possibly mid-breach — taking cycles the player was
+            // counting on. It slips to the next interval and says so.
+            final ScanTier chosen = tier;
+            scan(chosen)
+                    .ifPresentOrElse(
+                            started -> EventLog.notice(
+                                    save,
+                                    "scan",
+                                    "scheduled " + chosen.flag() + " audit started -- "
+                                            + chosen.cycles() + " cycles committed.",
+                                    now),
+                            () -> EventLog.notice(
+                                    save,
+                                    "scan",
+                                    "scheduled " + chosen.flag() + " audit skipped: the rig has fewer than "
+                                            + chosen.cycles() + " cycles free. It will try again at the "
+                                            + "next interval.",
+                                    now));
+        }
+        // ⚠ The price series is RECORDED here, because a live quote cannot be recomputed. Every
+        // other series in the game is derived; this one is genuinely state. Guarded to one sample per
+        // SAMPLE_EVERY and only while the market is open — see Brokerage.sample.
+        changed |= io.github.stoicswe.eyeandsickle.engine.rules.Brokerage.sample(save, stockFeed, now);
         // ⚠ Dividends land on the TICK, and are paid whether or not the market is open — a dividend
         // is not a trade, and gating it on session hours would mean a weekend-only player never
         // collected anything.
@@ -1624,6 +1661,31 @@ public final class GameEngine {
                 })
                 .toList();
 
+        // ⚠ Positions are the HOLDINGS collapsed by symbol, and the per-symbol history rides on each
+        // one. A player has one position and several lots; the panel shows the first.
+        var positions = io.github.stoicswe.eyeandsickle.engine.rules.Brokerage.positions(save).stream()
+                .map(position -> {
+                    var q = stockFeed.quote(position.symbol(), now);
+                    return new io.github.stoicswe.eyeandsickle.protocol.game.SharesSnapshot.Position(
+                            position.symbol(),
+                            tickerNameOf(position.symbol()),
+                            position.shares(),
+                            position.averageCostWei(),
+                            q.map(io.github.stoicswe.eyeandsickle.engine.stocks.StockFeed.Quote::priceWei)
+                                    .orElse(position.averageCostWei()),
+                            q.map(io.github.stoicswe.eyeandsickle.engine.stocks.StockFeed.Quote::changePercent)
+                                    .orElse(0.0d),
+                            io.github.stoicswe.eyeandsickle.engine.rules.Brokerage
+                                    .priceHistory(save, position.symbol())
+                                    .stream()
+                                    .map(sample ->
+                                            new io.github.stoicswe.eyeandsickle.protocol.game.SharesSnapshot.Point(
+                                                    sample.at, sample.wei))
+                                    .toList());
+                })
+                .toList();
+        var value = io.github.stoicswe.eyeandsickle.engine.rules.Brokerage.valueHistory(save);
+
         var portfolios = io.github.stoicswe.eyeandsickle.engine.rules.Brokerage.portfolios(save).stream()
                 .map(portfolio -> new io.github.stoicswe.eyeandsickle.protocol.game.SharesSnapshot.Portfolio(
                         portfolio.portfolioId,
@@ -1651,7 +1713,65 @@ public final class GameEngine {
                 stockFeed.live(),
                 results,
                 holdings,
-                portfolios);
+                portfolios,
+                positions,
+                value.stream()
+                        .map(sample -> new io.github.stoicswe.eyeandsickle.protocol.game.SharesSnapshot.Point(
+                                sample.at, sample.wei))
+                        .toList(),
+                holdings.stream()
+                        .map(io.github.stoicswe.eyeandsickle.protocol.game.SharesSnapshot.Holding::valueWei)
+                        .reduce(java.math.BigInteger.ZERO, java.math.BigInteger::add),
+                holdings.stream()
+                        .map(h -> h.costPerShareWei().multiply(java.math.BigInteger.valueOf(h.shares())))
+                        .reduce(java.math.BigInteger.ZERO, java.math.BigInteger::add),
+                save.ethecoinWei,
+                save.brokerage.dividendsPaidWei,
+                io.github.stoicswe.eyeandsickle.engine.rules.Brokerage.tracked(save).stream()
+                        .map(each -> {
+                            var q = stockFeed.quote(each, now);
+                            return new io.github.stoicswe.eyeandsickle.protocol.game.SharesSnapshot.Tracked(
+                                    each,
+                                    tickerNameOf(each),
+                                    io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.bySymbol(each)
+                                            .map(io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.Listing
+                                                    ::sector)
+                                            .orElse(""),
+                                    q.map(io.github.stoicswe.eyeandsickle.engine.stocks.StockFeed.Quote::priceWei)
+                                            .orElse(java.math.BigInteger.ZERO),
+                                    q.map(io.github.stoicswe.eyeandsickle.engine.stocks.StockFeed.Quote
+                                                    ::changePercent)
+                                            .orElse(0.0d),
+                                    io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.bySymbol(each)
+                                            .map(io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.Listing
+                                                    ::annualYieldBp)
+                                            .orElse(0L),
+                                    save.brokerage.holdings.stream()
+                                            .filter(holding -> holding.symbol.equals(each))
+                                            .mapToInt(holding -> holding.shares)
+                                            .sum(),
+                                    io.github.stoicswe.eyeandsickle.engine.rules.Brokerage
+                                            .priceHistory(save, each)
+                                            .stream()
+                                            .map(sample ->
+                                                    new io.github.stoicswe.eyeandsickle.protocol.game
+                                                            .SharesSnapshot.Point(sample.at, sample.wei))
+                                            .toList());
+                        })
+                        .toList(),
+                io.github.stoicswe.eyeandsickle.engine.rules.Brokerage.trades(save).stream()
+                        .map(trade -> new io.github.stoicswe.eyeandsickle.protocol.game.SharesSnapshot.Trade(
+                                trade.tradeId,
+                                trade.symbol,
+                                tickerNameOf(trade.symbol),
+                                trade.buy,
+                                trade.shares,
+                                trade.pricePerShareWei,
+                                trade.commissionWei,
+                                trade.realisedWei,
+                                trade.at))
+                        .toList(),
+                stockFeed.nextRefreshAt(listing.symbol(), now));
     }
 
     public io.github.stoicswe.eyeandsickle.protocol.game.ShadowSnapshot shadowMarket(
@@ -1776,6 +1896,23 @@ public final class GameEngine {
                         owed.dueAt,
                         now))
                 .toList();
+    }
+
+    /**
+     * A share's ALIASED company name.
+     *
+     * <p>⚠ Not {@link #displayNameOf}, which is the item catalogue's lookup — a ticker is never in
+     * the catalogue, so that one fell through to its {@code orElse} and every share on the wire
+     * carried its symbol where its name belonged. It went unnoticed because the positions table
+     * shows the symbol in its own column and only the screen-reader text read the name.
+     *
+     * <p>⚠ The real company name never crosses this boundary. {@code Tickers.Listing.displayName()}
+     * is already the alias; the real one only ever seeds it.
+     */
+    private static String tickerNameOf(String symbol) {
+        return io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.bySymbol(symbol)
+                .map(io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.Listing::displayName)
+                .orElse(symbol);
     }
 
     private static String displayNameOf(String itemType) {

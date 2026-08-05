@@ -381,6 +381,22 @@ public interface GameSession extends AutoCloseable {
     /** Runs a rig scan. The tiers cost 5 / 15 / 35 cycles and buy signal strength, not certainty. */
     Outcome scan(String tier);
 
+    /**
+     * The standing scan schedule.
+     *
+     * <p>⚠ At most ONE scan fires per absence however long it was — see {@code ScanSchedule}. A
+     * schedule that caught up fully would spend a day's compute on the first tick back and could be
+     * farmed by quitting.
+     */
+    io.github.stoicswe.eyeandsickle.protocol.game.ScanScheduleView scanSchedule();
+
+    /**
+     * Sets it.
+     *
+     * @param everyHours clamped to the rules' bounds; a value outside them is corrected, not refused
+     */
+    Outcome setScanSchedule(boolean enabled, String tier, int everyHours);
+
     /** Sweeps deployed-miner buffers into the balance. */
     Outcome collect();
 
@@ -813,6 +829,16 @@ public interface GameSession extends AutoCloseable {
     io.github.stoicswe.eyeandsickle.protocol.game.ShadowSnapshot shadowMarket(
             String itemType, String interval, int candles);
 
+    /**
+     * Asks the provider what a ticker is, if there is a key and it is worth a call.
+     *
+     * <p>⚠ Fire-and-forget. A lookup is a network call against the player's own allowance and must
+     * never block a keystroke; the universe simply grows a moment later and the panel repaints.
+     *
+     * @param query what the player typed
+     */
+    default void discoverSymbol(String query) {}
+
     /** Everything this market lists. ⚠ Ethecoin-gated items only — I2 and I8. */
     List<String> shadowListings();
 
@@ -881,8 +907,16 @@ public interface GameSession extends AutoCloseable {
     /** Buys at the feed's price, plus commission. ⚠ Refused when the market is closed. */
     Outcome buyShares(String symbol, int shares);
 
-    /** Sells a specific parcel. ⚠ By holding id, so the player picks their own cost basis. */
+    /** Sells a specific parcel. ⚠ By holding id, when the caller has one. */
     Outcome sellShares(String holdingId, int shares);
+
+    /**
+     * Sells from a symbol's whole position, oldest lot first.
+     *
+     * <p>⚠ FIFO, which is what a broker does when you do not name a lot — and the panel shows one
+     * row per symbol, so there is no lot on screen to name.
+     */
+    Outcome sellPosition(String symbol, int shares);
 
     /** Creates a named collection. */
     Outcome createPortfolio(String name);

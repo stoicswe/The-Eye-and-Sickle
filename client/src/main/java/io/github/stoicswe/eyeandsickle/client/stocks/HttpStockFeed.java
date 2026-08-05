@@ -52,8 +52,21 @@ public final class HttpStockFeed implements StockFeed {
 
     private static final Logger LOG = Logger.getLogger(HttpStockFeed.class.getName());
 
-    /** How long a cached quote is served before a refresh is attempted. */
-    private static final Duration FRESH = Duration.ofSeconds(45);
+    /**
+     * How long a COLD quote is served before a refresh is attempted.
+     *
+     * <h2>⚠ TWO CADENCES, and the split is what makes a free tier last the day</h2>
+     *
+     * The catalogue is a couple of hundred symbols and a free allowance is a few hundred calls a
+     * day — and it only grows as the player discovers more. Refreshing every
+     * symbol at the player's chosen rate would spend the entire day's budget in minutes on prices
+     * nobody is watching — so only what they <b>hold or watch</b> gets the fast cadence, and
+     * everything else is refreshed once a day.
+     *
+     * <p>That is also the honest split rather than merely the cheap one: the tracked symbols are the
+     * only ones that are about the player's own money.
+     */
+    private static final Duration COLD = Duration.ofHours(24);
 
     /** How long to go quiet after a refusal. */
     private static final Duration BACKOFF = Duration.ofMinutes(5);
@@ -61,6 +74,8 @@ public final class HttpStockFeed implements StockFeed {
     private final StockProvider provider;
     private final String apiKey;
     private final StockFeed fallback;
+    private final Duration hot;
+    private final java.util.function.Supplier<java.util.Set<String>> tracked;
     private final HttpClient http;
     private final Map<String, Quote> cache = new HashMap<>();
     private volatile Instant quietUntil = Instant.EPOCH;
@@ -69,10 +84,23 @@ public final class HttpStockFeed implements StockFeed {
      * @param fallback what to answer with until a real quote arrives — the offline feed, so the
      *     panel is never blank and never waits
      */
-    public HttpStockFeed(StockProvider provider, String apiKey, StockFeed fallback) {
+    /**
+     * @param hot how often a held or watched symbol is refreshed — the player's own setting
+     * @param tracked ⚠ a SUPPLIER, asked at refresh time, not a set captured at construction. What a
+     *     player holds and watches changes while the client runs, and a snapshot taken at startup
+     *     would leave a symbol bought this session stuck on the daily cadence until a restart
+     */
+    public HttpStockFeed(
+            StockProvider provider,
+            String apiKey,
+            StockFeed fallback,
+            Duration hot,
+            java.util.function.Supplier<java.util.Set<String>> tracked) {
         this.provider = provider;
         this.apiKey = apiKey;
         this.fallback = fallback;
+        this.hot = hot;
+        this.tracked = tracked == null ? java.util.Set::<String>of : tracked;
         this.http = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(6))
                 // ⚠ NEVER follow redirects. The URL carries the key, and a redirect would hand it to
@@ -89,7 +117,8 @@ public final class HttpStockFeed implements StockFeed {
         }
         String ticker = listing.get().symbol();
         Quote cached = cache.get(ticker);
-        if (cached == null || Duration.between(cached.asOf(), now).compareTo(FRESH) > 0) {
+        Duration freshness = tracked.get().contains(ticker) ? hot : COLD;
+        if (cached == null || Duration.between(cached.asOf(), now).compareTo(freshness) > 0) {
             refresh(ticker, now);
         }
         Quote held = cache.get(ticker);
@@ -204,9 +233,27 @@ public final class HttpStockFeed implements StockFeed {
         return dollars.multiply(new BigDecimal(BigInteger.TEN.pow(18))).toBigInteger();
     }
 
+    /**
+     * ⚠ Derived from the CACHED quote plus this symbol's cadence, never from a stored deadline. A
+     * countdown built on a second timer would drift from the thing it claims to be counting, and a
+     * symbol that moved between the fast and daily tiers — because the player bought or watched it —
+     * would keep counting to the old one.
+     */
+    @Override
+    public Instant nextRefreshAt(String symbol, Instant now) {
+        Quote cached = cache.get(symbol == null ? "" : symbol.trim().toUpperCase(java.util.Locale.ROOT));
+        if (cached == null) {
+            // Nothing cached means a refresh is already in flight or about to be.
+            return now;
+        }
+        Duration freshness = tracked.get().contains(cached.symbol()) ? hot : COLD;
+        return cached.asOf().plus(freshness);
+    }
+
     @Override
     public String describe() {
-        return provider.label() + " — your key, cached ~" + FRESH.toSeconds() + "s";
+        return provider.label() + " — your key. Held and watched refresh every " + hot.toSeconds()
+                + "s; everything else once a day.";
     }
 
     @Override

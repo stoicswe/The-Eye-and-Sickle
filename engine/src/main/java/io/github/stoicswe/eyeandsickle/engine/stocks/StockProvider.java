@@ -31,6 +31,7 @@ public enum StockProvider {
     FINNHUB(
             "Finnhub",
             "https://finnhub.io/api/v1/quote?symbol=%s&token=%s",
+            "https://finnhub.io/api/v1/search?q=%s&token=%s",
             "https://finnhub.io/dashboard",
             "60 calls/minute, real-time US quotes"),
 
@@ -43,6 +44,7 @@ public enum StockProvider {
     TWELVE_DATA(
             "Twelve Data",
             "https://api.twelvedata.com/quote?symbol=%s&apikey=%s",
+            "https://api.twelvedata.com/symbol_search?symbol=%s&apikey=%s",
             "https://twelvedata.com/pricing",
             "800 credits/day, 8 calls/minute"),
 
@@ -57,17 +59,20 @@ public enum StockProvider {
     ALPHA_VANTAGE(
             "Alpha Vantage",
             "https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=%s&apikey=%s",
+            "https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords=%s&apikey=%s",
             "https://www.alphavantage.co/support/",
             "25 requests/DAY — too small for live updates");
 
     private final String label;
     private final String quoteUrl;
+    private final String searchUrl;
     private final String signupUrl;
     private final String limits;
 
-    StockProvider(String label, String quoteUrl, String signupUrl, String limits) {
+    StockProvider(String label, String quoteUrl, String searchUrl, String signupUrl, String limits) {
         this.label = label;
         this.quoteUrl = quoteUrl;
+        this.searchUrl = searchUrl;
         this.signupUrl = signupUrl;
         this.limits = limits;
     }
@@ -79,6 +84,21 @@ public enum StockProvider {
     /** ⚠ Contains the key. Never log the result of this. */
     public String quoteUrl(String symbol, String apiKey) {
         return String.format(quoteUrl, symbol, apiKey);
+    }
+
+    /**
+     * Symbol lookup, so the universe grows past the bundled set.
+     *
+     * <h2>⚠ A SECOND CALL against the same allowance</h2>
+     *
+     * Every provider meters searches out of the same budget as quotes. That is why a lookup only
+     * fires when a query matches nothing already known and looks like a ticker — a keystroke-by-
+     * keystroke search would spend a free tier's whole day in one session of typing.
+     *
+     * <p>⚠ Contains the key. Never log the result.
+     */
+    public String searchUrl(String query, String apiKey) {
+        return String.format(searchUrl, java.net.URLEncoder.encode(query, java.nio.charset.StandardCharsets.UTF_8), apiKey);
     }
 
     /** Where a player goes to get a key and read the terms they are agreeing to. */

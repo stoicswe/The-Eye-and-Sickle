@@ -1308,9 +1308,116 @@ pushing every window down. The dead cell was three times the overflow.
   colouring it would imply the number meant something about the game. `text-hi` on `panel-hi` — a pair
   `ContrastTest` already measures in all six palettes, so it inverts correctly on uOS Classic.
 
-**FIVE TOOLS BECAME TABS, and one new tool arrived (2026-08-04).** `recon` + `breach` → **NETWORK**
-(`view/NetworkView`); `audit` + `defense` → **RIG MONITOR** (after OVERVIEW, before the table tabs);
-`mining` → **LEDGER**. New: **ASSEMBL COMPILER**. Twenty windows became sixteen.
+**The SECURITY CENTER is a consumer security suite's LAYOUT in this deck's language (2026-08-04).**
+`view/SecurityCenterView` — a section rail (HOME · AUDIT · DEFENSE · SCHEDULE), a headline verdict,
+one primary action and a card per subsystem. `rules/ScanSchedule` + `state/ScanScheduleState` add
+audits on a timer.
+
+- ⚠ **NONE of the reference's styling is reproduced, and that is not a shortfall.** §9 makes drop
+  shadows, blur and glassmorphism **build-blocking** (`UiContractTest` fails on `dropshadow(`) and
+  rounded corners are gated on `.es-rounded`; §2.1 bans a semantic colour system. So the gradients,
+  the glowing disc and the blurred colour field are unavailable — the hierarchy is carried by **type
+  size and position** instead, which §4.4 wants anyway because it survives greyscale and reaches a
+  screen reader. A glow does neither. What was borrowed is the **structure**, which is the good part.
+- ⚠ **The verdict is the ONE place `-es-alarm` is spent here.** §2.1 rations it to loss and hostile
+  state at twice a screen; a finding is exactly that, and everything else staying neutral is what
+  makes the change mean something. ⚠ **"Unaudited" is NOT alarm** — nothing has gone wrong, nobody
+  has looked, and colouring it as a threat would cry wolf on every new character.
+- ⚠ **The verdict is derived from the LAST SCAN, never from live state.** A security product can only
+  report what it found when it last looked, and "nothing found" and "nobody has looked" are different
+  sentences. The tier is named with it, because a clean Quick and a clean Thorough are different
+  claims about the same rig.
+- ⚠ **AT MOST ONE catch-up scan per absence, however long.** Six-hourly across four days is sixteen
+  missed scans; running them all spends a day's compute on the first tick back and leaves the rig
+  unusable for as long as they take. Same shape as `OFFLINE_MINING_HOURS` — offline yield is capped
+  and never proportional to absence — and it means a schedule cannot be farmed by quitting.
+- ⚠ **A scheduled scan that cannot be paid for is SKIPPED, not queued.** Queueing lands it at an
+  unpredictable later moment, possibly mid-breach, taking cycles the player was counting on.
+- ⚠ **`lastRunAt` is stamped to NOW, not advanced by one interval.** Advancing leaves several
+  intervals still in the past after a long absence, so the next few ticks each fire another scan —
+  the catch-up storm, arriving one tick later than expected.
+- ⚠ **Turning the schedule ON starts the clock rather than firing immediately** — a scan the instant
+  a switch is flicked reads as the switch having done something violent, and takes cycles the player
+  was about to use.
+- ⚠ **The interval slider applies on RELEASE.** A slider fires continuously while dragged, and
+  writing the schedule per frame would persist the save dozens of times and light the disk lamp like
+  a fault.
+- ⚠ **The headline is a `FlowPane`, not an HBox with a spacer.** The verdict is 30px type beside a
+  168px button, and in a tiled window there is no room for both — an HBox squeezes the headline and
+  JavaFX ellipsises it, so "Your rig is Compromised" rendered as **"Your ..."**. `USE_PREF_SIZE` on
+  both children, and `setMinWidth(USE_PREF_SIZE)` on the verdict so it can never be truncated: a
+  player reads that word by its shape, and "Compromi..." has the wrong one. **Found by rendering the
+  DECK, not the panel — the panel alone is never narrow.**
+- **A big state mark fills the space beside the verdict** — `ui/widgets/SecurityMark`: an animated
+  shield when clear, a warning triangle when there is something to attend to, a quarantine trefoil
+  when an audit named something.
+  - ⚠ **ALL THREE ARE DRAWN.** `GlyphCoverageTest` has already rejected `U+26A0` in this panel and
+    shield/biohazard are certainly absent from both bundled faces, so these are `Polygon`s, `Arc`s
+    and `Circle`s — the same decision the flash overlay's warning mark and the carousel's dots record.
+  - ⚠ **THE VERDICT IS ABOUT THE AUDIT, and folding anything else in broke the panel.** "Nothing
+    armed" briefly also forced CHECK — reasonable-sounding, and wrong in a way that made the whole
+    tool look broken: on a rig with no defences, running a clean audit left the mark on the same
+    warning triangle it already had, so **the primary action appeared to do nothing**. A player
+    cannot tell "your audit changed nothing" from "the button is broken", and they assume the
+    button. The verdict now answers exactly what an audit answers — *is something on this rig now* —
+    and the defence gap is a statement about the **future**, said in the reason line and on the
+    DEFENSE card. ⚠ `markStateFor` is pure and package-private **so it can be tested without a
+    toolkit**; the bug shipped because the rule lived inside a repaint that needed a live scene to
+    reach. `SecurityVerdictTest`, verified against the broken rule first.
+  - ⚠ **THREE states, and the middle one is the point.** A clean audit is a statement about a
+    *moment*, so a week-old "clear" is **unknown**, not clear (`ScanSchedule.STALE_AFTER`, 24h); and
+    a rig with nothing armed is undefended rather than compromised. Neither gets the alarm a real
+    finding gets — collapsing them into it would cry wolf until the player stopped reading. The
+    caption names *which* condition is true, because the two have different fixes.
+  - ⚠ **Alarm is spent exactly twice** (§2.1's ration): the verdict and the trefoil. CHECK is
+    `-es-warn`, and spending alarm there would leave nothing louder for an actual finding.
+  - ⚠ **Motion is stepped and decorative**, so Reduce motion holds one frame. The test for whether
+    that is safe: **if it stopped forever, would the player still know what it says?** The shield
+    carries a tick and the trefoil is a trefoil at rest — the sweep and the turn add nothing to the
+    reading, which is what makes them suppressible.
+  - ⚠ **The mark is built ONCE and replaced only when the STATE changes.** `buildHome` runs on the
+    one-second Pulse, so constructing a fresh one per repaint reset its step counter every second —
+    the sweep travelled a quarter of the way down and jumped back, forever — and leaked a Pulse
+    subscription each time.
+  - ⚠ **THE TREFOIL'S ARCS FACE OUTWARD, and backwards renders a PROPELLER.** A biohazard's arms are
+    the parts of three overlapping rings pointing *away* from the centre; arcs centred on the inward
+    direction draw three blades around a hub. Found by rendering — the first version used `+ 180`.
+  - ⚠ **ONLY THE VERDICT PAIRS WITH THE MARK.** The action and its note sit in their own row below,
+    which is what lets the mark come up and left instead of stranding itself under the button beside
+    a column of empty space.
+  - ⚠ **`setMaxWidth` DOES NOT CONSTRAIN A WRAPPED LABEL'S PREFERRED WIDTH**, and that is why the
+    mark wrapped in a window with ample room. A `FlowPane` places children at their **preferred**
+    size, and a `wrapText` Label prefers its whole string on one line however low its maximum is set
+    — so the column reported ~900px, the pair did not fit, and the mark dropped to the next row while
+    the panel was plainly wide enough. **`setPrefWidth` is the fix**; `setMaxWidth` alone looks like
+    it should work and silently does not. Same family as the `Vgrow`-without-`setMaxHeight` trap.
+- ⚠ **No `⚠` glyph in UI strings, and `GlyphCoverageTest` scans SOURCE** — a placeholder literal that
+  gets overwritten at runtime still fails the build.
+
+**THE WINDOW CATALOGUE WAS RESHAPED (2026-08-04).** `recon`, `breach` and `botnet` → **NETWORK**
+(`view/NetworkView`, in that operational order: find, study, get in, what you left running);
+`mining` → **LEDGER**; `audit` + `defense` → the new **SECURITY CENTER**. New: **ASSEMBL COMPILER**
+and **SECURITY CENTER**. Twenty windows became fifteen.
+
+- ⚠ **AUDIT and DEFENSE went into the rig monitor and came straight back out**, into their own tool.
+  The monitor *asks* whether something is wrong; those two are what you *do* about it, and burying
+  the answer four tabs into a window titled something else made it harder to reach than the question.
+  ⚠ Both views moved twice in one afternoon and lost nothing, which is only true because neither
+  ever held its own state — a view that remembered anything would have lost it on the first move.
+- ⚠ **`ShortcutsTest` asserted `values().length >= 16`** — an arbitrary FLOOR on the window count,
+  which fails on every consolidation and passes for every reason except the one it meant. It also
+  duplicated `WindowCatalogueTest`, which pins the exact set by id. It now asserts what §6.3 actually
+  requires: every per-window accelerator is distinct and none collides with a global.
+- ⚠ **The SWITCHER window is gone (2026-08-04), and the check before deleting it was the point.** It
+  existed as "the way back to a window you lost", so the question was whether it was the *only* way
+  back to a **minimised** one — which would have stranded them. It is not: the rail carries a chip
+  per catalogue window, and clicking one calls `DeskManager.show`, which un-minimises (its own
+  comment records that being a flag rather than an early return, for exactly this reason). Verified,
+  then removed. ⚠ First run now opens the **rig monitor alone**, which is the better answer anyway:
+  a first run should show the machine rather than a list of things to open.
+- **LEDGER's tabs are LEDGER then MINING.** It was the other way round, on cause-before-effect
+  reasoning — but the window is named for the ledger, and a tool whose first tab is not the thing on
+  its title bar makes a player wonder whether they opened the right one.
 
 - ⚠ **FOLDING THE BREACH IN CONTRADICTS `docs/client/05` §44, knowingly.** That section argues a
   breach must span windows the way an operator's desk does, because the puzzle's anti-bot property
@@ -1318,16 +1425,16 @@ pushing every window down. The dead cell was three times the overflow.
   two documents is a simultaneity problem; a tabbed shell makes it a memory problem instead."*
   Nothing breaks today because the minigame is a `[PROPOSAL]` and unbuilt, so the cost is real and
   **currently unpaid**. ⚠ **UI-8**: when the puzzle is built, the breach probably comes back out.
-- ⚠ **`RigTab.isTable()` WAS AN EXCEPTION LIST AND IT BROKE AGAIN.** It read
-  `!= OVERVIEW && != ABOUT` — so adding AUDIT and DEFENSE silently made both "table tabs" and they
-  would have rendered the process listing under their own panels. Its own comment already recorded
+- ⚠ **`RigTab.isTable()` WAS AN EXCEPTION LIST AND IT BROKE.** It read `!= OVERVIEW && != ABOUT` —
+  so briefly adding AUDIT and DEFENSE silently made both "table tabs" and they would have rendered
+  the process listing under their own panels. Its own comment already recorded
   this failure once, from ABOUT. It asks **`isPanel()`** now, the positive question, so a new panel
   tab is correct by declaring what it is. ⚠ The `columns()` switch caught the same addition **at
   compile time** — an exhaustive switch over an enum is the one place a new constant cannot be
   forgotten, which is why it is worth keeping one.
 - ⚠ **Accelerators were RENUMBERED** (0 rig · 1 terminal · 2 network · 3 storage · 4 ledger ·
-  5 botnet · 7 assembl). `WindowCatalogueTest` fails the build on a duplicate, which is how the
-  collision surfaced.
+  5 assembl · 6 security). `WindowCatalogueTest` fails the build on a duplicate, which is how the
+  first collision surfaced. ⚠ `Shortcut+Shift+J` is free now that the switcher is gone.
 - ⚠ **The views were REPARENTED, not rewritten.** `AuditView`, `Views.defense`, `Views.mining`,
   `ReconView` and `BreachView` are unchanged — rebuilding any of them would have been another place
   for the rig's own diagnosis to drift from itself.
@@ -1343,6 +1450,122 @@ pushing every window down. The dead cell was three times the overflow.
   made. ⚠ The storefront drops schematic-gated items entirely but **keeps the other gates listed**:
   `design/02`'s taxonomy exists so a refusal is legible, and deleting those turns a legible gate into
   a missing item.
+
+**Selecting a share opens a DETAIL OVERLAY; the chart stays the account's (2026-08-05).** Clicking a
+row in LISTINGS or in the search results opens a modal card over the whole panel — name, symbol,
+sector, price, yield, what you hold, and a Buy ticket.
+
+- ⚠ **It does NOT repoint the chart.** The chart is the account's value over time; aiming it at
+  whatever the player last clicked answers a question nobody asked and loses the one thing the panel
+  is for. A per-share chart exists — it is the watchlist's — and it is reached deliberately.
+- ⚠ **Clicking the SCRIM closes; clicking the card does not.** Without the target check the overlay
+  dismisses itself the moment anybody reaches for the Buy button inside it.
+- ⚠ **`.es-shmark-listing` is on THREE different row kinds** — positions, search hits and listings —
+  so a `lookup` for one finds whichever the scene graph reaches first. The render harness clicked a
+  POSITIONS row believing it was a listing and reported the overlay as broken. Listing rows carry
+  `.es-anon-listing` as well.
+- **Right-click a share** → Details · Buy 1 · Add to watchlist · New watchlist… ⚠ Anchored to the
+  **window**, never the row: this panel repaints on a clock and a menu shown against a node a repaint
+  has detached throws on the FX thread — `NetMapView` records the same failure. ⚠ **New watchlist…**
+  is offered even when none exist, or a player with none sees a dead submenu and no way to fix it.
+  ⚠ After creating one it **re-reads the snapshot** for the new id — the one the menu was built from
+  predates the list, so reaching for it files the symbol nowhere, silently.
+
+**WATCHING drills in: index → one list, with a chart and a symbol column (2026-08-05).**
+
+- ⚠ **A WATCHED symbol is now sampled exactly like a held one** (`Brokerage.sample` walks
+  `tracked()`), because a watchlist with no chart behind it is a list of names. It is deliberately
+  the **same set** that gets the fast refresh cadence — wiring the two to different sets would give a
+  watched symbol a chart made of one point a day. ⚠ The **portfolio total stays over holdings only**:
+  folding a watched symbol in would show a player money they do not have.
+- ⚠ **The chart is built ONCE and re-parented**, never rebuilt per repaint — a Canvas rebuilt on the
+  clock loses its width, its hover state and its layout listener every second. Same defect the
+  security mark's step counter had.
+- ⚠ **Two charts, two hover indices.** Sharing one moves the marker on the panel nobody is looking at.
+
+**The pointer readout FOLLOWS THE CURSOR and is not a cell in a row (2026-08-05).** It sat beside the
+portfolio total, where it cost the header a variable amount of width for as long as it showed — so
+the total, the change and the countdown all ellipsised together (`1705....`, `-455.39 EC on ...`,
+`refreshin...`). Same rule as the balance delta in the top strip: **nothing transient may occupy
+space in a row of readouts.** The countdown moved down beside the range buttons.
+
+- ⚠ **A plain `Pane`, not a `StackPane`.** A Pane does not resize an unmanaged child and a `Canvas`
+  is not resizable at all, so both keep the sizes they were given; a StackPane stretches both and the
+  readout becomes a full-width band. ⚠ The unmanaged Label must `applyCss()` then `autosize()` — one
+  that has never been sized is zero wide and paints nothing. ⚠ Clamped on both axes.
+- ⚠ **A SYNTHETIC `MouseEvent`'S x/y ARE SCENE COORDINATES when the source is null**, and
+  `Event.fireEvent` leaves it null — so the constructor's "x with respect to the source" is the
+  scene's, and delivery recomputes the node-local one from it. Passing node-local values put `getX()`
+  ~300px left of the pointer, which clamped to the first sample: the render showed the readout pinned
+  to the left edge, **indistinguishable from a broken clamp in the view itself.**
+
+**Axis labels are legible and their precision follows the span (2026-08-05).**
+
+- ⚠ **The axis TEXT is not the gridline colour.** It was drawn in `-es-rule`, which `ContrastTest`
+  exempts from the 3:1 floor *precisely because* a border held to a text threshold becomes a stripe —
+  so the labels were legal and barely readable. Lines stay `-es-rule`; numbers take `-es-shmark-axis`
+  (`-es-text`), which the contrast floor does measure.
+- ⚠ **A FIXED precision is wrong in both directions.** At zero decimals a watchlist chart of a share
+  moving 140.3 → 141.1 labelled every gridline `141 EC` — five identical labels, the same symptom as
+  the wei-to-`long` overflow and a different cause. At two, a four-digit portfolio runs off the
+  gutter. Derived from the span **and** the whole part, against a six-character budget.
+- ⚠ **The unit is on the top label only** — it annotates the axis rather than naming an amount held,
+  and repeating it costs three characters a row in the gutter that decides the precision.
+- ⚠ **A share on the wire carries its ALIAS, and it did not.** `shares()` used `displayNameOf`, the
+  **item catalogue's** lookup, which a ticker is never in — so every share fell through to its
+  `orElse` and arrived with its symbol where its name belonged. Invisible because the tables show the
+  symbol in its own column; it surfaced on the watchlist title and in screen-reader text.
+  `tickerNameOf` now. Pinned by a test, verified against the unfixed code.
+
+**AnonShare is four sub-tabs — Overview · Listings · Watching · History (2026-08-05).** They are the
+questions a holder asks, in order: what am I worth, what else is there, what am I following, what
+have I done.
+
+- ⚠ **ONLY OVERVIEW CARRIES LIVE PRICES**, which is what makes the other three cheap enough to keep
+  painted while they are off screen. **LISTINGS deliberately draws NO price column** — held and
+  watched symbols refresh at the player's rate and everything else once a day, so most rows have
+  never been fetched and a price column would print a zero or yesterday's number for the majority of
+  the list, on the one panel whose whole subject is what a price is. Selecting a row quotes it on
+  Overview, which fetches.
+- ⚠ **Two search boxes, two queries, and they must NOT share one.** Overview's writes
+  `setShareQuery` and spends a provider lookup; Listings' filters what is already known locally.
+  Sharing the session's query means whichever tab repainted last decides what the *other* one is
+  showing — on a tab the player is not looking at. Both fire `discoverSymbol` when nothing matches,
+  so the universe grows from either.
+- ⚠ **Selecting anything anywhere jumps back to OVERVIEW.** The quote ticket lives there, so a click
+  on another tab that silently changed a panel the player cannot see reads as the click doing
+  nothing.
+- ⚠ **HISTORY is RECORDED, never recomputed.** `BrokerageState.Trade`, written at the trade, newest
+  first, bounded at `TRADE_LIMIT` (300) and trimmed from the front. A price is a fact about an
+  instant; a history rebuilt from today's quotes would rewrite what somebody actually paid.
+  ⚠ **The commission has its own column** rather than being folded into the price — they are two
+  different charges and only one is the market's, and a merged figure cannot answer why a round trip
+  at an unchanged price lost money, which is the single thing this tab exists to explain.
+  ⚠ **Realised gain is a SELL's figure**: a buy renders a dash, not a zero, because zero means broke
+  even. ⚠ **The SIDE is not coloured** — up/down mean gain and loss everywhere else in this client,
+  and a red BUY beside a green SELL says buying was the mistake, which is not a claim a transaction
+  log gets to make.
+- ⚠ **`main.setMinWidth(0)` is load-bearing: without it the quote card is CLIPPED.** A `Canvas` is
+  not resizable, so it contributes its whole current width to the column's computed minimum — and an
+  HBox satisfies minimums *before* it distributes anything, so the row demanded more than the content
+  column has and the last child ran off the edge. Same family from the other side: a grown
+  `TextField` that cannot shrink pushed the session readout off the nav row and JavaFX ellipsised it
+  ("market open · closes 16:00" → "market open ·"), fixed with `search.setMinWidth(120)`.
+- ⚠ **`column()`, never `setMinWidth`, for a table cell.** A minimum alone leaves the label's
+  *computed* preferred width in charge, so one long invented name widens its own cell and pushes the
+  sector out of line **for that row only** — the table looks like it has lost a column.
+- ⚠ **The harness needs an OPEN session and real state.** `-Dmarket.now=2026-08-04T15:00:00Z` is
+  11:00 in New York (the default 12:00Z is 08:00, i.e. shut, where every trading control is disabled
+  and no history can be built); `-Dmarket.trades=N` buys N and sells one back — the only way to get a
+  realised figure into the table — and `-Dmarket.watch=true` builds a watchlist.
+  ⚠ `-Dmarket.subtab=N` excludes the outer TabPane **by identity**, because AnonShare's own pane
+  carries the same style class and `lookup` returns the ancestor first.
+- **The bundled universe is ~190 symbols, capped at `LISTINGS_LIMIT` (500) on screen**, and the cap
+  says so when it cuts. ⚠ **The real name is never displayed** — `Aliaser` renames every one — so a
+  name that is slightly off yields a different *invented* name rather than a false claim about a
+  company. That is what makes a bundled list this size defensible: the **symbol** is the part that
+  has to be right, because it is what a quote is fetched against. `referencePrice`/`annualYieldBp`
+  are anchors for the offline feed, never claims.
 
 **MARKET has a THIRD tab, AnonShare — Anonymous Shares Inc. (2026-08-04).** Real US tickers, aliased
 company names, real market hours, portfolios and dividends. `engine/stocks/*`, `rules/Brokerage`,
@@ -1389,9 +1612,73 @@ company names, real market hours, portfolios and dividends. `engine/stocks/*`, `
   fee: rounding a payment up creates wei from nothing on every dividend in the game. ⚠ **No
   commission on a dividend**, and **paid whether or not the market is open** — a weekend-only player
   must still collect.
-- ⚠ **Selling names a PARCEL, never a symbol.** Two buys at different prices are two positions with
-  two different answers to "am I up on this"; a symbol-keyed sell picks for the player and then
-  reports a profit against a basis they did not choose.
+- **The panel is a BROKER's layout (2026-08-05)** — account column, portfolio total, value chart with
+  range buttons, positions table, watchlists. ⚠ None of the reference's styling is reproduced (§9
+  makes shadows, blur and gradients build-blocking); the hierarchy is type size and position, and the
+  chart is a stroked line rather than a gradient fill.
+- ⚠ **PRICE HISTORY IS RECORDED, and it is the only stored series in the game.** Every other line —
+  the Shadow Market's candles, the mempool, the chain — is seekable noise, so history costs nothing.
+  A **real** quote cannot be recomputed: nobody can ask what AAPL cost an hour ago without having
+  written it down an hour ago. ⚠ Sampled every 5 minutes, **only while the market is open** (prices
+  freeze out of hours, so overnight samples are identical rows that push the interesting ones off a
+  bounded buffer), **only for symbols held**, capped at 240 and trimmed from the front. ⚠ A symbol
+  sold **drops its series** — otherwise the save grows forever with the history of things nobody owns.
+  ⚠ The **portfolio value** is its own series, not reconstructed from the per-symbol ones: rebuilding
+  it would need the share count *at each past instant*, so the line would rewrite its own past every
+  time somebody bought or sold.
+- ⚠ **TWO REFRESH CADENCES, and the split is what makes a free tier last the day.** Held and watched
+  symbols refresh at the player's chosen interval; everything else once every 24 hours. Fifty symbols
+  at the fast rate would spend a few-hundred-call allowance in minutes on prices nobody is watching.
+  ⚠ `HttpStockFeed` takes a **supplier**, read at refresh time — a set captured at construction would
+  leave anything bought this session stuck on the daily cadence until a restart.
+- **The universe GROWS by search (2026-08-05).** The bundled fifty are a browsable starting point;
+  typing an unknown ticker asks the provider's symbol-lookup endpoint and **keeps** what comes back.
+  `Tickers.register` / `discovered`, persisted machine-wide in settings (bounded 500) and replayed
+  into the registry at startup, so a character opened offline knows every ticker a previous session
+  found. ⚠ Implemented for **all three** providers — each has its own search URL and response keys
+  (`description` / `instrument_name` / `2. name`).
+  - ⚠ **A lookup is a CALL against the same allowance as a quote.** It fires only when the query
+    matches nothing known **and** looks like a ticker, and `SymbolLookup` remembers what it has asked
+    **including the misses** — a symbol that does not exist costs the same to ask about twice.
+  - ⚠ **The parser fails CLOSED.** A shape it does not recognise registers **nothing**: a symbol filed
+    under the wrong company would rename it for the life of the character, and the alias is derived
+    from that name.
+  - ⚠ **`Tickers` holds a static registry**, which this codebase otherwise avoids. The argument is
+    that it is *reference data, never game state* — the same for every character and save,
+    append-only, and it decides only what a symbol is **called**. If it ever influences a rule it has
+    to become a port. `forget()` exists so it cannot leak between tests.
+- **The search results are a sliding OVERLAY, not a column.** Results in the flow would push the
+  portfolio total and its chart down on every keystroke — the two things a holder came to look at,
+  moving as they type. ⚠ Stepped on `Pulse.every` (never `animate`, which would leave it unable to
+  open under Reduce motion), clipped, and **managed**: it lives in a `StackPane` where children are
+  layered, so a managed child costs its siblings no space. ⚠ **Unmanaged was a real bug** — the parent
+  never resized it, so `prefHeight` went to a layout pass that never ran, the node had no size, the
+  background painted nothing, and the results rendered as bare text over the account column. Same
+  family as `SyncBanner`'s trap, from the other side.
+- **The chart has axes and a hover readout.** ⚠ The plot is **inset** and the labels live in the
+  gutters — text over the plot sits on the line at exactly the values a reader is comparing. Hover
+  snaps to a **recorded point**, never an interpolation: drawing a number for an instant nothing was
+  sampled at would be inventing a price on the one panel whose subject is what a price was.
+  ⚠ **The hover index is measured from the PLOT's left edge**, or the marker sits a fixed distance
+  right of the pointer.
+- ⚠ **AN AXIS LABEL CAST WEI TO `long` AND EVERY ONE READ "9 EC".** A portfolio of 2742 EC is 2.7e21
+  wei and a `long` tops out at **9.22 EC**, so the cast saturated at `Long.MAX_VALUE` and all five
+  gridlines rendered identically. Exactly the overflow the currency's own notes warn about; five
+  identical labels is what it looks like from outside. Through `BigDecimal` now. **Found by
+  rendering.**
+- **A refresh countdown sits beside the chart**, on its **own one-second Pulse**. The price repaint
+  runs at the player's interval — which can be ten minutes — so a timer driven by it would hold one
+  number and then jump. ⚠ `nextRefreshAt` is the **feed's** answer, because only the feed knows which
+  cadence a symbol is on; `EPOCH` means *not applicable* and the panel renders no timer rather than
+  an invented one, which is the honest answer for a derived feed that never refreshes.
+- ⚠ **ONE ROW PER SYMBOL, not one per purchase.** Two buys of one company rendered as two rows, which
+  made the panel read as a ledger of transactions rather than a portfolio. `Brokerage.positions`
+  collapses them; **the lots survive underneath** and the cost basis is still per-lot.
+- ⚠ **Selling from a position is FIFO.** `sellPosition` takes the oldest lot first — what a broker
+  does when you do not name one, and the panel no longer shows a lot to name. `sellShares(holdingId)`
+  survives for anyone who does want to pick.
+- ⚠ **The per-lot cost basis is why `sellShares(holdingId)` still exists.** Two buys at different
+  prices have two different answers to "am I up on this", and an averaged book can only show one.
 - ⚠ **Deleting a portfolio UNFILES holdings, never sells them.** A portfolio is a label.
 - ⚠ **The refresh cadence is the PLAYER's** (Settings → AnonShare, 15s–10m, default 60s) and the
   slider says what it **costs** in calls-per-day, because that is the number they are really

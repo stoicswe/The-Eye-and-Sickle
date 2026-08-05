@@ -718,6 +718,10 @@ public class EyeAndSickleClient extends Application {
         //
         // ⚠ The offline feed is always the fallback, so "runs offline out of the box" holds whether
         // or not there is a key, a network, or a provider having a bad day.
+        // ⚠ Discovered symbols are replayed into the registry BEFORE anything reads it, so a
+        // character opened offline still knows every ticker a previous session looked up.
+        profile.settings().discoveredSymbols.forEach(
+                io.github.stoicswe.eyeandsickle.engine.stocks.Tickers::register);
         var offline = new io.github.stoicswe.eyeandsickle.engine.stocks.SimulatedStockFeed(
                 engine.state().characterId.hashCode());
         String apiKey = profile.settings().stockApiKey;
@@ -727,8 +731,39 @@ public class EyeAndSickleClient extends Application {
                         io.github.stoicswe.eyeandsickle.engine.stocks.StockProvider.parse(
                                 profile.settings().stockProvider),
                         apiKey,
-                        offline));
-        session = new LocalGameSession(engine);
+                        offline,
+                        java.time.Duration.ofSeconds(
+                                Math.max(1, profile.settings().stockRefreshSeconds)),
+                        // ⚠ A supplier, read at refresh time. What the player holds and watches
+                        // changes while the client runs; a set captured here would leave anything
+                        // bought this session on the once-a-day cadence until a restart.
+                        () -> io.github.stoicswe.eyeandsickle.engine.rules.Brokerage.tracked(
+                                engine.state())));
+        LocalGameSession local = new LocalGameSession(engine);
+        if (apiKey != null && !apiKey.isBlank()) {
+            local.useSymbolLookup(new io.github.stoicswe.eyeandsickle.client.stocks.SymbolLookup(
+                    io.github.stoicswe.eyeandsickle.engine.stocks.StockProvider.parse(
+                            profile.settings().stockProvider),
+                    apiKey));
+        }
+        // ⚠ Persisted as soon as the universe grows, not at shutdown. A player who discovers a
+        // symbol and then crashes should not have spent an API call for nothing.
+        local.onSymbolsDiscovered(() -> {
+            var found = io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.discovered();
+            var kept = profile.settings().discoveredSymbols;
+            kept.putAll(found);
+            // ⚠ Bounded, trimmed from the front — a settings file is one a human should be able to
+            // open, and years of searching would otherwise turn it into a symbol table.
+            var iterator = kept.entrySet().iterator();
+            while (kept.size() > io.github.stoicswe.eyeandsickle.client.profile.ClientProfile.Settings
+                            .DISCOVERED_LIMIT
+                    && iterator.hasNext()) {
+                iterator.next();
+                iterator.remove();
+            }
+            profile.save();
+        });
+        session = local;
 
         Shell.CommandRegistry commands = BuiltinCommands.registry();
         shell = new Shell(session, commands);
@@ -1083,8 +1118,7 @@ public class EyeAndSickleClient extends Application {
      */
     private javafx.scene.Node contentFor(WindowSpec spec) {
         return switch (spec) {
-            // ⚠ The shell is passed now: AUDIT is a tab in here and it needs the listings.
-            case RIG_MONITOR -> RigMonitorView.create(session, terms, profile, shell);
+            case RIG_MONITOR -> RigMonitorView.create(session, terms, profile);
             case TERMINAL -> TerminalView.create(shell);
             case NETMAP ->
                 io.github.stoicswe.eyeandsickle.client.view.NetworkView.create(
@@ -1092,7 +1126,6 @@ public class EyeAndSickleClient extends Application {
             case STORAGE -> Views.storage(session);
             case LEDGER -> Views.ledger(session);
             case IDENTITY -> Views.identity(session);
-            case SWITCHER -> Views.switcher(registry);
             case SETTINGS ->
                 Views.settings(
                         profile,
@@ -1107,13 +1140,14 @@ public class EyeAndSickleClient extends Application {
             case LOG -> LogView.create(session);
             // ⚠ The refresh cadence is read HERE, at open, not cached — a player who moves the
             // slider and reopens the window gets the new rate without a restart.
+            case SECURITY ->
+                io.github.stoicswe.eyeandsickle.client.view.SecurityCenterView.create(session, shell);
             case ASSEMBL -> io.github.stoicswe.eyeandsickle.client.view.AssemblView.create(session);
             case MARKET -> io.github.stoicswe.eyeandsickle.client.view.MarketView.create(
                     session, profile.settings().stockRefreshSeconds);
             // ⚠ RECON is the reports now, not the page about them. The cost model and what a scan
             // is a model of moved to `man port-scan` — reference a player reads once, in the place
             // they can find it deliberately, rather than above the data every single time.
-            case BOTNET -> MoreViews.botnet(session);
             case COMMS -> MoreViews.comms(session);
         };
     }

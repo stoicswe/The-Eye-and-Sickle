@@ -111,20 +111,22 @@ The thirteen ids below marked **(00 §6.1)** come from `00-client-overview.md` �
 | 2 | `netmap` | Network | `nmap` / a topology view | 1100×780 | 720×480 | `Shortcut+2` | yes | no |
 | 3 | `storage` | Storage | `ls` across three mounts | 840×620 | 560×420 | `Shortcut+3` | yes | no |
 | 4 | `ledger` | Ledger | a transaction log | 880×560 | 600×360 | `Shortcut+4` | yes | no |
-| 5 | `botnet` | Botnet | `jobs` / `systemctl` | 780×560 | 520×400 | `Shortcut+5` | yes | no |
+| 5 | `assembl` | Assembl Compiler | `make` / a build system | 860×640 | 560×420 | `Shortcut+5` | yes | no |
+| 6 | `security` | Security Center | `ps` / `netstat` / `df` / a firewall console | 900×620 | 640×420 | `Shortcut+6` | yes | no |
 | — | `market` | Market | a package manager | 900×640 | 600×440 | `Shortcut+Shift+M` | yes | no |
-| 7 | `assembl` | Assembl Compiler | `make` / a build system | 860×640 | 560×420 | `Shortcut+7` | yes | no |
 | — | `identity` | Identity | `whoami` / `id` | 560×640 | 420×440 | `Shortcut+Shift+I` | yes | no |
 | — | `comms` ✚ | Comms | `mail` / `who` | 720×620 | 480×400 | `Shortcut+Shift+P` | yes | no |
 | — | `settings` ✚ | Settings | `~/.config` | 760×620 | 560×440 | `Shortcut+,` | yes | no |
 | — | `calc` ✚ | Calculator | `bc` / `printf %x` | 820×700 | 560×460 | `Shortcut+Shift+C` | yes | no |
 | — | `files` ✚ | Files | `nautilus` / `ls` / `mount` | 980×660 | 640×440 | `Shortcut+Shift+H` | yes | no |
-| — | `switcher` | Windows | `jobs` | 280×520 | 240×320 | `Shortcut+Shift+J` | yes | **yes** |
 
 > **⚠ AMENDED 2026-08-04 — five tools became tabs, and one of those amendments contradicts §44.**
 >
-> `recon` and `breach` are tabs inside **`netmap`**; `audit` and `defense` are tabs inside
-> **`rig-monitor`** (after OVERVIEW, before the table tabs); `mining` is a tab inside **`ledger`**.
+> `recon`, `breach` and `botnet` are tabs inside **`netmap`**; `mining` is a tab inside **`ledger`**;
+> `audit` and `defense` are tabs inside the new **`security`** tool. (They spent part of one afternoon
+> inside `rig-monitor` and came back out: the monitor *asks* whether something is wrong, and those two
+> are what you do about it — burying the answer four tabs into a window titled something else made it
+> harder to reach than the question.)
 > They are the same views, reparented — no behaviour moved with them.
 >
 > ⚠ **§44 argues against exactly this for the breach**, and the argument still stands: a breach is
@@ -133,6 +135,10 @@ The thirteen ids below marked **(00 §6.1)** come from `00-client-overview.md` �
 > breaks today because the minigame (`../design/05`) is a `[PROPOSAL]` and is not built — the cost is
 > real and currently unpaid. **If the puzzle is built, the breach probably has to come back out.**
 > Tracked as **UI-8** in `../design/15-open-questions.md`.
+>
+> `switcher` is **gone**. It existed as "the way back to a window you lost", and the rail already is
+> that — one chip per window in the catalogue, lit when open, and clicking one un-minimises. Nothing
+> it did was unreachable without it.
 >
 > `assembl` is new: a schematic is a blueprint now rather than a purchase gate, so the storefront no
 > longer offers schematic-gated items at any price. Compile mechanics are open as **AS-1**.

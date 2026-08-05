@@ -61,7 +61,11 @@ public final class NetworkView {
                 .addAll(
                         new Tab("MAP", NetMapView.create(session, arming, nodeActions)),
                         new Tab("RECON", ReconView.create(session, nodeActions::info)),
-                        new Tab("BREACH", BreachView.create(session, terms, profile, arming)));
+                        new Tab("BREACH", BreachView.create(session, terms, profile, arming)),
+                        // ⚠ BOTNET last, and the order is the operational sequence rather than an
+                        // alphabet: find a machine, study it, get in, and then what you left running
+                        // on it. A bot is the residue of the three tabs to its left.
+                        new Tab("BOTNET", MoreViews.botnet(session)));
         return tabs;
     }
 

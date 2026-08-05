@@ -193,6 +193,97 @@ public final class UiTokens {
      * and leaves the node's layout bounds alone, so a rotated label left to size itself reserves its
      * horizontal width and the handle comes out as wide as "BUY / SELL" is long.
      */
+    /**
+     * The Security Center's section rail.
+     *
+     * <p>⚠ Wider than the deck's own 34px rail and for the opposite reason: that one is a legend of
+     * single accelerator characters, this one carries words. A player reads AUDIT and DEFENSE here
+     * rather than decoding a letter, because unlike the deck rail it is not backed by a keyboard
+     * shortcut they could learn.
+     */
+    /**
+     * How tall the search overlay is when open.
+     *
+     * <p>Fixed, because the slide has to know how far to travel before the content is measured — a
+     * height derived from the results would change mid-animation as they arrived.
+     */
+    public static final double ANON_OVERLAY_HEIGHT = 280;
+
+    /** Room on the left of the value chart for its value labels. ⚠ Follows ANON_AXIS_TEXT_SIZE. */
+    public static final double ANON_AXIS_GUTTER = 64;
+
+    /** Room under the value chart for its time labels. ⚠ Follows ANON_AXIS_TEXT_SIZE. */
+    public static final double ANON_AXIS_BASELINE = 20;
+
+    /**
+     * Axis label size.
+     *
+     * <p>⚠ It was 9 and that was too small to read against the plot — an axis is glanced at rather
+     * than studied, which argues for restraint and not for illegibility. A gridline whose number
+     * cannot be read is a gridline that means nothing.
+     */
+    public static final double ANON_AXIS_TEXT_SIZE = 11;
+
+    /** How far a value label sits below its gridline, so the two do not collide. */
+    public static final double ANON_AXIS_TEXT_RISE = 9;
+
+    /** How far the pointer readout sits from the cursor, so it never lands under it. */
+    public static final double ANON_HOVER_OFFSET = 14;
+
+    /** The stock-detail overlay's column. */
+    public static final double ANON_DETAIL_WIDTH = 460;
+
+    /** The column of symbols beside an open watchlist's chart. */
+    public static final double ANON_WATCH_WIDTH = 230;
+
+    /** AnonShare's account summary column — the broker layout's left rail. */
+    public static final double ANON_ACCOUNT_WIDTH = 150;
+
+    /** AnonShare's quote-and-listings column. */
+    public static final double ANON_SIDE_WIDTH = 260;
+
+    public static final double SECURITY_RAIL_WIDTH = 104;
+
+    /**
+     * The Security Center's state mark — shield, warning or quarantine trefoil.
+     *
+     * <p>Large, because it is the second thing a player's eye lands on after the verdict and the two
+     * are saying the same thing from opposite sides of the panel. Small enough that it never
+     * competes with the sentence: §4.4 makes the words the signal and this the reinforcement.
+     */
+    public static final double SECURITY_MARK = 128;
+
+    /**
+     * The verdict block that pairs with the mark.
+     *
+     * <p>⚠ A <b>preferred</b> width, and it has to be. A {@code FlowPane} places children at their
+     * preferred size, and {@code setMaxWidth} does not constrain what a {@code wrapText} Label
+     * <em>prefers</em> — that is its whole string on one line. Setting only the maximum left this
+     * column reporting ~900px, so the mark wrapped to the next row in a window with ample space.
+     *
+     * <p>Narrow enough that the pair still fits when the window is tiled: this plus
+     * {@link #SECURITY_MARK} and a gap clears the panel at its minimum.
+     */
+    public static final double SECURITY_HEADLINE_WIDTH = 340;
+
+    /**
+     * How long one step of the mark's motion holds.
+     *
+     * <p>⚠ A STEP, not a frame. §5 permits no easing, so the shield's sweep and the trefoil's turn
+     * move in whole jumps on the shared {@code Pulse} — smoothness comes from a finer ladder, never
+     * from interpolation, which is the same rule {@code REVEAL_STEPS} and the ring wallpaper follow.
+     */
+    public static final double SECURITY_MARK_STEP_MS = 90;
+
+    /**
+     * One status card in the Security Center.
+     *
+     * <p>⚠ A MAXIMUM, so the cards stack in a readable column instead of stretching to whatever the
+     * window is. A status line that reflows to 2000px is one nobody's eye tracks back from — the same
+     * reasoning as {@link #MARKET_CONTENT_WIDTH}, applied to a narrower thing.
+     */
+    public static final double SECURITY_CARD_WIDTH = 520;
+
     public static final double SHMARK_TAB_WIDTH = 22;
 
     /** @see #SHMARK_TAB_WIDTH */

@@ -3397,6 +3397,10 @@
 /* Read off a probe node by the Canvas — a Canvas cannot resolve a looked-up colour, and a hex
  * literal in Java is what §10 criterion 2 forbids. */
 .es-shmark-grid { -fx-text-fill: -es-rule; }
+/* ⚠ The axis TEXT is not the gridline colour. -es-rule is a hairline token, exempt from ContrastTest's
+   floor because a border held to a text threshold becomes a stripe — so labels drawn in it were barely
+   legible. The lines stay -es-rule; the numbers get a real text token. */
+.es-shmark-axis { -fx-text-fill: -es-text; }
 .es-shmark-mid {
     -fx-text-fill: -es-text-hi;
     -fx-padding: 3 0 3 0;
@@ -3465,3 +3469,122 @@
     -fx-font-weight: 700;
 }
 .es-anon { -fx-padding: 12 14 16 14; }
+/* A sub-tab's body. Lighter than .es-anon because the page around the TabPane is already padded —
+   both would double the gutter and the shelf would start a thumb's width in from the frame. */
+.es-anon-tab { -fx-padding: 12 5 14 5; }
+
+/* SECURITY CENTER — a consumer security suite's LAYOUT in this deck's language.
+ *
+ * ⚠ None of the reference's styling is reproduced and that is not a shortfall. §9 makes drop
+ * shadows, blur and glassmorphism build-blocking and UiContractTest fails on `dropshadow(`; rounded
+ * corners are gated on `.es-rounded`. So there is no glow behind the verdict and no soft-shadowed
+ * tile — the hierarchy is carried by TYPE SIZE and POSITION instead, which §4.4 wants anyway because
+ * it survives greyscale and reaches a screen reader. A glow never does either.
+ */
+.es-sec { -fx-padding: 12 14 14 14; }
+
+/* The section rail. Words rather than the deck rail's single accelerator characters: this one has no
+ * keyboard shortcut behind it, so there is nothing for a letter to be a legend FOR. */
+.es-sec-rail {
+    -fx-padding: 0 12 0 0;
+    -fx-border-color: transparent -es-rule transparent transparent;
+    -fx-border-width: 0 1 0 0;
+}
+.es-sec-nav {
+    -fx-text-fill: -es-dim-1;
+    -fx-padding: 6 8 6 8;
+    -fx-font-size: 10px;
+}
+.es-sec-nav:hover { -fx-text-fill: -es-text-hi; -fx-background-color: -es-panel-hi; }
+/* ⚠ Two classes — theme.css's late `.label { -fx-text-fill: -es-text; }` beats a one-class rule at
+ * equal specificity, so a single `.es-sec-nav-on` would set the background and silently lose the
+ * fill. The trap this stylesheet already records twice. */
+.es-sec-nav.es-sec-nav-on {
+    -fx-text-fill: -es-text-hi;
+    -fx-background-color: -es-panel-hi;
+    -fx-border-color: transparent -es-amber transparent transparent;
+    -fx-border-width: 0 2 0 0;
+}
+
+/* The verdict. The reference carries this with a coloured halo; here it is 30px of type, which is
+ * the only lever §9 leaves and the more legible one. */
+.es-sec-lead { -fx-text-fill: -es-dim-1; -fx-font-size: 13px; }
+.es-sec-verdict { -fx-font-size: 30px; -fx-font-weight: 700; }
+/* ⚠ The ONE place -es-alarm is spent on this screen. §2.1 rations it to loss and hostile state and
+ * asks for at most twice a screen; a finding is exactly that, and everything else staying on the
+ * neutral ramp is what makes the change mean something when it happens. */
+.es-sec-verdict.es-sec-hit     { -fx-text-fill: -es-alarm; }
+.es-sec-verdict.es-sec-clear   { -fx-text-fill: -es-gain; }
+/* ⚠ "Never audited" is NOT alarm. Nothing has gone wrong — nobody has looked, which is a different
+ * sentence, and colouring it as a threat would cry wolf on every new character. */
+.es-sec-verdict.es-sec-unknown { -fx-text-fill: -es-dim-1; }
+
+.es-sec-card-state { -fx-text-fill: -es-text-hi; -fx-font-size: 14px; }
+.es-sec-action { -fx-min-width: 168; -fx-font-size: 11px; }
+
+/* The Security Center's state mark. Shapes, never glyphs — GlyphCoverageTest has already rejected
+ * U+26A0 in this panel and shield/biohazard are certainly absent from both bundled faces.
+ *
+ * ⚠ These are SHAPES, so they colour with -fx-stroke and -fx-fill rather than -fx-text-fill. That
+ * puts them outside ContrastTest, which measures TEXT tokens — and that is correct rather than a
+ * gap: §4.4 makes the words beside them the signal and the mark the reinforcement, so the mark is
+ * never the only thing carrying the state.
+ *
+ * ⚠ No glow, no shadow, no gradient. §9 makes all three build-blocking; the emphasis is the SIZE of
+ * the emblem and the colour it already earns from the verdict beside it. */
+.es-secmark { -fx-background-color: transparent; }
+
+/* Clear. -es-gain, the token the ledger already spends on money arriving — the same "this went
+ * well" the player has learned everywhere else. */
+.es-secmark-shield { -fx-fill: transparent; -fx-stroke: -es-gain; }
+.es-secmark-tick   { -fx-fill: -es-gain; -fx-stroke: transparent; }
+/* The sweep is dimmer than the outline: it is texture crossing the emblem, not a second edge. */
+.es-secmark-sweep  { -fx-fill: -es-gain; -fx-opacity: 0.30; }
+
+/* Check. -es-warn, NOT -es-alarm. Nothing has been found — the rig is unverified or undefended, and
+ * §2.1 rations alarm to loss and hostile state. Spending it here would leave nothing louder for an
+ * actual finding, which is the whole reason the ration exists. */
+.es-secmark-warn      { -fx-fill: transparent; -fx-stroke: -es-warn; }
+.es-secmark-warn-fill { -fx-fill: -es-warn; -fx-stroke: transparent; }
+
+/* Quarantine. The second and last -es-alarm on this screen — §2.1 permits twice, and the verdict is
+ * the other. A real finding is exactly the hostile state the token is reserved for. */
+.es-secmark-bio { -fx-fill: transparent; -fx-stroke: -es-alarm; }
+
+/* AnonShare's broker layout: account column, value chart, positions table.
+ *
+ * ⚠ No gradient fill under the line and no shadow behind the cards — §9 makes both build-blocking.
+ * The chart is a stroked line, and the account column is separated by a hairline rather than by a
+ * raised surface, which is the same lever every other split in this deck uses. */
+.es-anon-account {
+    -fx-padding: 0 12 0 0;
+    -fx-border-color: transparent -es-rule transparent transparent;
+    -fx-border-width: 0 1 0 0;
+}
+/* The portfolio total. The largest number on the panel, because it is the one a holder opens the
+ * window to see — §4.4's hierarchy carried by size rather than by colour. */
+.es-anon-total { -fx-font-size: 26px; }
+
+/* AnonShare's search overlay and hover readout.
+ * ⚠ The overlay carries the deck's card recipe — lifted ground and a hairline — because it floats
+ * over the chart and needs an edge. §9 leaves brightness as the only lever; there is no shadow. */
+.es-anon-overlay {
+    -fx-background-color: -es-panel-hi;
+    -fx-border-color: -es-rule;
+    -fx-border-width: 1;
+    -fx-padding: 8;
+}
+/* The value under the pointer. `-es-text-hi` rather than the up/down pair: it is a reading, not a
+ * direction, and colouring it would claim the hovered point meant something it does not. */
+/* The readout that follows the pointer. Its own ground and border so it reads as a label over the
+   plot rather than as text tangled in the line. Square — §9 is unamended; a radius only under
+   .es-rounded, and this is not one of the sites that opts in. */
+.es-anon-hover {
+    -fx-text-fill: -es-text-hi;
+    -fx-background-color: -es-panel-hi;
+    -fx-border-color: -es-rule;
+    -fx-border-width: 1;
+    -fx-padding: 3 7 3 7;
+}
+.es-anon-detail { -fx-max-width: 460px; }
+.es-anon-watchlist { -fx-padding: 5 7 5 7; }

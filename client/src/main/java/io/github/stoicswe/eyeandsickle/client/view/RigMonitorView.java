@@ -190,11 +190,6 @@ public final class RigMonitorView {
         // absent from `refresh` below — a panel that re-read the host's memory every session tick
         // would be doing work to print the same number.
         Region about = RigAbout.create();
-        // ⚠ AUDIT and DEFENSE are the same views as before, unchanged — they moved windows, not
-        // meaning. Rebuilding them here would have been two more places for the rig's own diagnosis
-        // to drift from itself.
-        Region audit = AuditView.create(session, shell);
-        Region defense = Views.defense(session);
 
         HBox tabs = Ui.row(UiTokens.SPACE_3);
         tabs.getStyleClass().add("es-breach-picker");
@@ -228,8 +223,6 @@ public final class RigMonitorView {
             visible(overview, tab[0].isOverview());
             visible(tableSide, tab[0].isTable());
             visible(about, tab[0] == RigTab.ABOUT);
-            visible(audit, tab[0] == RigTab.AUDIT);
-            visible(defense, tab[0] == RigTab.DEFENSE);
             history.show(tab[0]);
             if (tab[0].isTable()) {
                 table.setColumns(tab[0].columns());
@@ -245,7 +238,7 @@ public final class RigMonitorView {
         table.setOnKill(process -> session.killProcess(process.processId()));
         table.setOnRestart(process -> session.restartProcess(process.processId()));
 
-        root.getChildren().addAll(head, tabs, overview, audit, defense, tableSide, about);
+        root.getChildren().addAll(head, tabs, overview, tableSide, about);
 
         // ⚠ Three widgets on this panel hold a share of the shared Pulse, and until now NOTHING
         // released them: `CycleGrid.dispose` and `CoreCage.dispose` both existed, were both correct,

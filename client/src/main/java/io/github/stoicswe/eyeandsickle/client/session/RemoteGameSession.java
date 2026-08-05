@@ -556,12 +556,27 @@ public final class RemoteGameSession implements GameSession {
     }
 
     @Override
+    public io.github.stoicswe.eyeandsickle.protocol.game.ScanScheduleView scanSchedule() {
+        return io.github.stoicswe.eyeandsickle.protocol.game.ScanScheduleView.off();
+    }
+
+    @Override
+    public Outcome setScanSchedule(boolean enabled, String tier, int everyHours) {
+        return unavailable();
+    }
+
+    @Override
     public Outcome buyShares(String symbol, int shares) {
         return unavailable();
     }
 
     @Override
     public Outcome sellShares(String holdingId, int shares) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome sellPosition(String symbol, int shares) {
         return unavailable();
     }
 

@@ -232,6 +232,15 @@ public final class GameSave {
      */
     public BrokerageState brokerage = new BrokerageState();
 
+    /**
+     * The standing instruction to audit this rig on a timer.
+     *
+     * <p>⚠ Nullable rather than initialised, because {@code ScanSchedule} treats a missing schedule
+     * and a disabled one identically and every accessor guards for it — a save written before this
+     * existed loads with no schedule and nothing has to migrate.
+     */
+    public ScanScheduleState scanSchedule = new ScanScheduleState();
+
     public List<ShadowListingState> shadowListings = new ArrayList<>();
 
     /**

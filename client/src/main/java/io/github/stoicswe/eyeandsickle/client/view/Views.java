@@ -1007,12 +1007,14 @@ public final class Views {
         javafx.scene.control.TabPane tabs = new javafx.scene.control.TabPane();
         tabs.getStyleClass().add("es-market-tabs");
         tabs.setTabClosingPolicy(javafx.scene.control.TabPane.TabClosingPolicy.UNAVAILABLE);
-        // ⚠ MINING first. It is the cause and the ledger is the effect, and a player who wants to
-        // change something can only change the mining side.
+        // ⚠ LEDGER first (2026-08-04). It was MINING, on the reasoning that the cause should precede
+        // the effect — but the window is named for the ledger, and a tool whose first tab is not the
+        // thing on its title bar makes a player wonder whether they opened the right one. The record
+        // is also what a player comes here to read; changing the allocation is the rarer act.
         tabs.getTabs()
                 .addAll(
-                        new javafx.scene.control.Tab("MINING", mining(session)),
-                        new javafx.scene.control.Tab("LEDGER", ledgerPage(session)));
+                        new javafx.scene.control.Tab("LEDGER", ledgerPage(session)),
+                        new javafx.scene.control.Tab("MINING", mining(session)));
         return tabs;
     }
 
@@ -2274,38 +2276,6 @@ public final class Views {
 
         root.getChildren().add(body);
         return scrollable(root);
-    }
-
-    // ------------------------------------------------------------------ switcher
-
-    /** The answer to losing a window behind another ({@code docs/client/05} §3.4). */
-    public static Region switcher(WindowRegistry registry) {
-        VBox root = panel("WINDOWS");
-        VBox list = new VBox(4);
-
-        Runnable refresh = () -> {
-            list.getChildren().clear();
-            for (WindowSpec spec : WindowSpec.values()) {
-                if (spec == WindowSpec.SWITCHER) {
-                    continue;
-                }
-                boolean open = registry.isOpen(spec);
-                Button b = new Button((open ? "• " : "· ") + spec.title());
-                b.setMaxWidth(Double.MAX_VALUE);
-                b.setAlignment(javafx.geometry.Pos.CENTER_LEFT);
-                b.setTooltip(new javafx.scene.control.Tooltip(spec.title() + " — " + spec.unixAnalogue()));
-                b.setOnAction(e -> registry.open(spec));
-                list.getChildren().add(b);
-            }
-        };
-        refresh.run();
-        registry.openWindows().addListener((javafx.collections.ListChangeListener<WindowSpec>) c -> refresh.run());
-
-        ScrollPane scroll = new ScrollPane(list);
-        scroll.setFitToWidth(true);
-        VBox.setVgrow(scroll, Priority.ALWAYS);
-        root.getChildren().addAll(secondary("• open   · closed"), scroll);
-        return root;
     }
 
     // ------------------------------------------------------------------ settings

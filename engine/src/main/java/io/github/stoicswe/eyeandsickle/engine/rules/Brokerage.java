@@ -4,6 +4,7 @@ import io.github.stoicswe.eyeandsickle.engine.Balance;
 import io.github.stoicswe.eyeandsickle.engine.state.BrokerageState;
 import io.github.stoicswe.eyeandsickle.engine.state.GameSave;
 import io.github.stoicswe.eyeandsickle.engine.stocks.MarketCalendar;
+import java.time.Duration;
 import io.github.stoicswe.eyeandsickle.engine.stocks.StockFeed;
 import io.github.stoicswe.eyeandsickle.engine.stocks.Tickers;
 import java.math.BigInteger;
@@ -134,6 +135,8 @@ public final class Brokerage {
         holding.boughtAt = now;
         stampQuarter(holding, now);
         save.brokerage.holdings.add(holding);
+        record(save, listing.get().symbol(), true, shares, quote.get().priceWei(), commission,
+                BigInteger.ZERO, now);
 
         return Result.ok("bought " + shares + " × " + listing.get().displayName() + " at "
                 + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.format(quote.get().priceWei())
@@ -180,11 +183,46 @@ public final class Brokerage {
             save.brokerage.holdings.remove(holding);
         }
         BigInteger gain = net.subtract(basis);
+        record(save, holding.symbol, false, shares, quote.get().priceWei(), commission, gain, now);
         return Result.ok("sold " + shares + " × " + displayName(holding.symbol) + " for "
                 + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.format(net)
                 + " net — " + (gain.signum() >= 0 ? "up " : "down ")
                 + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.format(gain.abs())
                 + " on the parcel.");
+    }
+
+    /** Files a completed trade, oldest first, bounded. */
+    private static void record(
+            GameSave save,
+            String symbol,
+            boolean buy,
+            int shares,
+            BigInteger price,
+            BigInteger commission,
+            BigInteger realised,
+            Instant now) {
+        BrokerageState.Trade trade = new BrokerageState.Trade();
+        trade.symbol = symbol;
+        trade.buy = buy;
+        trade.shares = shares;
+        trade.pricePerShareWei = price;
+        trade.commissionWei = commission;
+        trade.realisedWei = realised;
+        trade.at = now;
+        save.brokerage.trades.add(trade);
+        while (save.brokerage.trades.size() > BrokerageState.TRADE_LIMIT) {
+            save.brokerage.trades.removeFirst();
+        }
+    }
+
+    /** Every recorded trade, newest first — which is the order a history is read in. */
+    public static List<BrokerageState.Trade> trades(GameSave save) {
+        if (save == null) {
+            return List.of();
+        }
+        List<BrokerageState.Trade> out = new java.util.ArrayList<>(save.brokerage.trades);
+        java.util.Collections.reverse(out);
+        return List.copyOf(out);
     }
 
     private static String displayName(String symbol) {
@@ -197,6 +235,187 @@ public final class Brokerage {
             case POST -> "It closed for the day.";
             default -> "It is the weekend or a holiday.";
         };
+    }
+
+    // ── price history ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * How often a sample is taken.
+     *
+     * <p>⚠ Not every tick. The tick runs every second; at that rate a day is 86,400 rows per symbol
+     * and the save stops being a file anybody can open. Five minutes is finer than the chart can
+     * usefully draw and coarse enough that {@code HISTORY_LIMIT} covers a real stretch of play.
+     */
+    public static final Duration SAMPLE_EVERY = Duration.ofMinutes(5);
+
+    /**
+     * Records where the portfolio is, if it is time.
+     *
+     * <h2>⚠ ONLY WHILE THE MARKET IS OPEN</h2>
+     *
+     * Prices freeze out of hours, so sampling overnight writes hundreds of identical rows and pushes
+     * the interesting ones off the front of a bounded buffer. A real chart has weekend gaps for the
+     * same reason, so this is the honest shape as well as the cheap one.
+     *
+     * <h2>⚠ Only symbols the player is TRACKING — held or watched</h2>
+     *
+     * The rest of the catalogue is not their money. Recording it would be hundreds of series nobody
+     * reads, bought with the space the ones they do read need.
+     *
+     * <p>⚠ It is the SAME set that gets the fast refresh cadence ({@link #tracked}), and that is not
+     * a coincidence to be tidied away — a symbol whose price is fetched often is exactly the one
+     * whose series is worth keeping, and a watchlist with no chart behind it is a list of names.
+     * Wiring these to two different sets would give a watched symbol a graph made of daily points.
+     *
+     * @param now the session clock
+     * @return whether anything was written
+     */
+    public static boolean sample(GameSave save, StockFeed feed, Instant now) {
+        if (save == null || !MarketCalendar.sessionAt(now).tradable()) {
+            return false;
+        }
+        BrokerageState brokerage = save.brokerage;
+        Instant lastAt = brokerage.valueHistory.isEmpty()
+                ? Instant.EPOCH
+                : brokerage.valueHistory.getLast().at;
+        if (Duration.between(lastAt, now).compareTo(SAMPLE_EVERY) < 0) {
+            return false;
+        }
+
+        BigInteger total = BigInteger.ZERO;
+        for (BrokerageState.Holding holding : brokerage.holdings) {
+            BigInteger each = feed.quote(holding.symbol, now)
+                    .map(StockFeed.Quote::priceWei)
+                    .orElse(holding.costPerShareWei);
+            total = total.add(each.multiply(BigInteger.valueOf(holding.shares)));
+        }
+        // ⚠ The TOTAL is over holdings; the SERIES are over everything tracked. A watchlist entry is
+        // not the player's money, so it must not move the portfolio line — but it does need a chart.
+        java.util.Set<String> tracking = tracked(save);
+        for (String symbol : tracking) {
+            BigInteger price = feed.quote(symbol, now)
+                    .map(StockFeed.Quote::priceWei)
+                    .orElse(BigInteger.ZERO);
+            if (price.signum() <= 0) {
+                continue;
+            }
+            List<BrokerageState.Sample> series =
+                    brokerage.priceHistory.computeIfAbsent(symbol, key -> new java.util.ArrayList<>());
+            series.add(new BrokerageState.Sample(now, price));
+            trim(series);
+        }
+        // ⚠ Series for symbols neither held nor watched are DROPPED. Keeping them would grow the save
+        // forever with the history of things the player sold or stopped following, and there is no
+        // longer a chart to draw them on.
+        brokerage.priceHistory.keySet().retainAll(tracking);
+
+        brokerage.valueHistory.add(new BrokerageState.Sample(now, total));
+        trim(brokerage.valueHistory);
+        return true;
+    }
+
+    private static void trim(List<BrokerageState.Sample> series) {
+        while (series.size() > BrokerageState.HISTORY_LIMIT) {
+            series.removeFirst();
+        }
+    }
+
+    /** The recorded value series, oldest first. */
+    public static List<BrokerageState.Sample> valueHistory(GameSave save) {
+        return save == null ? List.of() : List.copyOf(save.brokerage.valueHistory);
+    }
+
+    /** The recorded price series for one symbol, oldest first. */
+    public static List<BrokerageState.Sample> priceHistory(GameSave save, String symbol) {
+        if (save == null) {
+            return List.of();
+        }
+        return List.copyOf(save.brokerage.priceHistory.getOrDefault(symbol, List.of()));
+    }
+
+    // ── positions ─────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * One symbol's whole position, however many parcels it was bought in.
+     *
+     * @param shares the total
+     * @param costWei what the lot cost altogether
+     */
+    public record Position(String symbol, int shares, BigInteger costWei) {
+
+        /** ⚠ Derived, not stored — an averaged basis that drifted from its parcels would be a lie. */
+        public BigInteger averageCostWei() {
+            return shares <= 0 ? BigInteger.ZERO : costWei.divide(BigInteger.valueOf(shares));
+        }
+    }
+
+    /**
+     * Holdings collapsed to one row per symbol.
+     *
+     * <h2>⚠ The PARCELS still exist underneath, and that is not a contradiction</h2>
+     *
+     * A player with two buys at different prices has one <em>position</em> and two <em>lots</em>.
+     * Every broker shows the position and keeps the lots, because the position is what you look at
+     * and the lots are what the tax and the cost basis are made of. Showing two rows for one company
+     * made the panel read as a ledger of transactions rather than as a portfolio.
+     */
+    public static List<Position> positions(GameSave save) {
+        if (save == null) {
+            return List.of();
+        }
+        java.util.Map<String, Position> bySymbol = new java.util.LinkedHashMap<>();
+        for (BrokerageState.Holding holding : save.brokerage.holdings) {
+            bySymbol.merge(
+                    holding.symbol,
+                    new Position(
+                            holding.symbol,
+                            holding.shares,
+                            holding.costPerShareWei.multiply(BigInteger.valueOf(holding.shares))),
+                    (a, b) -> new Position(a.symbol(), a.shares() + b.shares(), a.costWei().add(b.costWei())));
+        }
+        return List.copyOf(bySymbol.values());
+    }
+
+    /**
+     * Sells from a symbol's oldest parcel first.
+     *
+     * <h2>⚠ FIFO, and it is the default every broker uses</h2>
+     *
+     * Selling used to name a parcel, so the player chose their own cost basis — correct, and useless
+     * once the panel shows one row per symbol, because there is no longer a parcel on screen to name.
+     * Oldest-first is what a broker does when you do not specify, it is the one rule a player can
+     * predict without being told, and the per-parcel basis survives underneath for anyone who does
+     * want to pick.
+     */
+    public static Result sellPosition(GameSave save, StockFeed feed, String symbol, int shares, Instant now) {
+        int remaining = shares;
+        if (remaining <= 0) {
+            return Result.refused(Refusal.MALFORMED, "how many shares?");
+        }
+        List<BrokerageState.Holding> lots = save.brokerage.holdings.stream()
+                .filter(holding -> holding.symbol.equals(symbol))
+                .sorted(java.util.Comparator.comparing(holding -> holding.boughtAt))
+                .toList();
+        int owned = lots.stream().mapToInt(holding -> holding.shares).sum();
+        if (owned < remaining) {
+            return Result.refused(Refusal.NOT_HELD, "you hold " + owned + " of those.");
+        }
+        Result last = Result.refused(Refusal.NOT_HELD, "nothing sold.");
+        for (BrokerageState.Holding lot : lots) {
+            if (remaining <= 0) {
+                break;
+            }
+            int take = Math.min(remaining, lot.shares);
+            last = sell(save, feed, lot.holdingId, take, now);
+            if (!last.ok()) {
+                // ⚠ Stops on the first refusal rather than pressing on. A closed market or a missing
+                // quote refuses every lot identically, and reporting the last of five identical
+                // refusals is no clearer than reporting the first.
+                return last;
+            }
+            remaining -= take;
+        }
+        return last;
     }
 
     // ── dividends ─────────────────────────────────────────────────────────────────────────────
@@ -255,6 +474,7 @@ public final class Brokerage {
             // receive money you were owed for holding would be a second fee the player never agreed
             // to, on the one part of this market that is supposed to be passive.
             save.ethecoinWei = save.ethecoinWei.add(amount);
+            save.brokerage.dividendsPaidWei = save.brokerage.dividendsPaidWei.add(amount);
             paid.add(new Paid(holding.symbol, holding.shares, amount, quarter));
         }
         return paid;
@@ -350,6 +570,28 @@ public final class Brokerage {
 
     public static List<BrokerageState.Holding> holdings(GameSave save) {
         return save == null ? List.of() : List.copyOf(save.brokerage.holdings);
+    }
+
+    /**
+     * The symbols worth spending quota on: everything held, plus everything on a watchlist.
+     *
+     * <h2>⚠ This decides where a player's API allowance goes</h2>
+     *
+     * A free tier is a few hundred calls a day, and the catalogue is a couple of hundred symbols
+     * and grows with every discovery. Refreshing all
+     * of them at the player's chosen cadence would burn the whole day's budget in minutes on prices
+     * nobody is looking at. So these get the fast cadence and everything else gets one call a day —
+     * which is also the honest split, because these are the only prices that are about the player's
+     * own money.
+     */
+    public static java.util.Set<String> tracked(GameSave save) {
+        if (save == null) {
+            return java.util.Set.of();
+        }
+        java.util.Set<String> out = new java.util.LinkedHashSet<>();
+        save.brokerage.holdings.forEach(holding -> out.add(holding.symbol));
+        save.brokerage.portfolios.forEach(portfolio -> out.addAll(portfolio.watching));
+        return out;
     }
 
     public static List<BrokerageState.Portfolio> portfolios(GameSave save) {

@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.github.stoicswe.eyeandsickle.engine.Balance;
 import io.github.stoicswe.eyeandsickle.engine.rules.Brokerage;
 import java.time.LocalTime;
+import io.github.stoicswe.eyeandsickle.engine.state.BrokerageState;
 import io.github.stoicswe.eyeandsickle.engine.state.GameSave;
 import java.math.BigInteger;
 import java.time.Duration;
@@ -15,6 +16,7 @@ import java.time.ZonedDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * AnonShare — the calendar, the aliasing and the one guard that bounds it.
@@ -423,6 +425,136 @@ class AnonShareTest {
     }
 
     @Nested
+    @DisplayName("positions and history")
+    class PositionsAndHistory {
+
+        @Test
+        @DisplayName("⚠ two buys of one symbol are ONE position, not two rows")
+        void parcelsCollapseIntoAPosition() {
+            // Two rows for one company made the panel read as a ledger of transactions rather than
+            // as a portfolio. The lots survive underneath — the cost basis is still per-lot.
+            GameSave save = rich();
+            StockFeed feed = new SimulatedStockFeed(7);
+            Brokerage.buy(save, feed, "AAPL", 4, openInstant());
+            Brokerage.buy(save, feed, "AAPL", 2, openInstant().plus(Duration.ofMinutes(20)));
+
+            assertThat(save.brokerage.holdings).as("still two lots").hasSize(2);
+            assertThat(Brokerage.positions(save)).as("but one position").hasSize(1);
+            assertThat(Brokerage.positions(save).getFirst().shares()).isEqualTo(6);
+        }
+
+        @Test
+        @DisplayName("⚠ selling a position takes the OLDEST lot first")
+        void sellingIsFifo() {
+            // What a broker does when you do not name a lot — and the panel shows one row per
+            // symbol, so there is no lot on screen to name.
+            GameSave save = rich();
+            StockFeed feed = new SimulatedStockFeed(7);
+            Brokerage.buy(save, feed, "AAPL", 4, openInstant());
+            Brokerage.buy(save, feed, "AAPL", 2, openInstant().plus(Duration.ofMinutes(20)));
+            String oldest = save.brokerage.holdings.getFirst().holdingId;
+
+            assertThat(Brokerage.sellPosition(save, feed, "AAPL", 4, openInstant().plus(Duration.ofMinutes(30)))
+                            .ok())
+                    .isTrue();
+            assertThat(save.brokerage.holdings)
+                    .as("the older lot went whole and the newer one is untouched")
+                    .hasSize(1);
+            assertThat(save.brokerage.holdings.getFirst().holdingId).isNotEqualTo(oldest);
+            assertThat(save.brokerage.holdings.getFirst().shares).isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("selling more than the position refuses, and nothing moves")
+        void cannotOversell() {
+            GameSave save = rich();
+            StockFeed feed = new SimulatedStockFeed(7);
+            Brokerage.buy(save, feed, "AAPL", 3, openInstant());
+            BigInteger before = save.ethecoinWei;
+            assertThat(Brokerage.sellPosition(save, feed, "AAPL", 9, openInstant()).ok())
+                    .isFalse();
+            assertThat(save.brokerage.holdings).hasSize(1);
+            assertThat(save.ethecoinWei).isEqualTo(before);
+        }
+
+        @Test
+        @DisplayName("⚠ history is RECORDED, because a live quote cannot be recomputed")
+        void historyAccumulates() {
+            GameSave save = rich();
+            StockFeed feed = new SimulatedStockFeed(7);
+            Brokerage.buy(save, feed, "AAPL", 2, openInstant());
+            Instant at = openInstant();
+            for (int i = 0; i < 6; i++) {
+                at = at.plus(Brokerage.SAMPLE_EVERY).plusSeconds(10);
+                Brokerage.sample(save, feed, at);
+            }
+            assertThat(Brokerage.valueHistory(save)).hasSizeGreaterThan(3);
+            assertThat(Brokerage.priceHistory(save, "AAPL")).hasSizeGreaterThan(3);
+        }
+
+        @Test
+        @DisplayName("⚠ nothing is recorded while the market is shut")
+        void noSamplesOutOfHours() {
+            // Prices freeze out of hours, so sampling overnight writes hundreds of identical rows
+            // and pushes the interesting ones off the front of a bounded buffer.
+            GameSave save = rich();
+            StockFeed feed = new SimulatedStockFeed(7);
+            Brokerage.buy(save, feed, "AAPL", 2, openInstant());
+            Instant saturday = ZonedDateTime.of(
+                            java.time.LocalDate.of(2026, 8, 8), LocalTime.of(11, 0), MarketCalendar.EXCHANGE)
+                    .toInstant();
+            assertThat(Brokerage.sample(save, feed, saturday)).isFalse();
+            assertThat(Brokerage.valueHistory(save)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("⚠ the series is BOUNDED and trimmed from the front")
+        void historyIsBounded() {
+            GameSave save = rich();
+            StockFeed feed = new SimulatedStockFeed(7);
+            Brokerage.buy(save, feed, "AAPL", 1, openInstant());
+            Instant at = openInstant();
+            for (int i = 0; i < BrokerageState.HISTORY_LIMIT + 60; i++) {
+                at = at.plus(Brokerage.SAMPLE_EVERY).plusSeconds(1);
+                // Keep it inside a trading session by rewinding to the same day's window.
+                Brokerage.sample(save, feed, openInstant().plusSeconds(i * 301L % 18000));
+            }
+            assertThat(Brokerage.valueHistory(save)).hasSizeLessThanOrEqualTo(BrokerageState.HISTORY_LIMIT);
+        }
+
+        @Test
+        @DisplayName("⚠ selling everything drops that symbol's series")
+        void soldSymbolsStopBeingRecorded() {
+            // Otherwise the save grows forever with the price history of things the player no longer
+            // owns, and the chart has nothing to draw them on.
+            GameSave save = rich();
+            StockFeed feed = new SimulatedStockFeed(7);
+            Brokerage.buy(save, feed, "AAPL", 2, openInstant());
+            Brokerage.sample(save, feed, openInstant().plus(Brokerage.SAMPLE_EVERY).plusSeconds(10));
+            assertThat(Brokerage.priceHistory(save, "AAPL")).isNotEmpty();
+
+            Brokerage.sellPosition(save, feed, "AAPL", 2, openInstant().plus(Duration.ofMinutes(20)));
+            Brokerage.sample(save, feed, openInstant().plus(Duration.ofMinutes(30)));
+            assertThat(Brokerage.priceHistory(save, "AAPL")).isEmpty();
+        }
+
+        @Test
+        @DisplayName("⚠ tracked = held + watched, and it decides where the API quota goes")
+        void trackedIsHeldPlusWatched() {
+            GameSave save = rich();
+            StockFeed feed = new SimulatedStockFeed(7);
+            Brokerage.buy(save, feed, "AAPL", 1, openInstant());
+            Brokerage.createPortfolio(save, "Ideas");
+            Brokerage.watch(save, save.brokerage.portfolios.getFirst().portfolioId, "NVDA");
+
+            assertThat(Brokerage.tracked(save)).containsExactlyInAnyOrder("AAPL", "NVDA");
+            assertThat(Brokerage.tracked(save))
+                    .as("everything else falls to the once-a-day cadence")
+                    .doesNotContain("MSFT");
+        }
+    }
+
+    @Nested
     @DisplayName("portfolios")
     class Portfolios {
 
@@ -487,6 +619,160 @@ class AnonShareTest {
             Brokerage.buy(save, feed, "AAPL", 10, openInstant());
             Brokerage.sell(save, feed, save.brokerage.holdings.getFirst().holdingId, 4, openInstant());
             assertThat(save.brokerage.holdings.getFirst().shares).isEqualTo(6);
+        }
+    }
+
+    @Nested
+    @DisplayName("what reaches the panel")
+    class OnTheWire {
+
+        @Test
+        @DisplayName("⚠ a share on the wire carries its ALIAS, never its symbol as a name")
+        void sharesCarryTheirAliasedName(@TempDir java.nio.file.Path dir) {
+            // This was wrong and silent: the snapshot used the ITEM CATALOGUE's name lookup, which a
+            // ticker is never in, so every share fell through to its orElse and arrived with its
+            // symbol where its name belonged. Invisible because the tables show the symbol in its
+            // own column — only the screen-reader text and the watchlist title read the name.
+            var game = io.github.stoicswe.eyeandsickle.engine.GameEngine.open(
+                    io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("s.json")),
+                    "operator",
+                    java.time.Clock.fixed(openInstant(), java.time.ZoneOffset.UTC));
+            var made = Brokerage.createPortfolio(game.state(), "Semis");
+            assertThat(made.ok()).isTrue();
+            String id = game.state().brokerage.portfolios.getFirst().portfolioId;
+            assertThat(Brokerage.watch(game.state(), id, "NVDA").ok()).isTrue();
+
+            var tracked = game.shares("NVDA", "").tracked();
+            assertThat(tracked).hasSize(1);
+            assertThat(tracked.getFirst().displayName())
+                    .as("the aliased company name, not the ticker")
+                    .isNotEqualTo("NVDA")
+                    .isEqualTo(Tickers.bySymbol("NVDA").orElseThrow().displayName());
+        }
+    }
+
+    @Nested
+    @DisplayName("what gets a recorded series")
+    class Recording {
+
+        @Test
+        @DisplayName("⚠ a WATCHED symbol is sampled exactly like a held one")
+        void watchedSymbolsAreRecorded() {
+            // A watchlist with no chart behind it is a list of names. The set that gets the fast
+            // refresh cadence and the set that gets a series are deliberately the same set — a
+            // watched symbol whose series came from the daily feed would draw a chart of one point
+            // a day and call it a price history.
+            GameSave save = rich();
+            StockFeed feed = new SimulatedStockFeed(7);
+            var list = new io.github.stoicswe.eyeandsickle.engine.state.BrokerageState.Portfolio();
+            list.name = "Semis";
+            list.watching.add("NVDA");
+            save.brokerage.portfolios.add(list);
+
+            assertThat(Brokerage.sample(save, feed, openInstant())).isTrue();
+            assertThat(Brokerage.priceHistory(save, "NVDA")).isNotEmpty();
+        }
+
+        @Test
+        @DisplayName("⚠ a watched symbol does NOT move the portfolio total")
+        void watchingIsNotOwning() {
+            // The series and the total answer different questions. Folding a watched symbol into
+            // the total would show a player money they do not have.
+            GameSave save = rich();
+            StockFeed feed = new SimulatedStockFeed(7);
+            var list = new io.github.stoicswe.eyeandsickle.engine.state.BrokerageState.Portfolio();
+            list.name = "Semis";
+            list.watching.add("NVDA");
+            save.brokerage.portfolios.add(list);
+
+            Brokerage.sample(save, feed, openInstant());
+            assertThat(save.brokerage.valueHistory.getLast().wei)
+                    .as("nothing held, so the portfolio is worth nothing")
+                    .isEqualTo(java.math.BigInteger.ZERO);
+        }
+
+        @Test
+        @DisplayName("dropping a symbol from a watchlist drops its series")
+        void unwatchedSeriesAreDropped() {
+            GameSave save = rich();
+            StockFeed feed = new SimulatedStockFeed(7);
+            var list = new io.github.stoicswe.eyeandsickle.engine.state.BrokerageState.Portfolio();
+            list.name = "Semis";
+            list.watching.add("NVDA");
+            save.brokerage.portfolios.add(list);
+            Brokerage.sample(save, feed, openInstant());
+
+            list.watching.clear();
+            Brokerage.sample(save, feed, openInstant().plus(Duration.ofMinutes(10)));
+            assertThat(Brokerage.priceHistory(save, "NVDA")).isEmpty();
+        }
+    }
+
+    @Nested
+    @DisplayName("the trade history")
+    class History {
+
+        @Test
+        @DisplayName("⚠ RECORDED at the trade, and newest first")
+        void everyTradeIsRecorded() {
+            // The panel cannot recompute this. A price is a fact about an instant, so a history
+            // rebuilt from today's quotes would rewrite what somebody actually paid.
+            GameSave save = rich();
+            StockFeed feed = new SimulatedStockFeed(7);
+            Brokerage.buy(save, feed, "AAPL", 4, openInstant());
+            Brokerage.buy(save, feed, "MSFT", 2, openInstant().plus(Duration.ofMinutes(10)));
+            Brokerage.sellPosition(save, feed, "AAPL", 4, openInstant().plus(Duration.ofMinutes(20)));
+
+            var trades = Brokerage.trades(save);
+            assertThat(trades).hasSize(3);
+            assertThat(trades.getFirst().buy).as("newest first").isFalse();
+            assertThat(trades.getFirst().symbol).isEqualTo("AAPL");
+            assertThat(trades.get(2).symbol).as("oldest last").isEqualTo("AAPL");
+            assertThat(trades.get(2).buy).isTrue();
+        }
+
+        @Test
+        @DisplayName("⚠ the commission is its OWN figure, not folded into the price")
+        void commissionIsSeparate() {
+            // Merging them makes the one question this tab exists to answer unanswerable: why a
+            // round trip at an unchanged price lost money.
+            GameSave save = rich();
+            StockFeed feed = new SimulatedStockFeed(7);
+            Brokerage.buy(save, feed, "AAPL", 4, openInstant());
+
+            var trade = Brokerage.trades(save).getFirst();
+            assertThat(trade.commissionWei.signum()).isPositive();
+            assertThat(trade.pricePerShareWei)
+                    .as("the price is what the market asked, with nothing added")
+                    .isEqualTo(feed.quote("AAPL", openInstant()).orElseThrow().priceWei());
+        }
+
+        @Test
+        @DisplayName("⚠ only a SELL realises anything")
+        void aBuyRealisesNothing() {
+            GameSave save = rich();
+            StockFeed feed = new SimulatedStockFeed(7);
+            Brokerage.buy(save, feed, "AAPL", 4, openInstant());
+            Brokerage.sellPosition(save, feed, "AAPL", 4, openInstant().plus(Duration.ofMinutes(20)));
+
+            var trades = Brokerage.trades(save);
+            assertThat(trades.get(1).realisedWei)
+                    .as("a buy has realised nothing — the panel renders a dash, not a zero")
+                    .isEqualTo(java.math.BigInteger.ZERO);
+            assertThat(trades.getFirst().realisedWei)
+                    .as("a sell carries the gain against what the lots cost")
+                    .isNotEqualTo(java.math.BigInteger.ZERO);
+        }
+
+        @Test
+        @DisplayName("the log is bounded and trimmed from the front")
+        void boundedHistory() {
+            GameSave save = rich();
+            StockFeed feed = new SimulatedStockFeed(7);
+            for (int i = 0; i < BrokerageState.TRADE_LIMIT + 20; i++) {
+                Brokerage.buy(save, feed, "AAPL", 1, openInstant());
+            }
+            assertThat(save.brokerage.trades).hasSize(BrokerageState.TRADE_LIMIT);
         }
     }
 }

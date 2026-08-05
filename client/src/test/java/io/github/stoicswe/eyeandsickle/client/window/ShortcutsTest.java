@@ -219,6 +219,16 @@ class ShortcutsTest {
     void documentedSurface() {
         List<KeyCombination> globals = GlobalShortcuts.bindings();
         assertThat(globals).isNotEmpty();
-        assertThat(WindowSpec.values().length).isGreaterThanOrEqualTo(16);
+        // ⚠ This was `values().length >= 16` — an arbitrary FLOOR on the number of windows, which
+        // fails every time tools are consolidated and passes for every reason except the one it
+        // meant. It also duplicated WindowCatalogueTest, which pins the exact set by id. What §6.3
+        // actually requires is that the catalogue is reachable from the keyboard, so that is what is
+        // asserted: every accelerator a window declares is distinct, and none collides with a global.
+        List<KeyCombination> perWindow = java.util.Arrays.stream(WindowSpec.values())
+                .map(WindowSpec::combination)
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        assertThat(perWindow).doesNotHaveDuplicates();
+        assertThat(perWindow).doesNotContainAnyElementsOf(globals);
     }
 }

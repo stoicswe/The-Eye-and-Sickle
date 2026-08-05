@@ -59,4 +59,20 @@ public interface StockFeed {
 
     /** Whether these are real prices. Drives the warning the panel must show when they are not. */
     boolean live();
+
+    /**
+     * When this symbol will next be asked for, so a panel can count down to it.
+     *
+     * <p>⚠ {@code Instant.EPOCH} means <b>not applicable</b>, which is the honest answer for a
+     * derived feed: a simulated price is a continuous function of the clock and is never "refreshed",
+     * so a countdown against it would be counting down to nothing. The panel renders no timer in that
+     * case rather than an invented one.
+     *
+     * <p>⚠ It is the feed's answer and not the panel's, because only the feed knows which cadence a
+     * symbol is on — held and watched symbols refresh at the player's interval and everything else
+     * once a day.
+     */
+    default Instant nextRefreshAt(String symbol, Instant now) {
+        return Instant.EPOCH;
+    }
 }

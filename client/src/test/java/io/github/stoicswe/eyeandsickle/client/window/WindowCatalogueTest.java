@@ -56,6 +56,23 @@ class WindowCatalogueTest {
         // Nothing was deleted — the same views are reparented — and the count moving is the point of
         // this assertion: a window quietly disappearing is exactly what it exists to catch.
         //
+        // ⚠ `botnet` JOINED THEM on 2026-08-04 — a sixth tool folded in, as a fourth tab of the
+        // network tool. A bot is the residue of the three tabs to its left: you find a machine,
+        // study it, get in, and this is what you left running on it.
+        //
+        // ⚠ `security` — the Security Center — was ADDED the same day, and it is `audit` and
+        // `defense` coming back OUT of the rig monitor. They were tabs there for part of one
+        // afternoon; the monitor asks whether something is wrong and these two are what you do about
+        // it, and burying the answer four tabs into a window titled something else made it harder to
+        // reach than the question. ⚠ Both views moved twice and neither lost anything, which is only
+        // true because neither ever held its own state.
+        //
+        // ⚠ `switcher` was REMOVED on 2026-08-04. It listed every tool, open or not, and was "the
+        // way back to a window you lost" — but the RAIL is already that: it carries one chip per
+        // window in the catalogue, lit when open, and clicking one calls `show`, which UN-MINIMISES.
+        // So nothing is stranded by its removal, which is the only thing that made it load-bearing.
+        // Verified before deleting rather than assumed.
+        //
         // `assembl` was ADDED. A schematic is a blueprint now rather than a purchase gate, so the
         // storefront no longer offers schematic-gated items at any price and the thing you do with a
         // schematic needs somewhere to happen. Compile mechanics are open as AS-1.
@@ -64,7 +81,7 @@ class WindowCatalogueTest {
         // windows and the puzzle's anti-bot property (I10) depends on cross-referencing two
         // documents at once. Nothing breaks while the minigame is unbuilt; UI-8 records that it
         // probably has to come back out when it is.
-        assertThat(WindowSpec.values()).hasSize(16);
+        assertThat(WindowSpec.values()).hasSize(15);
         assertThat(java.util.Arrays.stream(WindowSpec.values())
                         .map(WindowSpec::id)
                         .toList())
@@ -73,13 +90,12 @@ class WindowCatalogueTest {
                         "terminal",
                         "storage",
                         "ledger",
-                        "botnet",
                         "market",
+                        "security",
                         "assembl",
                         "identity",
                         "comms",
                         "settings",
-                        "switcher",
                         "man",
                         "log",
                         "netmap",
@@ -154,13 +170,17 @@ class WindowCatalogueTest {
     }
 
     @Test
-    @DisplayName("first run opens the rig monitor and the switcher, and nothing else")
+    @DisplayName("first run opens the rig monitor, and nothing else")
     void firstRunSet() {
+        // ⚠ The switcher was the other one, and its removal leaves the rig monitor alone — which is
+        // the right answer rather than a gap. A first run should show the machine, not a list of
+        // things to open: the rail is that list, it is always on screen, and it does not have to be
+        // dismissed before the desk is usable.
         assertThat(java.util.Arrays.stream(WindowSpec.values())
                         .filter(WindowSpec::openOnFirstRun)
                         .map(WindowSpec::id)
                         .toList())
-                .containsExactlyInAnyOrder("rig-monitor", "switcher");
+                .containsExactly("rig-monitor");
     }
 
     @Test

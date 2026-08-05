@@ -82,7 +82,12 @@ public final class MarketSnapshot {
         // ⚠ A WINDING clock, not a fixed one. A transfer's progress is (now - startedAt) / duration,
         // so under a fixed clock every bar is photographed at exactly 0% — the one value that is
         // indistinguishable from the download never having started. -Dmarket.elapsed=<seconds>.
-        Winding clock = new Winding(Instant.parse("2026-08-04T12:00:00Z"));
+        // ⚠ The default instant is 08:00 in New York, i.e. the market SHUT — which is the right
+        // default for the storefront renders and useless for AnonShare, where every trading control
+        // is disabled and a history cannot be built. -Dmarket.now=2026-08-04T15:00:00Z is an open
+        // session. It is the base instant rather than a wind because the session phase is read off
+        // the clock the engine was opened with.
+        Winding clock = new Winding(Instant.parse(System.getProperty("market.now", "2026-08-04T12:00:00Z")));
         GameEngine game = GameEngine.open(
                 io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("s.json")), "halflight", clock);
         game.credit(Balance.ec("500"), "TEST", "seed");
@@ -122,6 +127,40 @@ public final class MarketSnapshot {
                     .forEach(id -> System.out.println(id + ": " + session.purchase(id).message()));
         }
 
+        // ⚠ HISTORY and WATCHING render from real state, so a render with neither photographs the
+        // empty case and reports both tabs as broken. -Dmarket.trades=N buys N symbols and sells one
+        // back, which is the only way to get a realised figure into the table; -Dmarket.watch=true
+        // builds a watchlist. Both need an OPEN session — see -Dmarket.now.
+        int trades = Integer.getInteger("market.trades", 0);
+        if (trades > 0) {
+            game.credit(io.github.stoicswe.eyeandsickle.engine.Balance.ec("50000"), "TEST", "seed");
+            var symbols = io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.all().stream()
+                    .limit(trades)
+                    .map(io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.Listing::symbol)
+                    .toList();
+            for (String each : symbols) {
+                System.out.println(each + " buy: " + session.buyShares(each, 4).message());
+                clock.wind(java.time.Duration.ofMinutes(7));
+            }
+            System.out.println(symbols.getFirst() + " sell: "
+                    + session.sellPosition(symbols.getFirst(), 2).message());
+        }
+        if (Boolean.getBoolean("market.watch")) {
+            System.out.println("watchlist: " + session.createPortfolio("Semis").message());
+            String created = session.shares("AAPL").portfolios().getFirst().portfolioId();
+            for (String each : java.util.List.of("NVDA", "AMD", "INTC")) {
+                session.watchSymbol(created, each, true);
+            }
+        }
+        // ⚠ A recorded series needs TICKS, not purchases. Brokerage.sample writes at most one point
+        // per SAMPLE_EVERY and only while the market is open, so a render without this photographs
+        // "no history recorded yet" on a feature whose whole subject is the history.
+        int samples = Integer.getInteger("market.samples", 0);
+        for (int i = 0; i < samples; i++) {
+            clock.wind(java.time.Duration.ofMinutes(6));
+            session.tick();
+        }
+
         // ⚠ NO second ScrollPane. The view brings its own, inside a StackPane that carries the
         // download dock — wrapping it again hands that StackPane its PREFERRED height, so
         // "bottom-centre" lands a page and a half below the viewport and the dock is photographed
@@ -154,6 +193,75 @@ public final class MarketSnapshot {
                 host.layout();
             }
         }
+        // ⚠ AnonShare has its OWN TabPane carrying the same style class, so the outer one has to be
+        // excluded by identity rather than by selector — `lookup` returns the ancestor first and a
+        // second `lookup` would find it again. -Dmarket.subtab=2 photographs Watching.
+        if (Integer.getInteger("market.subtab", 0) != 0) {
+            javafx.scene.Node outer = scene.getRoot().lookup(".es-market-tabs");
+            scene.getRoot().lookupAll(".es-market-tabs").stream()
+                    .filter(node -> node != outer)
+                    .filter(javafx.scene.control.TabPane.class::isInstance)
+                    .map(javafx.scene.control.TabPane.class::cast)
+                    .findFirst()
+                    .ifPresent(pane -> pane.getSelectionModel().select(Integer.getInteger("market.subtab", 0)));
+            scene.getRoot().applyCss();
+            host.layout();
+        }
+        // ⚠ The detail overlay and the drilled-in watchlist are STATES reached by CLICKING, so a
+        // plain render photographs neither. Rather than adding a hook to the production view, the
+        // harness fires a real click at the first matching row — which exercises the actual handler
+        // instead of a back door that could keep working after the handler broke.
+        if (System.getProperty("market.click") != null) {
+            scene.getRoot().applyCss();
+            host.layout();
+            javafx.scene.Node row = scene.getRoot().lookup(System.getProperty("market.click"));
+            if (row == null) {
+                System.out.println("nothing matched " + System.getProperty("market.click"));
+            } else {
+                javafx.event.Event.fireEvent(row, new javafx.scene.input.MouseEvent(
+                        javafx.scene.input.MouseEvent.MOUSE_CLICKED,
+                        1, 1, 1, 1,
+                        javafx.scene.input.MouseButton.PRIMARY, 1,
+                        false, false, false, false, true, false, false, false, false, false, null));
+                scene.getRoot().applyCss();
+                host.layout();
+            }
+        }
+
+        // ⚠ The pointer readout only exists WHILE THE MOUSE IS OVER THE PLOT, so a plain render
+        // photographs the state indistinguishable from the feature being absent. -Dmarket.hover=0.4
+        // fires a real MOUSE_MOVED at that fraction across the first canvas.
+        if (System.getProperty("market.hover") != null) {
+            scene.getRoot().applyCss();
+            host.layout();
+            javafx.scene.Node canvas = scene.getRoot().lookupAll("*").stream()
+                    .filter(javafx.scene.canvas.Canvas.class::isInstance)
+                    .filter(node -> node.getScene() != null && node.getBoundsInLocal().getWidth() > 200)
+                    .findFirst()
+                    .orElse(null);
+            if (canvas == null) {
+                System.out.println("no canvas on screen");
+            } else {
+                double at = Double.parseDouble(System.getProperty("market.hover"));
+                double x = canvas.getBoundsInLocal().getWidth() * at;
+                double y = canvas.getBoundsInLocal().getHeight() * 0.5;
+                // ⚠ A SYNTHETIC MouseEvent'S x/y ARE SCENE COORDINATES WHEN THE SOURCE IS NULL, and
+                // Event.fireEvent leaves the source null — so the constructor's "x with respect to
+                // the source" is the scene's x, and delivery recomputes the node-local one from it.
+                // Passing node-local values put getX() ~300px to the LEFT of where the pointer was,
+                // which clamped to the first sample: the render then showed the readout pinned to
+                // the left edge, indistinguishable from a broken clamp in the view itself.
+                javafx.geometry.Point2D inScene = canvas.localToScene(x, y);
+                javafx.event.Event.fireEvent(canvas, new javafx.scene.input.MouseEvent(
+                        javafx.scene.input.MouseEvent.MOUSE_MOVED,
+                        inScene.getX(), inScene.getY(), inScene.getX(), inScene.getY(),
+                        javafx.scene.input.MouseButton.NONE, 0,
+                        false, false, false, false, false, false, false, false, false, false, null));
+                scene.getRoot().applyCss();
+                host.layout();
+            }
+        }
+
         // ⚠ The drawer opens on HOVER and steps on a Pulse — neither of which a synchronous render
         // produces, so a single-pass render photographs the one state indistinguishable from the
         // feature being absent. -Dmarket.drawer=true drives it open directly.
