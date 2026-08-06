@@ -462,6 +462,53 @@ public final class ClientProfile {
         public boolean discordPresenceEnabled = false;
 
         /**
+         * The Bluesky handle whose DMs the COMS window wraps, or blank when none is connected.
+         *
+         * <h2>⚠ THE HANDLE LIVES HERE. THE APP PASSWORD NEVER DOES.</h2>
+         *
+         * A handle is public — it is the name on somebody's profile — and it has to be readable
+         * without prompting so the client can tell whether an account is connected before asking the
+         * OS for anything. The <b>credential</b> is in the platform's own store, keyed on this
+         * handle: {@code client/credentials/SecretStore}. Nothing in this file, and nothing in
+         * {@code settings.json}, ever holds it.
+         *
+         * <p>⚠ A credential written here would be a credential in every backup, every screen share
+         * and every bug report, and the player would have no way to know it had happened. If a field
+         * called anything like {@code blueskyAppPassword} ever appears in this class, that is the
+         * bug. {@code ClientProfileTest.noCredentialFieldsInSettings} fails the build on one.
+         *
+         * <p>Machine-wide, the same line {@link #discordPresenceEnabled} sits on: this is a decision
+         * about what this installation may talk to, not a costume.
+         */
+        public String blueskyHandle = "";
+
+        /**
+         * How loud sound effects are, 0–100. Zero is silent.
+         *
+         * <h2>⚠ MACHINE-WIDE, the same line accessibility settings sit on</h2>
+         *
+         * Volume is a property of where the player is sitting — headphones, an office, a sleeping
+         * household — not of which character they loaded. Per-character would mean a player who
+         * muted the game hearing it again on their next character, which is the kind of thing that
+         * gets an application closed rather than adjusted.
+         *
+         * <p>⚠ 60 rather than 100 by default. The one sound this client has is a notification, and a
+         * game that announces itself at full volume the first time it is opened is one people mute
+         * permanently instead of turning down.
+         */
+        public int soundVolumePercent = 60;
+
+        /**
+         * How often the DIRECT tab asks Bluesky for new messages, in seconds.
+         *
+         * <p>⚠ Sixty by default and never below {@code Sync.MIN_SECONDS}. Bluesky publishes a budget
+         * of 5,000 points an hour and warns that third-party clients polling every few seconds
+         * consume it — this is the player's own allowance, spent on their own account, so the
+         * default is conservative and the Settings slider says what it costs per day.
+         */
+        public int blueskySyncSeconds = 60;
+
+        /**
          * Whether the deck takes the whole screen.
          *
          * <p><b>Off by default, and deliberately.</b> Full screen on macOS moves the window to its

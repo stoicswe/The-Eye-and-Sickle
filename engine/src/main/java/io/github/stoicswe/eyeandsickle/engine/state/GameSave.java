@@ -181,6 +181,34 @@ public final class GameSave {
     public List<DefenseState> defenses = new ArrayList<>();
 
     /**
+     * The rig's inbox — the COMS window's contents. Newest last; the view reverses.
+     *
+     * <h2>⚠ ENGINE-AUTHORED MESSAGES ONLY. See {@link MessageState}.</h2>
+     *
+     * Player-to-player conversation is <b>not</b> in here and must never be: those live on Bluesky's
+     * DM service, are reached through the player's own account, and are never written to a save.
+     * Mixing them would put text somebody else authored into a list whose entries the rules trust —
+     * and one of those entries carries {@code offerItemType}, which grants an item for nothing.
+     * That is <b>I14</b> at the smallest possible scale.
+     */
+    public List<MessageState> messages = new ArrayList<>();
+
+    /**
+     * The notebook — the NOTES window's tree of folders and markdown notes.
+     *
+     * <h2>⚠ NOTHING HERE IS READ BY ANY RULE, and that is a constraint</h2>
+     *
+     * A note is text the player wrote for themselves. No gate, price, threshold or outcome may
+     * depend on one; the moment something does, the notebook becomes a save-editable input to the
+     * rules and every note is a cheat. See {@code rules/Notes}.
+     *
+     * <p>Per character rather than machine-wide, deliberately: notes are what <em>this</em> character
+     * found out, and pooling them across characters spoils the thing the window is for. The honest
+     * consequence is that deleting a character deletes their notes.
+     */
+    public List<NoteState> notes = new ArrayList<>();
+
+    /**
      * Work with a wall-clock duration that is currently running.
      *
      * <p>Persisted, so a six-minute Thorough Scan survives quitting — see {@link TaskState}. A task

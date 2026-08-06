@@ -226,6 +226,100 @@ public final class Catalogue {
      */
     public static List<Offering> offerings() {
         return List.of(
+                // ── the compute ladder (docs/design/01 §1.1) ─────────────────────────────────────
+                //
+                // ⚠ THE FIRST RUNG IS THE ONE PLACE IN THIS GAME WHERE ETHECOIN BUYS COMPUTE, AND
+                // THAT IS INVARIANT I1 AMENDED ON EXPLICIT DIRECTION (2026-08-06, design/15 §3).
+                //
+                // I1 exists because mining that buys mining capacity is a compounding flywheel. One
+                // rung cannot compound: the step above 32 is not for sale at any price, so money
+                // moves a player up ONCE, ever. `ComputeLadderTest.onlyTheFirstRungIsForSale` fails
+                // the build if a second rung acquires a price — if that ever happens, I1 has been
+                // abandoned rather than amended, and it should be a red build rather than a
+                // conversation nobody had.
+                //
+                // ⚠ SOFTWARE, not FIRMWARE, and the distinction is doing real work. Offering's
+                // compact constructor REFUSES firmware with no schematic named — that guard is what
+                // stops firmware becoming money-reachable, and marking this one firmware would have
+                // forced a schematic onto the rung that is meant to be bought. So the shape says
+                // what it is: the first rung is a PRODUCT, and the two above it are things you
+                // COMPILE.
+                new Offering(
+                        "compute-32",
+                        "Capacity Board — 32C",
+                        "A daughter board and the firmware to drive it. Takes this rig from 24 cycles "
+                                + "to 32, once. There is no second one, and nothing above it is sold.",
+                        UnlockGate.ETHECOIN,
+                        Balance.COMPUTE_32_PRICE,
+                        0,
+                        "",
+                        java.util.List.of("rig", "compute", "capacity", "upgrade", "expensive")),
+                // ⚠ NO PRICE, EVER. See Balance.COMPUTE_32_PRICE for why exactly one rung has one.
+                new Offering(
+                        "compute-48",
+                        "Capacity Lattice — 48C",
+                        "Compiled, not bought. Needs the lattice schematic and the materials to build "
+                                + "it, and it will not go on a rig that has not already taken 32.",
+                        UnlockGate.SCHEMATIC,
+                        BigInteger.ZERO,
+                        0,
+                        "Requires the 48C lattice schematic and rare materials, assembled in the "
+                                + "compiler. Capacity above the first rung is never sold.",
+                        java.util.List.of("rig", "compute", "capacity", "upgrade", "schematic")),
+                new Offering(
+                        "compute-64",
+                        "Capacity Lattice — 64C",
+                        "The top of the ladder. A rarer schematic, rarer materials, and every rung "
+                                + "below it already in place.",
+                        UnlockGate.SCHEMATIC,
+                        BigInteger.ZERO,
+                        0,
+                        "Requires the 64C lattice schematic and rare materials, assembled in the "
+                                + "compiler. Capacity above the first rung is never sold.",
+                        java.util.List.of("rig", "compute", "capacity", "upgrade", "schematic")),
+                // ── the firewall ladder (docs/design/09 §1) ──────────────────────────────────────
+                //
+                // ⚠ ALL THREE ARE ETHECOIN, INCLUDING THE TOP ONE, and that is `09` §2's own
+                // classification rather than a relaxation of I2: a firewall is horizontal protection
+                // and "the escalating compute cost (5/9/15 while armed) is the real limiter". T3 is
+                // what `03` §2 calls a TOP PURCHASABLE — money reaches the highest rung of a ladder,
+                // never a rung above the ladder.
+                //
+                // ⚠ T1 IS THE ONE DEFENCE A NEW CHARACTER ALREADY OWNS. `GameEngine.newCharacter`
+                // grants it, so a fresh rig is not defenceless and the FIREWALL panel is not a screen
+                // of ten refusals. It is still a catalogue entry with a price, because it is
+                // losable, sellable and re-buyable like everything else on the ethecoin gate (`02`
+                // §2.1) — being granted is a starting position, not an exemption from the rules.
+                new Offering(
+                        "firewall-t1",
+                        "Firewall T1",
+                        "A flat difficulty increase on anything trying to breach this rig. The cheapest "
+                                + "standing defence there is, and the one every rig starts with.",
+                        UnlockGate.ETHECOIN,
+                        Balance.DEFENSE_FIREWALL_T1_PRICE,
+                        Balance.DEFENSE_FIREWALL_T1_CYCLES,
+                        "",
+                        java.util.List.of("defence", "firewall", "barrier", "standing", "starter")),
+                new Offering(
+                        "firewall-t2",
+                        "Firewall T2",
+                        "Twice the standing cost of a T1 for a larger flat difficulty add. The cycles "
+                                + "are the price you actually pay — they are gone for as long as it is armed.",
+                        UnlockGate.ETHECOIN,
+                        Balance.DEFENSE_FIREWALL_T2_PRICE,
+                        Balance.DEFENSE_FIREWALL_T2_CYCLES,
+                        "",
+                        java.util.List.of("defence", "firewall", "barrier", "standing")),
+                new Offering(
+                        "firewall-t3",
+                        "Firewall T3",
+                        "The hardest wall money buys. Fifteen permanent cycles is fifteen you are not "
+                                + "mining or attacking with, which is the whole of the decision.",
+                        UnlockGate.ETHECOIN,
+                        Balance.DEFENSE_FIREWALL_T3_PRICE,
+                        Balance.DEFENSE_FIREWALL_T3_CYCLES,
+                        "",
+                        java.util.List.of("defence", "firewall", "barrier", "standing", "top-purchasable")),
                 // ⚠ CONSUMABLE: a canary is planted and spent. It is bought repeatedly, which is
                 // what makes it the right side of a sale — a discount changes a decision a player
                 // makes often and never accumulates into a capability.
@@ -292,17 +386,69 @@ public final class Catalogue {
                         Balance.RELAY_HOP_UPKEEP,
                         0,
                         java.util.List.of("stealth", "relay", "anonymity", "per-session", "cheap")),
+                // ── the detection-array ladder (docs/design/09 §1, AMENDED 2026-08-06) ───────────
+                //
+                // ⚠ T1 AND T2 MOVED FROM THE SCHEMATIC GATE TO ETHECOIN; T3 DID NOT, AND THE SPLIT
+                // IS WHAT KEEPS I2 TRUE. The rule, on explicit direction and logged in
+                // `docs/design/15` §3: low-level base tools and low-level upgrades are purchasable
+                // and cost more than a consumable; high-level and rare items need a schematic.
+                //
+                // ⚠ It is the firewall's own shape, one item along — a ladder whose top rung is out
+                // of the market's reach. What the Array sells is PRECISION (`09` §2: it "improves
+                // the quality of the signal rather than the chance of a hit", cutting the
+                // false-positive rate), and the ladder's ceiling is the tier that money cannot get
+                // to. Give T3 a price and ethecoin has bought a permanent capability, with the shop
+                // still rendering correctly and the purchase still working.
+                //
+                // ⚠ I3 is untouched: these are three ITEMS, not one item with two gates. Each sits
+                // behind exactly one.
                 new Offering(
                         "detection-array-t1",
                         "Detection Array T1",
                         "Standing detection. Reserves compute permanently while armed, in exchange for "
-                                + "a continuous chance of noticing what routine listings miss.",
+                                + "a scan on this rig lying to you less often than a scan on a bare one.",
+                        UnlockGate.ETHECOIN,
+                        Balance.DEFENSE_DETECTION_ARRAY_T1_PRICE,
+                        Balance.DEFENSE_DETECTION_ARRAY_T1_CYCLES,
+                        "",
+                        java.util.List.of("defence", "detection", "standing", "precision")),
+                new Offering(
+                        "detection-array-t2",
+                        "Detection Array T2",
+                        "Better instrumentation, at more than twice the standing cost. You are paying, "
+                                + "continuously, not to be sent chasing ghosts.",
+                        UnlockGate.ETHECOIN,
+                        Balance.DEFENSE_DETECTION_ARRAY_T2_PRICE,
+                        Balance.DEFENSE_DETECTION_ARRAY_T2_CYCLES,
+                        "",
+                        java.util.List.of("defence", "detection", "standing", "precision")),
+                // ⚠ NO PRICE, AND IT MUST STAY THAT WAY. See Balance.DEFENSE_DETECTION_ARRAY_T1_PRICE.
+                new Offering(
+                        "detection-array-t3",
+                        "Detection Array T3",
+                        "The best instrumentation there is, and twenty-five permanent cycles for it. "
+                                + "Compiled from a schematic, never sold.",
                         UnlockGate.SCHEMATIC,
                         BigInteger.ZERO,
-                        Balance.DEFENSE_DETECTION_ARRAY_T1_CYCLES,
-                        "Requires the Detection Array schematic. Schematics are found or earned, never "
-                                + "bought — that is what stops ethecoin from buying a ceiling.",
+                        Balance.DEFENSE_DETECTION_ARRAY_T3_CYCLES,
+                        "Requires the Detection Array T3 schematic. The top of a ladder is never for "
+                                + "sale — that is what stops ethecoin from buying a ceiling.",
                         java.util.List.of("defence", "detection", "standing", "schematic")),
+                // ⚠ NOT PURCHASABLE, AND THE ZERO PRICE IS LOAD-BEARING. See Catalogue.TOR_MODULE.
+                // It arrives in the COMS inbox from rules/BlackMarket and by no other route.
+                new Offering(
+                        TOR_MODULE,
+                        "TOR Module",
+                        "An onion router. It does not hide you from anybody — what it does is reach "
+                                + "addresses ordinary lookups refuse to resolve, which is the only way "
+                                + "to see the Marknet board at all.",
+                        UnlockGate.HEAT_STATE,
+                        BigInteger.ZERO,
+                        0,
+                        "Sent to you, once the people who run the Marknet decide you are worth "
+                                + "talking to. It takes standing with a faction and enough heat to be "
+                                + "worth approaching. It is not for sale.",
+                        java.util.List.of("access", "darknet", "routing", "marknet")),
                 new Offering(
                         "honeypot-stash",
                         "Honeypot Stash",
@@ -376,8 +522,77 @@ public final class Catalogue {
     /** The tool that must be stopped before mining firmware can be flashed. */
     public static final String MINING_TOOL = "mining";
 
+    /**
+     * The onion router that makes the TOR Marknet reachable.
+     *
+     * <h2>⚠ HEAT_STATE-gated, which means it is not for sale at ANY price and never will be</h2>
+     *
+     * {@code docs/design/02} §2.5: the heat-state gate is "vendor and contact <em>access</em>. Never
+     * ownership." This item is the access — it does not defend, mine, breach or hold compute, and
+     * owning it changes exactly one thing: a tab appears. It arrives in the COMS inbox when
+     * {@code rules/BlackMarket} decides the player has been noticed, and there is no other route to
+     * it. A price would turn a relationship into a transaction and would let anybody with money skip
+     * the standing and the heat that are the whole gate.
+     *
+     * <p>⚠ <b>The real Tor is a privacy tool, not a crime tool</b>, and the fiction here should not
+     * be read as claiming otherwise: what the module does in this game is resolve addresses ordinary
+     * lookups will not, which is what onion routing actually provides. Journalists, whistleblowers
+     * and people under censorship are its largest real user groups by some margin. If this ever gets
+     * a {@code terms/} page, that is the fact the page has to carry.
+     */
+    public static final String TOR_MODULE = "tor-module";
+
     /** Looks an offering up by id. */
     public static java.util.Optional<Offering> byId(String id) {
         return offerings().stream().filter(o -> o.id().equals(id)).findFirst();
     }
+
+    /**
+     * The catalogue id for a defence the player arms, from the {@code (kind, tier)} pair the rules use.
+     *
+     * <h2>⚠ ONE mapping, because there are three callers and they must not drift</h2>
+     *
+     * {@code LocalGameSession.armIntent} needs it to decide whether the player owns the thing;
+     * {@code Views.firewall} needs it to say <em>why</em> a row is locked before the player clicks;
+     * and the market needs the offering itself. Written out three times, the day somebody adds a
+     * tier is the day the panel offers a row nothing sells and the refusal names an id the shop has
+     * never heard of.
+     *
+     * <p>⚠ <b>The tier is only meaningful for the two ladders.</b> A canary has no tiers, so
+     * {@code ("canary", 7)} is still {@code canary-token} rather than an error — the rules call this
+     * with whatever the save carries, and a hand-edited tier must not make an owned defence
+     * unrecognisable.
+     *
+     * @return the catalogue id, or empty when the kind is not a defence this game has
+     */
+    public static java.util.Optional<String> defenceOfferingId(String kind, int tier) {
+        if (kind == null) {
+            return java.util.Optional.empty();
+        }
+        // ⚠ Clamped rather than rejected, for the reason above. A ladder has exactly three rungs.
+        int rung = Math.max(1, Math.min(3, tier));
+        return switch (kind) {
+            case "firewall" -> java.util.Optional.of("firewall-t" + rung);
+            case "detection-array" -> java.util.Optional.of("detection-array-t" + rung);
+            case "canary" -> java.util.Optional.of("canary-token");
+            case "tarpit" -> java.util.Optional.of("tarpit");
+            case "honeypot-stash" -> java.util.Optional.of("honeypot-stash");
+            case "auto-counter-daemon" -> java.util.Optional.of("auto-counter-daemon");
+            default -> java.util.Optional.empty();
+        };
+    }
+
+    /**
+     * The one defence a new character already owns — {@code GameEngine.newCharacter} grants it.
+     *
+     * <h2>⚠ Granted, not exempted</h2>
+     *
+     * Arming requires owning, with no special cases, so a starting rig needs something to own or the
+     * FIREWALL panel opens as ten refusals and the player's first impression of the tool is that
+     * none of it works. What this buys is a starting position; the item itself is an ordinary
+     * ethecoin-gated one — losable, sellable and re-buyable like everything else on that gate
+     * ({@code docs/design/02} §2.1). Selling it and going undefended is a decision the player is
+     * allowed to make.
+     */
+    public static final String STARTING_DEFENCE = "firewall-t1";
 }

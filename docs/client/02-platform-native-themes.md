@@ -226,14 +226,39 @@ Stated as a closed list so that "the client is not a telemetry client" (`00-clie
 
 ### 2.9a What the client sends anywhere that is not a home server, exhaustively
 
-Stated as a closed list for the same reason §2.9 is: so `00-client-overview.md` §7 is checkable rather than aspirational. Both entries are **opt-in and dark by default**, and adding a third is a documented decision, not a convenience.
+Stated as a closed list for the same reason §2.9 is: so `00-client-overview.md` §7 is checkable rather than aspirational. Every entry is **opt-in and dark by default**, and adding another is a documented decision, not a convenience.
 
 | Destination | Sent | Gate |
 | --- | --- | --- |
 | The quote provider the player picked (`client/stocks/HttpStockFeed`, `SymbolLookup`) | A ticker symbol, and the player's own API key in the URL | Blank key by default — the panel runs on the simulated feed until the player pastes one |
 | The Discord client running on this machine (`client/presence/*`) | One constant from `PresenceState`, an elapsed timestamp, and this process's pid | `discordPresenceEnabled`, off by default; also inert with no application id configured |
+| The player's own **Bluesky PDS** (`client/bsky/BlueskyChat`) ‡ | An app password once, at sign-in; thereafter a bearer token and a conversation id | No account connected by default; needs a handle **and** an app password the player put in the OS credential store |
 
-Neither carries anything from §2.9's read list, nor an operator handle, DID, avatar, balance, standing, item, machine name or address. ⚠ The Discord entry is **not a network socket** — it is a Unix domain socket or a named pipe to a local process — and its candidate paths are **composed from environment variables rather than discovered by listing a directory**, because enumerating `$TMPDIR` would mean reading the names of every other program's IPC endpoints, which is the fingerprinting §2.9 says this client never does.
+> **‡ THE THIRD ENTRY, added 2026-08-06 on explicit direction — and the first that is somebody's real social account.**
+>
+> The COMS window's **DIRECT** tab wraps the player's own Bluesky direct messages: conversations,
+> groups and history. Three things make it a different shape from the two above it and each is
+> load-bearing.
+>
+> **It is READ-ONLY of the player's own data, and the game sends none of its own.** No handle, DID,
+> avatar, balance, standing, item, machine name or address leaves — the request body at sign-in is
+> the credential the player typed, and every later request carries a bearer token and a convo id.
+> Nothing about the *game* is transmitted, which is what keeps `00` §7's "not a telemetry client"
+> true rather than merely narrow.
+>
+> **Nothing that comes back is ever written to a save.** Those are messages other people wrote, and
+> `GameSave.messages` is the engine's own inbox whose entries carry entitlements. The cache dies with
+> the window. That separation is **I14** at its smallest scale and the tab strip is the seam.
+>
+> **The credential is in the OS store, never in a file** (`client/credentials/`). If the machine has
+> no store, there is nowhere safe to keep an app password and the feature is simply off — it does not
+> fall back to `settings.json`.
+>
+> ⚠ **Consent is Bluesky's, not this game's.** `listConvos` splits conversations into `accepted` and
+> `request`; the client shows both and marks the pending ones. Building a second, parallel allow-list
+> here would be this game keeping a social graph, which is exactly what §2.9 forbids.
+
+None of the first two carries anything from §2.9's read list, nor an operator handle, DID, avatar, balance, standing, item, machine name or address. ⚠ The Discord entry is **not a network socket** — it is a Unix domain socket or a named pipe to a local process — and its candidate paths are **composed from environment variables rather than discovered by listing a directory**, because enumerating `$TMPDIR` would mean reading the names of every other program's IPC endpoints, which is the fingerprinting §2.9 says this client never does.
 
 ---
 

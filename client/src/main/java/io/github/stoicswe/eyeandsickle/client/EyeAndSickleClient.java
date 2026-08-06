@@ -12,6 +12,8 @@ import io.github.stoicswe.eyeandsickle.client.teaching.TermDatabase;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeManager;
 import io.github.stoicswe.eyeandsickle.client.view.CalcView;
 import io.github.stoicswe.eyeandsickle.client.view.CommandPalette;
+import io.github.stoicswe.eyeandsickle.client.view.CommsView;
+import io.github.stoicswe.eyeandsickle.client.view.NotesView;
 import io.github.stoicswe.eyeandsickle.client.view.FileManagerView;
 import io.github.stoicswe.eyeandsickle.client.view.LogView;
 import io.github.stoicswe.eyeandsickle.client.view.MainMenuView;
@@ -855,6 +857,84 @@ public class EyeAndSickleClient extends Application {
      * button. Pillar <b>C1</b> is that the interface is the toolset; a keystroke that is the ONLY way
      * to reach something is a hidden feature, not a shortcut.
      */
+    /**
+     * Plays the capacity-upgrade log and reboot, then returns to the deck.
+     *
+     * <h2>⚠ THE UPGRADE HAS ALREADY HAPPENED BY THE TIME THIS RUNS</h2>
+     *
+     * The rules raise the ceiling on the tick ({@code ComputeLadder.reconcile}); this is the
+     * <em>announcement</em>. That ordering is deliberate and it is what makes the sequence safe to
+     * skip, safe to suppress under Reduce motion, and safe to miss entirely because the client was
+     * closed when the flash completed. An animation that owned the state change would be an
+     * accessibility setting that costs a purchase.
+     *
+     * <p>⚠ Its own Scene, like the boot log, for the same reason: the deck's return paints a
+     * staggered reveal (§5), and running that underneath would show the player the tail of an
+     * animation they never saw start.
+     */
+    private void showCapacityUpgrade(long from, long to, String name, Runnable then) {
+        javafx.scene.layout.StackPane root = new javafx.scene.layout.StackPane();
+        io.github.stoicswe.eyeandsickle.client.ui.RebootSequence reboot =
+                io.github.stoicswe.eyeandsickle.client.ui.RebootSequence.play(from, to, name, then);
+        root.getChildren().addAll(reboot, reboot.hint());
+        javafx.scene.layout.StackPane.setAlignment(reboot.hint(), javafx.geometry.Pos.BOTTOM_CENTER);
+
+        Scene scene = scaled(
+                root, stage.getWidth() > 0 ? stage.getWidth() : 1280, stage.getHeight() > 0 ? stage.getHeight() : 800);
+        stage.setScene(scene);
+        themes.adopt(scene);
+        themes.applyAll();
+        reboot.requestFocus();
+    }
+
+    /**
+     * The signed-in Bluesky client, or {@code null} when no account is configured.
+     *
+     * <p>⚠ Built once and reused, because signing in is a network round trip and a fresh one per
+     * COMS open would re-authenticate every time the player pressed {@code Shortcut+S}.
+     */
+    private io.github.stoicswe.eyeandsickle.client.bsky.BlueskyChat bluesky;
+
+    /**
+     * The DIRECT pane, or {@code null} when there is no account to show.
+     *
+     * <h2>⚠ The app password is read from the OS store and never held</h2>
+     *
+     * {@code SecretStores} answers from Keychain / Credential Manager / Secret Service; the password
+     * goes into {@code signIn} and out of scope. What is kept is the access token, inside the chat
+     * client. Nothing here writes a credential anywhere, and if the machine has no store the lookup
+     * comes back empty and the tab is simply absent.
+     */
+    private javafx.scene.layout.Region blueskyPane() {
+        String handle = profile.settings().blueskyHandle;
+        if (handle == null || handle.isBlank()) {
+            return null;
+        }
+        var secret = io.github.stoicswe.eyeandsickle.client.credentials.SecretStores.forThisMachine()
+                .lookup(handle);
+        if (secret.isEmpty()) {
+            return null;
+        }
+        if (bluesky == null) {
+            bluesky = new io.github.stoicswe.eyeandsickle.client.bsky.BlueskyChat(
+                    io.github.stoicswe.eyeandsickle.client.bsky.BlueskyChat.DEFAULT_PDS);
+        }
+        var chat = bluesky;
+        // ⚠ HANDS OVER THE CREDENTIALS; DOES NOT SIGN IN. This runs on the FX thread while a window
+        // is opening, and a network round trip here would freeze the deck. `DirectView` calls
+        // `ensureSignedIn` on its own background thread and shows whatever comes back.
+        //
+        // ⚠ This used to start sign-in on a virtual thread and build the view in the next statement,
+        // which asked `signedIn()` before it could possibly be true — so the pane said "no account
+        // connected" forever, for a connected account, and the sign-in's error message was thrown
+        // away. Two bugs from one ordering.
+        if (!chat.signedIn()) {
+            chat.credentials(handle, secret.get());
+        }
+        return io.github.stoicswe.eyeandsickle.client.view.DirectView.create(
+                chat, handle, profile.settings().blueskySyncSeconds);
+    }
+
     private GlobalShortcuts.Handlers globalHandlers() {
         return new GlobalShortcuts.Handlers() {
             @Override
@@ -1175,7 +1255,18 @@ public class EyeAndSickleClient extends Application {
             // ⚠ RECON is the reports now, not the page about them. The cost model and what a scan
             // is a model of moved to `man port-scan` — reference a player reads once, in the place
             // they can find it deliberately, rather than above the data every single time.
-            case COMMS -> MoreViews.comms(session);
+            // ⚠ null for the DIRECT pane: the Bluesky wrapper is not wired yet, and CommsView
+            // omits the tab entirely rather than showing an empty one. A tab that exists and does
+            // nothing reads as broken; a tab that is absent reads as not configured.
+            // ⚠ The DIRECT pane is built only when an account is connected, and CommsView omits
+            // the tab entirely when it is null — a tab that exists and does nothing reads as broken,
+            // where an absent one reads as not configured.
+            //
+            // ⚠ Sign-in happens on a VIRTUAL thread inside the pane, never here: this runs on the
+            // FX thread while a window is opening, and a round trip to somebody else's PDS would
+            // freeze the deck for however long they take to answer.
+            case COMMS -> CommsView.create(session, blueskyPane());
+            case NOTES -> NotesView.create(session);
         };
     }
 

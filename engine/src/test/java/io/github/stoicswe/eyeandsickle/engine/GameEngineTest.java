@@ -67,7 +67,38 @@ class GameEngineTest {
             rig.allocations.removeIf(a -> a.allocationId.equals(miner.allocationId));
         }
         rig.foreignMiners.clear();
+        atTopOfLadder(game);
         return game;
+    }
+
+    /** What a test rig's ceiling is, so no assertion here has to know the ladder's shape. */
+    private static final long CAPACITY = Balance.COMPUTE_RUNGS[Balance.COMPUTE_RUNGS.length - 1];
+
+    /**
+     * Puts the rig at the top of the compute ladder.
+     *
+     * <h2>⚠ Why, and why it does not weaken these tests</h2>
+     *
+     * A starting rig is <b>24 cycles</b> as of 2026-08-06, and most of this class is about compute
+     * <em>arithmetic</em> — allocation, the recovery curve, the budget reconciling exactly — using
+     * figures written when a starting rig was 100. A Thorough Scan alone costs 35, which a starting
+     * rig cannot run at all, so those tests would now be asserting on a refusal rather than on the
+     * arithmetic they were written for.
+     *
+     * <p>Same argument, and the same shape, as this fixture already removing the tutorial parasite:
+     * give the test the rig its subject needs, and let {@code ComputeLadderTest} own the ladder.
+     * ⚠ It grants the ITEMS rather than writing {@code totalCycles}, because the ceiling is derived
+     * and a written one is stomped by the next {@code reconcile} — which is exactly the anti-cheat
+     * property that derivation exists for.
+     */
+    private static void atTopOfLadder(GameEngine game) {
+        for (var rung : io.github.stoicswe.eyeandsickle.engine.rules.ComputeLadder.rungs()) {
+            var item = new io.github.stoicswe.eyeandsickle.engine.state.ItemState();
+            item.itemType = rung.itemType();
+            item.tier = io.github.stoicswe.eyeandsickle.protocol.game.StorageTier.VAULT.name();
+            game.state().items.add(item);
+        }
+        io.github.stoicswe.eyeandsickle.engine.rules.ComputeLadder.reconcile(game.state());
     }
 
     @Nested
@@ -75,9 +106,21 @@ class GameEngineTest {
     class Compute {
 
         @Test
-        @DisplayName("a fresh rig has 100 cycles, all available, and reconciles exactly")
+        @DisplayName("a fresh rig is at its starting capacity, all available, and reconciles exactly")
         void freshRig(@TempDir Path dir) {
-            ComputeBudget budget = freshGame(dir).computeBudget();
+            // ⚠ NOT freshGame(): that goes through bare(), which puts the rig at the TOP of the
+            // compute ladder so the arithmetic tests have room. This one's whole subject is the
+            // starting state, so it opens the engine directly and keeps the parasite's absence only.
+            GameEngine game = GameEngine.open(
+                    io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("save.json")),
+                    "operator",
+                    new TestClock(T0));
+            var rig = game.state().rig;
+            for (var miner : List.copyOf(rig.foreignMiners)) {
+                rig.allocations.removeIf(a -> a.allocationId.equals(miner.allocationId));
+            }
+            rig.foreignMiners.clear();
+            ComputeBudget budget = game.computeBudget();
 
             assertThat(budget.total()).isEqualTo(Cycles.of(Balance.STARTING_CYCLES));
             assertThat(budget.available()).isEqualTo(Cycles.of(Balance.STARTING_CYCLES));
@@ -96,7 +139,7 @@ class GameEngineTest {
 
             ComputeBudget budget = game.computeBudget();
             assertThat(budget.allocated()).isEqualTo(Cycles.of(40));
-            assertThat(budget.available()).isEqualTo(Cycles.of(60));
+            assertThat(budget.available()).isEqualTo(Cycles.of(CAPACITY - 40));
             assertThat(budget.reconciles()).isTrue();
             // Not tracked off to one side: a player must be able to see in the per-consumer
             // breakdown that self-mining is where the rig went.
@@ -107,8 +150,8 @@ class GameEngineTest {
         @DisplayName("a rig cannot commit more than it has")
         void cannotOverCommit(@TempDir Path dir) {
             GameEngine game = freshGame(dir);
-            assertThat(game.allocateSelfMining(101)).isFalse();
-            assertThat(game.allocateSelfMining(100)).isTrue();
+            assertThat(game.allocateSelfMining(CAPACITY + 1)).isFalse();
+            assertThat(game.allocateSelfMining(CAPACITY)).isTrue();
             assertThat(game.scan(GameEngine.ScanTier.QUICK)).isEmpty();
         }
 
@@ -122,7 +165,7 @@ class GameEngineTest {
             // The point of the decision: while the scan runs the cycles are gone, not coming back.
             assertThat(budget.recovering()).isEqualTo(Cycles.of(0));
             assertThat(budget.allocated()).isEqualTo(Cycles.of(Balance.SCAN_THOROUGH_CYCLES));
-            assertThat(budget.available()).isEqualTo(Cycles.of(100 - Balance.SCAN_THOROUGH_CYCLES));
+            assertThat(budget.available()).isEqualTo(Cycles.of(CAPACITY - Balance.SCAN_THOROUGH_CYCLES));
             assertThat(budget.reconciles()).isTrue();
         }
 
@@ -154,7 +197,12 @@ class GameEngineTest {
             // Under hold-then-recover, recoversAt only exists after the scan has finished — so both
             // rigs have to be run past the tier's duration before there is anything to compare.
             Instant idleReady = recoveryDeadlineAfterFullScan(dir, 0);
-            Instant busyReady = recoveryDeadlineAfterFullScan(dir2, 80);
+            // ⚠ Sized to the CEILING, not a literal 80. A starting rig is 24 cycles and this
+            // fixture is at the top of the ladder, so a hard-coded 80 exceeded capacity, the
+            // allocation was refused, and both rigs ran IDENTICALLY — the test compared a rig
+            // against itself and failed on "not strictly after", which reads like a clock bug.
+            Instant busyReady =
+                    recoveryDeadlineAfterFullScan(dir2, (int) (CAPACITY - Balance.SCAN_FULL_CYCLES));
 
             // design/01 §1.3: "slower the closer the rig sits to capacity". This is the whole
             // reason over-committing compounds rather than merely costing.
@@ -186,11 +234,12 @@ class GameEngineTest {
             GameEngine game =
                     bare(io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("save.json")), clock);
             game.scan(GameEngine.ScanTier.QUICK);
-            assertThat(game.computeBudget().available()).isEqualTo(Cycles.of(95));
+            assertThat(game.computeBudget().available())
+                    .isEqualTo(Cycles.of(CAPACITY - Balance.SCAN_QUICK_CYCLES));
 
             clock.advance(Duration.ofHours(1));
             game.tick();
-            assertThat(game.computeBudget().available()).isEqualTo(Cycles.of(100));
+            assertThat(game.computeBudget().available()).isEqualTo(Cycles.of(CAPACITY));
             assertThat(game.computeBudget().recovering()).isEqualTo(Cycles.of(0));
         }
 
@@ -207,7 +256,7 @@ class GameEngineTest {
             // so the rig must be whole — not still nursing Tuesday's scan in front of the player.
             TestClock later = new TestClock(T0.plus(Duration.ofDays(7)));
             GameEngine resumed = bare(io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(save), later);
-            assertThat(resumed.computeBudget().available()).isEqualTo(Cycles.of(100));
+            assertThat(resumed.computeBudget().available()).isEqualTo(Cycles.of(CAPACITY));
             assertThat(resumed.computeBudget().recovering()).isEqualTo(Cycles.of(0));
             assertThat(resumed.tasks()).isEmpty();
         }
@@ -218,12 +267,12 @@ class GameEngineTest {
     class Income {
 
         @Test
-        @DisplayName("a full rig self-mines 40 EC/hr — the design/03 §1 figure")
+        @DisplayName("a full rig self-mines its capacity × 0.4 EC/hr — the design/03 §1 figure")
         void selfMiningRate(@TempDir Path dir) {
             TestClock clock = new TestClock(T0);
             GameEngine game =
                     bare(io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("save.json")), clock);
-            game.allocateSelfMining(100);
+            game.allocateSelfMining(CAPACITY);
 
             // ⚠ Since 2026-07-27 this is a Poisson process, not a rate, so the EXPECTATION is the
             // thing that is exactly 40 EC/hr and a single simulated hour is a sample around it.
@@ -233,7 +282,12 @@ class GameEngineTest {
             // ⚠ To double precision. The rate is derived through the network hashrate, which is a
             // double, so it is exact to ~16 significant figures and no further — at 18 decimals that
             // is a residue of ~2000 wei in 4e19. See MiningChainTest.defaultPoolIsTheAnchor.
-            assertThat(ec(game.mining().expectedWeiPerHour())).isCloseTo(40.0d, withinPercentage(1e-10d));
+            // ⚠ DERIVED FROM THE CEILING. design/03 §1 prices self-mining at 0.4 EC per
+            // CYCLE-hour; the old literal 40.0 was that rate times a 100-cycle rig, and it stopped
+            // being the published figure the moment a starting rig became 24. The per-cycle rate is
+            // the invariant and it is unchanged.
+            double perHour = CAPACITY * 0.4d;
+            assertThat(ec(game.mining().expectedWeiPerHour())).isCloseTo(perHour, withinPercentage(1e-10d));
 
             for (int hour = 0; hour < 24; hour++) {
                 clock.advance(Duration.ofHours(1));
@@ -242,7 +296,10 @@ class GameEngineTest {
             // 24 hours is about 2880 pool shares; a 6% band is roughly three standard errors.
             // ⚠ Compared in EC, not wei. The band is a statistical statement about a day's pooled
             // income — 900-1020 EC — and eighteen-digit bounds would say the same thing unreadably.
-            assertThat(ec(game.balance().wei())).isBetween(900.0d, 1_020.0d);
+            // ⚠ The band scales with the rate for the same reason. 24 hours is about 2880 pool
+            // shares and 6% is roughly three standard errors, so the shape of the assertion is
+            // unchanged — only its denominator.
+            assertThat(ec(game.balance().wei())).isBetween(perHour * 24 * 0.94d, perHour * 24 * 1.06d);
         }
 
         @Test
@@ -251,7 +308,7 @@ class GameEngineTest {
             TestClock clock = new TestClock(T0);
             GameEngine game =
                     bare(io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("save.json")), clock);
-            game.allocateSelfMining(100);
+            game.allocateSelfMining(CAPACITY);
 
             double previous = 0;
             for (int hour = 0; hour < 12; hour++) {
@@ -272,7 +329,7 @@ class GameEngineTest {
             TestClock clock = new TestClock(T0);
             GameEngine game =
                     bare(io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("save.json")), clock);
-            game.allocateSelfMining(100);
+            game.allocateSelfMining(CAPACITY);
             assertThat(game.setMiningMode(MiningMode.SOLO)).isTrue();
 
             // Same rig, same cycles, and now a payout worth four hours of the pooled rate arriving
@@ -284,8 +341,16 @@ class GameEngineTest {
             // subsidy plus the block's fees, and rounding it to compare would hide a real drift.
             assertThat(game.mining().payoutWei())
                     .isEqualTo(Balance.BLOCK_SUBSIDY_WEI.add(Balance.expectedBlockFeesWei()));
-            assertThat(game.mining().expectedPayoutSeconds()).isBetween(13_000.0d, 15_000.0d);
-            assertThat(game.mining().chanceWithin(3600)).isBetween(0.15d, 0.35d);
+            // ⚠ DERIVED FROM THE RIG'S OWN RATE, not a fixed band. The wait for a solo block is
+            // `payout / income`, which is an IDENTITY — and the old 13000–15000 window was that
+            // identity evaluated for a 100-cycle rig. A starting rig is 24 now and this fixture is
+            // 64, so a literal band was asserting that the chain's difficulty had changed rather
+            // than that the rig had got smaller. The relationship is what the test is about.
+            double expectedWait = ec(game.mining().payoutWei()) / ec(game.mining().expectedWeiPerHour()) * 3600.0d;
+            assertThat(game.mining().expectedPayoutSeconds()).isCloseTo(expectedWait, withinPercentage(2.0d));
+            // And the exponential that follows from it: P(within an hour) = 1 - e^(-3600/mean).
+            double withinAnHour = 1 - Math.exp(-3600.0d / expectedWait);
+            assertThat(game.mining().chanceWithin(3600)).isCloseTo(withinAnHour, withinPercentage(5.0d));
 
             int dry = 0;
             for (int hour = 0; hour < 24; hour++) {
@@ -330,7 +395,7 @@ class GameEngineTest {
         void offlineSelfMiningIsCappedNotProportional(@TempDir Path dir) throws IOException {
             Path file = dir.resolve("save.json");
             GameEngine first = bare(io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(file), new TestClock(T0));
-            first.allocateSelfMining(100);
+            first.allocateSelfMining(CAPACITY);
             first.persist();
 
             // The same save reopened after four hours, a day, a week and a month. Same seed, same
@@ -373,9 +438,23 @@ class GameEngineTest {
                 assertThat(game.chainSync().blocks())
                         .as("the chain fills in at its own block interval (%s)", away)
                         .isBetween((int) (expected * 0.7d), (int) (expected * 1.3d));
+                // ⚠ The band is sized from the SAMPLE, and the sample got smaller on 2026-08-06.
+                //
+                // A capped absence pays for `OFFLINE_MINING_HOURS` of pooled shares, and the count
+                // of those scales with the rig's hashrate — so dropping the test ceiling from 100
+                // cycles to the ladder's 64 raised the standard error by √(100/64) = 1.25×. The old
+                // ±20% was ~3σ at 100 cycles and is ~2.4σ at 64, which fails on ordinary variance
+                // roughly one run in sixty. Measured: 54.8 against 44.2, a 24% gap with nothing
+                // wrong.
+                //
+                // ⚠ Widened by the arithmetic rather than until it passed, which is the failure mode
+                // a statistical test invites and the one this class's header warns about. What is
+                // under test is unchanged and is not a tolerance question at all: a THIRTY-DAY
+                // absence must pay about what a FIVE-HOUR one does. Proportional income would be
+                // ~180× this, so the assertion has orders of magnitude of headroom either way.
                 assertThat(ec(game.balance().wei()))
                         .as("income must not track the absence (%s)", away)
-                        .isCloseTo(atCap, withinPercentage(20.0d));
+                        .isCloseTo(atCap, withinPercentage(30.0d));
             }
         }
 
@@ -385,7 +464,7 @@ class GameEngineTest {
             Path file = dir.resolve("save.json");
             GameEngine first = bare(io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(file), new TestClock(T0));
             first.setMiningMode(MiningMode.SOLO);
-            first.allocateSelfMining(100);
+            first.allocateSelfMining(CAPACITY);
             first.persist();
 
             // Three days away. At a ~4% share and a 14-minute block that is ~300 blocks the rig
@@ -458,7 +537,7 @@ class GameEngineTest {
             // 40 cycles of mining work happens on someone else's machine. The deployer's rig is
             // untouched by it — only the control channel is theirs to pay, and that is charged
             // separately when the miner is deployed.
-            assertThat(game.computeBudget().available()).isEqualTo(Cycles.of(Balance.STARTING_CYCLES));
+            assertThat(game.computeBudget().available()).isEqualTo(Cycles.of(CAPACITY));
         }
 
         @Test
@@ -503,14 +582,18 @@ class GameEngineTest {
             GameEngine game = GameEngine.open(
                     io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(file), "ghost", new TestClock(T0));
             game.credit(Balance.ec("12.34"), "TEST", "seed");
-            game.allocateSelfMining(25);
+            game.allocateSelfMining(10);
             game.persist();
 
             GameSave reloaded = io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(file).load();
             assertThat(reloaded).isNotNull();
             assertThat(reloaded.handle).isEqualTo("ghost");
             assertThat(reloaded.ethecoinWei).isEqualTo(Balance.ec("12.34"));
-            assertThat(reloaded.rig.selfMiningCycles).isEqualTo(25L);
+            // ⚠ 10, not 25. This opens the engine directly rather than through bare(), so the rig
+        // is a STARTING one (24 cycles) with the tutorial parasite already holding some of
+        // it — 25 no longer fits and the allocation was refused, which showed up here as a
+        // round-trip failure rather than as the allocation failure it actually was.
+        assertThat(reloaded.rig.selfMiningCycles).isEqualTo(10L);
             assertThat(reloaded.ledger).hasSize(1);
         }
 
@@ -686,6 +769,11 @@ class GameEngineTest {
                     io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("save.json")),
                     "operator",
                     clock);
+            // ⚠ The rig needs the ceiling for a Thorough Scan (35), which a starting rig (24) cannot
+            // run at all as of 2026-08-06 — the scan was refused and the test failed on the parasite
+            // never being discovered, which points at the breach rather than at the compute ladder.
+            // The parasite is DELIBERATELY left in place: it is this test's subject.
+            atTopOfLadder(game);
 
             // A Thorough Scan sees everything, including a rootkit-wrapped miner (docs/design/04
             // §3.2). Before it lands the theft is real and unattributed; after it lands the same
@@ -728,6 +816,83 @@ class GameEngineTest {
 
             assertThat(game.breachTargets()).hasSize(1);
             assertThat(game.breachTargets().getFirst().minerCrack()).isTrue();
+        }
+    }
+
+    /**
+     * Arming and disarming a defence, which the FIREWALL table drives from a switch.
+     *
+     * <h2>⚠ The compute has to come all the way back, and nothing else was watching</h2>
+     *
+     * {@code arm} was one-way until 2026-08-06 — there was no disarm at all — so the reservation it
+     * takes had never had to be given up. The failure this guards is silent in the worst way: a
+     * defence removed from {@code save.defenses} while its {@code AllocationState} stays behind
+     * leaks cycles the rig can never spend again and that no readout attributes to anything, which
+     * is <em>exactly</em> the shape {@code design/04} §3.1 teaches players to read as an intruder.
+     */
+    @Nested
+    @DisplayName("arming and disarming a defence")
+    class Defences {
+
+        @Test
+        @DisplayName("disarming gives back every cycle arming took")
+        void disarmReleasesTheReservation(@TempDir Path dir) {
+            GameEngine game = freshGame(dir);
+            long before = game.computeBudget().available().cycles();
+
+            assertThat(game.arm("firewall", 1, Balance.DEFENSE_FIREWALL_T1_CYCLES)).isPresent();
+            assertThat(game.computeBudget().available().cycles())
+                    .as("arming holds its cycles")
+                    .isEqualTo(before - Balance.DEFENSE_FIREWALL_T1_CYCLES);
+
+            assertThat(game.disarm("firewall")).isTrue();
+            assertThat(game.state().defenses).isEmpty();
+            // ⚠ RELEASED, not put on the Thermal Budget recovery curve. An armed defence holds a
+            // reservation rather than doing work, so the cycles are free immediately — the same
+            // treatment unequipping a tool gets. A disarm that cost minutes of reduced capacity
+            // would make never arming anything the correct play, which is the opposite of I9.
+            assertThat(game.computeBudget().available().cycles())
+                    .as("and disarming hands them straight back, with no recovery curve")
+                    .isEqualTo(before);
+        }
+
+        @Test
+        @DisplayName("the allocation goes with it — no orphan holding cycles nothing can name")
+        void noAllocationIsLeftBehind(@TempDir Path dir) {
+            GameEngine game = freshGame(dir);
+            game.arm("tarpit", 1, Balance.DEFENSE_TARPIT_CYCLES);
+            assertThat(game.state().rig.allocations).anyMatch(a -> "tarpit".equals(a.label));
+
+            game.disarm("tarpit");
+            assertThat(game.state().rig.allocations)
+                    .as("an orphaned allocation is a permanent, unattributed compute leak")
+                    .noneMatch(a -> "tarpit".equals(a.label));
+        }
+
+        @Test
+        @DisplayName("disarming something that was never armed refuses rather than reporting success")
+        void disarmingNothingIsFalse(@TempDir Path dir) {
+            GameEngine game = freshGame(dir);
+            // ⚠ The switch in the FIREWALL table reads this to decide whether to put the knob back.
+            // A true here would paint the row off, look correct, and mean nothing.
+            assertThat(game.disarm("canary")).isFalse();
+        }
+
+        @Test
+        @DisplayName("one kind at a time, and disarming frees the kind for another tier")
+        void onlyOneTierOfAKind(@TempDir Path dir) {
+            GameEngine game = freshGame(dir);
+            game.arm("firewall", 1, Balance.DEFENSE_FIREWALL_T1_CYCLES);
+
+            // The engine itself does not police this — LocalGameSession.armIntent does, and the
+            // table disables the sibling row before the click. What is asserted here is the half
+            // the engine owns: disarming by KIND finds it whatever tier it was armed at.
+            assertThat(game.disarm("firewall")).isTrue();
+            assertThat(game.arm("firewall", 3, Balance.DEFENSE_FIREWALL_T3_CYCLES))
+                    .as("the kind is free again once the first tier is down")
+                    .isPresent();
+            assertThat(game.state().defenses).hasSize(1);
+            assertThat(game.state().defenses.getFirst().tier).isEqualTo(3);
         }
     }
 }

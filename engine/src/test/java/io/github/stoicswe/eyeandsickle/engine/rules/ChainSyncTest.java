@@ -33,6 +33,31 @@ import org.junit.jupiter.api.io.TempDir;
  */
 class ChainSyncTest {
 
+    /**
+     * Puts a rig at the top of the compute ladder.
+     *
+     * <h2>⚠ A starting rig is 24 cycles as of 2026-08-06, and these tests need room</h2>
+     *
+     * The allocations below were written when a starting rig was 100. They are about MINING — how a
+     * fill competes, what a pool pays — and not about the compute ladder, so the fixture gives them
+     * the rig their subject needs and {@code ComputeLadderTest} owns the ladder itself. Without it
+     * the allocation is refused, the rig mines nothing, and the failure points at the chain.
+     *
+     * <p>⚠ Grants the ITEMS rather than writing {@code totalCycles}: the ceiling is derived and a
+     * written one is stomped by the next reconcile, which is the anti-cheat property that derivation
+     * exists for.
+     */
+    private static void atTopOfLadder(GameSave save) {
+        for (var rung : io.github.stoicswe.eyeandsickle.engine.rules.ComputeLadder.rungs()) {
+            var item = new io.github.stoicswe.eyeandsickle.engine.state.ItemState();
+            item.itemType = rung.itemType();
+            item.tier = io.github.stoicswe.eyeandsickle.protocol.game.StorageTier.VAULT.name();
+            save.items.add(item);
+        }
+        io.github.stoicswe.eyeandsickle.engine.rules.ComputeLadder.reconcile(save);
+    }
+
+
     private static final Instant T0 = Instant.parse("2026-07-25T12:00:00Z");
 
     private static GameEngine at(Path file, Instant when) {
@@ -259,9 +284,12 @@ class ChainSyncTest {
             // is false for "commons" — which is already the default — and asserting on it fails a
             // rig that is correctly on the pool the test asked for.
             assertThat(MiningRules.poolOf(game.state().rig).id()).isEqualTo(poolId);
-            // ⚠ 80, not 100: a fresh rig carries the tutorial parasite on some of its cycles, so a
-            // full allocation is REFUSED and the rig then silently mines nothing at all.
-            assertThat(game.allocateSelfMining(80)).isTrue();
+            // ⚠ The rig is put at the TOP of the compute ladder first — a starting rig is 24 cycles
+            // and this allocation was written for 100. See atTopOfLadder.
+            atTopOfLadder(game.state());
+            // ⚠ Not the whole ceiling: a fresh rig carries the tutorial parasite on some of its
+            // cycles, so a full allocation is REFUSED and the rig then silently mines nothing.
+            assertThat(game.allocateSelfMining(50)).isTrue();
             for (long hour = 0; hour < span.toHours(); hour++) {
                 clock.advance(Duration.ofHours(1));
                 game.tick();
@@ -275,7 +303,8 @@ class ChainSyncTest {
             Path file = dir.resolve("save.json");
             GameEngine game = at(file, T0);
             game.setMiningMode(MiningMode.SOLO);
-            assertThat(game.allocateSelfMining(80)).isTrue();
+            atTopOfLadder(game.state());
+            assertThat(game.allocateSelfMining(50)).isTrue();
             game.persist();
 
             // Long enough that a ~4% rig is overwhelmingly likely to take at least one block inside
@@ -362,7 +391,8 @@ class ChainSyncTest {
         void theRecordIsBounded(@TempDir Path dir) {
             Path file = dir.resolve("save.json");
             GameEngine game = at(file, T0);
-            assertThat(game.allocateSelfMining(80)).isTrue();
+            atTopOfLadder(game.state());
+            assertThat(game.allocateSelfMining(50)).isTrue();
             var chain = game.state().chain;
             for (int i = 0; i < io.github.stoicswe.eyeandsickle.engine.state.ContributionState.LIMIT + 50; i++) {
                 var row = new io.github.stoicswe.eyeandsickle.engine.state.ContributionState();
@@ -373,7 +403,8 @@ class ChainSyncTest {
             while (chain.contributions.size() > io.github.stoicswe.eyeandsickle.engine.state.ContributionState.LIMIT) {
                 chain.contributions.removeFirst();
             }
-            assertThat(chain.contributions).hasSize(io.github.stoicswe.eyeandsickle.engine.state.ContributionState.LIMIT);
+            assertThat(chain.contributions)
+                    .hasSize(io.github.stoicswe.eyeandsickle.engine.state.ContributionState.LIMIT);
             // Newest first out of the reader, and the oldest 50 are gone rather than the newest.
             assertThat(game.contributions(1).getFirst().height())
                     .isEqualTo(io.github.stoicswe.eyeandsickle.engine.state.ContributionState.LIMIT + 49);
@@ -387,12 +418,16 @@ class ChainSyncTest {
      * <h2>What is being separated here</h2>
      *
      * {@code Balance.OFFLINE_MINING_HOURS} caps how <em>long</em> an absent rig keeps hashing;
-     * {@code Balance.OFFLINE_SOLO_WIN_WEIGHT} caps how <em>well</em> it does inside that window. The
-     * window alone already stopped a longer absence being worth more; the weight is what keeps an
+     * {@code Balance.OFFLINE_MINING_WIN_WEIGHT} caps how <em>well</em> it does inside that window.
+     * The window alone already stopped a longer absence being worth more; the weight is what keeps an
      * hour played strictly better than an hour away <em>within</em> the window as well as past it.
+     *
+     * <p>⚠ The weight reaches pooled mining too as of 2026-08-06, but it reaches it through the
+     * <b>payout</b> rather than the draw — so the assertions here, which are all about who the chain
+     * says won, are unchanged. {@code MiningChainTest.OfflinePoolWeight} covers the other half.
      */
     @Nested
-    @DisplayName("offline solo mining is weighted, and only offline solo mining")
+    @DisplayName("an absent rig's own draw is weighted, and the chain is not")
     class OfflineWeight {
 
         /**
@@ -413,7 +448,8 @@ class ChainSyncTest {
             game.setMiningMode(MiningMode.SOLO);
             // ⚠ 80, not 100 — a fresh rig's tutorial parasite holds some cycles and a full
             // allocation is refused, leaving the rig mining nothing and the test asserting on zero.
-            assertThat(game.allocateSelfMining(80)).isTrue();
+            atTopOfLadder(game.state());
+            assertThat(game.allocateSelfMining(50)).isTrue();
             game.persist();
             return store;
         }
@@ -488,16 +524,22 @@ class ChainSyncTest {
         }
 
         /**
-         * ⚠ Pools are NOT weighted, and this is the assertion that keeps it that way.
+         * ⚠ A pool's DRAW is not weighted, and this is the assertion that keeps it that way.
          *
-         * <p>A pool's hashrate is the pool's. It competes whether or not one member's client happens
-         * to be open, so scaling its share during a fill would be this rig reaching into somebody
-         * else's rate — and it would quietly make pooled mining the better way to be absent, which is
-         * a balance decision nobody took. With the same seed, a pooled rig's fill is identical to its
-         * live run block for block.
+         * <p>A pool's hashrate is the pool's. It does not lose half of it because one member closed
+         * their client, so scaling its share during a fill would leave the block explorer reporting
+         * that this player's pool underperforms during their absences — and it would not reduce
+         * pay-per-share income by anything at all, since PPS is paid per accepted share out of the
+         * pool's own balance rather than out of blocks. With the same seed, a pooled rig's fill is
+         * identical to its live run block for block.
+         *
+         * <p>⚠ <b>This is NOT the claim that an absent pooled player earns full rate.</b> They do
+         * not, as of 2026-08-06 — {@code Balance.OFFLINE_MINING_WIN_WEIGHT} halves their cut of these
+         * blocks and their share accrual, in {@code MiningRules.runSelfMining}. What is preserved
+         * here is that the chain does not change shape for it.
          */
         @Test
-        @DisplayName("a pooled rig's fill is unchanged — the weight is self-mining only")
+        @DisplayName("a pooled rig's fill wins the same blocks — the weight is not in the draw")
         void poolsAreUntouched(@TempDir Path dir) {
             Duration span = Duration.ofHours(Balance.OFFLINE_MINING_HOURS);
             SaveStore store = soloRig(dir, "pooled");

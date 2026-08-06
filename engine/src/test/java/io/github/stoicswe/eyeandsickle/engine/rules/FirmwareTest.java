@@ -240,17 +240,43 @@ class FirmwareTest {
     @DisplayName("acquisition and price")
     class Acquisition {
 
+        /**
+         * ⚠ <b>AMENDED 2026-08-06, and the sticker price was the wrong comparison all along.</b>
+         *
+         * <p>This asserted the firmware image was dearer than every non-firmware offering, which was
+         * true only because the firewall ladder was not yet in the catalogue. It is now, at
+         * {@code docs/design/09} §1's Established 40/110/200, so <b>Firewall T3 costs 200 EC against
+         * firmware's 180</b> — two figures both pinned in the design documents, and the assertion
+         * between them was the thing that had to give.
+         *
+         * <p>The claim worth keeping is the one in the message: firmware is <em>not a consumable</em>.
+         * And on total cost firmware is still far and away the dearest thing in the game — the image
+         * is only half of it, and the other half is a schematic that no amount of ethecoin buys
+         * ({@code docs/design/11} §3, Invariant <b>I2</b>). A player can own a T3 firewall with money
+         * alone; nobody can own a firmware implant that way at any price. So the two assertions below
+         * are what the old one was reaching for: dearer than everything consumable, and gated behind
+         * something money cannot reach.
+         */
         @Test
-        @DisplayName("firmware costs more than any ordinary upgrade")
+        @DisplayName("firmware is priced as a capability's payload, not as a consumable")
         void firmwareIsExpensive() {
-            java.math.BigInteger dearestSoftware = Catalogue.offerings().stream()
-                    .filter(offering -> !offering.firmware())
+            java.math.BigInteger dearestConsumable = Catalogue.offerings().stream()
+                    .filter(offering -> offering.durability() == io.github.stoicswe.eyeandsickle.engine.Durability
+                            .CONSUMABLE)
                     .map(Catalogue.Offering::priceWei)
                     .max(java.math.BigInteger::compareTo)
                     .orElse(java.math.BigInteger.ZERO);
             assertThat(Balance.FIRMWARE_IMPLANT_IMAGE_PRICE)
                     .as("firmware is a permanent capability's payload, not a consumable")
-                    .isGreaterThan(dearestSoftware);
+                    .isGreaterThan(dearestConsumable);
+
+            // ⚠ The half that makes the sticker price misleading, and the half I2 rests on. Anything
+            // a player can finish buying with money alone is, by construction, not a ceiling.
+            assertThat(Catalogue.offerings().stream()
+                            .filter(Catalogue.Offering::firmware)
+                            .allMatch(offering -> !offering.requiresSchematic().isBlank()))
+                    .as("every firmware offering is inert without a schematic that is never sold")
+                    .isTrue();
         }
 
         /**

@@ -295,7 +295,40 @@ public final class GameEngine {
         TopologyGenerator.generate(s, now);
 
         Targets.plantTutorialMiner(s, now);
+        grantStartingDefence(s, now);
         return s;
+    }
+
+    /**
+     * The one defence a new rig already holds — {@code Catalogue.STARTING_DEFENCE}.
+     *
+     * <h2>⚠ Why a grant rather than an exemption in the arming rule</h2>
+     *
+     * Arming requires owning, with no special case for tier one, because a rule with one exception
+     * is a rule somebody will add a second exception to. So a new character is <em>given</em> the
+     * item: the FIREWALL panel opens with one row armable instead of ten refusals, which is the
+     * difference between a tool that shows you a ladder and a tool that looks broken.
+     *
+     * <p>⚠ It is an ORDINARY item, not a special one. Ethecoin-gated, so it is sellable
+     * ({@code Repac.sellable}) and re-buyable, and {@code docs/design/02} §2.1 requires exactly that
+     * of everything on that gate — "losable and replaceable" is what makes the loss loops survivable.
+     * A player who sells their starting firewall and goes undefended has made a decision the design
+     * allows; a starting item that could not be sold would be a fourth kind of ownership.
+     *
+     * <p>⚠ <b>VAULT, not arrivals.</b> {@code StorageRules} puts a bought item in the high-risk zone
+     * because putting goods away is meant to be a decision — but this one was never bought, and a
+     * character who is robbed before their first action has learned nothing.
+     */
+    private static void grantStartingDefence(GameSave s, Instant now) {
+        Catalogue.byId(Catalogue.STARTING_DEFENCE).ifPresent(offering -> {
+            ItemState item = new ItemState();
+            item.itemType = offering.id();
+            item.displayName = offering.name();
+            item.tier = StorageTier.VAULT.name();
+            item.acquiredAt = now;
+            item.origin = "issued";
+            s.items.add(item);
+        });
     }
 
     public GameSave state() {
@@ -392,11 +425,15 @@ public final class GameEngine {
      * is <b>not</b> — it runs on its own share clock off {@code elapsed} — so the elapsed handed to
      * {@code runSelfMining} is the capped window {@code sync} reports rather than the absence.
      * Passing the absence would break Invariant I5 silently, and only for PPS miners.
+     *
+     * <p>⚠ The {@code true} below is the second half of {@code Balance.OFFLINE_MINING_WIN_WEIGHT}:
+     * the chain already weighted a <b>solo</b> rig's draw down for these blocks, and this is what
+     * charges a <b>pooled</b> one the same weight. It is the only call site that passes it.
      */
     private ChainRules.Sync catchUpChain(Instant now) {
         Rng rng = Rng.of(save);
         ChainRules.Sync walked = ChainRules.sync(save, save.lastPlayedAt, now, rng);
-        BigInteger credited = MiningRules.runSelfMining(save, walked.minedFor(), now, rng, walked.minted());
+        BigInteger credited = MiningRules.runSelfMining(save, walked.minedFor(), now, rng, walked.minted(), true);
         rng.commit(save);
 
         if (credited.signum() > 0) {
@@ -506,6 +543,30 @@ public final class GameEngine {
         // ScanSchedule: sixteen missed scans and one missed scan produce the same result, which is
         // what stops a schedule being farmed by quitting and what stops a four-day absence spending
         // a day's compute on the first tick back.
+        // ⚠ THE COMPUTE CEILING IS DERIVED FROM WHAT THE RIG HOLDS, and this is the one place it
+        // is written. `rig.totalCycles` is a cache of ComputeLadder.capacityOf — the same shape as
+        // ChainState.networkHashrate, which was a stored copy of a derived value, went stale against
+        // a re-tune, and cost a real character 29% of their income forever with nothing reporting
+        // it. Reconciling on the tick means an upgrade that lands by any route — a flash, a gift, a
+        // hand-edited save putting the item in the vault — raises the ceiling exactly once and
+        // consistently.
+        if (io.github.stoicswe.eyeandsickle.engine.rules.ComputeLadder.reconcile(save)) {
+            changed = true;
+            EventLog.notice(
+                    save,
+                    "rig",
+                    "Compute ceiling is now " + save.rig.totalCycles + " cycles.",
+                    now);
+        }
+        // ⚠ THE BLACK MARKET NOTICES YOU ON THE TICK, so the introduction happens while the player
+        // is playing rather than only on the load after they earned it. Standing and heat both move
+        // during a session; this fires the moment they cross, once ever, and BlackMarket answers
+        // "have I sent this" by looking for the MESSAGE rather than keeping a flag that could fall
+        // out of step with the inbox.
+        if (io.github.stoicswe.eyeandsickle.engine.rules.BlackMarket.contactIfDue(save, now) != null) {
+            changed = true;
+            EventLog.notice(save, "comms", "New message: you have been noticed.", now);
+        }
         if (io.github.stoicswe.eyeandsickle.engine.rules.ScanSchedule.due(save, now)) {
             io.github.stoicswe.eyeandsickle.engine.rules.ScanSchedule.stamp(save, now);
             ScanTier tier;
@@ -645,7 +706,9 @@ public final class GameEngine {
         // ⚠ Read the pending-payout count BEFORE running, and add whatever this tick found, because
         // settlement zeroes it. A label built from the field afterwards reads "0 shares" every time.
         int pendingBefore = save.rig.miningPendingPayouts;
-        BigInteger selfYield = MiningRules.runSelfMining(save, elapsed, now, miningRng, minted);
+        // ⚠ false: a player who leaves the client running is playing. The offline weight is an
+        // absence rule, not an idle-time penalty.
+        BigInteger selfYield = MiningRules.runSelfMining(save, elapsed, now, miningRng, minted, false);
         miningRng.commit(save);
 
         if (selfYield.signum() > 0) {
@@ -2614,10 +2677,61 @@ public final class GameEngine {
         d.tier = tier;
         d.reservedCycles = cycles;
         d.armedAt = clock.instant();
+        d.allocationId = a.allocationId;
         save.defenses.add(d);
         EventLog.notice(
                 save, "defense", kind + " armed; " + cycles + " cycles reserved while it runs.", clock.instant());
         return Optional.of(d);
+    }
+
+    /**
+     * Takes a defence down and hands its cycles straight back.
+     *
+     * <h2>⚠ Released, NOT put on the recovery curve, and that asymmetry is the point</h2>
+     *
+     * {@code ComputeRules} has two ways to give compute back. {@code beginRecovery} is for work that
+     * <em>ran</em> — a scan spends its cycles doing something and the Thermal Budget curve is the
+     * price of having spent them ({@code design/01} §1.3). An armed defence does no work; it
+     * <em>holds</em> a reservation, exactly as an equipped tool does. So disarming is
+     * {@link ComputeRules#release}, the same call that unequips a tool, and the cycles are free
+     * immediately.
+     *
+     * <p>⚠ Putting a disarm on the recovery curve would be a real design change wearing a
+     * consistency argument's clothes: it would make toggling a firewall off cost minutes of reduced
+     * capacity, so the honest move for a player short of cycles would be to never arm anything. That
+     * is the opposite of what <b>I9</b> is protecting — defending your own rig is meant to be the
+     * safe thing to do.
+     *
+     * <p>⚠ <b>Never generates heat, in either direction</b> (I9). Arming does not and neither does
+     * this; a rig that got quieter is not a rig that did something suspicious.
+     *
+     * @param kind the defence's kind, which is what the player picks in the UI
+     * @return true if something was taken down, false if nothing of that kind was armed
+     */
+    public boolean disarm(String kind) {
+        DefenseState found = null;
+        for (DefenseState d : save.defenses) {
+            if (d.kind.equals(kind)) {
+                found = d;
+                break;
+            }
+        }
+        if (found == null) {
+            return false;
+        }
+        // ⚠ Removed whether or not the release found anything. An empty or stale allocationId means
+        // the reservation is already gone, and refusing to take the defence down in that case would
+        // leave the player with a firewall they cannot turn off and no way to say why.
+        if (!found.allocationId.isEmpty()) {
+            ComputeRules.release(save.rig, found.allocationId);
+        }
+        save.defenses.remove(found);
+        EventLog.notice(
+                save,
+                "defense",
+                kind + " disarmed; " + found.reservedCycles + " cycles released.",
+                clock.instant());
+        return true;
     }
 
     /** Sweeps every deployed miner's buffer into the balance. */

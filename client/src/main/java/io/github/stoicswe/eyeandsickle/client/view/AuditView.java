@@ -133,14 +133,25 @@ public final class AuditView {
         HBox row = new HBox(8);
         row.setAlignment(Pos.CENTER_LEFT);
         record Tier(String flag, String label, long cycles, String seconds) {}
+        // ⚠ The BUTTON reads "Deep"; the FLAG is still --thorough, and so are the manual, the two
+        // design docs and the curriculum. That is a deliberate mismatch made on explicit direction
+        // (2026-08-06) and it is the one thing on this row worth re-reading: pillar C6 sells skill
+        // that transfers to a real terminal, so a control named differently from the command it runs
+        // is a small tax on exactly that. The tooltip prints the real command for this reason —
+        // do not drop it. Renaming the flag is the other resolution and is much wider: scan(8),
+        // commands_en.properties, CommandSpec, design/04 §3.2 and education/02.
         for (Tier t : List.of(
                 new Tier("quick", "Quick", 5, "30s"),
                 new Tier("full", "Full", 15, "2m"),
-                new Tier("thorough", "Thorough", 35, "6m"))) {
-            Button button = new Button(t.label() + "  ·  " + t.cycles() + " cycles  ·  " + t.seconds());
+                new Tier("thorough", "Deep", 35, "6m"))) {
+            // ⚠ "(5c)", not "5 cycles · 30s". At 655px this row has to hold three buttons, and the
+            // long form wrapped the strip onto two lines. The duration did not vanish — it moved
+            // into the tooltip below, which is the only fact the short form drops.
+            Button button = new Button(t.label() + " (" + t.cycles() + "c)");
             button.setMinHeight(30);
             button.setTooltip(new javafx.scene.control.Tooltip(
-                    "scan --" + t.flag() + "\n\nWhat a more expensive tier buys is signal strength, "
+                    "scan --" + t.flag() + "\n\n" + t.cycles() + " cycles, about " + t.seconds()
+                            + ".\n\nWhat a more expensive tier buys is signal strength, "
                             + "not certainty. The cycles come back on the Thermal Budget curve."));
             button.setAccessibleText("Run a " + t.label() + " scan, costing " + t.cycles() + " cycles");
             button.setOnAction(e -> {

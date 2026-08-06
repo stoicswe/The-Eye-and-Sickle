@@ -53,13 +53,71 @@ public final class Balance {
     // ------------------------------------------------------------------ compute
 
     /**
-     * A starting rig has 100 cycles — {@code docs/design/01-core-resources.md} §1.
+     * A starting rig has 24 cycles — {@code docs/design/01-core-resources.md} §1.
      *
-     * <p>This is the denominator of the entire game. Every cost below is legible only relative to it:
-     * a Thorough Scan at 35 is a third of a starting rig, which is why it is a decision rather than a
-     * button.
+     * <h2>⚠ WAS 100 UNTIL 2026-08-06, AND THE DENOMINATOR MOVING IS THE POINT</h2>
+     *
+     * This is the denominator of the entire game, and it is now the <em>bottom</em> of a ladder
+     * rather than the whole of it — see {@link #COMPUTE_RUNGS}. Every cost in this file was written
+     * against 100 and <b>none of them changed</b>, on explicit direction: a Thorough Scan still costs
+     * 35, which a starting rig cannot run at all, and a T3 Firewall still holds 15, which is nearly
+     * two thirds of one.
+     *
+     * <p>⚠ <b>That is deliberate and it is the reason the ladder exists.</b> Costs that a new rig
+     * cannot meet are what make capacity worth buying — the alternative, rescaling every cost to fit
+     * 24, would leave the player exactly as capable at every rung and the upgrades would buy nothing
+     * but bigger numbers. What a rung unlocks is <em>which operations are possible at all</em>.
+     *
+     * <p>⚠ So a starting rig is genuinely limited: it can run a Quick scan (5) and a Full one (15),
+     * hold a T1 firewall (5) and a canary (1), and it cannot do those at the same time. Anything
+     * priced above 24 is content behind the first rung, and anything above 32 is behind the second.
      */
-    public static final long STARTING_CYCLES = 100L;
+    public static final long STARTING_CYCLES = 24L;
+
+    /**
+     * The compute ladder — {@code docs/design/01-core-resources.md} §1.1, added 2026-08-06.
+     *
+     * <p>24 → 32 → 48 → 64. The first rung is bought; the two above it are compiled from a schematic
+     * and rare materials. See {@code rules/ComputeLadder}, and see {@link #COMPUTE_32_PRICE} for the
+     * invariant amendment that lets the first one be bought at all.
+     */
+    public static final long[] COMPUTE_RUNGS = {24L, 32L, 48L, 64L};
+
+    /**
+     * What the first rung costs, in ethecoin.
+     *
+     * <h2>⚠ THIS IS AN AMENDMENT TO INVARIANT I1, THE GAME'S LOAD-BEARING RULE</h2>
+     *
+     * <b>I1 reads "compute is never purchasable with ethecoin"</b>, and
+     * {@code docs/design/00-vision-and-pillars.md} §4 gives the reason: otherwise mining buys mining
+     * capacity and the master scarcity collapses into a compounding flywheel. This constant is a
+     * hole in it, made on explicit direction on 2026-08-06 and logged in {@code design/15} §3.
+     *
+     * <h2>⚠ THE AMENDMENT IS EXACTLY ONE RUNG WIDE, AND THAT NARROWNESS IS THE WHOLE SAFETY ARGUMENT</h2>
+     *
+     * The flywheel I1 protects against needs a <em>loop</em>: mine → buy capacity → mine faster →
+     * buy more capacity. A single purchasable step cannot close that loop, because the step above it
+     * cannot be bought at any price. Money moves a player from 24 to 32 <b>once, ever</b>, and then
+     * the ladder is schematic-gated for the rest of its length. That is the difference between a
+     * one-time head start and a compounding one.
+     *
+     * <p>⚠ <b>The narrowing is mechanical, not a promise.</b>
+     * {@code ComputeLadderTest.onlyTheFirstRungIsForSale} fails the build if any other rung acquires
+     * a price, and {@code CatalogueTest} already refuses a price on anything not ethecoin-gated. If
+     * a second compute offering is ever ethecoin-gated, I1 has been abandoned rather than amended —
+     * and the difference will be a red build rather than a conversation nobody had.
+     *
+     * <h2>Why 1200 EC</h2>
+     *
+     * It has to hurt, or the amendment buys a flywheel after all. Against a starting rig's own
+     * income — 24 cycles at {@code SELF_MINING_WEI_PER_CYCLE_HOUR} is about 9.6 EC an hour — this is
+     * roughly 125 hours of mining, which nobody will do. It is priced to be paid out of
+     * <b>breach loot</b> ({@code design/03} §3's 45–65 EC hauls, so twenty-odd good breaches), which
+     * puts the first rung behind the puzzle rather than behind the clock. That is the pillar the
+     * whole game rests on, and it is what keeps the purchase from being a mining upgrade even
+     * though it is bought with mining's currency.
+     */
+    public static final BigInteger COMPUTE_32_PRICE = ec("1200"); // 1200 EC
 
     /**
      * A live deployed miner reserves 3 cycles of the <em>deployer's</em> rig for its control channel,
@@ -516,7 +574,7 @@ public final class Balance {
     }
 
     /**
-     * What a solo rig's share of the network counts for while the client was closed.
+     * What an absent rig's hashrate counts for — in <em>every</em> mining mode.
      *
      * <h2>Why an absence pays at half weight</h2>
      *
@@ -525,37 +583,69 @@ public final class Balance {
      * stops a longer absence being worth more — past four hours nothing accrues, so there is no
      * absence to optimise toward. This is the second half of the same argument: within that window,
      * time away should not be worth as much as time played, or the four hours become a thing to
-     * collect rather than a courtesy. Play stays strictly better per hour, and it now stays better
-     * per hour <em>inside</em> the buffered window as well as outside it.
+     * collect rather than a courtesy. Play stays strictly better per hour, and it stays better per
+     * hour <em>inside</em> the buffered window as well as outside it.
      *
-     * <h2>⚠ It applies to SELF-MINING only, and only during a fill</h2>
+     * <h2>⚠ AMENDED 2026-08-06: it was solo-only and it was named for that</h2>
      *
-     * The live tick is untouched — a player who leaves the client running is playing, and this is not
-     * an idle-time penalty. Pooled mining is untouched as well: a pool's hashrate is the pool's, it
-     * competes whether or not one member's client is open, and scaling it here would be this rig
-     * reaching into somebody else's rate. What is halved is the <b>player's own</b> share of the draw
-     * ({@code ChainRules.drawWinner}); the probability mass that frees up goes to the unpooled
-     * population, because somebody still mined the block.
+     * It shipped as {@code OFFLINE_SOLO_WIN_WEIGHT} and this javadoc argued pooled mining had to be
+     * exempt — "a pool's hashrate is the pool's, it competes whether or not one member's client is
+     * open". That is still true of the <b>pool</b>, and it is why the pool's draw is still untouched
+     * (see below). What it does not justify is exempting the <b>player's</b> pooled income, which is
+     * what the exemption actually did: a pooled character collected four hours at full rate for
+     * closing the client while a solo one collected four at half. Extended to all three modes on
+     * explicit direction — {@code docs/design/15-open-questions.md} §3.
+     *
+     * <p>⚠ <b>One constant, deliberately, and it is the reason for the rename.</b> The quantity is
+     * "what this rig's hashrate is worth while nobody is at the keyboard", and it is the same
+     * question in all three modes. Two constants would be two figures to re-tune and one to forget,
+     * which is how solo and pooled offline income came to differ by a factor of two in the first
+     * place.
+     *
+     * <h2>⚠ Three modes, three places, because the player's hashrate enters three ways</h2>
+     *
+     * <ul>
+     *   <li><b>Solo</b> — {@code ChainRules.drawWinner} scales the player's own share of the draw.
+     *       It has to be the draw: a solo block pays the whole subsidy plus its fees, so there is no
+     *       cut to scale, and paying half of one would put a block in the explorer whose miner was
+     *       credited less than the block was worth.
+     *   <li><b>PPLNS</b> — {@code MiningRules.runSelfMining} scales the player's cut of each pool
+     *       block that carries {@code Won.offline()}.
+     *   <li><b>PPS</b> — the same method scales the share clock's accrual. A share pool pays per
+     *       accepted share out of its own balance whether or not anybody found a block, so the draw
+     *       is not a lever on PPS income at all and the clock is the only one there is.
+     * </ul>
+     *
+     * <h2>⚠ The POOL'S draw is untouched, and that is not an oversight</h2>
+     *
+     * The obvious implementation — halve the chosen pool's {@code networkShare()} during a fill —
+     * was rejected. A pool does not lose half its hashrate because one member logged off, so it
+     * would hand the freed probability to the unpooled population for four hours and leave a block
+     * explorer reporting that this player's pool mysteriously underperforms during their absences.
+     * It would also halve the pool blocks written to the CONTRIBUTOR record under <b>PPS</b> while
+     * reducing PPS income by exactly nothing, since those rows credit zero by construction. Scaling
+     * the player's own share of the proceeds costs the chain nothing and reaches every scheme.
      *
      * <h2>⚠ Invariants this must not disturb</h2>
      *
      * <b>I4</b> — self-mining is still immune to detection and seizure and still generates zero heat;
      * a smaller number is not a risk. <b>I5</b> — offline income remains capped and non-proportional,
      * and this only lowers the cap's value. <b>I2</b> — nothing here is purchasable, so no ceiling
-     * moved.
+     * moved. <b>I6</b> — deployed miners are not in scope: they spend the host's compute and settle
+     * out of their own buffer.
      *
-     * <p>⚠ <b>It must never change how much RNG is consumed.</b> The draw is one {@code nextDouble}
-     * per block whatever the outcome; this scales the threshold it is compared against, not the
-     * number of draws. A generator whose consumption varied with the mode would stop a stored seed
-     * being a replay — {@code Rng}'s stated contract, and the reason {@code drawWinner} rolls even
-     * for blocks the rig is not contesting.
+     * <p>⚠ <b>It must never change how much RNG is consumed on the chain draw.</b> That draw is one
+     * {@code nextDouble} per block whatever the outcome; the solo branch scales the threshold it is
+     * compared against, not the number of draws. A generator whose consumption varied with the mode
+     * would stop a stored seed being a replay — {@code Rng}'s stated contract, and the reason
+     * {@code drawWinner} rolls even for blocks the rig is not contesting. The PPS share clock is a
+     * separate stream and already consumes a count that varies with elapsed time.
      *
      * <p>⚠ <b>Deliberately invisible.</b> No readout names it and none should: the SYNCHRONIZING
      * screen reports what the chain did, and a player comparing blocks-won to hashrate share over a
-     * few sessions is doing arithmetic on a Poisson process with a sample size of about two. Logged
-     * as a decision in {@code docs/design/15-open-questions.md} §3.
+     * few sessions is doing arithmetic on a Poisson process with a sample size of about two.
      */
-    public static final double OFFLINE_SOLO_WIN_WEIGHT = 0.5d;
+    public static final double OFFLINE_MINING_WIN_WEIGHT = 0.5d;
 
     /**
      * The most blocks one synchronisation will fill in, block by block.
@@ -768,6 +858,76 @@ public final class Balance {
     public static final BigInteger DEFENSE_CANARY_PRICE = ec("8"); // 8 EC
 
     public static final BigInteger DEFENSE_TARPIT_PRICE = ec("70"); // 70 EC
+
+    /**
+     * The firewall ladder's prices, straight from {@code docs/design/09} §1's Established table.
+     *
+     * <p>⚠ <b>T3 is a "top purchasable"</b> ({@code docs/design/03-economy.md} §2) and that phrase is
+     * doing invariant work rather than describing a price point. <b>I2</b> says ethecoin never buys a
+     * ceiling, and the whole firewall ladder is ethecoin-gated because `09` §2 argues it is
+     * horizontal protection with the escalating <em>compute</em> cost as the real limiter: 15
+     * permanent cycles is 15 you are not mining or attacking with. Money buys up to the top rung of a
+     * ladder; it does not buy a higher ladder.
+     */
+    public static final BigInteger DEFENSE_FIREWALL_T1_PRICE = ec("40"); // 40 EC
+
+    public static final BigInteger DEFENSE_FIREWALL_T2_PRICE = ec("110"); // 110 EC
+    public static final BigInteger DEFENSE_FIREWALL_T3_PRICE = ec("200"); // 200 EC
+
+    /**
+     * The Detection Array's two purchasable rungs. <b>T3 has no price and must never acquire one.</b>
+     *
+     * <h2>⚠ AMENDED 2026-08-06 — the ladder was schematic-gated end to end</h2>
+     *
+     * {@code docs/design/09} §1 had all three tiers behind the schematic gate. T1 and T2 moved to
+     * ethecoin on explicit direction, under a rule stated at the time and now recorded in
+     * {@code docs/design/15} §3: <em>low-level base tools and low-level upgrades are purchasable and
+     * cost more than a consumable; high-level and rare items need a schematic to compile</em>.
+     *
+     * <p>⚠ <b>What keeps I2 intact is that the ladder's TOP RUNG stayed behind the schematic.</b>
+     * This is exactly the firewall's "top purchasable" shape one item along — money reaches the
+     * highest rung below the ceiling and never the ceiling itself. Pricing T3 at any figure at all
+     * collapses that, and it would do so silently: the shop would still render, the purchase would
+     * still work, and ethecoin would have bought a permanent capability.
+     * {@code CatalogueTest.theTopOfEveryDefenceLadderIsNotForSale} fails the build on it.
+     *
+     * <p>Priced against the ladder they now sit beside: T1 at 6 standing cycles is a little dearer
+     * than the 5-cycle Firewall T1, and T2 at 14 sits between Firewall T2 and T3, which is where its
+     * compute cost sits too. Both are far above a consumable — the canary is 8 EC — which is the
+     * other half of the rule.
+     */
+    public static final BigInteger DEFENSE_DETECTION_ARRAY_T1_PRICE = ec("50"); // 50 EC
+
+    public static final BigInteger DEFENSE_DETECTION_ARRAY_T2_PRICE = ec("140"); // 140 EC
+
+    /**
+     * What it takes for the black-market vendor to notice you — the MARKET's fourth tab.
+     *
+     * <h2>⚠ This gates a VENDOR, not an item, and that is what keeps I3 true</h2>
+     *
+     * {@code docs/design/02-unlock-gates.md} §2.5: the heat-state gate "determines what's reachable,
+     * never what's ownable", and black-market brokers are the case it names — <em>"only reachable
+     * while hot: being hunted opens doors that being clean does not"</em>. So every item behind this
+     * tab keeps its own single gate (the Honeypot Stash stays <b>reputation</b>-gated, for §2.3's
+     * reason that decoy infrastructure distorts raids if freely bought). Reaching the shelf and being
+     * allowed to buy off it are two different questions and this answers only the first.
+     *
+     * <h2>⚠ BOTH conditions, and the heat one is a FLOOR rather than a ceiling</h2>
+     *
+     * Standing alone would make the tab a reputation gate by another name. Heat alone would hand it
+     * to anyone careless. Together they describe the fiction the tab is for: somebody the factions
+     * rate <em>and</em> the Eye is already hunting. ⚠ Note the direction — you need <b>at least</b>
+     * this much heat, which is the opposite of every other gate in the game and is §2.5's point:
+     * respectable fixers do not meet wanted people, and these are not respectable fixers.
+     *
+     * <p>Reputation is read as the <b>better</b> of the two faction standings, never their sum: a
+     * committed Sickle operative and a committed Eye operative are both somebody worth knowing, and
+     * adding them would let a fence-sitter with middling standing on both sides qualify on neither.
+     */
+    public static final int BLACK_MARKET_MIN_REPUTATION = 40;
+
+    /** ⚠ A FLOOR. See {@link #BLACK_MARKET_MIN_REPUTATION} — this vendor wants you hunted. */
+    public static final int BLACK_MARKET_MIN_HEAT = 25;
 
     // ------------------------------------------------------------------ market price bands
 

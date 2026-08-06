@@ -37,7 +37,7 @@ These are the load-bearing rules extracted from the full design. A change to any
 
 | # | Invariant | Why it's load-bearing | Detail in |
 |---|---|---|---|
-| I1 | Compute is never purchasable with ethecoin | Otherwise mining buys mining capacity and scarcity collapses into a compounding flywheel | `01-core-resources.md` |
+| I1 † | Compute is never purchasable with ethecoin — **except the compute ladder's first rung** | Otherwise mining buys mining capacity and scarcity collapses into a compounding flywheel. One rung cannot compound; see † | `01-core-resources.md` |
 | I2 | Ethecoin never buys a ceiling | Money buys breadth only; ceilings come from schematics/story | `02-unlock-gates.md` |
 | I3 | Every item sits behind exactly one unlock gate | Gate assignment follows a rule, not per-item taste | `02-unlock-gates.md` |
 | I4 | Self-mining is structurally immune to detection and seizure, and generates zero heat | It is the income floor; heat must have a real cost with a real bottom | `04-mining.md` |
@@ -72,3 +72,4 @@ These are the load-bearing rules extracted from the full design. A change to any
 - Not a pay-to-win or grind-to-win economy: see I1/I2.
 - Not a twitch action game: time pressure exists (trace timers, backlog timers) but the skill expression is planning, reading, and triage.
 - Not a themepark MMO: multiplayer is opt-in, federated, and adversarial, with real loss.
+

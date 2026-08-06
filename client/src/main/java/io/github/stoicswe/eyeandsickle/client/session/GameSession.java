@@ -432,8 +432,79 @@ public interface GameSession extends AutoCloseable {
     /** Moves an item between storage tiers. The risk change is the point ({@code design/01} §6). */
     Outcome moveItem(String itemId, StorageTier to);
 
+    // ── The inbox (COMS) ──────────────────────────────────────────────────────────────────────
+    //
+    // ⚠ THIS IS THE GAME'S INBOX AND HOLDS NOTHING A PLAYER WROTE. Every message is authored by the
+    // rules — a vendor making contact, an event worth a sentence. Player-to-player conversation is
+    // Bluesky's DM service, reached through the player's own account, and never touches a save or
+    // this port. The COMS window shows both, which is a presentation decision and not a shared type:
+    // entries here are trusted enough to grant an item, and one of them does.
+
+    /**
+     * The rig's inbox, newest first.
+     *
+     * <p>⚠ Newest first, and said here because {@code GameSession.scanReports} documented the same
+     * order and the Security Center still read it backwards with {@code getLast()}. An ordering
+     * contract stated only in prose is one call away from being inverted.
+     */
+    List<InboxMessage> messages();
+
+    /** How many are unread — the rail chip's badge and the notification count. */
+    int unreadMessages();
+
+    /** Marks one message read. Idempotent; a no-op on an already-read message persists nothing. */
+    Outcome markMessageRead(String messageId);
+
+    /**
+     * Takes the download a message was carrying.
+     *
+     * <p>⚠ Claimable once. The offer is cleared before the download is created, so a failure
+     * downstream loses an entitlement rather than minting one per retry — see {@code rules/Inbox}.
+     */
+    Outcome claimMessageOffer(String messageId);
+
+    // ── The notebook (NOTES) ──────────────────────────────────────────────────────────────────
+    //
+    // ⚠ NOTHING HERE IS READ BY ANY RULE, and that is a constraint rather than a description of
+    // today. A note is text the player wrote for themselves; no gate, price, threshold or outcome
+    // may ever depend on one, or the notebook becomes a save-editable input to the rules.
+
+    /** Every note and folder, flat. The tree is assembled from {@code parentId}. */
+    List<Note> notes();
+
+    /** Creates a note or folder inside {@code parentId} ({@code ""} for the root). */
+    Outcome createNote(String parentId, String name, boolean folder);
+
+    Outcome renameNote(String noteId, String name);
+
+    /**
+     * Replaces a note's text.
+     *
+     * <p>⚠ Returns OK and persists nothing when the body is unchanged, which is what lets the editor
+     * call this on a timer without writing the save on every keystroke.
+     */
+    Outcome writeNote(String noteId, String body);
+
+    /** Deletes a note, or a folder <b>and everything inside it</b>. The UI is what asks first. */
+    Outcome deleteNote(String noteId);
+
     /** Arms a defence. Defending your own rig never generates heat (Invariant I9). */
     Outcome arm(String kind, int tier);
+
+    /**
+     * Takes an armed defence down and gives its cycles straight back.
+     *
+     * <p>⚠ Keyed on <b>kind</b> and not on tier, because only one defence of a kind may be armed at
+     * a time — so the kind identifies it, and asking for a tier would let a caller name a
+     * combination that cannot exist and get a refusal it could not act on.
+     *
+     * <p>⚠ The cycles are <b>released</b>, not put on the Thermal Budget recovery curve. An armed
+     * defence holds a reservation rather than doing work, so this is the same call that unequips a
+     * tool. See {@code GameEngine.disarm} for why the consistent-looking alternative is a design
+     * change: a disarm that cost minutes of capacity would make never arming anything the correct
+     * play, which is the opposite of what <b>I9</b> exists to encourage.
+     */
+    Outcome disarm(String kind);
 
     // ── The breach (docs/design/05) ───────────────────────────────────────────────────────────
     //
@@ -1053,6 +1124,44 @@ public interface GameSession extends AutoCloseable {
     }
 
     /** One owned thing, flattened for display. */
+    /**
+     * One message in the rig's inbox — the engine's, never another player's.
+     *
+     * @param offerItemType a catalogue id this message entitles the player to, or {@code ""}. ⚠ The
+     *     one field here with an economic consequence; only the rules ever set it.
+     * @param offerClaimed whether that entitlement has already been taken
+     */
+    record InboxMessage(
+            String messageId,
+            String from,
+            String subject,
+            String body,
+            java.time.Instant receivedAt,
+            boolean read,
+            String offerItemType,
+            String offerName,
+            boolean offerClaimed) {
+
+        /** Whether there is something here to collect. */
+        public boolean hasOffer() {
+            return !offerItemType.isBlank() && !offerClaimed;
+        }
+    }
+
+    /**
+     * One note or folder.
+     *
+     * @param parentId the folder it sits in, or {@code ""} for the root
+     * @param folder whether this is a folder, in which case {@code body} is unused
+     */
+    record Note(
+            String noteId,
+            String parentId,
+            String name,
+            String body,
+            boolean folder,
+            java.time.Instant updatedAt) {}
+
     record InventoryItem(
             String itemId,
             String displayName,

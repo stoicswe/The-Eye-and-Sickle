@@ -26,9 +26,63 @@ class RigStatusTest {
 
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-07-25T12:00:00Z"), ZoneOffset.UTC);
 
+    /**
+     * The fixture's ceiling — the top of the compute ladder, which {@code TestSaves.bare} grants.
+     *
+     * <p>⚠ These assertions were written when a starting rig was 100 cycles. A starting rig is 24
+     * now and the fixture is 64, so every rate and load figure below is DERIVED from this rather
+     * than written out — a literal would be asserting the ladder's shape from a test about readouts.
+     */
+    private static final long CAPACITY =
+            io.github.stoicswe.eyeandsickle.engine.Balance.COMPUTE_RUNGS[
+                    io.github.stoicswe.eyeandsickle.engine.Balance.COMPUTE_RUNGS.length - 1];
+
+    /** design/03 §1's published rate: 0.4 EC per cycle-hour. The per-cycle figure is the invariant. */
+    private static final double EC_PER_CYCLE_HOUR = 0.4d;
+
+    /**
+     * What a full rig earns an hour, pooled, at this fixture's ceiling.
+     *
+     * <p>⚠ Every literal {@code 40.0} in this class was this figure for a 100-cycle rig. It is
+     * derived now, because the number that {@code design/03} §1 actually publishes is the
+     * <b>per-cycle-hour</b> rate — the total was always a consequence of the ceiling, and became a
+     * misleading constant the moment the ceiling moved.
+     */
+    private static final double FULL_RATE = CAPACITY * EC_PER_CYCLE_HOUR;
+
     private static LocalGameSession session(Path dir) {
         return new LocalGameSession(io.github.stoicswe.eyeandsickle.client.support.TestSaves.bare(
                 io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("s.json")), "op", CLOCK));
+    }
+
+    /**
+     * Arms a defence, granting the item first.
+     *
+     * <h2>⚠ Why the grant, and why it does not weaken these tests</h2>
+     *
+     * Arming has required OWNING since 2026-08-06 ({@code LocalGameSession.armIntent}), so these
+     * assertions began failing on a refusal rather than on the arithmetic they are about. The tests
+     * in this class are about <b>defensive posture</b> — how many measures are up and what they cost
+     * — and not about the unlock ladder, which {@code CatalogueTest} and
+     * {@code ShortcutsTest.gatesExplainThemselves} cover. Rewriting each one to buy its way up the
+     * catalogue would bury the posture arithmetic under an unrelated concern and would have to be
+     * redone the day a price changes. Same argument, and the same shape, as
+     * {@code GameEngineTest.bare()} removing the tutorial parasite.
+     *
+     * <p>⚠ It still goes through {@code arm}, so a refusal for any OTHER reason — not enough cycles,
+     * the kind already armed — still fails the test it should.
+     */
+    private static void stockAndArm(LocalGameSession s, String kind, int tier) {
+        String offeringId = io.github.stoicswe.eyeandsickle.engine.Catalogue.defenceOfferingId(kind, tier)
+                .orElseThrow(() -> new IllegalArgumentException("no such defence: " + kind));
+        io.github.stoicswe.eyeandsickle.engine.Catalogue.byId(offeringId).ifPresent(offering -> {
+            var item = new io.github.stoicswe.eyeandsickle.engine.state.ItemState();
+            item.itemType = offering.id();
+            item.displayName = offering.name();
+            item.tier = io.github.stoicswe.eyeandsickle.protocol.game.StorageTier.VAULT.name();
+            s.game().state().items.add(item);
+        });
+        s.arm(kind, tier);
     }
 
     /** How much a block's fees add to a reward that includes them. See MiningRules.rewardBase. */
@@ -48,20 +102,23 @@ class RigStatusTest {
         @DisplayName("a full rig projects the design/03 §1 figure of 40 EC/hr")
         void fullRigRate(@TempDir Path dir) {
             LocalGameSession s = session(dir);
-            s.allocateSelfMining(100);
+            s.allocateSelfMining(CAPACITY);
 
             RigStatus status = RigStatus.of(s);
-            assertThat(status.incomePerHour()).isEqualTo("40.00");
+            assertThat(status.incomePerHour())
+                    .isEqualTo(String.format(java.util.Locale.ROOT, "%.2f", CAPACITY * EC_PER_CYCLE_HOUR));
             // 40 EC/hr ÷ 3600 = 0.0111 EC/s. Four decimals because two would show a flat 0.01 that
             // never moves, which defeats the point of a live readout.
-            assertThat(status.incomePerSecond()).isEqualTo("0.0111");
+            assertThat(status.incomePerSecond())
+                    .isEqualTo(String.format(
+                            java.util.Locale.ROOT, "%.4f", CAPACITY * EC_PER_CYCLE_HOUR / 3600.0d));
         }
 
         @Test
         @DisplayName("⚠ the strip's +EC/HR tracks the mode, not a flat rate")
         void rateTracksTheMode(@TempDir Path dir) {
             LocalGameSession s = session(dir);
-            s.allocateSelfMining(100);
+            s.allocateSelfMining(CAPACITY);
             String pooledRate = RigStatus.of(s).incomePerHour();
 
             s.setMiningMode(MiningMode.SOLO);
@@ -74,14 +131,14 @@ class RigStatusTest {
             assertThat(Double.parseDouble(soloRate)).isGreaterThan(Double.parseDouble(pooledRate));
             // ⚠ Two factors since 2026-07-27. The default pool is pay-per-share, so it neither
             // waives its 2% nor passes on block fees; solo gets both. See MiningRules.rewardBase.
-            assertThat(Double.parseDouble(soloRate)).isCloseTo(40.0d / 0.98d * FEE_EXPOSURE, within(0.05d));
+            assertThat(Double.parseDouble(soloRate)).isCloseTo(FULL_RATE / 0.98d * FEE_EXPOSURE, within(0.05d));
         }
 
         @Test
         @DisplayName("⚠ the strip's +EC/HR tracks the pool's fee too")
         void rateTracksThePool(@TempDir Path dir) {
             LocalGameSession s = session(dir);
-            s.allocateSelfMining(100);
+            s.allocateSelfMining(CAPACITY);
 
             s.setMiningPool("meridian");
             double dear = Double.parseDouble(RigStatus.of(s).incomePerHour());
@@ -93,8 +150,8 @@ class RigStatusTest {
             // block fees its pool collects. The strip has to show the whole gap — it is the only
             // place a player sees their rate without opening a panel.
             assertThat(cheap).isGreaterThan(dear);
-            double dearExpected = 40.0d * (1 - 0.035d) / 0.98d;
-            double cheapExpected = 40.0d * (1 - 0.005d) / 0.98d * FEE_EXPOSURE;
+            double dearExpected = FULL_RATE * (1 - 0.035d) / 0.98d;
+            double cheapExpected = FULL_RATE * (1 - 0.005d) / 0.98d * FEE_EXPOSURE;
             assertThat(dear).isCloseTo(dearExpected, within(0.1d));
             assertThat(cheap).isCloseTo(cheapExpected, within(0.1d));
         }
@@ -103,19 +160,22 @@ class RigStatusTest {
         @DisplayName("the projected rate is what a hypothetical allocation would earn, asked of the engine")
         void previewsAnUncommittedAllocation(@TempDir Path dir) {
             LocalGameSession s = session(dir);
-            s.allocateSelfMining(100);
+            s.allocateSelfMining(CAPACITY);
 
             // What the MINING panel prices its slider with while the player is still dragging. The
             // panel must not scale the committed figure itself — that is how the third copy of this
             // rate got into the client and stayed wrong.
             // ⚠ To double precision, not to the wei — the rate is derived through the network
             // hashrate, which is a double. See MiningChainTest.defaultPoolIsTheAnchor.
-            assertThat(ec(s.miningRateFor(100))).isCloseTo(40.0d, withinPercentage(1e-10d));
-            assertThat(ec(s.miningRateFor(50))).isCloseTo(20.0d, withinPercentage(1e-10d));
+            assertThat(ec(s.miningRateFor(CAPACITY)))
+                    .isCloseTo(CAPACITY * EC_PER_CYCLE_HOUR, withinPercentage(1e-10d));
+            assertThat(ec(s.miningRateFor(CAPACITY / 2)))
+                    .isCloseTo(FULL_RATE / 2, withinPercentage(1e-10d));
             assertThat(s.miningRateFor(0)).isZero();
             // And the preview must not disturb what the rig is actually doing.
-            assertThat(s.mining().selfMiningCycles()).isEqualTo(100L);
-            assertThat(ec(s.miningChain().expectedWeiPerHour())).isCloseTo(40.0d, withinPercentage(1e-10d));
+            assertThat(s.mining().selfMiningCycles()).isEqualTo(CAPACITY);
+            assertThat(ec(s.miningChain().expectedWeiPerHour()))
+                    .isCloseTo(FULL_RATE, withinPercentage(1e-10d));
         }
 
         @Test
@@ -124,8 +184,9 @@ class RigStatusTest {
             LocalGameSession s = session(dir);
             assertThat(RigStatus.of(s).incomePerHour()).isEqualTo("0.00");
 
-            s.allocateSelfMining(50);
-            assertThat(RigStatus.of(s).incomePerHour()).isEqualTo("20.00");
+            s.allocateSelfMining(CAPACITY / 2);
+            assertThat(RigStatus.of(s).incomePerHour())
+                    .isEqualTo(String.format(java.util.Locale.ROOT, "%.2f", FULL_RATE / 2));
         }
 
         @Test
@@ -134,7 +195,7 @@ class RigStatusTest {
             // The whole risk of a derived readout is that it drifts from the rules. This pins the
             // projection against a real hour of the engine's own arithmetic.
             LocalGameSession s = session(dir);
-            s.allocateSelfMining(100);
+            s.allocateSelfMining(CAPACITY);
 
             java.math.BigInteger projectedPerHour = RigStatus.of(s).incomeWeiPerHour();
             java.math.BigInteger enginePerHour = s.miningChain().expectedWeiPerHour();
@@ -143,7 +204,7 @@ class RigStatusTest {
             // rate depends on the MODE — a solo miner keeps the pool's fee — so a readout with its
             // own constant would be right for pooled players and wrong for everyone else.
             assertThat(projectedPerHour).isEqualTo(enginePerHour);
-            assertThat(ec(projectedPerHour)).isCloseTo(40.0d, withinPercentage(1e-10d));
+            assertThat(ec(projectedPerHour)).isCloseTo(FULL_RATE, withinPercentage(1e-10d));
         }
     }
 
@@ -167,17 +228,17 @@ class RigStatusTest {
             // first has more of them: layering is about independent failure modes, committed
             // capacity is about what you gave up.
             LocalGameSession s = session(dir);
-            s.arm("canary", 1); // 1 cycle
+            stockAndArm(s, "canary", 1); // 1 cycle
             assertThat(RigStatus.of(s).posture()).isEqualTo(RigStatus.DefensePosture.MINIMAL);
 
-            s.arm("firewall", 1); // +5
+            stockAndArm(s, "firewall", 1); // +5
             assertThat(RigStatus.of(s).posture()).isEqualTo(RigStatus.DefensePosture.PARTIAL);
 
-            s.arm("tarpit", 1); // +8 -> 3 armed, 14 cycles
+            stockAndArm(s, "tarpit", 1); // +8 -> 3 armed, 14 cycles
             assertThat(RigStatus.of(s).posture()).isEqualTo(RigStatus.DefensePosture.LAYERED);
 
-            s.arm("detection-array", 3); // +25 -> 39 cycles
-            s.arm("honeypot-stash", 1); // +12 -> 51 cycles
+            stockAndArm(s, "detection-array", 3); // +25 -> 39 cycles
+            stockAndArm(s, "honeypot-stash", 1); // +12 -> 51 cycles
             assertThat(RigStatus.of(s).posture()).isEqualTo(RigStatus.DefensePosture.PARANOID);
         }
 
@@ -185,13 +246,14 @@ class RigStatusTest {
         @DisplayName("armed defences hold cycles, and the readout says how many")
         void defenceCyclesAreCounted(@TempDir Path dir) {
             LocalGameSession s = session(dir);
-            s.arm("firewall", 3); // 15 cycles
+            stockAndArm(s, "firewall", 3); // 15 cycles
 
             RigStatus status = RigStatus.of(s);
             assertThat(status.armedDefenses()).isEqualTo(1);
             assertThat(status.defenseCycles()).isEqualTo(15);
             // And it comes out of the same budget everything else draws on.
-            assertThat(status.budget().available().cycles()).isEqualTo(85);
+            assertThat(status.budget().available().cycles())
+                    .isEqualTo(CAPACITY - io.github.stoicswe.eyeandsickle.engine.Balance.DEFENSE_FIREWALL_T3_CYCLES);
         }
     }
 
@@ -252,7 +314,9 @@ class RigStatusTest {
             LocalGameSession s = session(dir);
             assertThat(RigStatus.of(s).load()).isZero();
 
-            s.allocateSelfMining(25);
+            // ⚠ A QUARTER of the ceiling, derived. A literal 25 was a quarter of a 100-cycle
+            // rig and is 39% of this one, so the assertion would have been about the ladder.
+            s.allocateSelfMining(CAPACITY / 4);
             assertThat(RigStatus.of(s).load()).isEqualTo(0.25d);
         }
 

@@ -65,7 +65,7 @@ class CharacterSlotsTest {
                     .as("slot 2 should hold the character just written; problem=%s", slot.problem())
                     .isTrue();
             assertThat(slot.handle()).isEqualTo("ghost");
-            assertThat(slot.summary()).contains("ghost").contains("42 EC").contains("100 cycles");
+            assertThat(slot.summary()).contains("ghost").contains("42 EC").contains(io.github.stoicswe.eyeandsickle.engine.Balance.STARTING_CYCLES + " cycles");
         }
 
         @Test

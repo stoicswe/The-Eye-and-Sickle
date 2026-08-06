@@ -64,8 +64,15 @@ public final class SecurityCenterView {
         /** The audit: processes, connections, storage. */
         AUDIT("AUDIT"),
 
-        /** Firewalls, canaries, tarpits. */
-        DEFENSE("DEFENSE"),
+        /**
+         * Firewalls, canaries, tarpits.
+         *
+         * <p>⚠ Labelled <b>FIREWALL</b> though it also arms canaries, tarpits, honeypots and the
+         * counter-daemon — renamed on explicit direction (2026-08-06). The label is deliberately
+         * narrower than the contents: "firewall" is the word a player already owns for "the thing
+         * that stops traffic getting in", and a section nobody can name is a section nobody opens.
+         */
+        FIREWALL("FIREWALL"),
 
         /** When to look again. */
         SCHEDULE("SCHEDULE");
@@ -90,7 +97,7 @@ public final class SecurityCenterView {
         Section[] section = {Section.HOME};
 
         Region audit = withMark(AuditView.create(session, shell), SectionMark.Kind.DETECTIVE);
-        Region defense = withMark(Views.defense(session), SectionMark.Kind.CASTLE);
+        Region firewall = withMark(Views.firewall(session), SectionMark.Kind.CASTLE);
         VBox home = new VBox(UiTokens.SPACE_4);
         VBox schedule = new VBox(UiTokens.SPACE_3);
         Region scheduleSection = withMark(schedule, SectionMark.Kind.CLOCK);
@@ -106,7 +113,14 @@ public final class SecurityCenterView {
 
         VBox body = new VBox();
         VBox.setVgrow(body, Priority.ALWAYS);
-        body.getChildren().addAll(home, audit, defense, scheduleSection);
+        body.getChildren().addAll(home, audit, firewall, scheduleSection);
+        // ⚠ On all four, not on the visible one. `visible()` sets `managed` as well, so the three
+        // that are off contribute nothing to the layout and only the shown section's constraint is
+        // ever read — which means this can be set once here instead of being re-applied on every
+        // repaint, where it would be one more thing to forget for a section added later.
+        for (javafx.scene.Node section2 : body.getChildren()) {
+            VBox.setVgrow(section2, Priority.ALWAYS);
+        }
 
         Runnable[] repaint = new Runnable[1];
         List<Label> chips = new java.util.ArrayList<>();
@@ -133,7 +147,7 @@ public final class SecurityCenterView {
             }
             visible(home, section[0] == Section.HOME);
             visible(audit, section[0] == Section.AUDIT);
-            visible(defense, section[0] == Section.DEFENSE);
+            visible(firewall, section[0] == Section.FIREWALL);
             visible(scheduleSection, section[0] == Section.SCHEDULE);
         };
 
@@ -158,6 +172,14 @@ public final class SecurityCenterView {
 
         VBox page = new VBox(UiTokens.SPACE_3, split, result);
         page.getStyleClass().add("es-sec");
+        // ⚠ THE GROWTH CONSTRAINT WAS ON THE WRONG NODE AND WAS THEREFORE DOING NOTHING.
+        // `VBox.setVgrow(body, ...)` above is set on a child of `split`, which is an HBox — an HBox
+        // reads Hgrow and ignores Vgrow entirely, so it was a correct-looking line with no effect.
+        // What actually needed the constraint is `split` inside THIS VBox. Without it the split took
+        // its preferred height and the panel stopped short of the window's bottom edge, leaving a
+        // band of bare ground under the content that reads as the section having ended early.
+        // Invisible until the window was resized to 660×550 and the band became a third of it.
+        VBox.setVgrow(split, Priority.ALWAYS);
         // ⚠ Both released together: the panel's own clock AND whatever mark is current. A Pulse
         // subscription outlives the node that made it — `CycleGrid.dispose` and `CoreCage.dispose`
         // were written, correct, and called by nobody, and every open of the rig monitor leaked one.
@@ -183,7 +205,7 @@ public final class SecurityCenterView {
      *
      * <p>So the verdict answers exactly the question an audit answers — <em>is something on this rig
      * right now</em> — and being undefended is a statement about the <em>future</em>, which belongs
-     * on the DEFENSE card and in the reason line beneath the verdict. Both are still said; only the
+     * on the FIREWALL card and in the reason line beneath the verdict. Both are still said; only the
      * mark is narrowed.
      *
      * <p>⚠ Pure and package-private so it can be tested without a toolkit. The derivation is the part
@@ -217,7 +239,7 @@ public final class SecurityCenterView {
      *
      * <h2>⚠ An OVERLAY, not a row, and the difference is that the sections are not ours</h2>
      *
-     * AUDIT is {@code AuditView} and DEFENSE is {@code Views.defense} — both are complete panels that
+     * AUDIT is {@code AuditView} and FIREWALL is {@code Views.firewall} — both are complete panels that
      * predate this window and are used elsewhere. Reaching inside them to add a header cell would
      * mean editing two views to decorate a third, and would put the mark in a different place in each
      * depending on what their first row happens to be. A {@code StackPane} keeps the mark's placement
@@ -238,7 +260,7 @@ public final class SecurityCenterView {
         javafx.scene.layout.StackPane.setMargin(
                 mark, new javafx.geometry.Insets(UiTokens.SPACE_5, UiTokens.SPACE_6, 0, 0));
         // ⚠ THE CONTENT IS INSET BY THE MARK'S COLUMN, or the illustration lands ON the panel's text.
-        // It did: the castle sat across the DEFENSE paragraph and the detective across the AUDIT
+        // It did: the castle sat across the FIREWALL paragraph and the detective across the AUDIT
         // tab strip, because a StackPane layers its children and reserves nothing for the one on top.
         // Insetting the content is what turns an overlay into a column — the paragraph wraps before
         // it reaches the mark rather than running underneath it.
@@ -337,7 +359,7 @@ public final class SecurityCenterView {
                                 ? "The last " + latest.tier() + " audit was clean, but that was a " + "while ago."
                                 // ⚠ The defence gap is STILL SAID, it just no longer drives the
                                 // mark. It is a statement about the future rather than about what is
-                                // on the rig now, and the DEFENSE card carries it too.
+                                // on the rig now, and the FIREWALL card carries it too.
                                 : undefended
                                         ? "Last " + latest.tier() + " audit found nothing — but "
                                                 + "nothing is standing guard."
@@ -377,13 +399,13 @@ public final class SecurityCenterView {
                                     repaint[0].run();
                                 }),
                         card(
-                                "DEFENSE",
+                                "FIREWALL",
                                 session.defenses().isEmpty() ? "Nothing standing" : "Standing",
                                 session.defenses().size()
                                         + (session.defenses().size() == 1 ? " measure armed" : " measures armed")
                                         + "  ·  costs cycles, never heat",
                                 () -> {
-                                    section[0] = Section.DEFENSE;
+                                    section[0] = Section.FIREWALL;
                                     repaint[0].run();
                                 }),
                         scheduleCard(session, section, repaint));

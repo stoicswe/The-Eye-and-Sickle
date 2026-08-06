@@ -435,8 +435,8 @@ public final class DeckShell {
                         Text.current().title(spec),
                         designator(spec),
                         content(spec, factory),
-                        spec.defaultWidth() * 0.72,
-                        spec.defaultHeight() * 0.72,
+                        spec.defaultWidth() * UiTokens.WINDOW_OPEN_SCALE,
+                        spec.defaultHeight() * UiTokens.WINDOW_OPEN_SCALE,
                         spec.closable()))
                 .ifPresent(window -> Motion.reveal(window.frame(), 0));
     }
@@ -1413,8 +1413,8 @@ public final class DeckShell {
                             Text.current().title(spec),
                             designator(spec),
                             content(spec, factory),
-                            spec.defaultWidth() * 0.72,
-                            spec.defaultHeight() * 0.72,
+                            spec.defaultWidth() * UiTokens.WINDOW_OPEN_SCALE,
+                            spec.defaultHeight() * UiTokens.WINDOW_OPEN_SCALE,
                             spec.closable()))
                     .ifPresent(opened::add);
         }
@@ -1465,8 +1465,8 @@ public final class DeckShell {
                             Text.current().title(spec),
                             designator(spec),
                             content(target, factory),
-                            spec.defaultWidth() * 0.72,
-                            spec.defaultHeight() * 0.72,
+                            spec.defaultWidth() * UiTokens.WINDOW_OPEN_SCALE,
+                            spec.defaultHeight() * UiTokens.WINDOW_OPEN_SCALE,
                             spec.closable()))
                     .ifPresent(window -> {
                         opened.add(window);

@@ -81,7 +81,7 @@ class MiningChainTest {
         for (long i = 0; i < steps; i++) {
             at = at.plusSeconds(stepSeconds);
             ChainRules.Minted minted = ChainRules.advanceNetwork(save, step, at, rng);
-            total = total.add(MiningRules.runSelfMining(save, step, at, rng, minted));
+            total = total.add(MiningRules.runSelfMining(save, step, at, rng, minted, false));
         }
         CLOCKS.put(save, at);
         rng.commit(save);
@@ -688,13 +688,15 @@ class MiningChainTest {
             Rng rng = Rng.of(pooled);
             pooled.rig.miningPendingWei = Balance.ec("5");
             pooled.rig.miningSettledAt = T0.plusSeconds(1000);
-            assertThat(MiningRules.runSelfMining(pooled, Duration.ofSeconds(1), T0.plusSeconds(1030), rng, NOTHING))
+            assertThat(MiningRules.runSelfMining(
+                            pooled, Duration.ofSeconds(1), T0.plusSeconds(1030), rng, NOTHING, false))
                     .as("inside the window, the pool holds")
                     .isZero();
             assertThat(pooled.rig.miningPendingWei).isGreaterThanOrEqualTo(Balance.ec("5"));
 
             java.math.BigInteger held = pooled.rig.miningPendingWei;
-            assertThat(MiningRules.runSelfMining(pooled, Duration.ofSeconds(1), T0.plusSeconds(1090), rng, NOTHING))
+            assertThat(MiningRules.runSelfMining(
+                            pooled, Duration.ofSeconds(1), T0.plusSeconds(1090), rng, NOTHING, false))
                     .as("past the window, the pool pays")
                     .isGreaterThanOrEqualTo(held);
             assertThat(pooled.rig.miningPendingWei).isZero();
@@ -886,9 +888,9 @@ class MiningChainTest {
             // The offline path never calls runSelfMining at all; this asserts the shape that makes
             // that safe — zero elapsed earns zero, which is what resume() leaves behind when it sets
             // lastTick = now.
-            assertThat(MiningRules.runSelfMining(save, Duration.ZERO, T0, rng, NOTHING))
+            assertThat(MiningRules.runSelfMining(save, Duration.ZERO, T0, rng, NOTHING, false))
                     .isZero();
-            assertThat(MiningRules.runSelfMining(save, Duration.ofSeconds(-60), T0, rng, NOTHING))
+            assertThat(MiningRules.runSelfMining(save, Duration.ofSeconds(-60), T0, rng, NOTHING, false))
                     .isZero();
         }
 
@@ -908,6 +910,164 @@ class MiningChainTest {
         @DisplayName("a new character is pooled")
         void defaultIsPooled() {
             assertThat(MiningRules.modeOf(new GameSave().rig)).isEqualTo(MiningMode.POOLED);
+        }
+    }
+
+    /**
+     * An absent pooled rig earns {@code Balance.OFFLINE_MINING_WIN_WEIGHT} of what a present one does.
+     *
+     * <h2>What is being separated here, and why it takes two tests rather than one</h2>
+     *
+     * The weight is one figure and it has to be applied in two unrelated places, because the two
+     * pool schemes are paid by two unrelated mechanisms. <b>PPLNS</b> is paid out of blocks the pool
+     * won, so the lever is the player's cut of each block. <b>PPS</b> is paid per accepted share out
+     * of the pool's own balance whether or not anybody found a block, so blocks are not a lever on it
+     * at all and the share clock is. A single test over "pooled mining" would pass against a build
+     * that had only done one of them — and the one it would miss is PPS, which is what the default
+     * pool and every new character use.
+     *
+     * <h2>⚠ These are the tests that would have caught the literal implementation</h2>
+     *
+     * Halving the chosen pool's {@code networkShare()} in the winner draw is the obvious way to write
+     * this feature and it fails {@link #ppsOfflineAccruesHalfAsManyShares} outright: fewer pool
+     * blocks means fewer zero-credit contributor rows and exactly the same PPS income.
+     * {@code ChainSyncTest.OfflineWeight.poolsAreUntouched} is the other half — it holds the chain
+     * itself to the same shape either way.
+     */
+    @Nested
+    @DisplayName("an absent pooled rig is weighted, in both schemes")
+    class OfflinePoolWeight {
+
+        /** A pooled rig on a named pool, with the settlement window already open. */
+        private GameSave pooledOn(String poolId) {
+            GameSave save = rig(100, MiningMode.POOLED);
+            save.rig.miningPoolId = poolId;
+            // ⚠ Left null on purpose — settle() reads null as "the first payout of this character's
+            // life" and pays at once, so these assertions measure what was earned rather than what
+            // the pool happened to be holding when the window closed.
+            save.rig.miningSettledAt = null;
+            assertThat(MiningRules.poolOf(save.rig).id()).isEqualTo(poolId);
+            return save;
+        }
+
+        /** One block the pool won, at {@code T0}, carrying no fees so the arithmetic is legible. */
+        private ChainRules.Minted poolBlock(boolean offline) {
+            return new ChainRules.Minted(
+                    1, List.of(), List.of(new ChainRules.Won(1_000L, T0, BigInteger.ZERO, offline)));
+        }
+
+        /**
+         * PPLNS: the same block, won by the same pool, pays half to a rig whose owner was away.
+         *
+         * <p>Deterministic and exact — the PPLNS branch consumes no randomness, so this is one
+         * multiplication asserted against itself. That is what makes it a good place to pin the
+         * <em>ratio</em>: any future re-tune of the fee, the pool's size or the subsidy moves both
+         * sides together and the assertion goes on meaning the one thing it is about.
+         */
+        @Test
+        @DisplayName("PPLNS credits half for a block won while the client was closed")
+        void pplnsOfflineBlockPaysHalf() {
+            GameSave live = pooledOn("glass-teeth");
+            GameSave away = pooledOn("glass-teeth");
+            assertThat(MiningRules.poolOf(live.rig).scheme()).isEqualTo(PoolScheme.PPLNS);
+
+            BigInteger online = MiningRules.runSelfMining(
+                    live, Duration.ofSeconds(1), T0.plusSeconds(1), Rng.of(live), poolBlock(false), false);
+            BigInteger offline = MiningRules.runSelfMining(
+                    away, Duration.ofSeconds(1), T0.plusSeconds(1), Rng.of(away), poolBlock(true), true);
+
+            assertThat(online)
+                    .as("the fixture must actually pay something online")
+                    .isPositive();
+            assertThat(new java.math.BigDecimal(offline)
+                            .divide(new java.math.BigDecimal(online), 4, java.math.RoundingMode.HALF_UP))
+                    .as("offline %s vs online %s", offline, online)
+                    .isEqualByComparingTo(java.math.BigDecimal.valueOf(Balance.OFFLINE_MINING_WIN_WEIGHT));
+        }
+
+        /**
+         * PPLNS: the block is still recorded, and it is recorded as offline.
+         *
+         * <p>The weight reduces what the rig was paid; it must not delete the evidence that the rig
+         * was mining. A halved <em>draw</em> would have removed the row altogether, and the
+         * CONTRIBUTOR tab is the one surface where "my rig kept working while I was away" is legible.
+         */
+        @Test
+        @DisplayName("a weighted block still lands in the contributor record, marked offline")
+        void theBlockIsStillRecorded() {
+            GameSave away = pooledOn("glass-teeth");
+            MiningRules.runSelfMining(
+                    away, Duration.ofSeconds(1), T0.plusSeconds(1), Rng.of(away), poolBlock(true), true);
+
+            assertThat(away.chain.contributions).hasSize(1);
+            assertThat(away.chain.contributions.getFirst().offline).isTrue();
+            assertThat(away.chain.contributions.getFirst().creditedWei).isPositive();
+        }
+
+        /**
+         * PPS: half the shares over the same window.
+         *
+         * <p>⚠ Asserted on the <b>payout count</b> rather than on wei. A share is worth a fixed price
+         * and the weight deliberately does not touch it — a share that paid half would make a share
+         * mean two things — so the count is the quantity that actually moved, and reading it directly
+         * says so.
+         *
+         * <p>⚠ Aggregated over 30 seeds. The share clock draws a fresh exponential target per payout,
+         * so a single four-hour run of ~480 shares carries a ~5% standard error and the two runs
+         * carry it independently. The band is sized from that arithmetic rather than tightened until
+         * it passed.
+         */
+        @Test
+        @DisplayName("PPS accrues half as many shares while the client was closed")
+        void ppsOfflineAccruesHalfAsManyShares() {
+            Duration span = Duration.ofHours(Balance.OFFLINE_MINING_HOURS);
+            long onlineShares = 0;
+            long offlineShares = 0;
+            for (long seed = 1; seed <= 30; seed++) {
+                GameSave live = pooledOn(Pools.DEFAULT_ID);
+                GameSave away = pooledOn(Pools.DEFAULT_ID);
+                assertThat(MiningRules.poolOf(live.rig).scheme()).isEqualTo(PoolScheme.PPS);
+
+                MiningRules.runSelfMining(live, span, T0.plus(span), new Rng(seed), NOTHING, false);
+                MiningRules.runSelfMining(away, span, T0.plus(span), new Rng(seed), NOTHING, true);
+                onlineShares += live.rig.miningPayouts;
+                offlineShares += away.rig.miningPayouts;
+            }
+
+            assertThat(onlineShares)
+                    .as("the fixture must actually accrue shares online")
+                    .isGreaterThan(1_000L);
+            assertThat(offlineShares)
+                    .as("offline %d shares vs online %d — expected about half", offlineShares, onlineShares)
+                    .isBetween(Math.round(onlineShares * 0.45d), Math.round(onlineShares * 0.55d));
+        }
+
+        /**
+         * ⚠ The live tick is untouched, in both schemes.
+         *
+         * <p>This is an <em>absence</em> rule, not an idle-time penalty: a player who leaves the
+         * client running is playing. The distinction lives in one boolean at two call sites in
+         * {@code GameEngine}, which is exactly the sort of thing a later refactor collapses by
+         * accident — and collapsing it would quietly halve the income of everybody who plays.
+         */
+        @Test
+        @DisplayName("a rig that is present earns full rate, in both schemes")
+        void beingPresentIsNotWeighted() {
+            for (String poolId : List.of(Pools.DEFAULT_ID, "glass-teeth")) {
+                GameSave first = pooledOn(poolId);
+                GameSave second = pooledOn(poolId);
+                Duration span = Duration.ofMinutes(30);
+
+                BigInteger a =
+                        MiningRules.runSelfMining(first, span, T0.plus(span), new Rng(7L), poolBlock(false), false);
+                BigInteger b =
+                        MiningRules.runSelfMining(second, span, T0.plus(span), new Rng(7L), poolBlock(false), false);
+
+                assertThat(a).as("%s must pay something", poolId).isPositive();
+                assertThat(b)
+                        .as("%s must be deterministic at a fixed seed", poolId)
+                        .isEqualTo(a);
+            }
         }
     }
 }

@@ -3,6 +3,7 @@ package io.github.stoicswe.eyeandsickle.client.session;
 import io.github.stoicswe.eyeandsickle.engine.Balance;
 import io.github.stoicswe.eyeandsickle.engine.GameEngine;
 import io.github.stoicswe.eyeandsickle.engine.state.DefenseState;
+import io.github.stoicswe.eyeandsickle.engine.Catalogue;
 import io.github.stoicswe.eyeandsickle.engine.state.ItemState;
 import io.github.stoicswe.eyeandsickle.engine.state.LedgerEntryState;
 import io.github.stoicswe.eyeandsickle.engine.state.NodeState;
@@ -778,8 +779,141 @@ public final class LocalGameSession implements GameSession {
     }
 
     @Override
+    public java.util.List<InboxMessage> messages() {
+        return io.github.stoicswe.eyeandsickle.engine.rules.Inbox.newestFirst(game.state()).stream()
+                .map(m -> new InboxMessage(
+                        m.messageId,
+                        m.from,
+                        m.subject,
+                        m.body,
+                        m.receivedAt,
+                        m.read,
+                        m.offerItemType,
+                        Catalogue.byId(m.offerItemType)
+                                .map(Catalogue.Offering::name)
+                                .orElse(m.offerItemType),
+                        m.offerClaimed))
+                .toList();
+    }
+
+    @Override
+    public int unreadMessages() {
+        return io.github.stoicswe.eyeandsickle.engine.rules.Inbox.unread(game.state());
+    }
+
+    @Override
+    public Outcome markMessageRead(String messageId) {
+        // ⚠ Not announced. Opening a message is not an event anybody needs told about, and routing
+        // it through announce() would publish one to the bus and light the disk lamp every time the
+        // player clicked a row in a list.
+        if (!io.github.stoicswe.eyeandsickle.engine.rules.Inbox.markRead(game.state(), messageId)) {
+            return Outcome.ok("");
+        }
+        return changed(Outcome.ok(""));
+    }
+
+    @Override
+    public Outcome claimMessageOffer(String messageId) {
+        return announce("comms", claimOfferIntent(messageId));
+    }
+
+    /**
+     * ⚠ The offer is cleared by {@code Inbox.claim} BEFORE the download exists, and the order matters.
+     *
+     * <p>A failure after the clear loses an entitlement; a failure before it mints one per retry. The
+     * first is recoverable and the second is an item printer, so the clear goes first.
+     *
+     * <p>⚠ <b>{@code entryId} is blank because nothing was paid</b>, which is what leaves the package
+     * unlocked on arrival. A bought package waits for its transaction to be mined — see
+     * {@code Repac.installableSuffix} — and a gift has no transaction to wait for.
+     */
+    private Outcome claimOfferIntent(String messageId) {
+        var claimed = io.github.stoicswe.eyeandsickle.engine.rules.Inbox.claim(game.state(), messageId);
+        if (claimed.isEmpty()) {
+            return Outcome.refused("there is nothing to collect on that message");
+        }
+        String itemType = claimed.get();
+        var offering = Catalogue.byId(itemType).orElse(null);
+        var order = new io.github.stoicswe.eyeandsickle.engine.state.DownloadOrderState();
+        order.itemType = itemType;
+        order.fileName = io.github.stoicswe.eyeandsickle.engine.rules.Repac.boughtPackageName(itemType, order.orderId);
+        order.entryId = "";
+        order.bytes = io.github.stoicswe.eyeandsickle.engine.fs.VirtualFs.upgradeBytes(itemType);
+        // ⚠ NOT foreign. A gift arrives over the same relay that delivered the message, and this rig
+        // is not talking to a vendor's storefront — the noise a purchase makes belongs to a purchase.
+        order.foreign = false;
+        order.label = offering == null ? itemType : offering.name();
+        io.github.stoicswe.eyeandsickle.engine.rules.DownloadQueue.enqueue(game.state(), order, game.now());
+        return changed(Outcome.ok("collecting " + order.label + " — it will land in Downloads"));
+    }
+
+    @Override
+    public java.util.List<Note> notes() {
+        return game.state().notes.stream()
+                .map(n -> new Note(n.noteId, n.parentId, n.name, n.body, n.folder, n.updatedAt))
+                .toList();
+    }
+
+    @Override
+    public Outcome createNote(String parentId, String name, boolean folder) {
+        return announce("notes", createNoteIntent(parentId, name, folder));
+    }
+
+    private Outcome createNoteIntent(String parentId, String name, boolean folder) {
+        var made = io.github.stoicswe.eyeandsickle.engine.rules.Notes.create(
+                game.state(), parentId, name, folder, game.now());
+        if (made.isEmpty()) {
+            // ⚠ Three different refusals, because they have three different fixes: the notebook is
+            // full, the nest is too deep, or the destination is not a folder. A single "could not
+            // create" would leave a player retrying the one thing that cannot work.
+            if (game.state().notes.size() >= io.github.stoicswe.eyeandsickle.engine.rules.Notes.LIMIT) {
+                return Outcome.refused("the notebook is full — "
+                        + io.github.stoicswe.eyeandsickle.engine.rules.Notes.LIMIT + " notes and folders");
+            }
+            return Outcome.refused("that folder cannot hold any more nesting");
+        }
+        return changed(Outcome.ok(made.get().noteId));
+    }
+
+    @Override
+    public Outcome renameNote(String noteId, String name) {
+        if (!io.github.stoicswe.eyeandsickle.engine.rules.Notes.rename(game.state(), noteId, name, game.now())) {
+            return Outcome.refused("no such note");
+        }
+        return announce("notes", changed(Outcome.ok("renamed")));
+    }
+
+    @Override
+    public Outcome writeNote(String noteId, String body) {
+        // ⚠ NOT announced, and it must not be. The editor calls this on a timer while somebody is
+        // typing; announcing would publish a bus event and light the disk lamp on every autosave.
+        // ⚠ An unchanged body returns OK having persisted nothing, which is what makes calling it
+        // on a timer cheap rather than a save write per second.
+        if (!io.github.stoicswe.eyeandsickle.engine.rules.Notes.write(game.state(), noteId, body, game.now())) {
+            return Outcome.ok("");
+        }
+        return changed(Outcome.ok(""));
+    }
+
+    @Override
+    public Outcome deleteNote(String noteId) {
+        int removed = io.github.stoicswe.eyeandsickle.engine.rules.Notes.delete(game.state(), noteId);
+        if (removed == 0) {
+            return Outcome.refused("no such note");
+        }
+        return announce(
+                "notes",
+                changed(Outcome.ok(removed == 1 ? "deleted" : "deleted, with " + (removed - 1) + " inside it")));
+    }
+
+    @Override
     public Outcome arm(String kind, int tier) {
         return announce("defense", armIntent(kind, tier));
+    }
+
+    @Override
+    public Outcome disarm(String kind) {
+        return announce("defense", disarmIntent(kind));
     }
 
     @Override
@@ -1517,9 +1651,75 @@ public final class LocalGameSession implements GameSession {
                 return Outcome.refused(kind + " is already armed");
             }
         }
+        // ⚠ YOU MUST OWN A DEFENCE TO ARM IT, and until 2026-08-06 you did not. Every gate in
+        // docs/design/09 §1 was published and none of them was enforced: a fresh character could arm
+        // a T3 firewall, a Detection Array and the Auto-Counter Daemon without holding any of them,
+        // which made the whole unlock ladder — and, through it, Invariants I2 and I3 — decorative.
+        // This is the check that makes the gate real; the gate itself is the Catalogue's.
+        Outcome missing = refuseIfNotHeld(kind, tier);
+        if (missing != null) {
+            return missing;
+        }
         return game.arm(kind, tier, cycles)
                 .map(d -> changed(Outcome.ok(kind + " armed; " + cycles + " cycles reserved while it runs")))
                 .orElseGet(() -> notEnoughCycles(cycles));
+    }
+
+    /**
+     * Refuses to arm a defence the rig does not hold, naming how it is obtained.
+     *
+     * <h2>⚠ The refusal names the GATE, not just the absence</h2>
+     *
+     * "You do not have that" is true and useless — {@code docs/design/02} §1's whole point is that a
+     * gate is legible, so a player who cannot arm the Auto-Counter Daemon should learn from the
+     * refusal that no amount of money will help and that a schematic is what they are looking for.
+     * The alternative teaches them to go and check the shop for something that is not in it.
+     *
+     * @return the refusal, or {@code null} when the rig holds it
+     */
+    private Outcome refuseIfNotHeld(String kind, int tier) {
+        String offeringId = Catalogue.defenceOfferingId(kind, tier).orElse("");
+        if (offeringId.isEmpty()) {
+            return Outcome.usage("unknown defence '" + kind + "'");
+        }
+        boolean held = game.state().items.stream().anyMatch(i -> offeringId.equals(i.itemType));
+        if (held) {
+            return null;
+        }
+        var offering = Catalogue.byId(offeringId).orElse(null);
+        String name = offering == null ? offeringId : offering.name();
+        if (offering == null) {
+            return Outcome.refused("this rig does not have " + name);
+        }
+        return Outcome.refused(switch (offering.gate()) {
+            case ETHECOIN -> "this rig does not have " + name + " — it is sold in the market";
+            case SCHEMATIC -> "this rig does not have " + name
+                    + " — it is compiled from a schematic and is never sold";
+            case REPUTATION -> "this rig does not have " + name
+                    + " — it takes standing with a faction, not money";
+            case PROOF_OF_SKILL -> "this rig does not have " + name + " — it has to be earned";
+            // ⚠ Access, never ownership (docs/design/02 §2.5). A heat-gated item is one whose SELLER
+            // will not deal with you yet, which is a different sentence from any of the above.
+            case HEAT_STATE -> "this rig does not have " + name
+                    + " — whoever sells it is not dealing with you yet";
+        });
+    }
+
+    /**
+     * ⚠ Refuses on "not armed" rather than reporting success, and the distinction is the toggle's.
+     *
+     * <p>The firewall table drives this from a switch, and a switch that reports OK for a defence
+     * that was never up would paint itself off, look correct, and mean nothing. A refusal is what
+     * lets the caller put the control back where it was.
+     */
+    private Outcome disarmIntent(String kind) {
+        if (defenseCycles(kind, 1) <= 0) {
+            return Outcome.usage("unknown defence '" + kind + "'");
+        }
+        if (!game.disarm(kind)) {
+            return Outcome.refused(kind + " is not armed");
+        }
+        return changed(Outcome.ok(kind + " disarmed; its cycles are back"));
     }
 
     @Override
@@ -1577,6 +1777,25 @@ public final class LocalGameSession implements GameSession {
             return Outcome.gated(o.name() + " is behind the "
                     + o.gate().name().toLowerCase(Locale.ROOT).replace('_', '-')
                     + " gate. " + o.gateRequirement());
+        }
+        // ⚠ A COMPUTE RUNG IS THE ONE THING YOU MAY NOT BUY TWICE. Items generally do not stack and
+        // a second copy is a second thing — but a capacity upgrade's only property is a ceiling the
+        // rig would already have, so a duplicate is money for nothing. It is also the one purchase
+        // where a refusal is kinder than a sale.
+        var rung = io.github.stoicswe.eyeandsickle.engine.rules.ComputeLadder.rungFor(o.id());
+        if (rung.isPresent()) {
+            if (io.github.stoicswe.eyeandsickle.engine.rules.ComputeLadder.holds(game.state(), o.id())) {
+                return Outcome.refused("this rig is already at " + rung.get().capacity() + " cycles");
+            }
+            // ⚠ The ladder is climbed in order. Without this the 24 → 32 amendment's "one rung,
+            // once" argument is false: a player could leave the purchasable rung unbought forever
+            // and skip straight up on schematics, which is a different game from the one the
+            // amendment was reasoned about.
+            if (!io.github.stoicswe.eyeandsickle.engine.rules.ComputeLadder.rungsBelowAreHeld(
+                    game.state(), rung.get())) {
+                return Outcome.refused("this rig has to take the rungs below "
+                        + rung.get().capacity() + " cycles first");
+            }
         }
         // ⚠ OWNING ONE IS NO LONGER A REASON TO REFUSE (2026-08-04). Items do not stack — each copy
         // has its own id, tier and build — so a second Tarpit is a second thing, and a shop that

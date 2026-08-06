@@ -120,6 +120,23 @@ public final class DeckSnapshot {
         // A rig doing something. An empty rig renders an empty grid, which would prove nothing about
         // the component the whole design language calls its signature.
         session.allocateSelfMining(30);
+        // ⚠ ARMING NOW REQUIRES OWNING (2026-08-06), so the harness has to grant what it arms. It
+        // did not, and both calls below silently became refusals — the FIREWALL panel photographed
+        // with nothing armed, which is the state indistinguishable from the switches not working.
+        //
+        // ⚠ Deliberately grants only SOME of the ladder: firewall T2 and a canary. What that buys is
+        // a render showing all three row states at once — armed, owned-but-off, and gated — where a
+        // fully-stocked rig would prove nothing about the gate and an empty one nothing about the
+        // switches. Firewall T1 is already there; GameEngine.newCharacter issues it.
+        for (String owned : List.of("firewall-t2", "canary-token", "tarpit")) {
+            io.github.stoicswe.eyeandsickle.engine.Catalogue.byId(owned).ifPresent(offering -> {
+                var item = new io.github.stoicswe.eyeandsickle.engine.state.ItemState();
+                item.itemType = offering.id();
+                item.displayName = offering.name();
+                item.tier = io.github.stoicswe.eyeandsickle.protocol.game.StorageTier.VAULT.name();
+                game.state().items.add(item);
+            });
+        }
         session.arm("firewall", 2);
         session.arm("canary", 1);
         // A thorough scan so the activity panel has a long-running task with a real countdown.
@@ -127,6 +144,71 @@ public final class DeckSnapshot {
         // Enough heat to light the thermometer past two band boundaries, so the render shows the
         // banded ramp rather than an empty stem.
         game.state().personalHeat = 62;
+        // ⚠ `-Ddeck.notes=1` seeds the notebook. An empty NOTES window renders an empty tree and an
+        // instruction to make a note, which proves nothing about the tree, the editor or — the one
+        // thing only a render can settle — whether the highlight overlay actually lines up with the
+        // text underneath it.
+        if (System.getProperty("deck.notes") != null) {
+            var notes = io.github.stoicswe.eyeandsickle.engine.rules.Notes.class;
+            var lore = io.github.stoicswe.eyeandsickle.engine.rules.Notes.create(
+                    game.state(), "", "lore", true, game.now());
+            var addresses = io.github.stoicswe.eyeandsickle.engine.rules.Notes.create(
+                    game.state(), "", "addresses", false, game.now());
+            String folderId = lore.map(n -> n.noteId).orElse("");
+            io.github.stoicswe.eyeandsickle.engine.rules.Notes.create(
+                    game.state(), folderId, "the eye", false, game.now());
+            io.github.stoicswe.eyeandsickle.engine.rules.Notes.create(
+                    game.state(), folderId, "kyrell", false, game.now());
+            // ⚠ The markdown goes in a ROOT note, because the window opens on the first note in tree
+            // order — seeding it inside a collapsed folder photographs an empty editor, which proves
+            // nothing about the highlight overlay that is the only reason to render this at all.
+            addresses.ifPresent(n -> io.github.stoicswe.eyeandsickle.engine.rules.Notes.write(
+                    game.state(),
+                    n.noteId,
+                    """
+                    # Kyrell
+
+                    Recovered off **10.14.9.2** — a `systemd` unit nobody wrote.
+
+                    ## What is known
+
+                    - Signs off as *unsigned relay*
+                    - Uses the same `blake2b` digest twice
+                    - Paid in EC, never in favours
+
+                    > The handle is not the person. The handle is what the person
+                    > wanted logged.
+
+                    ---
+
+                    See [the sweep notes](notes://addresses) for the rest.
+                    """,
+                    game.now()));
+        }
+        // ⚠ `-Ddeck.noticed=1` makes the black market contact this character, so COMS and the TOR
+        // Marknet tab are renderable at all. The notice is sent on a TICK when standing and heat
+        // cross, and a synchronous render never ticks — so without this the inbox photographs empty,
+        // which is the state indistinguishable from the feature being absent.
+        if (System.getProperty("deck.noticed") != null) {
+            game.state().factionReputationSickle =
+                    io.github.stoicswe.eyeandsickle.engine.Balance.BLACK_MARKET_MIN_REPUTATION + 5;
+            io.github.stoicswe.eyeandsickle.engine.rules.BlackMarket.contactIfDue(game.state(), game.now());
+            // ⚠ `-Ddeck.torInstalled=1` goes one step further and puts the MODULE on the rig, which
+            // is what the Marknet tab keys on. The two flags are separate because the interesting
+            // states are different screens: the notice sitting unclaimed in COMS, and the board it
+            // eventually opens.
+            if (System.getProperty("deck.torInstalled") != null) {
+                io.github.stoicswe.eyeandsickle.engine.Catalogue.byId(
+                                io.github.stoicswe.eyeandsickle.engine.Catalogue.TOR_MODULE)
+                        .ifPresent(offering -> {
+                            var mod = new io.github.stoicswe.eyeandsickle.engine.state.ItemState();
+                            mod.itemType = offering.id();
+                            mod.displayName = offering.name();
+                            mod.tier = io.github.stoicswe.eyeandsickle.protocol.game.StorageTier.VAULT.name();
+                            game.state().items.add(mod);
+                        });
+            }
+        }
 
         Shell.CommandRegistry commands = BuiltinCommands.registry();
         Shell shell = new Shell(session, commands);
@@ -151,6 +233,33 @@ public final class DeckSnapshot {
                 // states depend on scan history, defences and elapsed time, so a plain render
                 // only ever photographs whichever one this fixture happens to be in — and a
                 // stepped animation shows nothing at all in a synchronous frame.
+                // ⚠ The real inbox. COMMS fell to the default below and therefore photographed the
+                // RECON stub — under a title bar reading COMPORT, which is exactly how the mistake
+                // survived: the frame said the right thing and the content was a different window.
+                // ⚠ `-Ddeck.direct=1` renders COMS with the DIRECT tab present. It is built from a
+                // signed-OUT chat client on purpose: what the render checks is that the tab APPEARS
+                // and that its not-connected state reads correctly. Rendering a signed-in one would
+                // need somebody's real Bluesky account, which no test may reach for.
+                case COMMS -> (Region) io.github.stoicswe.eyeandsickle.client.view.CommsView.create(
+                        session,
+                        System.getProperty("deck.direct") == null
+                                ? null
+                                : io.github.stoicswe.eyeandsickle.client.view.DirectView.create(
+                                        new io.github.stoicswe.eyeandsickle.client.bsky.BlueskyChat(null),
+                                        "you.bsky.social",
+                                        60));
+                // ⚠ The real market, because the TOR Marknet tab appears and disappears with an
+                // ITEM and the whole point of rendering it is to see whether it did.
+                case MARKET -> (Region)
+                        io.github.stoicswe.eyeandsickle.client.view.MarketView.create(session, 60);
+                // ⚠ The real notebook: its highlight is a TextFlow laid over a TextArea, and
+                // whether those two actually line up is a question only a render can answer.
+                case NOTES -> (Region) io.github.stoicswe.eyeandsickle.client.view.NotesView.create(session);
+                // ⚠ THIS DEFAULT PHOTOGRAPHS THE WRONG WINDOW AND REPORTS SUCCESS. Anything not
+                // named above renders the RECON stub inside its own frame, which looks like a real
+                // capture of a real window — the same failure shape as a snapshot of a feature in
+                // the one state indistinguishable from it being absent. Add a case before rendering
+                // a window for the first time; do not trust a frame's title bar.
                 default -> (Region) MoreViews.recon(session);
             });
         }
@@ -333,6 +442,93 @@ public final class DeckSnapshot {
                         : "settings page NOT FOUND: " + settingsPage);
                 scene.getRoot().applyCss();
                 deck.root().layout();
+            }
+
+            // ⚠ `-Ddeck.securitySection=FIREWALL` selects a Security Center section by its rail
+            // label. Exactly the settingsPage problem one window along: the panel opens on HOME and
+            // there is no other way in, so AUDIT, FIREWALL and SCHEDULE were all unrenderable and
+            // the harness reported the SECURITY window as covered while having only ever
+            // photographed a quarter of it.
+            // ⚠ `-Ddeck.commsTab=DIRECT` selects a COMS sub-tab by its label. Same gap
+            // `deck.securitySection` closed one window along: the pane opens on its first tab and
+            // there is no other way in, so DIRECT was unrenderable and a render of COMS reported
+            // the window as covered while only ever photographing INBOX.
+            String commsTab = System.getProperty("deck.commsTab");
+            if (commsTab != null) {
+                boolean found = false;
+                for (var node : deck.root().lookupAll(".tab-pane")) {
+                    if (!(node instanceof javafx.scene.control.TabPane pane)) {
+                        continue;
+                    }
+                    for (var tab : pane.getTabs()) {
+                        if (commsTab.equalsIgnoreCase(tab.getText())) {
+                            pane.getSelectionModel().select(tab);
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (found) {
+                        break;
+                    }
+                }
+                System.out.println(found ? "comms tab: " + commsTab : "comms tab NOT FOUND: " + commsTab);
+                scene.getRoot().applyCss();
+                deck.root().layout();
+            }
+
+            String securitySection = System.getProperty("deck.securitySection");
+            if (securitySection != null) {
+                boolean found = false;
+                for (var node : deck.root().lookupAll(".es-sec-nav")) {
+                    if (node instanceof javafx.scene.control.Label chip
+                            && chip.getText().equalsIgnoreCase(securitySection)) {
+                        javafx.event.Event.fireEvent(
+                                chip,
+                                new javafx.scene.input.MouseEvent(
+                                        javafx.scene.input.MouseEvent.MOUSE_CLICKED,
+                                        0,
+                                        0,
+                                        0,
+                                        0,
+                                        javafx.scene.input.MouseButton.PRIMARY,
+                                        1,
+                                        false,
+                                        false,
+                                        false,
+                                        false,
+                                        true,
+                                        false,
+                                        false,
+                                        false,
+                                        false,
+                                        false,
+                                        null));
+                        found = true;
+                        break;
+                    }
+                }
+                System.out.println(found
+                        ? "security section: " + securitySection
+                        : "security section NOT FOUND: " + securitySection);
+                scene.getRoot().applyCss();
+                deck.root().layout();
+            }
+
+            // ⚠ Prints what each window actually MEASURES, because "measure node bounds before
+            // hunting a gap in the layout" has ended more than one search here in a single line —
+            // the rig monitor's cutaway gap took four rounds of staring at a render and one
+            // `well top=127.0, cage top=127.0` to settle. A size read off a screenshot is a guess.
+            for (var node : deck.root().lookupAll(".es-window")) {
+                if (node instanceof Region frame) {
+                    System.out.printf(
+                            "window %.1f x %.1f  (min %.1f x %.1f, max %.1f x %.1f)%n",
+                            frame.getWidth(),
+                            frame.getHeight(),
+                            frame.minWidth(-1),
+                            frame.minHeight(-1),
+                            frame.maxWidth(-1),
+                            frame.maxHeight(-1));
+                }
             }
 
             scene.getRoot().applyCss();

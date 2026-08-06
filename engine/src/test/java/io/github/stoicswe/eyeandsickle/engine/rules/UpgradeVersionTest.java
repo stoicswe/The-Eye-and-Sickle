@@ -284,7 +284,17 @@ class UpgradeVersionTest {
             assertThat(offer.get().version().major())
                     .as("the build tracks the host's tier")
                     .isEqualTo(Math.max(1, Math.min(5, host.tier)));
-            assertThat(offer.get().standing()).isEqualTo(UpgradeOffer.Standing.NEW);
+            // ⚠ DERIVED, not hard-coded to NEW. This asserted NEW and started failing on 2026-08-06
+            // when `newCharacter` began issuing a starting Firewall T1: the world's first host
+            // happens to advertise that very upgrade, so the standing was correctly UPGRADE and the
+            // test was wrong. What the test is actually about is that a foreign package answers
+            // *before* the transfer — the standing has to agree with what the rig holds, not be a
+            // fixed value, or it breaks again the next time a character is given anything.
+            boolean alreadyHeld = game.state().items.stream()
+                    .anyMatch(item -> offer.get().itemType().equals(item.itemType));
+            assertThat(offer.get().standing())
+                    .as("standing must agree with what the rig actually holds")
+                    .isEqualTo(alreadyHeld ? UpgradeOffer.Standing.UPGRADE : UpgradeOffer.Standing.NEW);
 
             // ⚠ And `stat` says the same thing. One source, two surfaces — a terminal that said less
             // than a right-click would send players to the mouse to learn things.

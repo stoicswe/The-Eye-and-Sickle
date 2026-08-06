@@ -33,6 +33,31 @@ import org.junit.jupiter.api.io.TempDir;
  */
 class MempoolTest {
 
+    /**
+     * Puts a rig at the top of the compute ladder.
+     *
+     * <h2>⚠ A starting rig is 24 cycles as of 2026-08-06, and these tests need room</h2>
+     *
+     * The allocations below were written when a starting rig was 100. They are about MINING — how a
+     * fill competes, what a pool pays — and not about the compute ladder, so the fixture gives them
+     * the rig their subject needs and {@code ComputeLadderTest} owns the ladder itself. Without it
+     * the allocation is refused, the rig mines nothing, and the failure points at the chain.
+     *
+     * <p>⚠ Grants the ITEMS rather than writing {@code totalCycles}: the ceiling is derived and a
+     * written one is stomped by the next reconcile, which is the anti-cheat property that derivation
+     * exists for.
+     */
+    private static void atTopOfLadder(GameSave save) {
+        for (var rung : io.github.stoicswe.eyeandsickle.engine.rules.ComputeLadder.rungs()) {
+            var item = new io.github.stoicswe.eyeandsickle.engine.state.ItemState();
+            item.itemType = rung.itemType();
+            item.tier = io.github.stoicswe.eyeandsickle.protocol.game.StorageTier.VAULT.name();
+            save.items.add(item);
+        }
+        io.github.stoicswe.eyeandsickle.engine.rules.ComputeLadder.reconcile(save);
+    }
+
+
     private static final Instant T0 = Instant.parse("2026-07-27T09:00:00Z");
 
     /** A game with a controllable clock, at the chain's start height. */
@@ -344,7 +369,8 @@ class MempoolTest {
             // every POOL payout as a coinbase — from the zero address, discarding the pool address
             // the engine had stamped on it. Only a block you won yourself mints anything.
             rig.game.setMiningMode(io.github.stoicswe.eyeandsickle.protocol.game.MiningMode.SOLO);
-            rig.game.allocateSelfMining(90);
+            atTopOfLadder(rig.game.state());
+            rig.game.allocateSelfMining(50);
 
             // ⚠ Mine UNTIL a block is won, rather than for a fixed stretch. A solo rig at 90 cycles
             // expects a block about every 4.3 hours and the wait is exponential, so a fixed 5-hour
@@ -373,7 +399,8 @@ class MempoolTest {
         @DisplayName("⚠ a pool payout is NOT a coinbase, and it names the pool that sent it")
         void poolPayoutNamesThePool(@TempDir Path dir) {
             Rig rig = new Rig(dir);
-            rig.game.allocateSelfMining(90);
+            atTopOfLadder(rig.game.state());
+            rig.game.allocateSelfMining(50);
             for (int i = 0; i < 60; i++) {
                 rig.advance(Duration.ofMinutes(5));
             }
@@ -413,7 +440,8 @@ class MempoolTest {
         @DisplayName("the explorer and the ledger are one list, and cannot disagree")
         void oneListTwoRenderings(@TempDir Path dir) {
             Rig rig = new Rig(dir);
-            rig.game.allocateSelfMining(90);
+            atTopOfLadder(rig.game.state());
+            rig.game.allocateSelfMining(50);
             for (int i = 0; i < 40; i++) {
                 rig.advance(Duration.ofMinutes(7));
             }

@@ -1,8 +1,10 @@
 package io.github.stoicswe.eyeandsickle.client.window;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.within;
 
 import io.github.stoicswe.eyeandsickle.client.profile.ClientProfile;
+import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -88,7 +90,13 @@ class WindowCatalogueTest {
         // operating system puts it, and it hands the rail's slot back. ⚠ Verified before deleting:
         // everything the window carried — handle, mode, heat, balance — is on that panel, plus the
         // identifier and the standings it never showed.
-        assertThat(WindowSpec.values()).hasSize(14);
+        // ⚠ `notes` was ADDED 2026-08-06 — a markdown notebook, sitting above the calculator. It
+        // earns its slot the way `calc` does, on pillar C6 rather than on a game system: the game
+        // hands a player addresses, handles, block heights and recovered documents faster than
+        // anybody holds them, and until this the only place to put them was outside the game.
+        // ⚠ Nothing a player writes there is read by any rule (`rules/Notes`), so — like `calc` — it
+        // was added without an invariant to check.
+        assertThat(WindowSpec.values()).hasSize(15);
         assertThat(java.util.Arrays.stream(WindowSpec.values())
                         .map(WindowSpec::id)
                         .toList())
@@ -106,6 +114,7 @@ class WindowCatalogueTest {
                         "log",
                         "netmap",
                         "calc",
+                        "notes",
                         "files");
     }
 
@@ -147,6 +156,36 @@ class WindowCatalogueTest {
             assertThat(spec.defaultWidth()).as("%s", spec.id()).isGreaterThanOrEqualTo(spec.minWidth());
             assertThat(spec.defaultHeight()).as("%s", spec.id()).isGreaterThanOrEqualTo(spec.minHeight());
         }
+    }
+
+    /**
+     * ⚠ The one window whose ON-SCREEN size was asked for by number, pinned as an on-screen size.
+     *
+     * <h2>Why this is not the same as asserting {@code defaultWidth()}</h2>
+     *
+     * Nothing opens a window at its declared size. {@code DeckShell} scales by
+     * {@code UiTokens.WINDOW_OPEN_SCALE} and {@code DeskManager} snaps to {@code UiTokens.SNAP_GRID},
+     * so the number in {@code WindowSpec} is nominal and the Security Center's row is a reverse
+     * calculation from 655×550 (2026-08-06). A test that asserted 910×764 would be restating the
+     * source line and would pass just as happily if either of those two constants moved — which is
+     * precisely the change that would silently resize the window.
+     *
+     * <p>⚠ 660 rather than 655, and that is the grid rather than a rounding slip: 655 is not a
+     * multiple of 22, so with snapping on (the default) it is not a reachable width at all. The
+     * nearest are 638 and 660. With free-drag on nothing snaps and it opens at 655.2×550.1.
+     */
+    @Test
+    @DisplayName("the Security Center opens at the size it was asked to open at")
+    void theSecurityCentreOpensAtItsIntendedSize() {
+        double width = WindowSpec.SECURITY.defaultWidth() * UiTokens.WINDOW_OPEN_SCALE;
+        double height = WindowSpec.SECURITY.defaultHeight() * UiTokens.WINDOW_OPEN_SCALE;
+
+        assertThat(width).as("unsnapped width").isCloseTo(655, within(1.0));
+        assertThat(height).as("unsnapped height").isCloseTo(550, within(1.0));
+
+        double grid = UiTokens.SNAP_GRID;
+        assertThat(Math.round(width / grid) * grid).as("snapped width").isEqualTo(660);
+        assertThat(Math.round(height / grid) * grid).as("snapped height").isEqualTo(550);
     }
 
     @Test

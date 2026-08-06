@@ -363,11 +363,17 @@ public final class ChainRules {
      * contested, so an absence does not shift what a later block would have rolled.
      *
      * <p>⚠ A block filled in during a synchronisation weights the player's own share by
-     * {@link Balance#OFFLINE_SOLO_WIN_WEIGHT} — see that constant for why. It scales the
+     * {@link Balance#OFFLINE_MINING_WIN_WEIGHT} — see that constant for why. It scales the
      * <b>threshold</b> and never the number of draws, so the stream is byte-identical to what it
      * would have been; the freed probability lands in the unpooled remainder below, because a block
-     * this rig did not win was still won by somebody. Pools are untouched: a pool competes whether or
-     * not one member's client is open, and each keeps its exact {@code networkShare} either way.
+     * this rig did not win was still won by somebody.
+     *
+     * <p>⚠ <b>Pools keep their exact {@code networkShare} during a fill, and an absent pooled player
+     * is charged the same weight elsewhere.</b> A pool competes whether or not one member's client is
+     * open — it does not lose half its hashrate because somebody logged off — so halving its draw
+     * here would leave the explorer reporting that this player's pool underperforms during their
+     * absences, and would not touch pay-per-share income at all. The weight is applied to the
+     * player's own share of the proceeds in {@code MiningRules.runSelfMining} instead.
      *
      * @param offline whether this block is being filled in for an absence rather than mined live
      */
@@ -376,7 +382,7 @@ public final class ChainRules {
         double you =
                 competing ? Math.min(1.0d, hashrate(save.rig.selfMiningCycles) / save.chain.networkHashrate) : 0.0d;
         if (offline) {
-            you *= Balance.OFFLINE_SOLO_WIN_WEIGHT;
+            you *= Balance.OFFLINE_MINING_WIN_WEIGHT;
         }
         if (roll < you) {
             return "you";

@@ -24,6 +24,14 @@ import org.junit.jupiter.api.io.TempDir;
  */
 class ShellTest {
 
+    /**
+     * The fixture's ceiling — {@code TestSaves.bare} puts a test rig at the top of the compute
+     * ladder, because a starting rig is 24 cycles and these tests allocate 40 as a round number.
+     */
+    private static final long CAPACITY =
+            io.github.stoicswe.eyeandsickle.engine.Balance.COMPUTE_RUNGS[
+                    io.github.stoicswe.eyeandsickle.engine.Balance.COMPUTE_RUNGS.length - 1];
+
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-07-25T12:00:00Z"), ZoneOffset.UTC);
 
     private static Shell shell(Path dir) {
@@ -74,7 +82,7 @@ class ShellTest {
             assertThat(result.status()).isEqualTo(ExitStatus.USAGE);
             assertThat(result.lines().getFirst()).contains("may only");
             // The refusal must happen before execution: nothing was allocated.
-            assertThat(s.session().computeBudget().available().cycles()).isEqualTo(100);
+            assertThat(s.session().computeBudget().available().cycles()).isEqualTo(CAPACITY);
         }
     }
 
@@ -235,7 +243,7 @@ class ShellTest {
             Shell.Result result = s.run("mine -h");
 
             assertThat(result.status()).isEqualTo(ExitStatus.OK);
-            assertThat(s.session().computeBudget().available().cycles()).isEqualTo(100);
+            assertThat(s.session().computeBudget().available().cycles()).isEqualTo(CAPACITY);
         }
 
         @Test
@@ -249,7 +257,7 @@ class ShellTest {
             // Pillar C4 and Invariant I14: the client prints the numbers and lets the player do the
             // arithmetic. It must never say "affordable" — gate evaluation is not its job.
             assertThat(text).doesNotContain("affordable").doesNotContain("you can afford");
-            assertThat(s.session().computeBudget().available().cycles()).isEqualTo(100);
+            assertThat(s.session().computeBudget().available().cycles()).isEqualTo(CAPACITY);
         }
     }
 
@@ -264,7 +272,7 @@ class ShellTest {
             Shell.Result result = s.run("mine --allocate=5000");
 
             assertThat(result.status()).isEqualTo(ExitStatus.REFUSED);
-            assertThat(s.session().computeBudget().available().cycles()).isEqualTo(100);
+            assertThat(s.session().computeBudget().available().cycles()).isEqualTo(CAPACITY);
         }
 
         @Test
@@ -272,7 +280,7 @@ class ShellTest {
         void successIsZero(@TempDir Path dir) {
             Shell s = shell(dir);
             assertThat(s.run("mine --allocate=40").status()).isEqualTo(ExitStatus.OK);
-            assertThat(s.session().computeBudget().available().cycles()).isEqualTo(60);
+            assertThat(s.session().computeBudget().available().cycles()).isEqualTo(CAPACITY - 40);
         }
 
         @Test

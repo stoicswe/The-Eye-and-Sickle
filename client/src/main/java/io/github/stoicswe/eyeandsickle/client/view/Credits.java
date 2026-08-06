@@ -2,6 +2,7 @@ package io.github.stoicswe.eyeandsickle.client.view;
 
 import io.github.stoicswe.eyeandsickle.client.ui.Ui;
 import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
+import io.github.stoicswe.eyeandsickle.client.ui.widgets.SocialMark;
 import java.util.List;
 import java.util.Locale;
 import javafx.geometry.Pos;
@@ -45,52 +46,13 @@ import javafx.scene.shape.SVGPath;
 final class Credits {
 
     /**
-     * The networks a handle can be on, and the mark that says which.
+     * ⚠ The network marks moved to {@code ui/widgets/SocialMark} on 2026-08-06.
      *
-     * <h2>⚠ These are NOT the official logo files, and must not be mistaken for them</h2>
-     *
-     * Both paths were authored in this repository, drawn to each mark's silhouette so a reader knows
-     * what kind of handle follows — in a client that bundles no third-party artwork and downloads
-     * nothing at run time. If the official assets are ever wanted they replace these two constants
-     * and nothing else about the code changes.
-     *
-     * <p>Both are drawn in a 24×24 box and scaled by {@link UiTokens#SOCIAL_MARK}. The butterfly is
-     * symmetric about x=12, so an edit to one half has to be mirrored in the other. The play mark is
-     * a rounded plate with the triangle as a <b>hole</b> rather than a second filled shape, which is
-     * why it needs {@link FillRule#EVEN_ODD} — under the default non-zero rule the triangle fills in
-     * and the mark becomes a solid lozenge.
-     *
-     * <p>§9's ban on rounded corners is not in play here. That rule governs the interface's own
-     * geometry — panels, cells, meters — and this is somebody else's mark quoted inside it, drawn as
-     * a path rather than as a {@code -fx-background-radius} the contract test could even see.
+     * <p>They were a private enum here until COMS' DIRECT tab needed the Bluesky one too. Copying
+     * the path would have made this class's own promise false — that swapping in the official assets
+     * is a two-constant edit — and a drifted copy of somebody else's mark is a worse failure than a
+     * missing one, because nobody would notice it had happened.
      */
-    private enum Network {
-        BLUESKY(
-                "M12 7"
-                        + "C10.5 4.2 6.5 1.5 3.8 2.2 C1.2 2.9 1.1 6.4 2.6 9.1 C3.6 10.9 5.2 12.2 6.9 12.9 "
-                        + "C5.1 13.4 3.7 14.6 3.6 16.2 C3.5 18.6 6.1 20.4 8.6 19.6 "
-                        + "C10.6 19.0 11.7 16.6 12 14.4 C12.3 16.6 13.4 19.0 15.4 19.6 "
-                        + "C17.9 20.4 20.5 18.6 20.4 16.2 C20.3 14.6 18.9 13.4 17.1 12.9 "
-                        + "C18.8 12.2 20.4 10.9 21.4 9.1 C22.9 6.4 22.8 2.9 20.2 2.2 C17.5 1.5 13.5 4.2 12 7 Z",
-                FillRule.NON_ZERO,
-                "Bluesky"),
-
-        YOUTUBE(
-                "M5 5 H19 A4 4 0 0 1 23 9 V15 A4 4 0 0 1 19 19 H5 A4 4 0 0 1 1 15 V9 A4 4 0 0 1 5 5 Z"
-                        + "M10 8.6 V15.4 L16 12 Z",
-                FillRule.EVEN_ODD,
-                "YouTube");
-
-        private final String path;
-        private final FillRule fill;
-        private final String spokenName;
-
-        Network(String path, FillRule fill, String spokenName) {
-            this.path = path;
-            this.fill = fill;
-            this.spokenName = spokenName;
-        }
-    }
 
     /** Where a portrait goes when there is one. See the class comment. */
     private static final String PORTRAITS = "/io/github/stoicswe/eyeandsickle/client/ui/credits/";
@@ -113,16 +75,16 @@ final class Credits {
      * @param handle their handle, or null when they have not given one
      * @param network which service {@code handle} is on; ignored when the handle is null
      */
-    private record Person(String name, String role, String handle, Network network, String slug) {}
+    private record Person(String name, String role, String handle, SocialMark network, String slug) {}
 
     /**
      * ⚠ Order is contribution, not alphabet, and it is hand-held rather than sorted. A credits list
      * that re-sorts itself is a credits list that can silently reorder the people in it.
      */
     private static final List<Person> PEOPLE = List.of(
-            new Person("Nathaniel Knudsen", "Developer", "@stoicswe.com", Network.BLUESKY, "nathaniel-knudsen"),
-            new Person("Ben Havens", "Musician", "@isotop3.com", Network.BLUESKY, "ben-havens"),
-            new Person("Sham Tomaselli", "Artist", "@shamcube", Network.YOUTUBE, "sham-tomaselli"));
+            new Person("Nathaniel Knudsen", "Developer", "@stoicswe.com", SocialMark.BLUESKY, "nathaniel-knudsen"),
+            new Person("Ben Havens", "Musician", "@isotop3.com", SocialMark.BLUESKY, "ben-havens"),
+            new Person("Sham Tomaselli", "Artist", "@shamcube", SocialMark.YOUTUBE, "sham-tomaselli"));
 
     private Credits() {}
 
@@ -154,29 +116,13 @@ final class Credits {
         // three unrelated fragments. ⚠ The network is SPOKEN here and nowhere else on screen: sighted
         // readers get it from the mark, and a screen reader cannot see a butterfly.
         row.setAccessibleText(person.name() + ", " + person.role()
-                + (person.handle() == null ? "" : ", on " + person.network().spokenName + " as " + person.handle()));
+                + (person.handle() == null ? "" : ", on " + person.network().spokenName() + " as " + person.handle()));
         return row;
     }
 
     /** The handle, with the mark that says which network it is on. */
-    private static Region handle(String text, Network network) {
-        SVGPath mark = new SVGPath();
-        mark.setContent(network.path);
-        mark.setFillRule(network.fill);
-        mark.getStyleClass().add("es-credit-mark");
-        // ⚠ A scale transform, not a resize: an SVGPath has no width to set, and letting the layout
-        // stretch it would distort a symmetric mark asymmetrically. The factor is derived from the
-        // authoring box so the token stays the only number anyone edits.
-        double scale = UiTokens.SOCIAL_MARK / MARK_BOX;
-        mark.setScaleX(scale);
-        mark.setScaleY(scale);
-        // ⚠ Wrapped, and the wrapper is sized explicitly. scaleX/scaleY are applied AFTER layout, so
-        // the path still asks the row for its full 24px and the label would sit a wing's width too
-        // far right. The StackPane reserves the drawn size instead of the authored one.
-        StackPane frame = new StackPane(mark);
-        frame.setMinSize(UiTokens.SOCIAL_MARK, UiTokens.SOCIAL_MARK);
-        frame.setPrefSize(UiTokens.SOCIAL_MARK, UiTokens.SOCIAL_MARK);
-        frame.setMaxSize(UiTokens.SOCIAL_MARK, UiTokens.SOCIAL_MARK);
+    private static Region handle(String text, SocialMark network) {
+Region frame = network.node(UiTokens.SOCIAL_MARK, "es-credit-mark");
 
         Label label = new Label(text);
         label.getStyleClass().add("es-credit-handle");
@@ -185,9 +131,6 @@ final class Credits {
         row.setAlignment(Pos.CENTER_LEFT);
         return row;
     }
-
-    /** The box both marks are drawn in. Not a token: it describes the paths, not the layout. */
-    private static final double MARK_BOX = 24;
 
     /**
      * A photograph if one has been dropped in, otherwise initials in a dashed ring.

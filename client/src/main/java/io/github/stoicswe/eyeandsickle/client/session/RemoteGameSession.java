@@ -461,8 +461,74 @@ public final class RemoteGameSession implements GameSession {
         return unavailable();
     }
 
+    /**
+     * ⚠ EMPTY, never a local simulation — the same rule {@code shadowMarket()} follows.
+     *
+     * <p>On a home server the inbox is the server's: it decides what the player has been told and
+     * when. Answering from a local list would put invented messages on a screen whose whole subject
+     * is what somebody else said, and a claimable offer among them would be the client granting
+     * itself an item. <b>W-10</b>, unbuilt.
+     */
+    @Override
+    public java.util.List<InboxMessage> messages() {
+        return java.util.List.of();
+    }
+
+    @Override
+    public int unreadMessages() {
+        return 0;
+    }
+
+    @Override
+    public Outcome markMessageRead(String messageId) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome claimMessageOffer(String messageId) {
+        return unavailable();
+    }
+
+    /**
+     * ⚠ EMPTY, and the notebook is the one place where that is a real loss rather than a stub.
+     *
+     * <p>Notes are per character and a federated character's state is the server's (<b>I14</b>), so
+     * these belong in the server's own store — not in a local file the client keeps beside a
+     * character it does not own. Answering from a local list would give an online player a notebook
+     * that silently did not follow them to another machine. <b>W-11</b>, unbuilt.
+     */
+    @Override
+    public java.util.List<Note> notes() {
+        return java.util.List.of();
+    }
+
+    @Override
+    public Outcome createNote(String parentId, String name, boolean folder) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome renameNote(String noteId, String name) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome writeNote(String noteId, String body) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome deleteNote(String noteId) {
+        return unavailable();
+    }
+
     @Override
     public Outcome arm(String kind, int tier) {
+        return unavailable();
+    }
+
+    @Override
+    public Outcome disarm(String kind) {
         return unavailable();
     }
 

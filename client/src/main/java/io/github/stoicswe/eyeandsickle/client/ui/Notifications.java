@@ -136,6 +136,17 @@ public final class Notifications extends VBox {
         for (GameSession.LogLine line : fresh) {
             if (wants(line)) {
                 push(line);
+                // ⚠ The chime rides on the notification the player already asked for, so a MUTED
+                // facility is silent too — one decision, not two that can disagree. And it is here
+                // rather than at the rules that WRITE the message: a message that arrived while the
+                // client was closed is drained on the next load and would otherwise be announced
+                // silently, or announced on a tick nobody was watching.
+                //
+                // ⚠ `primed` above is what stops the whole backlog chiming at startup. Without it,
+                // opening the game after a few days away plays the sound once per stored message.
+                if ("comms".equals(line.facility())) {
+                    io.github.stoicswe.eyeandsickle.client.sound.Sfx.message();
+                }
             }
         }
     }

@@ -112,13 +112,49 @@ The thirteen ids below marked **(00 §6.1)** come from `00-client-overview.md` �
 | 3 | `storage` | Storage | `ls` across three mounts | 840×620 | 560×420 | `Shortcut+3` | yes | no |
 | 4 | `ledger` | Ledger | a transaction log | 880×560 | 600×360 | `Shortcut+4` | yes | no |
 | 5 | `assembl` | Assembl Compiler | `make` / a build system | 860×640 | 560×420 | `Shortcut+5` | yes | no |
-| 6 | `security` | Security Center | `ps` / `netstat` / `df` / a firewall console | 900×620 | 640×420 | `Shortcut+6` | yes | no |
+| 6 | `security` | Security Center | `ps` / `netstat` / `df` / a firewall console | 910×764 † | 640×420 | `Shortcut+6` | yes | no |
 | — | `market` | Market | a package manager | 900×640 | 600×440 | `Shortcut+Shift+M` | yes | no |
 | — | `identity` | Identity | `whoami` / `id` | 560×640 | 420×440 | `Shortcut+Shift+I` | yes | no |
 | — | `comms` ✚ | Comms | `mail` / `who` | 720×620 | 480×400 | `Shortcut+Shift+P` | yes | no |
 | — | `settings` ✚ | Settings | `~/.config` | 760×620 | 560×440 | `Shortcut+,` | yes | no |
 | — | `calc` ✚ | Calculator | `bc` / `printf %x` | 820×700 | 560×460 | `Shortcut+Shift+C` | yes | no |
 | — | `files` ✚ | Files | `nautilus` / `ls` / `mount` | 980×660 | 640×440 | `Shortcut+Shift+H` | yes | no |
+| — | `notes` ✚ | Notes | a markdown editor | 860×680 | 560×420 | `Shortcut+T` | yes | no |
+
+> **⚠ `notes` was ADDED 2026-08-06** — a markdown notebook, in the rail directly above the
+> calculator. It earns its slot the way `calc` does, on pillar **C6** rather than on a game system:
+> this game hands a player addresses, handles, block heights and recovered documents faster than
+> anybody holds them, and until now the only place to put them was outside the game. A notebook that
+> lives with the character is the difference between playing an investigation and alt-tabbing to a
+> text editor to play it.
+>
+> ⚠ **Nothing a player writes there is read by any rule** (`engine/rules/Notes`). Like `calc`, it was
+> added without an invariant to check — and unlike `calc`, that is a standing constraint rather than
+> an observation: the moment a gate, price, threshold or outcome depends on note text, every note
+> becomes a save-editable input to the rules.
+>
+> ⚠ **Its accelerator is `Shortcut+T`, and that is not a break in §6.3's positional scheme.** The
+> rail's keys are a ROW read top to bottom — now `0 1 2 3 4 R F G A S D T X / ,` — not a mnemonic and
+> not an index, so inserting `T` at this position keeps the property that matters and shifts nothing
+> after it. The collision to watch for is `Shortcut+Shift+T`, the global theme cycler: different
+> combinations today, and one dropped Shift away from not being.
+
+> **† ⚠ THE DEFAULT-SIZE COLUMN IS NOMINAL, AND NO WINDOW OPENS AT THE SIZE BESIDE ITS NAME.**
+>
+> These figures were written for OS windows on a whole screen. The deck draws its own window manager
+> inside one Stage, so `DeckShell` opens every window at `UiTokens.WINDOW_OPEN_SCALE` (**0.72**) of the
+> declared size and `DeskManager` then snaps the result to `UiTokens.SNAP_GRID` (**22 px**). The size a
+> player sees is therefore `round(nominal × 0.72 ÷ 22) × 22` — a `900×620` row is `648×440` on screen.
+>
+> **`security` is the one row written backwards from a wanted on-screen size** (2026-08-06, on explicit
+> direction): `655×550` was asked for, `910 × 0.72 = 655.2` and `764 × 0.72 = 550.08`, which snap to
+> **660×550**. ⚠ 660 rather than 655 because 655 is not a multiple of 22 and so is not a reachable
+> width with snapping on; with free-drag on (Settings → Desk) nothing snaps and it opens at 655×550.
+> `WindowCatalogueTest.theSecurityCentreOpensAtItsIntendedSize` pins the effective figures, so a change
+> to either constant fails there rather than quietly resizing the window.
+>
+> ⚠ Every other row is still the nominal figure this table has always carried, and converting them is
+> a separate decision — doing it piecemeal would leave the column meaning two different things.
 
 > **⚠ AMENDED 2026-08-04 — five tools became tabs, and one of those amendments contradicts §44.**
 >

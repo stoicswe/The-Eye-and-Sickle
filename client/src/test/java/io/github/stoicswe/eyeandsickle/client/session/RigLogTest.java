@@ -28,13 +28,38 @@ import org.junit.jupiter.api.io.TempDir;
  */
 class RigLogTest {
 
+    /**
+     * Puts a rig at the top of the compute ladder.
+     *
+     * <p>⚠ A starting rig is 24 cycles as of 2026-08-06 and these tests allocate 40–100 as a
+     * convenient constant. Against a starting rig every one of those is REFUSED, the rig does
+     * nothing, and the failure surfaces as an empty log or a wrong budget rather than as the
+     * allocation failure it is. Same argument as {@code TestSaves.bare} removing the parasite.
+     * ⚠ Grants the ITEMS: the ceiling is derived, and a written one is stomped by the next reconcile.
+     */
+    private static void atTopOfLadder(GameEngine game) {
+        for (var rung : io.github.stoicswe.eyeandsickle.engine.rules.ComputeLadder.rungs()) {
+            var item = new io.github.stoicswe.eyeandsickle.engine.state.ItemState();
+            item.itemType = rung.itemType();
+            item.tier = io.github.stoicswe.eyeandsickle.protocol.game.StorageTier.VAULT.name();
+            game.state().items.add(item);
+        }
+        io.github.stoicswe.eyeandsickle.engine.rules.ComputeLadder.reconcile(game.state());
+    }
+
+    /** {@link #atTopOfLadder}, as an expression. */
+    private static GameEngine laddered(GameEngine game) {
+        atTopOfLadder(game);
+        return game;
+    }
+
     private static final Instant T0 = Instant.parse("2026-07-25T12:00:00Z");
 
     private static LocalGameSession session(Path dir, Instant at) {
-        return new LocalGameSession(GameEngine.open(
+        return new LocalGameSession(laddered(GameEngine.open(
                 io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("s.json")),
                 "op",
-                Clock.fixed(at, ZoneOffset.UTC)));
+                Clock.fixed(at, ZoneOffset.UTC))));
     }
 
     @Nested
@@ -122,10 +147,10 @@ class RigLogTest {
             // spins down. Both facts are invisible without the log, and invisible income — or
             // invisibly *absent* income — is indistinguishable from a bug.
             Path file = dir.resolve("s.json");
-            GameEngine first = GameEngine.open(
+            GameEngine first = laddered(GameEngine.open(
                     io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(file),
                     "op",
-                    Clock.fixed(T0, ZoneOffset.UTC));
+                    Clock.fixed(T0, ZoneOffset.UTC)));
             first.allocateSelfMining(50);
             NodeState node = new NodeState();
             MinerState miner = new MinerState();
@@ -136,10 +161,10 @@ class RigLogTest {
             first.state().knownNodes.add(node);
             first.persist();
 
-            LocalGameSession later = new LocalGameSession(GameEngine.open(
+            LocalGameSession later = new LocalGameSession(laddered(GameEngine.open(
                     io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(file),
                     "op",
-                    Clock.fixed(T0.plus(Duration.ofHours(6)), ZoneOffset.UTC)));
+                    Clock.fixed(T0.plus(Duration.ofHours(6)), ZoneOffset.UTC))));
 
             String text = String.join(
                     " ",
@@ -188,7 +213,7 @@ class RigLogTest {
             var clock = new MutableClock(T0);
             LocalGameSession s = new LocalGameSession(GameEngine.open(
                     io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(dir.resolve("s.json")), "op", clock));
-            s.allocateSelfMining(100);
+            s.allocateSelfMining(50);
             int afterAllocate = s.log(7, 500).size();
 
             for (int i = 0; i < 30; i++) {
@@ -215,10 +240,10 @@ class RigLogTest {
         @DisplayName("the log survives a restart, like a real journal")
         void logPersists(@TempDir Path dir) {
             Path file = dir.resolve("s.json");
-            GameEngine first = GameEngine.open(
+            GameEngine first = laddered(GameEngine.open(
                     io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(file),
                     "op",
-                    Clock.fixed(T0, ZoneOffset.UTC));
+                    Clock.fixed(T0, ZoneOffset.UTC)));
             first.allocateSelfMining(20);
             first.persist();
 

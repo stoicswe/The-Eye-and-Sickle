@@ -26,7 +26,7 @@ import javafx.scene.input.KeyCombination;
  *
  * <h2>⚠ Accelerators are POSITIONAL, not mnemonic (reassigned 2026-08-05)</h2>
  *
- * The rail reads {@code 0 1 2 3 4 R F G A S D X / ,} top to bottom, and the enum's declaration order
+ * The rail reads {@code 0 1 2 3 4 R F G A S D T X / ,} top to bottom, and the enum's declaration order
  * IS the rail order — so the binding a player learns is where the tool sits, not what it is called.
  * That is a deliberate trade and it cost something real: {@code market} was <b>B</b> because "B is
  * the one accelerator a player will reach for without being told", {@code files} was <b>H</b> for
@@ -70,8 +70,28 @@ public enum WindowSpec {
             "Security Center",
             "ps / netstat / df / a firewall console",
             "What got in, and what was supposed to stop it. Auditing your own rig costs cycles and never heat (I9).",
-            900,
-            620,
+            // ⚠ 910×764 IS NOT THE SIZE THIS WINDOW OPENS AT, and nothing else in this file says so
+            // either. Every declared size here is NOMINAL: all three call sites in DeckShell open at
+            // WINDOW_OPEN_SCALE (0.72) of it, and DeskManager then snaps to the 22px SNAP_GRID. So
+            // the pipeline is `round(nominal × 0.72 / 22) × 22`, and this row was chosen backwards
+            // from a target of 655×550 asked for on 2026-08-06:
+            //
+            //     910 × 0.72 = 655.2  → snaps to 660   (29×22 = 638 and 30×22 = 660; 655 is not on
+            //                                           the grid at all, so 660 is the nearest
+            //                                           reachable width with snapping on)
+            //     764 × 0.72 = 550.08 → snaps to 550   (25×22, exactly on the grid)
+            //
+            // With free-drag on (Settings → Desk) nothing snaps and it opens at 655×550 to a fifth
+            // of a pixel. `WindowCatalogueTest.theSecurityCentreOpensAtItsIntendedSize` pins the
+            // effective figures, so a change to either the scale or the grid fails there rather than
+            // silently moving the window.
+            //
+            // It was 900×620 nominal — 648×446 on screen — which was wider and shorter than the
+            // four sections want: the headline pair is capped at SECURITY_HEADLINE_WIDTH plus
+            // SECURITY_MARK and the firewall table sizes its own columns, so the surplus width read
+            // as a column of empty space while the schedule and the firewall table both scrolled.
+            910,
+            764,
             640,
             420,
             KeyCode.DIGIT1,
@@ -274,6 +294,47 @@ public enum WindowSpec {
             460,
             320,
             KeyCode.D,
+            false,
+            true,
+            false),
+
+    /**
+     * The notebook — markdown notes and folders, for lore and whatever else is worth writing down.
+     *
+     * <h2>⚠ ITS ACCELERATOR IS <b>T</b>, AND THAT IS NOT A BREAK IN THE POSITIONAL SCHEME</h2>
+     *
+     * The rail's keys are a ROW read top to bottom — {@code 0 1 2 3 4 R F G A S D T X / ,} — not a
+     * mnemonic and not an index. Inserting {@code T} at this position keeps the property that
+     * matters: the binding a player learns is <em>where the tool sits</em>. Nothing after it shifted,
+     * because nothing after it was derived from a number.
+     *
+     * <p>⚠ <b>Plain {@code Shortcut+T}, and the collision to watch for is {@code Shortcut+Shift+T}</b>
+     * — the global theme cycler ({@code GlobalShortcuts}). They are different combinations and
+     * {@code ShortcutsTest} checks the two sets do not intersect, but a future change that dropped
+     * the Shift from either one would put a notebook on the theme key.
+     *
+     * <h2>Why it earns a slot</h2>
+     *
+     * The same argument the calculator makes one row down, from the other end: this game hands a
+     * player addresses, handles, block heights and recovered documents faster than anybody can hold
+     * them, and until now the only place to put them was outside the game. A notebook that lives with
+     * the character is the difference between playing the investigation and alt-tabbing to a text
+     * editor to play it.
+     *
+     * <p>⚠ <b>Nothing a player writes here is read by any rule</b> ({@code rules/Notes}). The moment
+     * a gate, price or outcome depends on a note, the notebook becomes a save-editable input to the
+     * rules and every note is a cheat.
+     */
+    NOTES(
+            "notes",
+            "Notes",
+            "a markdown editor",
+            "Markdown notes and folders, kept with this character. Lore, addresses, and what you worked out.",
+            860,
+            680,
+            560,
+            420,
+            KeyCode.T,
             false,
             true,
             false),

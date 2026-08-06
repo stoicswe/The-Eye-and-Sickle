@@ -114,6 +114,27 @@ public final class UiTokens {
     public static final double SNAP_GRID = 22;
 
     /**
+     * What fraction of its declared size a tool window actually opens at.
+     *
+     * <h2>⚠ Every size in {@code WindowSpec} is NOMINAL, and this is why</h2>
+     *
+     * {@code docs/client/05} §2.1 publishes a default size per window and {@code WindowSpec}
+     * transcribes that table, but the deck draws its own window manager inside a single Stage — so
+     * those figures, which were written for OS windows on a whole screen, open too large on a desk
+     * that is already inset by the strip, the rail and the command line. All three of
+     * {@code DeckShell}'s open paths scale by this, and {@code DeskManager} then snaps the result to
+     * {@link #SNAP_GRID}.
+     *
+     * <p>⚠ <b>So a window's on-screen size is {@code round(nominal × 0.72 / 22) × 22}, not the number
+     * beside its name.</b> It was an unnamed {@code 0.72} written out at three call sites until
+     * 2026-08-06, which made that arithmetic invisible at exactly the moment somebody wanted a
+     * specific size — the Security Center's row records the reverse calculation. Changing this moves
+     * every window at once; {@code WindowCatalogueTest} pins the one size that was asked for
+     * explicitly, so that lands as a failure rather than as a window that quietly drifted.
+     */
+    public static final double WINDOW_OPEN_SCALE = 0.72;
+
+    /**
      * The mascot on the rig monitor's ABOUT tab, in width only.
      *
      * <p>⚠ Width alone, and its partner is {@code preserveRatio} rather than a second token. A

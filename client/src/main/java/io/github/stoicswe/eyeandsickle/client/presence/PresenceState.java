@@ -72,6 +72,11 @@ public enum PresenceState {
     ASSEMBL("Reading a schematic"),
     COMMS("Checking messages"),
     LOG("Reading the rig log"),
+    // ⚠ "Taking notes", not the note's NAME. A title is text the player typed, and this
+    // enum exists so what can be transmitted is the set of constants in it — the whole
+    // structural guarantee of PresenceLeakTest. A note called "kyrell's address" would
+    // otherwise go to a friends list.
+    NOTES("Taking notes"),
     CALC("Doing arithmetic"),
     MANUAL("Reading the manual");
 
@@ -116,6 +121,7 @@ public enum PresenceState {
             case ASSEMBL -> ASSEMBL;
             case COMMS -> COMMS;
             case LOG -> LOG;
+            case NOTES -> NOTES;
             case CALC -> CALC;
             case MAN -> MANUAL;
             // ⚠ SETTINGS DELIBERATELY HAS NO LINE OF ITS OWN, on explicit direction, and this is

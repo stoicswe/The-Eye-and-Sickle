@@ -39,6 +39,21 @@ class PurchaseFlowTest {
     private static final Instant T0 = Instant.parse("2026-07-29T09:00:00Z");
     private static final String OFFERING = "canary-token";
 
+    /**
+     * Whether the thing this test bought is still undelivered.
+     *
+     * <h2>⚠ Not "the vault is empty" any more, and the difference is a real one</h2>
+     *
+     * These assertions read {@code items(VAULT)).isEmpty()} until 2026-08-06, when
+     * {@code GameEngine.newCharacter} began issuing a starting Firewall T1 into the vault — so the
+     * vault is legitimately non-empty from the first second of the game and the old assertion was
+     * measuring "this character owns nothing", which was never what the test meant. What it means is
+     * that the PURCHASE has not landed yet: paid for, downloading, not installed.
+     */
+    private static boolean notDelivered(LocalGameSession session) {
+        return session.items(StorageTier.VAULT).stream().noneMatch(item -> OFFERING.equals(item.itemType()));
+    }
+
     private static StoredFileState onlyFile(GameEngine game) {
         assertThat(game.state().files).hasSize(1);
         return game.state().files.getFirst();
@@ -60,7 +75,7 @@ class PurchaseFlowTest {
         assertThat(session.balance().wei())
                 .as("the money goes now — a real wallet deducts a send immediately")
                 .isLessThan(before);
-        assertThat(session.items(StorageTier.VAULT)).isEmpty();
+        assertThat(notDelivered(session)).isTrue();
         assertThat(session.transfers())
                 .as("and a download starts, with a progress bar the file manager already draws")
                 .hasSize(1);
@@ -95,7 +110,7 @@ class PurchaseFlowTest {
         // would say "not an installable upgrade", which is true, useless, and indistinguishable
         // from a corrupt download.
         assertThat(early.message()).contains("confirmed");
-        assertThat(session.items(StorageTier.VAULT)).isEmpty();
+        assertThat(notDelivered(session)).isTrue();
 
         // Nor can it be resold — that hole would be shaped exactly like the secondary market.
         assertThat(Repac.sell(game.state(), pkg.path()).refusal()).isEqualTo(Repac.Refusal.UNCONFIRMED);
@@ -123,7 +138,7 @@ class PurchaseFlowTest {
         // ever touches. A STOLEN package still lands in the vault: that risk was already carried.
         assertThat(session.items(StorageTier.HIGH_HACKABLE_ZONE))
                 .anyMatch(i -> i.displayName().equals("Canary Token"));
-        assertThat(session.items(StorageTier.VAULT)).isEmpty();
+        assertThat(notDelivered(session)).isTrue();
         assertThat(game.state().files).isEmpty();
     }
 

@@ -12,14 +12,57 @@ The player is a target as well as an attacker — storage can be raided (`01` §
 
 | Tool | Function | Gate | Cost | Compute |
 |---|---|---|---|---|
-| **Firewall (T1–T3)** | Flat difficulty increase on incoming breach attempts | Ethecoin | 40 / 110 / 200 EC | 5 / 9 / 15 (while armed) |
+| **Firewall (T1–T3)** | Flat difficulty increase on incoming breach attempts | Ethecoin | 40 / 110 / 200 EC | 5 / 10 / 15 (while armed) |
 | **Canary Token** | Fake file that alerts the owner the instant it's touched, and tags the toucher's handle | Ethecoin | 8 EC each | 1 |
 | **Tarpit** | Slows every intruder action; doesn't stop them, buys response time | Ethecoin | 70 EC | 8 |
 | **Honeypot Stash** | Decoy high-hackable zone containing junk; raiders can't tell until extraction | Reputation | — | 12 |
 | **Auto-Counter Daemon** | Automatically launches a weak counter-attack when raided while offline | Schematic | — | 18 (permanent while armed) |
-| **Detection Array (T1–T3)** | Improves scan **signal quality** — cuts the false-positive rate on your own rig | Schematic | — | 6 / 14 / 25 (permanent) |
+| **Detection Array (T1–T3)** | Improves scan **signal quality** — cuts the false-positive rate on your own rig | Ethecoin (T1–T2) · **Schematic (T3)** † | 50 / 140 / — EC | 6 / 14 / 25 (permanent) |
 | **Rootkit Wrapper** | Hides a *deployed* miner from routine host scans and raises crack difficulty against it; does not survive a deliberate audit | Ethecoin | 50 EC | 2 per miner |
 | **Cold Storage Expansion** | Vault capacity, sub-linear scaling | Schematic + reputation | — | — |
+
+> **† AMENDED 2026-08-06 — the Detection Array's ladder was split across two gates.**
+>
+> All three tiers were schematic-gated. T1 and T2 moved onto the **ethecoin** gate on explicit
+> direction, under a rule stated at the time: *low-level base tools and low-level upgrades are
+> purchasable and cost more than a consumable; high-level and rare items need a schematic to compile.*
+> **T3 did not move, and that is what keeps Invariant I2 intact** — money reaches the highest rung
+> below the ceiling and never the ceiling itself, which is the same "top purchasable" shape `03` §2
+> already gives the firewall. Pricing T3 at any figure collapses it, silently: the shop would render,
+> the purchase would work, and ethecoin would have bought a permanent capability.
+> `CatalogueTest.theTopOfEveryDefenceLadderIsNotForSale` fails the build on it.
+>
+> **I3 is untouched.** These are three *items*, each behind exactly one gate — not one item behind two.
+>
+> The **Auto-Counter Daemon stays schematic-only**, and the **Honeypot Stash stays reputation-gated**
+> (§2.3's economy-distortion argument is unchanged). What did change for the Honeypot is *where you
+> see it*: reputation-gated stock now lives behind a heat-state-gated vendor — see §2a.
+>
+> ⚠ **The firewall's compute column read `5 / 9 / 15` and the code has always said `5 / 10 / 15`.**
+> Corrected to the code, which is what `Balance.DEFENSE_FIREWALL_T2_CYCLES` and every test have used
+> since the tier existed; the `9` appears nowhere else in the design or the implementation.
+
+### 2a. Where a gated item is *seen* — the heat-gated vendor `[PROPOSAL]`
+
+Gating an item and gating the **shelf it sits on** are different questions, and `02` §2.5 already
+separates them: the heat-state gate governs "vendor and contact *access*. Never ownership", and names
+black-market brokers as the case that runs the unusual direction — *"only reachable while hot: being
+hunted opens doors that being clean does not."*
+
+So reputation-gated defensive stock is not simply listed in the storefront. It sits behind a vendor
+who has to **notice you first**, which takes standing with a faction *and* enough personal heat to be
+worth approaching (`Balance.BLACK_MARKET_MIN_REPUTATION`, `BLACK_MARKET_MIN_HEAT`). Reputation is read
+as the **better** of the two faction standings rather than their sum — a committed Sickle operative
+and a committed Eye operative are each somebody worth knowing, while adding them would let a
+fence-sitter qualify on neither.
+
+**The item's own gate is unchanged by any of this.** Reaching the shelf and being allowed to buy off
+it are two separate checks, which is what keeps I3 true: the Honeypot Stash is still reputation-gated,
+and the vendor is access.
+
+⚠ The player-facing shape of this — the **TOR Marknet** tab, unlocked by a module that arrives in the
+COMS inbox once the vendor notices you — is `[PROPOSAL]` and depends on the inbox, which does not
+exist yet. See `15-open-questions.md`.
 
 ## 2. Per-tool notes
 

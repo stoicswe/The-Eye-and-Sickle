@@ -84,7 +84,27 @@ class NodeReportTest {
     }
 
     /** Runs one scan to completion and returns the game. */
+    /**
+     * ⚠ Puts the rig at the top of the compute ladder before scanning.
+     *
+     * <p>A starting rig is <b>24 cycles</b> as of 2026-08-06 and carries the tutorial parasite on
+     * some of them, so two port scans in a row no longer fit — the second was refused, its finding
+     * never filed, and the failure read as a report-merging bug ("the firewall reading IS fresh")
+     * rather than as an allocation one. These tests are about what a report REMEMBERS, so the
+     * fixture gives them the rig their subject needs; {@code ComputeLadderTest} owns the ladder.
+     */
+    private static void atTopOfLadder(GameEngine game) {
+        for (var rung : io.github.stoicswe.eyeandsickle.engine.rules.ComputeLadder.rungs()) {
+            var item = new io.github.stoicswe.eyeandsickle.engine.state.ItemState();
+            item.itemType = rung.itemType();
+            item.tier = io.github.stoicswe.eyeandsickle.protocol.game.StorageTier.VAULT.name();
+            game.state().items.add(item);
+        }
+        io.github.stoicswe.eyeandsickle.engine.rules.ComputeLadder.reconcile(game.state());
+    }
+
     private static GameEngine scanned(Winding clock, GameEngine game, String address, PortScanTarget target) {
+        atTopOfLadder(game);
         game.portScan(address, target);
         clock.advance(PortScanRules.durationFor(target).plusSeconds(2));
         game.tick();

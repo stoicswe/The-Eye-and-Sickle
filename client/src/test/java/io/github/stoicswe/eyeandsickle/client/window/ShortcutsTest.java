@@ -130,12 +130,19 @@ class ShortcutsTest {
         void gatesExplainThemselves(@TempDir Path dir) {
             // docs/client/04 §3.5: 77 means "a gate blocks this, and the requirement is printed".
             // The GUI button and the session call are the same call, so the message is the same.
+            //
+            // ⚠ T3, not T1. This named `detection-array-t1` until 2026-08-06, when T1 and T2 moved to
+            // the ethecoin gate and only the ladder's top rung stayed behind a schematic — so the T1
+            // purchase became merely UNAFFORDABLE (status 1) rather than GATED (77), and the test
+            // started measuring an empty wallet instead of a gate. Pointing it at T3 keeps its
+            // subject and now also pins the rule that replaced the old one: money reaches the highest
+            // rung of a ladder and never the rung above it, which is Invariant I2.
             var session = shell(dir).session();
-            var outcome = session.purchase("detection-array-t1");
+            var outcome = session.purchase("detection-array-t3");
 
             assertThat(outcome.status())
                     .isEqualTo(io.github.stoicswe.eyeandsickle.client.session.GameSession.Outcome.NOPERM);
-            assertThat(outcome.message()).contains("schematic").contains("never bought");
+            assertThat(outcome.message()).contains("schematic").contains("never");
         }
 
         @Test
@@ -157,20 +164,56 @@ class ShortcutsTest {
             assertThat(outcome.message()).contains("downloading");
         }
 
+        /**
+         * ⚠ <b>AMENDED 2026-08-06 — I1 now has exactly one hole, and this is where it is measured.</b>
+         *
+         * <p>This used to read "nothing sells capacity", which was I1 and I12 made structural. On
+         * explicit direction the compute ladder's <b>first rung</b> (24 → 32) is purchasable, and the
+         * test that was protecting the invariant is the right place to record that — weakening it to
+         * a blanket allowance would have been the wrong edit, because the safety argument is
+         * precisely that the exception is <em>one item wide</em>.
+         *
+         * <p>So it now asserts the narrower, stronger thing: exactly one ethecoin offering may raise
+         * the compute ceiling, it must be the ladder's bottom rung, and <b>vault capacity is still
+         * unpurchasable at any price</b> (I12 is untouched — it never had an amendment and this test
+         * still holds the whole of it).
+         */
         @Test
-        @DisplayName("nothing in the catalogue sells compute or vault capacity — I1 and I12")
+        @DisplayName("exactly ONE offering sells compute, and nothing sells vault capacity — I1 amended, I12 intact")
         void nothingSellsCapacity() {
-            // Made structural rather than policed: there is no offering to buy, so there is no code
-            // path to review. A test is still worth it because the failure would be a content edit,
-            // not a code change, and content edits get less scrutiny.
-            for (var o : io.github.stoicswe.eyeandsickle.engine.Catalogue.offerings()) {
+            var catalogue = io.github.stoicswe.eyeandsickle.engine.Catalogue.offerings();
+
+            // ── I1, amended: one rung, and it is the bottom one ──────────────────────────────
+            var sellingCompute = catalogue.stream()
+                    .filter(o -> o.purchasable())
+                    .filter(o -> io.github.stoicswe.eyeandsickle.engine.rules.ComputeLadder.rungFor(o.id())
+                            .isPresent())
+                    .toList();
+            assertThat(sellingCompute)
+                    .as("compute is the master scarcity; a SECOND purchasable rung closes the "
+                            + "mine-buys-mining loop that I1 exists to prevent")
+                    .hasSize(1);
+            assertThat(sellingCompute.getFirst().id())
+                    .isEqualTo(io.github.stoicswe.eyeandsickle.engine.rules.ComputeLadder.rungs()
+                            .getFirst()
+                            .itemType());
+
+            // ── and nothing ELSE may raise a ceiling by another name ─────────────────────────
+            for (var o : catalogue) {
+                if (io.github.stoicswe.eyeandsickle.engine.rules.ComputeLadder.rungFor(o.id())
+                        .isPresent()) {
+                    continue;
+                }
                 String text = (o.name() + " " + o.description()).toLowerCase();
                 assertThat(o.purchasable() && text.contains("capacity"))
                         .as("%s appears to sell capacity for ethecoin", o.id())
                         .isFalse();
             }
-            assertThat(io.github.stoicswe.eyeandsickle.engine.Catalogue.offerings())
-                    .noneMatch(o -> o.id().contains("compute") || o.id().contains("vault"));
+
+            // ── I12: vault capacity is unpurchasable, unamended, at any price ────────────────
+            assertThat(catalogue)
+                    .as("I12 has no exception and this test still holds all of it")
+                    .noneMatch(o -> o.id().contains("vault"));
         }
     }
 
@@ -202,6 +245,26 @@ class ShortcutsTest {
             // calibrated as a set. An offering priced outside them is a balance change wearing a
             // content change's clothes.
             for (var o : io.github.stoicswe.eyeandsickle.engine.Catalogue.offerings()) {
+                // ⚠ THE COMPUTE RUNG IS OUTSIDE THE BANDS ON PURPOSE, and exempting it here is the
+                // honest way to say so rather than widening PRICE_TOP_PURCHASABLE — which would let
+                // every other item creep up behind it.
+                //
+                // `design/03` §2's bands price TOOLS. This is not a tool: it is the one thing in the
+                // game that raises the master scarcity's ceiling, and Balance.COMPUTE_32_PRICE is
+                // deliberately about six times the top band because the I1 amendment is only safe
+                // while the purchase hurts. `ComputeLadderTest` is what holds it to one rung.
+                if (io.github.stoicswe.eyeandsickle.engine.rules.ComputeLadder.rungFor(o.id())
+                        .isPresent()) {
+                    // ⚠ Only the PURCHASABLE rung has a price to check — the two above it are
+                    // schematic-gated and priced at zero, which `ComputeLadderTest` holds. Asserting
+                    // "far above the bands" on those failed on the zero, which is the guard working.
+                    if (o.purchasable()) {
+                        assertThat(o.priceWei())
+                                .as("the compute rung must stay far ABOVE the tool bands, not drift into them")
+                                .isGreaterThan(io.github.stoicswe.eyeandsickle.engine.Balance.PRICE_TOP_PURCHASABLE);
+                    }
+                    continue;
+                }
                 if (o.purchasable()) {
                     assertThat(o.priceWei())
                             .as("%s is outside every published band", o.id())

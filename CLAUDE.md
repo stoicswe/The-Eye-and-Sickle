@@ -36,7 +36,7 @@ If you're unsure whether something is load-bearing, check whether it's an **inva
 
 From `docs/design/00-vision-and-pillars.md` §4. Each one, if broken, collapses a specific system. If a change would violate one, the change is almost certainly wrong — stop and confirm with the user.
 
-1. **I1** — Compute is never purchasable with ethecoin.
+1. **I1** — Compute is never purchasable with ethecoin — ⚠ **AMENDED 2026-08-06: except the compute ladder's FIRST rung** (24→32, `Balance.COMPUTE_32_PRICE`). One rung cannot close the mine→buy→mine-faster→buy-more loop, because 32→48 is not for sale at any price. Held to one rung by `ComputeLadderTest` and `ShortcutsTest`, not by prose.
 2. **I2** — Ethecoin never buys a ceiling (only breadth: consumables, replacements, horizontal options).
 3. **I3** — Every item sits behind exactly one unlock gate (assignment follows the rule in `design/02`, not taste).
 4. **I4** — Self-mining is immune to detection/seizure and generates zero heat (it's the income floor).
@@ -563,13 +563,34 @@ wall-clock time and zero blocks — on the one readout whose whole subject is th
   self-mining cannot. Had they been separated only by "one works offline", this would have deleted the
   distinction. `design/15` §3, `design/04` §1.2.
 - ⚠ **TWO levers bound offline mining, and they are not the same lever.** `OFFLINE_MINING_HOURS` caps
-  how **long** an absent rig hashes; **`OFFLINE_SOLO_WIN_WEIGHT`** (0.5, 2026-07-29) caps how **well**
-  it does while it is, so an hour played beats an hour away *inside* the buffered window too. ⚠ **Self-
-  mining and fills only** — the live tick is untouched (leaving the client running is playing), and a
-  pool competes whether or not one member is online, so weighting a pool would be this rig reaching
-  into somebody else's rate. The freed probability goes to the **unpooled** remainder. ⚠ It scales the
-  **threshold**, never the number of draws: one `nextDouble` per block whatever the mode, or a stored
-  seed stops being a replay. ⚠ **Deliberately invisible** — no readout names it, by decision.
+  how **long** an absent rig hashes; **`OFFLINE_MINING_WIN_WEIGHT`** (0.5) caps how **well** it does
+  while it is, so an hour played beats an hour away *inside* the buffered window too. ⚠ **Fills only**
+  — the live tick is untouched, because leaving the client running is playing and this is not an
+  idle-time penalty. ⚠ **Deliberately invisible** — no readout names it, by decision.
+  ⚠ **IT WAS SOLO-ONLY AND WAS NAMED `OFFLINE_SOLO_WIN_WEIGHT` UNTIL 2026-08-06.** The exemption's
+  argument — a pool competes whether or not one member is online — is true of the **pool** and does
+  not extend to the **player's** pooled income, which is what it actually exempted: a pooled character
+  collected four hours at full rate while a solo one collected four at half, and **the default pool is
+  pooled**. One constant now, because "what an absent rig's hashrate is worth" is one question; two
+  would be two figures to re-tune and one to forget, which is how they came to differ by 2× at all.
+  ⚠ **THREE MODES, THREE PLACES, because the player's hashrate enters three ways.** **Solo** —
+  `ChainRules.drawWinner` scales the player's share of the draw; it *must* be the draw, since a solo
+  block pays the whole subsidy plus fees and there is no cut to scale. **PPLNS** —
+  `MiningRules.runSelfMining` scales the cut of each block carrying `Won.offline()`. **PPS** — the
+  same method scales the **share clock's accrual**, because a share pool pays per accepted share out
+  of its own balance whether or not anybody found a block, so the draw is not a lever on it at all.
+  ⚠ **HALVING THE POOL'S OWN `networkShare()` IN THE DRAW IS THE OBVIOUS IMPLEMENTATION AND IT IS
+  WRONG TWICE.** A pool does not lose half its hashrate because one member logged off, so it hands the
+  freed probability to the unpooled population for four hours and leaves the block explorer reporting
+  that this player's pool underperforms during their absences — and it halves the PPS contributor rows
+  while reducing PPS income by **exactly nothing**, since those rows credit zero by construction.
+  `ChainSyncTest.OfflineWeight.poolsAreUntouched` holds the chain to the same shape either way.
+  ⚠ **The solo branch scales the THRESHOLD, never the number of draws**: one `nextDouble` per block
+  whatever the mode, or a stored seed stops being a replay. ⚠ **The PPS lever is the ACCRUAL, never
+  the payout or the target** — a share that paid half would make a share mean two things, and a bigger
+  target would re-rate the draw.
+  ⚠ **Pooled offline mining was ALREADY capped at 4 hours**, so raising it is a *rise* in passive
+  income, not a cut: `sync` gates pool-block credit on `competing` and PPS accrues off `minedFor()`.
 - ⚠ **Comparing a live run against a fill needs the SAME save loaded twice.** Two saves built
   identically are not identical: a fresh game draws its own initial `networkWorkTarget` from the
   character id, so the walks are a fraction of a block apart at the start and diverge within the hour
@@ -1476,6 +1497,530 @@ pushing every window down. The dead cell was three times the overflow.
 - ⚠ **Not amber.** §2.1 spends amber on cycles doing work and income; a pixel size is neither, and
   colouring it would imply the number meant something about the game. `text-hi` on `panel-hi` — a pair
   `ContrastTest` already measures in all eight palettes, so it inverts correctly on uOS Classic.
+
+**COMS' DIRECT TAB WRAPS THE PLAYER'S REAL BLUESKY DMs (2026-08-06).** `client/bsky/BlueskyChat` +
+`view/DirectView` — conversations, **groups**, and history, synced from the account connected in
+Settings → Bluesky. The tab is absent unless an account is connected.
+
+- ⚠ **THE THIRD ENTRY IN `docs/client/02` §2.9a's EXHAUSTIVE OUTBOUND LIST**, and the first that is
+  somebody's real social account. `00` §7 survives because **the game sends nothing of its own**: no
+  handle, DID, avatar, balance, standing, item, machine name or address. Sign-in carries the
+  credential the player typed; every later call carries a bearer token and a convo id.
+- ⚠ **NOTHING THAT COMES BACK IS EVER WRITTEN TO A SAVE.** `GameSave.messages` is the ENGINE's inbox
+  and one of its entries carries `offerItemType` — an entitlement. Merging the two lists puts text a
+  stranger typed somewhere trusted enough to grant an item, which is **I14** at its smallest scale.
+  The Bluesky cache dies with the window, as a mail client's does. The tab strip is the seam.
+- ⚠ **API SHAPES VERIFIED AGAINST THE PUBLISHED LEXICONS, not remembered** — and three of them are
+  places a plausible implementation is **silently wrong**:
+  ⚠ **`listConvos` takes `status` = `accepted` | `request`, and requests are a SEPARATE BUCKET.**
+  Fetching only the accepted ones hides every first approach behind a setting nobody opened. That
+  split *is* Bluesky's consent model — wrap it, never build a parallel allow-list, which would be
+  this game keeping a social graph.
+  ⚠ **A `messageView.sender` is ONLY a DID.** The name lives in the convo's `members`, so it has to
+  be resolved by matching — otherwise every line is prefixed with `did:plc:…`.
+  ⚠ **A `deletedMessageView` has NO `text` field at all.** Rendering it as an empty line is
+  indistinguishable from a failed load; it says "(message deleted)".
+  ⚠ `limit` is clamped to the lexicon's **1–100** — asking for more is an *error*, not a bigger page.
+  ⚠ The API returns messages **newest first**; the transcript reverses them, because a conversation
+  is read downwards.
+- ⚠ **`atproto-proxy: did:web:api.bsky.chat#bsky_chat` on every chat call.** Without it the PDS
+  answers "unknown method", which reads as the endpoint not existing and sends you hunting for the
+  wrong hostname.
+- ⚠ **`Bad token scope` is NOT a wrong password** — it is an app password created without the
+  direct-messages box ticked. `describeSignInFailure` says so in as many words, because the two are
+  indistinguishable to a player and one of them is a two-minute fix.
+- ⚠ **Redirects are NEVER followed** — the `Authorization` header would be replayed to whatever host
+  the redirect names. Same reasoning `HttpStockFeed` records for its API key.
+- ⚠ **Nothing is logged but the endpoint and the status.** The response body *is* the conversation
+  and the URL carries a convo id, and this client captures its own log and invites the player to send
+  it in. Pinned by a source scan in `BlueskyChatTest`.
+- ⚠ **Every call is on a VIRTUAL thread, handed back through `Platform.runLater`.** A round trip to
+  somebody else's PDS is not a duration this client gets to bound, and doing it inline freezes the
+  deck. Sign-in too — `blueskyPane()` runs on the FX thread while a window is opening.
+- ⚠ **`DirectView.state()` MUST NOT ASK `signedIn()`, and this SHIPPED BROKEN.** Sign-in was started
+  on a virtual thread and the pane was built in the next statement, where it asked `signedIn()` to
+  decide what to render — **false every time**, not intermittently — so the DIRECT tab said *"No
+  Bluesky account is connected"* permanently, for a connected handle with a correct DM-scoped app
+  password. Reported from a real session. ⚠ **Only a NULL client means "no account"**: `blueskyPane`
+  is the one place that can answer it, because it is the one that looked in the settings and the
+  credential store, and it says so by returning null. Anything else deciding the same question from a
+  different signal is how two answers come apart.
+  ⚠ **The second bug was in the same ordering**: `blueskyPane` discarded `signIn`'s returned
+  `Optional<String>`, so the *Bad token scope* diagnostic — the one that distinguishes a missing DM
+  permission from a wrong password — **could never reach a screen**. `ensureSignedIn` is idempotent,
+  runs on the view's own background thread, and returns a **sentence rather than a boolean**
+  precisely so a caller cannot throw the reason away again.
+  ⚠ **`credentials()` clears any existing session**, or a player who fixes a bad app password keeps a
+  token minted from the old one and the fix appears not to work.
+  ⚠ **Extracted as a pure `state()` seam** — `SecurityCenterView.latestOf`'s and
+  `Anchoring.horizontal`'s reason: the rule lived inside a method that builds nodes, so the only way
+  to check it was to run the client and look, which is how it was found *after* it shipped.
+  `DirectViewTest` needs no toolkit and was verified against the broken condition first.
+- ⚠ **No test signs in.** That would open a connection to a developer's real Bluesky account — the
+  side effect `DiscordIpcTest` refuses by never calling `connect`. What is tested is the wire shape
+  and the things it forced.
+- **"Powered by Bluesky" sits at the top of the tab** — everything below it is somebody else's
+  service and somebody else's data, and a tab inside a game window silently showing real
+  conversations leaves a reasonable person unsure whose messages these are.
+  ⚠ **The mark moved to `ui/widgets/SocialMark` rather than being copied.** It was a private enum in
+  `view/Credits`, whose own comment promises that swapping in the official assets is a two-constant
+  edit — the moment a second copy existed that promise was false, and **a drifted copy of somebody
+  else's mark is a worse failure than a missing one because nobody would notice**. One definition,
+  two callers.
+  ⚠ **NOT the official logo, and nothing is fetched** — a path authored in this repo, in a client
+  that bundles no third-party artwork. §9's icon-set ban is not in play: one quoted mark drawn as a
+  path is not an icon vocabulary, and §9's radius rule governs *this* interface's geometry.
+  ⚠ **NEUTRAL, never Bluesky's blue.** §2.1 spends amber on cycles doing work and rations alarm to
+  loss; an attribution is neither, and a brand blue beside `gain`/`warn`/`alarm` — which all mean
+  something — is the semantic colour system §2.1 bans arriving through the back door.
+  ⚠ **A shape, so it colours with `-fx-fill`** and sits outside `ContrastTest`, which is correct
+  rather than a gap (§4.4: the words carry it, the mark reinforces). ⚠ **One `accessibleText` on the
+  ROW**, children cleared — a reader cannot see a butterfly and would otherwise announce an
+  unlabelled graphic followed by the text.
+⚠ **`Bad token scope` COMES BACK FROM THE CHAT CALL, NOT FROM `createSession` — and it was handled
+in the wrong place.** `com.atproto.server.createSession` succeeds with **any** valid app password,
+DM access or not; the scope is only checked when a `chat.bsky.*` method runs. So a password without
+the box ticked **signs in perfectly** and then fails every conversation fetch. The friendly message
+lived on the sign-in path where it could never fire, and the pane fell through to *"No conversations
+on this account, or Bluesky could not be reached"* — one sentence covering both "you have no
+messages" and "your credential is wrong", which is no help for either. `describeChatFailure` is on
+the request path now and `lastError` carries it to the pane; `BlueskyChatTest.Diagnostics` pins that
+a scope failure names the fix and that a 429 does **not** blame the credential.
+
+⚠ **THE SUCCESS PATH LOGGED NOTHING, WHICH MADE THE WHOLE FEATURE UNDEBUGGABLE.** "Never log the
+body" was applied so hard that a working sign-in followed by a refused chat call produced **zero
+lines** — a player's CLIENT LOGS tab showed eleven entries and not one from `bsky`. The rule is
+sharper now: **log the SHAPE of the traffic, never its contents.** Sign-in attempt (handle + PDS) and
+outcome (DID) at INFO; every non-200 at WARNING with endpoint + status + XRPC **error code**;
+conversation and message **counts** at INFO/FINE; `getLog` reports both entries seen and
+conversations touched, because "12 entries, 0 changes" is a poll working and "0 entries" is a cursor
+that is not advancing. ⚠ The poll itself logs at **FINE** — an INFO line every minute buries the
+client log within an hour.
+
+⚠ **`nothingSensitiveIsLogged` fired on the word `accessJwt` in a message that said the token was
+ABSENT.** A false positive, and the message was **reworded** rather than the guard given an
+exception — the same call this repo made renaming `DidDocument.ServiceEndpoint` for the blunt
+"no `*Service`" rule. A guard with one carve-out is a guard somebody adds a second one to.
+
+⚠ **`ensureSignedIn` sets `lastError` only on FAILURE, never clears it on success.** It returns early
+once signed in, so clearing there would wipe the scope error — recorded by a later chat call — on
+every subsequent poll, and the pane would go back to showing nothing.
+
+**THE DIRECT TAB POLLS, THE MARK SPRINGS, AND MESSAGES CHIME (2026-08-06).**
+
+- ⚠ **POLLING IS `chat.bsky.convo.getLog` — THAT IS WHAT THE ENDPOINT IS FOR.** It returns a cursor
+  and only what *changed* since it. Re-running `listConvos` plus a `getMessages` per conversation
+  every minute spends a large multiple of the player's own allowance to discover, almost always, that
+  nothing happened — Bluesky publishes **5,000 points/hour** and warns that clients polling every few
+  seconds consume it. **60 s default, floored at 15 s** (`DirectView.MIN_SYNC_SECONDS`), and the
+  floor is not negotiable by the slider: somebody else's service, the player's own budget.
+- ⚠ **IT COVERS WHAT THE PLAYER SENT, not just received.** `logCreateMessage` fires for every message
+  in a conversation the account is in, whoever wrote it — a reply typed on a phone appears next poll.
+- ⚠ **THE FIRST `getLog` IS HISTORY, NOT NEWS** — called once during the initial sync to establish the
+  cursor. Without it the first poll reports the player's entire correspondence as new and **chimes
+  once per message**. ⚠ **Only `logCreateMessage`/`logDeleteMessage` count**; reads, reactions, mutes
+  and the twenty-odd membership events are real entries and none is a new message.
+- ⚠ **Polls never overlap** (`syncing[0]`) — two in flight double the cost and can deliver out of
+  order. ⚠ **`Pulse.every`, never `animate`**: a decorative subscription never fires under Reduce
+  motion, so an `animate` poll means that player **never receives another message**.
+- ⚠ **`fullHistory` pages backwards and PREPENDS.** Each page is newest-first and pages walk back in
+  time, so appending would interleave the history wrongly. Bounded at `HISTORY_PAGES` (10) — "sync
+  all" on a years-old account is otherwise an unbounded loop against somebody else's rate limit.
+
+⚠ **`ui/widgets/SyncSpin` IS A SPRING, WHICH §5 AND §9's REJECTION LIST BOTH NAME AS BUILD-BLOCKING.**
+Amended narrowly on explicit direction — `ui-design-language.md` **§5.2** — under four conditions:
+**(1) no new animation machinery** (no `Interpolator`/`Timeline`/`KeyValue`/`AnimationTimer`; a
+hand-authored **table of angles**, not a function, walked on `Pulse`, so `UiContractTest` is
+untouched); **(2) one widget, one mark**, never a shared easing utility; **(3) it turns only while a
+real sync is in flight** — a progress indicator, not decoration; **(4) still under Reduce motion**,
+where the pane says "Syncing conversations…" in words instead. ⚠ **A TABLE, NOT A FUNCTION** is the
+load-bearing half: a formula would be an easing function in the source for the next person to import,
+at which point §5 has been *abandoned* rather than amended. ⚠ It **snaps home** when a sync ends
+rather than finishing the table — motion after the thing it reports has stopped is the one lie a
+progress indicator can tell.
+
+**SOUND: ONE CHIME, `javax.sound.sampled`, NOT `javafx-media` (2026-08-06).** `client/sound/Sfx`,
+Settings → Sound (0–100, default **60**, machine-wide).
+
+- ⚠ **Media would have played the supplied MP3 directly and would also have added `libjfxmedia`
+  natives to ALL FIVE platform uber jars** for a one-second chime. The file was converted once at
+  authoring time — `afconvert -f WAVE -d LEI16@11025 -c 1` — and the **23 KB WAV** ships, a fifth of
+  what one platform's media native costs. Same argument `presence/DiscordIpc` records.
+- ⚠ **A LINEAR SLIDER IS NOT A LINEAR LOUDNESS.** `MASTER_GAIN` is in **decibels** over roughly
+  −80…+6, so feeding it a percentage makes 50 mean "+50 dB" — clamped to the maximum, so every
+  setting above a few percent sounds identical and full. It is `20·log10(fraction)`.
+- ⚠ **The clip is opened ONCE and rewound before each play.** A `Clip` holds a mixer line and a
+  machine has finitely many; one per notification leaks lines until sound silently stops. Not
+  rewinding means a second chime within a second plays nothing.
+- ⚠ **Zero is silent and returns immediately** — not "play at zero gain", which on some drivers is
+  still an audible click.
+- ⚠ **Every failure is silent, and catches `Error` as well as `Exception`** — a headless box fails at
+  the native layer, and a notification path that threw would take the notification with it.
+- ⚠ **The chime rides on the NOTIFICATION the player already asked for**, so a muted facility is
+  silent too — one decision, not two that can disagree — and `Notifications.primed` is what stops the
+  whole backlog chiming at startup after a few days away.
+
+⚠ **A STATISTICAL BAND HAD TO WIDEN WITH THE CEILING.**
+`GameEngineTest.offlineSelfMiningIsCappedNotProportional` compares a 30-day absence against a 5-hour
+one. Capped income scales with hashrate, so dropping the test rig from 100 cycles to the ladder's 64
+raised the standard error by **√(100/64) = 1.25×** — the old ±20% was ~3σ and became ~2.4σ, failing
+on ordinary variance about one run in sixty. Widened **by that arithmetic**, not until it passed.
+
+- ⚠ **`-Ddeck.commsTab=DIRECT`** selects a COMS sub-tab. Same gap `deck.securitySection` closed: the
+  pane opens on its first tab, so DIRECT was unrenderable and a render of COMS reported the window as
+  covered while only ever photographing INBOX.
+
+**A STARTING RIG IS 24 CYCLES, AND COMPUTE HAS A LADDER: 24 → 32 → 48 → 64 (2026-08-06).**
+`Balance.STARTING_CYCLES` fell from **100**; `rules/ComputeLadder` is the ladder;
+`ui/RebootSequence` is the apt-shaped upgrade log that plays when a rung lands.
+
+- ⚠ **THIS AMENDS INVARIANT I1**, on explicit direction. I1 read "compute is never purchasable with
+  ethecoin"; the ladder's **first rung** (24→32, `Balance.COMPUTE_32_PRICE` = **1200 EC**) now is.
+  ⚠ **The flywheel needs a LOOP** — mine → buy capacity → mine faster → buy *more* capacity — and
+  closing it takes a second purchase that does not exist. 32→48 is not for sale at any price. Money
+  moves a player up **once, ever**: a head start, not a compounding one.
+- ⚠ **THE NARROWING IS MECHANICAL, NOT A PROMISE.** `ComputeLadderTest.onlyTheFirstRungIsForSale`
+  and the amended `ShortcutsTest.nothingSellsCapacity` both fail the build on a second priced rung.
+  The second of those is **the test that WAS protecting I1** — amended in place rather than deleted,
+  because the safety argument is precisely that the exception is one item wide. ⚠ **I12 is
+  untouched**: vault capacity has no exception and that test still holds all of it.
+- ⚠ **THE COSTS WERE DELIBERATELY NOT RESCALED, and that is what makes the ladder worth climbing.**
+  A Thorough Scan still costs **35**, which a starting rig cannot run at all; a T3 Firewall still
+  holds 15, nearly two thirds of one. What a rung buys is **which operations are possible at all**,
+  not bigger numbers — rescaling every cost to fit 24 would leave the player equally capable at every
+  rung. `ComputeLadderTest.theTopTierIsBehindTheLadder` pins it, so a future "fix" argues with a test.
+- ⚠ **CAPACITY IS DERIVED FROM THE ITEMS HELD; `rig.totalCycles` IS A CACHE** reconciled on the tick.
+  This is `ChainState.networkHashrate`'s bug pre-empted — a stored copy of a derived value went stale
+  and cost a real character 29% of their income forever, silently. It is also what stops a
+  hand-edited `totalCycles` granting the whole ladder. ⚠ **Highest rung held, never a sum.**
+- ⚠ **Climbed IN ORDER** — 48 refuses without 32 — or "money moves you up once" is false, since a
+  player could leave the purchasable rung unbought and climb entirely on schematics.
+- ⚠ **1200 EC is priced against BREACH LOOT, not mining.** ~125 hours at a starting rig's own rate
+  (nobody will), or twenty-odd good hauls at `design/03` §3's 45–65 EC — which puts the first rung
+  behind **the puzzle** rather than the clock, and is what keeps it from being a mining upgrade even
+  though it is bought with mining's currency. ⚠ ~6× `PRICE_TOP_PURCHASABLE`, exempted from §2's
+  bands **explicitly** rather than by widening them, which would let every other item creep up.
+- ⚠ **The reboot does NOT own the state change.** The rules raise the ceiling on the tick, so the
+  animation is safe to skip, safe under Reduce motion, and safe to miss entirely. An animation that
+  owned it would be an accessibility setting that costs a purchase.
+- ⚠ **`compute-32` is SOFTWARE, not FIRMWARE, and the distinction does real work.** `Offering`'s
+  compact constructor **refuses firmware with no schematic named** — that guard is what keeps
+  firmware money-unreachable, and marking this one firmware would have forced a schematic onto the
+  rung meant to be bought. The shape says what it is: the first rung is a **product**, the two above
+  it are things you **compile**. ⚠ Materials are **fill-ins**; Compiler mechanics are still **AS-1**.
+- ⚠ **~31 TESTS BROKE AND THE RE-FIXTURE WAS THE BULK OF THE WORK.** Every fixture allocating 40–100
+  cycles as a round number was **silently refused** against a 24-cycle rig, and the failures surfaced
+  somewhere unrelated: a rate assertion, a task never created, a log line that never appeared, a
+  port-scan report that read as a *merging* bug. `TestSaves.bare` (client) and `GameEngineTest.bare`
+  (engine) now put a test rig at the **top of the ladder** — the same argument as their already
+  removing the tutorial parasite. ⚠ They grant the **items**, never `totalCycles`, or the next
+  reconcile stomps it. ⚠ Rate assertions are **derived** from the ceiling now: `design/03` §1
+  publishes 0.4 EC per **cycle-hour**, and the old literal `40.0` was that times a 100-cycle rig.
+
+**CREDENTIALS GO IN THE OS STORE, NEVER IN A FILE (2026-08-06).** `client/credentials/` —
+`SecretStore` over macOS **Keychain**, Windows **Credential Manager** and freedesktop **Secret
+Service**. Settings → Bluesky connects an account; `ClientProfile.Settings.blueskyHandle` holds the
+**handle only**.
+
+- ⚠ **THERE IS NO PLAINTEXT FALLBACK AND THERE MUST NEVER BE ONE.** A machine with no agent gets
+  `SecretStores.none()` and the feature is **off**. A credential in `settings.json` is a credential
+  in every backup, screen share and bug report, and the player has no way to know it happened.
+  `NoCredentialsInSettingsTest` fails the build on a `Settings` field named like a secret — including
+  `token`, the one most likely to arrive innocently as "infrastructure".
+- ⚠ **THE SECRET GOES ON stdin, NEVER IN argv.** Process arguments are **world-readable** — `ps`
+  shows them to every user on the machine — and macOS's own tool says so: *"Use of the -p or -w
+  options is insecure. Specify -w as the last option to be prompted."* `ToolRunner.run` takes the
+  command and the stdin payload as **two parameters with no single-string overload**, so there is
+  nowhere to interpolate a password. `SecretStoreTest.NeverInArgv` reads the source and fails on a
+  command list mentioning the secret — a run-time check cannot ask a process which argument was a
+  password.
+- ⚠ **VERIFIED AGAINST A REAL KEYCHAIN, and it had two surprises.** `security add-generic-password`
+  prompts **twice** (password, retype) so the secret is written twice — and sending it once fails the
+  comparison while **still exiting zero**, so the status code would never have told us. Exit **44** is
+  "no such item", which is what lets a lookup return empty instead of reporting a broken store.
+  ⚠ `-U` is required or an existing item is refused and a changed app password silently keeps the old
+  one. ⚠ `-A` is deliberately **not** used — the tool's own usage calls it "insecure, not recommended".
+- ⚠ **Windows is `powershell.exe`, NOT `pwsh`** — WinRT `PasswordVault` loads in Windows PowerShell
+  5.1 (on every Win10/11) and **not** in PowerShell 7 by default, so a machine with both breaks on the
+  newer one. ⚠ `cmdkey` was rejected: `/pass:` puts the secret in argv. ⚠ The script arrives on stdin,
+  which makes **quoting the injection surface** — single quotes only (a double-quoted PowerShell
+  string interpolates, so `$(...)` in a password would execute) and `escape()` doubles them.
+  ⚠ `RetrievePassword()` must be called before `.Password` is populated, or a lookup returns empty
+  and looks exactly like "nothing stored". ⚠ **Unverified on real Windows/Linux** — both fail closed
+  by construction, so the risk is reporting unavailable where it would have worked.
+- ⚠ **THIS IS THE FIRST SUBPROCESS THE CLIENT HAS EVER SPAWNED.** `SystemReport` records the previous
+  position — "starts no process and opens no host file" — and that austerity cost the ABOUT tab its
+  CPU name. Amended narrowly: only this package spawns anything, the executable is a fixed name never
+  composed from input, and nothing a player types reaches an argument.
+- ⚠ **Nothing here is ever logged.** The client captures its own log at `ALL` and invites the player
+  to send it in, and **the output of a lookup IS the secret**. The log line carries the executable and
+  the exit code — never the arguments (which hold the account), never stdin, never stdout. Pinned by
+  a source scan. ⚠ **stderr is DISCARDED, not merged** — merging puts "item not found" into the value
+  a lookup returns, so a missing item comes back as a "secret" that is an error message.
+- ⚠ **Bounded at 10s and destroyed on expiry.** These tools *prompt* when they cannot proceed — a
+  locked keychain, a missing agent — and a prompt given a pipe may simply wait, which on the FX
+  thread is a frozen client with no error.
+- ⚠ **Only the trailing newline is stripped, never `strip()`** — an app password may legitimately
+  begin or end with a space, and trimming one yields a credential that is wrong invisibly.
+
+⚠ **SETTINGS' DETAIL PANE ELLIPSISES ITS PROSE INSTEAD OF WRAPPING IT — PRE-EXISTING, ALL 11 PAGES.**
+`wrapped()` sets `setWrapText(true)` and the labels still render `"...however, this is where the..."`;
+confirmed on the Discord page, which predates any of this. The fix is a width constraint in
+`Views.settingsPage`/the detail pane rather than at a call site, and it wants its own render pass
+across every category — noted here rather than folded into an unrelated change.
+
+**NOTES — A MARKDOWN NOTEBOOK, `Shortcut+T`, ABOVE THE CALCULATOR (2026-08-06).** `view/NotesView`
+over `engine/state/NoteState` + `rules/Notes`; explorer tree with nesting folders, a markdown editor
+with live syntax highlighting, autosave. Fifteen windows.
+
+- ⚠ **THE HIGHLIGHT IS A `TextFlow` LAID OVER A `TextArea`, and it aligns ONLY because everything is
+  monospace.** JavaFX has no rich-text control — `TextArea` is one font, one colour, no third option
+  — so the area's own glyphs are drawn **transparent** and coloured runs are painted over them,
+  character for character. Same guarantee `CoreCage`/`AsciiCanvas` already lean on.
+- ⚠ **A RUN MAY CHANGE COLOUR AND WEIGHT. IT MAY NEVER CHANGE SIZE.** A bigger heading in the editor
+  shifts every glyph after it and the caret stops landing under the pointer — silently, and only on
+  lines containing markup. Font family, size and padding are declared **once for both layers** in
+  `theme.css`; changing one and not its twin breaks alignment for exactly the players who write
+  markdown with markers in it.
+- ⚠ **THE `TextArea` MUST NOT SCROLL ITSELF.** It owns its viewport and exposes no scroll offset, so
+  an overlay inside a scrolling area drifts the moment anybody scrolls. It is grown to its full
+  content height (`prefRowCount`, floored at `MIN_ROWS`) and the whole stack goes in **one**
+  `ScrollPane` — one viewport, one offset, nothing to keep in step.
+- ⚠ **THE CARET IS COLOURED EXPLICITLY.** `-fx-text-fill: transparent` takes Modena's caret with it,
+  leaving the player typing into what looks like a dead panel. `-fx-caret-color` and
+  `-fx-highlight-text-fill` are set separately for this reason.
+- ⚠ **`MarkdownSpans` KEEPS THE MARKERS IN THE RUNS.** `**bold**` is one run of eight characters, not
+  four with the asterisks dropped — anything that adds, drops or reorders a character slides the
+  highlight off the text. `MarkdownSpansTest` round-trips every construct **and every PREFIX of a
+  document**, because a half-typed `**` is the state the editor is in for as long as it takes to
+  reach the closing marker. `stripped()` is the reading form and must never be called from the
+  overlay.
+- ⚠ **NOTHING IN THE NOTEBOOK IS READ BY ANY RULE**, and that is a standing constraint rather than a
+  description of today. The moment a gate, price, threshold or outcome depends on note text, every
+  note is a save-editable input to the rules. `NotesTest.notesAreInert` pins the field list so a new
+  numeric or enum field forces the question.
+- ⚠ **Per CHARACTER, in the save** — notes are what *this* character found out, and pooling them
+  across characters spoils the thing the window is for. The honest consequence: deleting a character
+  deletes their notes.
+- ⚠ **DELETE IS RECURSIVE, unlike `Repac.delete`,** and the difference is what is being deleted:
+  `Repac` refuses to walk a tree because its filesystem is *generated* from game state, where this
+  one is stored. An orphaned note is invisible in the window, still in the save, still counting
+  against `LIMIT`. The UI confirms first. ⚠ **`move` refuses a folder into its own descendant** —
+  the one operation that detaches a subtree with no error message — and both walks are **bounded**,
+  because a hand-edited save can already contain a cycle and an unbounded walk hangs the client on
+  load before any screen is drawn.
+- ⚠ **`writeNote` is NOT announced and returns OK on an unchanged body.** The editor calls it on a
+  timer while somebody is typing; announcing would publish a bus event and light the disk lamp on
+  every autosave. ⚠ Autosave is **`Pulse.every`** (data) — under `animate` it would never fire for a
+  player with Reduce motion on, who would lose work for having used an accessibility setting — and
+  it also writes **on detach**, or up to `AUTOSAVE_MS` of typing dies with the window.
+- ⚠ **`Shortcut+T` is NOT a break in the positional scheme.** The rail's keys are a row read top to
+  bottom — now `0 1 2 3 4 R F G A S D T X / ,` — not a mnemonic and not an index, so inserting T
+  shifts nothing after it. ⚠ **The collision to watch is `Shortcut+Shift+T`**, the global theme
+  cycler: different combinations today, one dropped Shift from not being.
+- ⚠ **`PresenceState`'s exhaustive switch caught the new window at COMPILE TIME** — which is the
+  entire reason it is a switch and not a map. Its line is `"Taking notes"`, never the note's **name**:
+  a title is text the player typed, and the enum exists so what can be transmitted is the set of
+  constants in it (`PresenceLeakTest`).
+- ⚠ **The tree's disclosure arrows are ASCII `>` and `v`**, never an icon set or a block glyph — §9
+  bans icon sets and `GlyphCoverageTest` has already rejected four block elements and `U+26A0`.
+- ⚠ **The context menu anchors to the WINDOW, never the row** — the handler repaints the tree first,
+  which detaches the node the pointer was over, and JavaFX throws on every right-click. `NetMapView`
+  records the same failure.
+- ⚠ **The side column's width goes on the COLUMN, not the inner tree** — same trap `CommsView`
+  records, and the same crushed column it produces.
+
+**COMS IS AN INBOX NOW, AND THE TOR MARKNET UNLOCKS THROUGH IT (2026-08-06).** `view/CommsView`
+(list + reading pane) over `engine/state/MessageState` + `rules/Inbox`; `rules/BlackMarket` decides
+when the darknet vendor makes contact; the notice carries the **TOR Module**, and holding it adds a
+fourth MARKET tab, `view/TorMarknetView`. It replaced a prose stub — `docs/design/12` is still
+`[PROPOSAL]`, so what exists is the delivery surface those systems will use plus the one message the
+rules currently send.
+
+- ⚠ **TWO SOURCES, ONE WINDOW, AND THEY ARE NOT THE SAME LIST.** **INBOX** is the game talking to the
+  player: engine-authored, in the save, trusted. **DIRECT** is player-to-player, which is **Bluesky's**
+  DM service, reached through the player's own account, and never touches a save. They share a window
+  because that is where a player looks for "who said something to me", and nothing else. ⚠ Merging the
+  types is how text somebody else wrote lands in a list whose entries can **grant an item** — **I14**
+  at the smallest scale. The tab strip is the seam and is deliberately visible.
+- ⚠ **`MessageState.offerItemType` IS A LICENCE TO RECEIVE SOMETHING FOR NOTHING.** Set only by
+  `BlackMarket`, cleared on claim, and nothing originating outside the game may ever populate it.
+  ⚠ `Inbox.claim` clears it **BEFORE** the download is created: a failure after loses an entitlement,
+  a failure before **mints one per retry**.
+- ⚠ **"Have I sent this" is answered by looking for the MESSAGE, never a flag.** Standing and heat
+  both move and can cross their thresholds several times a session, so the condition cannot answer
+  it — and a boolean would be a second place for the fact to live. Delete the message and it sends
+  again, which is the honest behaviour.
+- ⚠ **Trimming spares an unclaimed offer.** `Inbox.LIMIT` bounds *history*; an entitlement is not
+  history, and dropping one to stay under a display cap silently deletes something the player was
+  given. It refuses to trim rather than destroy one.
+- ⚠ **The Marknet tab is ADDED/REMOVED, never disabled**, and it keys on **owning the module** rather
+  than re-checking the thresholds. `design/02` §2.5: "going cold does not confiscate what you bought"
+  — the introduction, once made, is made. A visible-but-locked tab would also advertise content to
+  somebody with no route to it, which is the opposite of what a heat gate is for.
+- ⚠ **The board lists REPUTATION-gated stock derived from the catalogue**, never a hand-kept list —
+  otherwise a reputation-gated item added later is unreachable, a gate nobody can pass because
+  nothing displays it. **I3 is untouched**: the vendor gates *access*, each item keeps its one gate.
+- ⚠ **Not a second storefront with better prices.** That would make finding it an economic reward and
+  turn a heat gate into a discount — `MarketDeals`' arbitrage failure in a new hat.
+- ⚠ **The notification is free** — the tick writes `EventLog.notice(save, "comms", …)` and
+  `Notifications` already drains the rig log. Instrumenting the view instead would mean a message
+  that arrived with COMS closed was never announced.
+- ⚠ **`markMessageRead` is NOT announced.** Routing it through `announce()` would publish a bus event
+  and light the disk lamp every time the player clicked a row in a list.
+- ⚠ **THE WIDTH GOES ON THE SCROLLER, NOT THE CONTENT.** min/pref/max on the inner `VBox` looks right
+  and does nothing — an HBox distributes to its own children and a `ScrollPane`'s minimum is
+  unrelated to what it contains. The list column was crushed to ~45px with the reading pane laid out
+  over the top of it. The reader needs `setMinWidth(0)` or the row demands both columns before
+  distributing anything. **Found by rendering.**
+- ⚠ **`DeckSnapshot`'s factory map is SEPARATE from the client's, and its `default` photographs the
+  RECON stub under the right window's title bar.** COMMS fell to it — the frame said COMPORT and the
+  content was a different window entirely, which is exactly how it survived. **Add a case before
+  rendering a window for the first time; do not trust the title bar.** `-Ddeck.noticed=1` sends the
+  contact (a synchronous render never ticks) and `-Ddeck.torInstalled=1` puts the module on the rig.
+- ⚠ **Bluesky DM facts, verified 2026-08-06 and not from memory:** `chat.bsky.convo.*` goes to the
+  user's **PDS** with header **`atproto-proxy: did:web:api.bsky.chat#bsky_chat`** (service host
+  `api.bsky.chat`); an app password must have **DM access explicitly granted** or every call returns
+  *Bad token scope*; and **`getConvoAvailability` is Bluesky's own "may I message this person"**, so
+  the consent layer exists upstream and must be wrapped rather than reimplemented. ⚠ Wiring it makes
+  a **third** entry in `docs/client/00` §2.9a's exhaustive outbound list — CLAUDE.md's own note says
+  "a third is a decision" — and it is the first that would carry **player-authored content**.
+
+**DEFENCES MUST BE OWNED TO BE ARMED (2026-08-06), and until this they were not.** `docs/design/09`
+§1 has carried a gate and a price for every defence since the design sessions, and
+`LocalGameSession.armIntent` checked **compute and nothing else** — so a brand-new character could
+arm a T3 firewall, a Detection Array and the Auto-Counter Daemon holding none of them. ⚠ **The
+unlock ladder existed in the documents, in the catalogue and in the shop, and did not exist in the
+game**, and **I2** and **I3** both rest on it. A published-but-unenforced rule is worse than a
+missing one: every surface reads correctly and the defect is invisible to anyone who has not tried
+to arm something they never bought.
+
+- **The rule for where a tier sits**, as given: *low-level base tools and low-level upgrades are
+  purchasable and cost more than a consumable; high-level and rare items need a schematic.* So:
+  Firewall T1/T2/T3 = **EC 40/110/200**; Canary **8**; Tarpit **70**; Detection Array T1/T2 =
+  **EC 50/140**; Detection Array **T3 = schematic**; Honeypot Stash = **reputation**; Auto-Counter
+  Daemon = **schematic**.
+- ⚠ **WHAT KEEPS I2 INTACT IS THAT EACH LADDER'S TOP RUNG IS OUT OF THE MARKET'S REACH.** Money
+  reaches the highest rung *below* the ceiling, never the ceiling — the "top purchasable" shape
+  `design/03` §2 already gives the firewall, whose whole ladder is EC-gated on `09` §2's argument
+  that it is horizontal protection limited by **standing compute** rather than by price. ⚠ Pricing
+  Detection Array T3 collapses that **silently**: shop renders, purchase works, ethecoin has bought
+  a permanent capability. `CatalogueTest.theTopOfEveryDefenceLadderIsNotForSale`.
+- ⚠ **The check is per TIER, never per KIND.** On the kind, buying the cheapest rung would be a key
+  to the whole ladder *including its schematic-gated top* — the exact hole the split gate exists to
+  avoid. `DefenceGateTest.aRungIsNotTheLadder`.
+- ⚠ **I3 is untouched**: three tiers are three *items*, each behind exactly one gate.
+- ⚠ **A new character is ISSUED a Firewall T1** (`Catalogue.STARTING_DEFENCE`), into the **VAULT**.
+  Granted, **not exempted** — arming requires owning with no special case, because a rule with one
+  exception acquires a second. Without it the FIREWALL panel opens as ten refusals and the
+  reasonable conclusion is that the tool is broken. It is an ordinary EC item: sellable and
+  re-buyable, as `design/02` §2.1 requires of that gate.
+- ⚠ **The refusal names the GATE, not the absence** — "sold in the market" / "compiled from a
+  schematic and never sold" / "takes standing, not money" are three different sentences, and the
+  panel says the same thing in the row's ACTION cell **before** the click.
+- ⚠ **`Catalogue.defenceOfferingId(kind, tier)` is the ONE mapping**, with three callers (the arming
+  rule, the panel, the market). Written out three times, the day somebody adds a tier is the day the
+  panel offers a row nothing sells. It **clamps** an absurd tier rather than rejecting it — a
+  hand-edited save must not make an owned defence unrecognisable.
+- ⚠ **TWO ESTABLISHED ASSERTIONS BROKE and both were the design colliding with an assumption that
+  only held while these items did not exist.** `FirmwareTest.firmwareIsExpensive` asserted firmware
+  was the dearest offering — **Firewall T3 is 200 EC against firmware's 180**, and both are pinned
+  in the docs; rewritten to what was meant (dearer than every *consumable*, and gated behind a
+  schematic no money buys, so its **total** cost is still highest). `UpgradeVersionTest
+  .answersBeforeTheTransfer` hard-coded `NEW`, and the starting firewall made a foreign firewall
+  package correctly read `UPGRADE`.
+- ⚠ **Every fixture that ARMS must now STOCK.** `DeckSnapshot`, `RigStatusTest` and
+  `PurchaseFlowTest` all silently became refusals — the render photographed a panel with nothing
+  armed, which is indistinguishable from the switches not working. `RigStatusTest.stockAndArm` still
+  goes through `arm`, so a refusal for any *other* reason still fails the test it should.
+- ⚠ **`Balance.BLACK_MARKET_MIN_REPUTATION` / `BLACK_MARKET_MIN_HEAT` exist and NOTHING CONSUMES THEM
+  YET.** They are for `design/09` §2a's heat-gated vendor — the **TOR Marknet** tab, unlocked by a
+  module arriving in the COMS inbox. **The inbox does not exist** (`MoreViews.comms` is a prose
+  stub), so that half is unbuilt. Reputation reads the **better** of the two faction standings, never
+  their sum, or a fence-sitter with middling standing on both qualifies on neither. ⚠ Heat is a
+  **FLOOR** — `design/02` §2.5's black-market broker wants you hunted, which inverts every other gate.
+
+**DEFENSE became FIREWALL, and it is a TABLE OF TOGGLES now (2026-08-06).** `Views.firewall` — one
+row per protective measure, with a `Switch`, an ACTION column (BLOCK · TAG · DELAY · BAIT · WATCH ·
+STRIKE) and a HOLDS column, over a summary line reading `N measures armed · M cycles held`. It was a
+column of arm-only buttons and there was **no way to turn anything off at all**: `GameSession.disarm`
+/ `GameEngine.disarm` are new.
+
+- ⚠ **The label is deliberately NARROWER than the contents** — it also arms canaries, tarpits,
+  honeypots and the counter-daemon. "Firewall" is the word a player already owns for "the thing that
+  stops things getting in", and a section nobody can name is a section nobody opens.
+- ⚠ **DISARMING RELEASES, IT DOES NOT RECOVER.** `ComputeRules.release`, the call that unequips a
+  tool — **not** `beginRecovery`. An armed defence *holds* a reservation rather than doing work, so
+  the Thermal Budget curve has nothing to price. A disarm that cost minutes of reduced capacity would
+  make never arming anything the correct play, which is the opposite of what **I9** protects.
+  Negative-tested (`GameEngineTest.Defences`, verified against a neutered release).
+- ⚠ **`DefenseState.allocationId` is stored rather than the allocation being found by LABEL.**
+  `ComputeRules.reserve` sets `label = kind`, so a search would *usually* work — and a label has no
+  uniqueness rule, so "usually" is one duplicate away from releasing somebody else's cycles with the
+  rig simply having compute back that it never gave up.
+- ⚠ **A SYNCED SWITCH WRITES WHAT IT DISPLAYS unless guarded.** `setSelected` fires the listener, so
+  painting the effective state arms everything already armed. Same trap the rounded-corners setting
+  records; `syncing[0]` is the guard. The sync also runs **after** every toggle, so a refusal puts the
+  knob back — a row reading armed on an undefended rig is the worst outcome this panel has.
+- ⚠ **ALL THREE TIERS ARE LISTED, and the missing middle was a real defect.** It offered T1 and T3
+  only. The engine arms `firewall` and `detection-array` at **tier 2** as well (the render harness
+  does exactly that), so a rig holding one showed both firewall rows off *and* disabled while the
+  summary above them said two measures were armed. Survivable for a list of buttons; not for a table
+  whose subject is what is currently armed.
+- ⚠ **The HOLDS figures are read from `Balance`, never typed.** They were typed while this was a list
+  of buttons and happened to be right; as a column headed HOLDS they are a measurement, and a
+  measurement the view keeps its own copy of is one re-tune from quoting a price the rig does not
+  charge.
+- ⚠ **Only one defence of a KIND may be armed**, so a tiered pair is mutually exclusive. The sibling
+  row is **disabled with the reason in its tooltip** rather than refused after the click — a switch
+  that springs back with an error is a control the player learns by failing.
+- ⚠ **Armed vs off is a BRIGHTNESS STEP, never a colour** (`-es-text-hi` / `-es-dim-1`, both measured
+  by `ContrastTest`). §2.1 reserves amber for cycles doing work and rations alarm to loss; "switched
+  on" is neither, and green/grey here would be the semantic colour system §2.1 bans arriving one
+  table at a time. The knob's **position** stays the primary cue (§4.4). ⚠ `-es-dim-3` is not
+  available however faint it looks right — that is the greeble token, exempt from the 3:1 floor.
+- ⚠ **A TRIPPED canary shows in the ACTION cell, in `-es-warn` and not `-es-alarm`.** This panel's
+  whole alarm ration is already spent on HOME's verdict and trefoil; a defence that fired is
+  `design/12`'s evidence path, and evidence is not a loss. Two-class selector, or `.es-fw-on` wins.
+- ⚠ **`onChange`, never `Pulse`** — nothing here is derived from wall time, so a one-second repaint
+  would be work with no subject and would tear down a `Switch` under the pointer.
+
+**The SECURITY CENTER window opens at 660×550, and `WindowSpec`'s numbers are NOMINAL (2026-08-06).**
+Asked for as 655×550. ⚠ **No window opens at the size beside its name**: `DeckShell` scales by
+`UiTokens.WINDOW_OPEN_SCALE` (**0.72**, an unnamed literal at three call sites until now) and
+`DeskManager` snaps to `UiTokens.SNAP_GRID` (**22**), so the on-screen size is
+`round(nominal × 0.72 / 22) × 22`. The row is written **backwards** from the target: `910 × 0.72 =
+655.2 → 660`, `764 × 0.72 = 550.08 → 550`. ⚠ **655 is not a multiple of 22 and so is not reachable
+at all with snapping on**; with free-drag it opens at 655×550 exactly.
+`WindowCatalogueTest.theSecurityCentreOpensAtItsIntendedSize` pins the **effective** figures — an
+assertion on `defaultWidth()` would restate the source line and pass just as happily if either
+constant moved, which is the change that would silently resize the window.
+
+⚠ **`VBox.setVgrow` ON A CHILD OF AN `HBox` IS IGNORED, SILENTLY.** `SecurityCenterView` had exactly
+that — `setVgrow(body, ALWAYS)` where `body` is a child of the `split` HBox — so the constraint read
+as obviously correct and did nothing, and the panel stopped short of the window's bottom edge leaving
+a band of bare ground that reads as the section having ended early. The constraint belongs on
+`split` inside the page's VBox. Invisible until the window shrank to 550 and the band became a third
+of it. ⚠ **The fix is NOT `scrollable(content, true)`** — that was tried: `setFitToHeight` forces the
+content to the viewport height, a VBox handed less than its children want **squeezes** them, and a
+squeezed `wrapText` Label **ellipsises rather than scrolling** (both paragraphs rendered as `...`);
+adding a Vgrow spacer to absorb the slack then pushed the legal note past the bottom of a viewport
+that, with fitToHeight on, will not scroll to it.
+
+⚠ **`-Ddeck.securitySection=FIREWALL` on `DeckSnapshot`** selects a section by its rail label —
+exactly the `-Ddeck.settingsPage=` problem one window along. The panel opens on HOME and there is no
+other way in, so AUDIT, FIREWALL and SCHEDULE were **all unrenderable** while the harness reported
+the SECURITY window as covered. It also prints every open window's measured size now, because
+"measure node bounds before hunting a gap in the layout" has ended more than one search here in one
+line.
+
+⚠ **The audit's scan buttons read `Quick (5c)` · `Full (15c)` · `Deep (35c)` (2026-08-06)** — the long
+form (`Thorough · 35 cycles · 6m`) wrapped the strip onto two rows at 655px. The duration moved into
+the tooltip, which is the only fact the short form drops. ⚠ **"Deep" is a DELIBERATE MISMATCH with the
+flag**, which is still `scan --thorough` — and so are `scan(8)`, `commands_en.properties`,
+`CommandSpec`, `design/04` §3.2 and `education/02`. Made on explicit direction; it is a small tax on
+pillar **C6**, which sells skill that transfers to a real terminal, and it is why the tooltip prints
+the real command. Renaming the flag is the other resolution and is much wider.
 
 **The SECURITY CENTER is a consumer security suite's LAYOUT in this deck's language (2026-08-04).**
 `view/SecurityCenterView` — a section rail (HOME · AUDIT · DEFENSE · SCHEDULE), a headline verdict,

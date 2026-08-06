@@ -3599,6 +3599,180 @@
 .es-sec-card-state { -fx-text-fill: -es-text-hi; -fx-font-size: 14px; }
 .es-sec-action { -fx-min-width: 168; -fx-font-size: 11px; }
 
+/* ⚠ NEUTRAL BRIGHT, not amber and not alarm. GoH's wordmark is amber because a shop is income;
+ * ShMark's is -es-alarm because §2.1's reservation for hostile state is the right reading there —
+ * nobody is bonded and the money can simply not come back. The Marknet is a vendor with a fixed
+ * list who happens to be hard to reach, so colouring it would claim an opinion the mechanics do not
+ * support. */
+.es-marknet-wordmark { -fx-text-fill: -es-text-hi; -fx-font-size: 20px; -fx-font-weight: 700; }
+
+/* NOTES — the markdown notebook.
+ *
+ * ⚠ THE TWO LAYERS MUST MATCH EXACTLY OR THE HIGHLIGHT SLIDES OFF THE TEXT. The editor draws a
+ * TextFlow of coloured runs over a TextArea whose own glyphs are transparent, and the alignment is
+ * character-for-character. So the font family, the font SIZE and the padding are declared once for
+ * both and must stay identical — a change to one of the six declarations below and not its twin
+ * moves every glyph on a line containing markup, silently, and only for players who write markdown
+ * with markers in it. */
+.es-notes-source,
+.es-notes-overlay {
+    -fx-font-family: "Martian Mono", monospace;
+    -fx-font-size: 11px;
+    -fx-padding: 8;
+}
+
+/* ⚠ The area's own text is INVISIBLE — the overlay is what the player reads. */
+.es-notes-source {
+    -fx-background-color: transparent;
+    -fx-text-fill: transparent;
+    -fx-background-insets: 0;
+    -fx-highlight-fill: -es-rule-hi;
+    /* ⚠ THE CARET IS COLOURED EXPLICITLY. Modena derives it from -fx-text-fill, which is transparent
+     * here — so without this the player types into what looks like a dead panel with no cursor. */
+    -fx-caret-color: -es-text-hi;
+    /* ⚠ And the SELECTION needs a visible text fill of its own, or dragging across a line selects
+     * something the player cannot see they have selected. */
+    -fx-highlight-text-fill: -es-text-hi;
+}
+.es-notes-source .content { -fx-background-color: transparent; }
+.es-notes-source:focused { -fx-background-color: transparent; }
+
+/* ⚠ COLOUR AND WEIGHT ONLY — NEVER SIZE. A larger heading in the EDITOR shifts every character
+ * after it and the caret stops landing under the pointer. Bigger headings belong to a reading view,
+ * where nothing is overlaid on anything. §2.1 also applies: amber is cycles doing work and alarm is
+ * loss, so neither appears here — markdown structure is not a game state and colouring it with the
+ * semantic palette would make a note look like it was reporting something. */
+.es-md          { -fx-font-family: "Martian Mono", monospace; -fx-font-size: 11px; }
+.es-md-text     { -fx-fill: -es-text; }
+.es-md-heading  { -fx-fill: -es-text-hi; -fx-font-weight: 700; }
+.es-md-strong   { -fx-fill: -es-text-hi; -fx-font-weight: 700; }
+.es-md-emphasis { -fx-fill: -es-text-hi; }
+.es-md-code     { -fx-fill: -es-gain; }
+.es-md-marker   { -fx-fill: -es-dim-1; }
+.es-md-quote    { -fx-fill: -es-dim-1; }
+.es-md-link     { -fx-fill: -es-warn; }
+.es-md-rule     { -fx-fill: -es-dim-2; }
+
+.es-notes-heading { -fx-text-fill: -es-dim-1; -fx-font-size: 9.5px; -fx-padding: 2 0 0 6; }
+.es-notes-side {
+    -fx-padding: 8 0 8 0;
+    -fx-border-color: transparent -es-rule transparent transparent;
+    -fx-border-width: 0 1 0 0;
+}
+.es-notes-toolbutton { -fx-font-size: 9.5px; -fx-padding: 2 6 2 6; }
+
+.es-notes-row:hover { -fx-background-color: -es-panel-hi; }
+/* ⚠ Two classes and declared after the hover rule — equal specificity means the later rule wins,
+ * so a one-class selector loses its selection background under the pointer. Same trap as
+ * `.es-comms-row-on` and `.es-block-yours`. */
+.es-notes-row.es-notes-row-on { -fx-background-color: -es-panel-hi; }
+.es-notes-folder { -fx-text-fill: -es-text-hi; -fx-font-size: 11px; }
+.es-notes-note   { -fx-text-fill: -es-text; -fx-font-size: 11px; }
+
+.es-notes-title {
+    -fx-font-size: 14px;
+    -fx-text-fill: -es-text-hi;
+    -fx-background-color: transparent;
+    -fx-padding: 2 6 2 6;
+    -fx-border-color: transparent transparent -es-rule transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+/* The DIRECT tab's "Powered by Bluesky" line.
+ *
+ * ⚠ NEUTRAL, never Bluesky's blue. §2.1 spends amber on cycles doing work and rations -es-alarm to
+ * loss; an attribution is neither, and a brand blue sitting beside `gain`, `warn` and `alarm` — which
+ * all MEAN something — is the semantic colour system §2.1 bans arriving through the back door.
+ * -es-dim-1 is measured by ContrastTest in all eight palettes and inverts correctly on uOS Classic. */
+.es-attribution-row {
+    -fx-padding: 6 10 6 10;
+    -fx-border-color: transparent transparent -es-rule transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.es-attribution      { -fx-text-fill: -es-dim-1; -fx-font-size: 9.5px; }
+/* ⚠ A SHAPE, so it colours with -fx-fill and not -fx-text-fill — the same split `.es-secmark-*`
+ * records. That puts it outside ContrastTest, which is correct rather than a gap: the words beside
+ * it carry the meaning and the mark is the reinforcement (§4.4). */
+.es-attribution-mark { -fx-fill: -es-dim-2; }
+
+/* COMS — the inbox.
+ *
+ * ⚠ UNREAD IS WEIGHT AND BRIGHTNESS, NEVER A COLOUR. §2.1 reserves amber for cycles doing work and
+ * rations -es-alarm to loss; an unread message is neither, and a blue dot would be the semantic
+ * colour system §2.1 bans arriving one window at a time. Both tokens are measured by ContrastTest
+ * against both panel grounds in all eight palettes, and both invert correctly on uOS Classic. */
+.es-comms-row {
+    -fx-padding: 7 10 7 10;
+    -fx-border-color: transparent transparent -es-rule transparent;
+    -fx-border-width: 0 0 1 0;
+}
+.es-comms-row:hover { -fx-background-color: -es-panel-hi; }
+
+/* ⚠ Two classes, and declared AFTER the hover rule. `.es-comms-row:hover` is class + pseudo-class,
+ * the same 0,2,0 specificity as `.es-comms-row.es-comms-row-on`, so at equal weight the later rule
+ * wins — a one-class selector would lose its selection background under the pointer. The same trap
+ * `.es-block-yours` and the market card's accent edge both record. */
+.es-comms-row.es-comms-row-on {
+    -fx-background-color: -es-panel-hi;
+    -fx-border-color: transparent transparent -es-rule transparent;
+}
+
+.es-comms-subject        { -fx-text-fill: -es-dim-1; -fx-font-size: 11px; }
+.es-comms-subject-unread { -fx-text-fill: -es-text-hi; -fx-font-size: 11px; -fx-font-weight: 700; }
+.es-comms-meta           { -fx-text-fill: -es-dim-2; -fx-font-size: 9.5px; }
+
+/* ⚠ The ONE place this window spends a colour, and it is -es-warn rather than -es-alarm. An
+ * uncollected attachment is a thing to do, not a loss — and it is the only message state a player
+ * can miss by not scrolling, which is what earns it a marker at all. */
+.es-comms-offer {
+    -fx-text-fill: -es-warn;
+    -fx-font-size: 9px;
+    -fx-padding: 1 0 0 0;
+}
+
+.es-comms-read-subject { -fx-text-fill: -es-text-hi; -fx-font-size: 15px; }
+/* ⚠ A message body is prose, so it gets the readable face rather than the deck's mono. Line height
+ * is left to the font: §2.3's scale is a closed set and this is not a new size. */
+.es-comms-body { -fx-text-fill: -es-text; -fx-font-size: 11.5px; }
+
+/* The FIREWALL table — one row per protective measure, with its own switch.
+ *
+ * ⚠ ARMED AND OFF ARE A BRIGHTNESS STEP, NEVER A COLOUR. §2.1 reserves amber for cycles doing work
+ * and rations -es-alarm to loss and hostile state; "this row is switched on" is neither, and a
+ * green/grey pair here would be the semantic colour system §2.1 bans arriving one table at a time.
+ * So armed rows sit at -es-text-hi and off rows at -es-dim-1 — both measured by ContrastTest against
+ * both panel grounds in all eight palettes, and both correct on uOS Classic, which runs the ramp the
+ * other way. The knob's POSITION is still the primary cue (§4.4); this only reinforces it.
+ *
+ * ⚠ -es-dim-3 is NOT available for the off state however faint it looks right. That is the greeble
+ * token, exempt from the 3:1 floor because it draws texture — and the network map is where reaching
+ * for it to colour text already went wrong once, at 1.77:1. */
+.es-fw-table { -fx-hgap: 14; -fx-vgap: 6; }
+.es-fw-head {
+    -fx-text-fill: -es-dim-1;
+    -fx-font-size: 9.5px;
+    -fx-padding: 0 0 2 0;
+}
+.es-fw-action { -fx-font-size: 11px; }
+.es-fw-holds  { -fx-font-size: 11px; }
+.es-fw-on  { -fx-text-fill: -es-text-hi; }
+.es-fw-off { -fx-text-fill: -es-dim-1; }
+
+/* ⚠ A TRIPPED canary is the one place this table spends a semantic colour, and it is -es-warn
+ * rather than -es-alarm. The Security Center's whole alarm budget (§2.1's "at most twice a screen")
+ * is already spent on HOME's verdict and its trefoil; a defence that fired is evidence — design/12's
+ * whole evidence path — and evidence is not a loss.
+ *
+ * ⚠ Two classes, because .es-fw-on above sets -fx-text-fill at one-class specificity and equal
+ * weight goes to the later rule. That is the same trap .es-block-yours and the late `.label` rule
+ * both record; a bare .es-fw-tripped would silently paint in the armed colour. */
+.es-fw-action.es-fw-tripped { -fx-text-fill: -es-warn; }
+
+/* ⚠ Disabled means "this kind is armed at the other tier", not "broken". JavaFX dims a disabled node
+ * to 40% opacity by default, which on the dark palettes puts the label under the contrast floor —
+ * so the opacity is raised and the row still reads. The tooltip says which tier is holding it. */
+.es-fw-switch:disabled { -fx-opacity: 0.62; }
+
 /* The Security Center's state mark. Shapes, never glyphs — GlyphCoverageTest has already rejected
  * U+26A0 in this panel and shield/biohazard are certainly absent from both bundled faces.
  *

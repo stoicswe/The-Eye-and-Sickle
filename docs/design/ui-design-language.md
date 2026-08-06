@@ -287,6 +287,30 @@ The halo **breathes**, on a sine over its opacity, on wall time rather than on p
 
 **Step and linear timing only.** Any spring, bounce, or ease-out reads as web UI immediately and will undo the whole aesthetic.
 
+> **§5.2 — ONE SPRING IS PERMITTED, on explicit direction (2026-08-06), and it is fenced.**
+>
+> The Bluesky mark at the top of COMS' DIRECT tab winds up, releases through a full turn and settles
+> (`ui/widgets/SyncSpin`). That is a spring, which the sentence above and §9's rejection list both
+> name. It is allowed under four conditions, **all of which must stay true**:
+>
+> 1. **No new animation machinery.** No `Interpolator`, `Timeline`, `KeyValue` or `AnimationTimer` —
+>    `UiContractTest` rations all four and none is touched. The motion is a **hand-authored table of
+>    absolute angles** walked one entry per `Pulse` tick, the same stepped mechanism `Motion.reveal`
+>    and the ring wallpaper already use. A **table, not a function**: a formula would be an easing
+>    function sitting in the source for the next person to import, at which point §5 has been
+>    abandoned rather than amended.
+> 2. **One widget, one mark.** Not a shared easing utility, and it must not become one. The day a
+>    second caller wants it is the day to ask whether §5 is being kept at all.
+> 3. **It runs only while a real network sync is in flight**, and stops dead at rest. It is a
+>    progress indicator, not decoration — which is what earns it a place.
+> 4. **Reduce motion holds it still.** `Pulse.animate` never fires there, and nothing is lost: the
+>    pane says "Syncing conversations…" in words.
+>
+> ⚠ The honest reading is that the table's *shape* is an easing curve however it is spelled — the
+> ring wallpaper's note makes exactly that argument against a sine envelope. What is defensible is
+> that it is confined to one 20px mark that turns only while real work is happening, and that
+> removing it is deleting one file. `SyncSpinTest` is the fence.
+
 | Event | Treatment |
 |---|---|
 | Panel reveal | Horizontal clip wipe, ~0.34s, **9 discrete steps**, staggered per pane |
@@ -421,7 +445,7 @@ Any of these individually undoes the look. Treat as build-blocking.
 
 - ~~**Rounded corners**~~ — **amended 2026-07-28, see §9.3.** Permitted as an opt-in setting, off by default, and narrowly scoped. Drop shadows and blur are unchanged and still cut. ~~**Glassmorphism**~~ — **amended 2026-08-05, see §9.4:** permitted as a theme, off by default, under §9.1's four conditions. Shadows and blur are *not* included in that and remain build-blocking — and unreachable anyway, since JavaFX exposes no backdrop filter.
 - A second accent hue, or a semantic color system
-- Easing curves — spring, bounce, ease-in-out, ease-out
+- Easing curves — spring, bounce, ease-in-out, ease-out — ⚠ **one exception, §5.2**: `SyncSpin`, fenced by four conditions
 - ~~**Native window chrome of any kind**~~ — **amended 2026-07-28, see §0.1.** Permitted as an opt-in for the main window only, off by default. Tool windows are still drawn by the deck and always will be; §0's cancellation of the `Stage`-per-tool model is unchanged.
 - Hidden UI: hamburgers, modals, collapsed drawers, accordions
 - Proportional (non-mono) type anywhere, including body copy

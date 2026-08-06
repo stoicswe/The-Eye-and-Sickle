@@ -100,7 +100,55 @@ public final class MarketView {
         javafx.scene.control.Tab shares = new javafx.scene.control.Tab(
                 "AnonShare", AnonShareView.create(session, refreshSeconds));
         tabs.getTabs().addAll(storefront, shadow, shares);
+
+        // ⚠ TOR MARKNET IS PRESENT ONLY IF THE RIG HOLDS THE MODULE, and it is added/removed rather
+        // than disabled. `docs/design/02` §2.5 gates a VENDOR's reachability, not an item's
+        // ownership — and a tab the player can see but not open is an advertisement for content
+        // they have no route to, which is the opposite of what a heat-state gate is for. Somebody
+        // who has not been noticed should not know there is a board.
+        //
+        // ⚠ Rechecked on session change, because the module arrives DURING play: the notice lands in
+        // COMS on the tick that standing and heat cross, and the tab has to appear when the module
+        // installs rather than on the next restart.
+        Runnable[] syncMarknet = new Runnable[1];
+        syncMarknet[0] = () -> {
+            boolean unlocked = holdsTorModule(session);
+            boolean shown = tabs.getTabs().stream().anyMatch(t -> MARKNET.equals(t.getText()));
+            if (unlocked && !shown) {
+                tabs.getTabs().add(new javafx.scene.control.Tab(MARKNET, TorMarknetView.create(session)));
+            } else if (!unlocked && shown) {
+                tabs.getTabs().removeIf(t -> MARKNET.equals(t.getText()));
+            }
+        };
+        syncMarknet[0].run();
+        AutoCloseable onSession = session.onChange(s -> syncMarknet[0].run());
+        Views.releaseOnDetach(tabs, onSession);
         return tabs;
+    }
+
+    /** The tab's label, and the key the sync above matches on. */
+    private static final String MARKNET = "TOR Marknet";
+
+    /**
+     * Whether this rig holds the onion router.
+     *
+     * <h2>⚠ Ownership of an ITEM, not a re-check of the thresholds</h2>
+     *
+     * Reading standing and heat here instead would make the board vanish the moment the player went
+     * cold — and {@code docs/design/02} §2.5 is explicit that "going cold does not confiscate what
+     * you bought". The introduction, once made, has been made; the module is an ordinary item after
+     * that, and the thresholds are consumed exactly once, by {@code rules/BlackMarket}.
+     */
+    private static boolean holdsTorModule(GameSession session) {
+        for (io.github.stoicswe.eyeandsickle.protocol.game.StorageTier tier :
+                io.github.stoicswe.eyeandsickle.protocol.game.StorageTier.values()) {
+            for (GameSession.InventoryItem item : session.items(tier)) {
+                if (io.github.stoicswe.eyeandsickle.engine.Catalogue.TOR_MODULE.equals(item.itemType())) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private static Region storefront(GameSession session) {

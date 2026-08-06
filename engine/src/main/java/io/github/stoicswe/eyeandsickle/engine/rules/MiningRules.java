@@ -287,11 +287,21 @@ public final class MiningRules {
      *       deliberately indifferent to what the chain did this tick.
      * </ul>
      *
+     * <h2>⚠ An absent rig's hashrate is worth {@code Balance.OFFLINE_MINING_WIN_WEIGHT}</h2>
+     *
+     * Both pooled schemes scale down while the client was closed, which is the same lever
+     * {@code ChainRules.drawWinner} already applies to a solo rig. See that constant for why the
+     * pool's own draw is left alone and the player's share of the proceeds is scaled instead.
+     * <b>Solo is not scaled here</b> — it is scaled in the draw, and doing both would halve it twice.
+     *
      * @param minted what the chain produced this tick, from {@code ChainRules.advanceNetwork}
+     * @param offline whether this is a fill for an absence rather than a live tick. ⚠ Read by the
+     *     <b>PPS</b> branch only: that clock has no blocks to consult, where PPLNS reads the same
+     *     fact off each {@code Won.offline()} and so cannot disagree with the row it writes.
      * @return minor units credited, which the caller ledgers
      */
     public static BigInteger runSelfMining(
-            GameSave save, Duration elapsed, Instant now, Rng rng, ChainRules.Minted minted) {
+            GameSave save, Duration elapsed, Instant now, Rng rng, ChainRules.Minted minted, boolean offline) {
         RigState rig = save.rig;
         ChainState chain = save.chain;
         double seconds = elapsed.toMillis() / 1000.0d;
@@ -325,8 +335,12 @@ public final class MiningRules {
             // is the thing that distinguishes it from PPS.
             double cut = payoutFraction(rig, chain) * (1.0d - feeOf(rig));
             for (ChainRules.Won block : minted.poolBlocks()) {
+                // ⚠ Per block, off the block's own flag rather than the parameter — the credit and
+                // the offline marker land in the same contributor row, so reading one field keeps
+                // them from disagreeing. Every block in a fill carries it, so the two always agree.
+                double share = block.offline() ? cut * Balance.OFFLINE_MINING_WIN_WEIGHT : cut;
                 BigDecimal value = new BigDecimal(Balance.BLOCK_SUBSIDY_WEI.add(block.feesWei()))
-                        .multiply(BigDecimal.valueOf(cut));
+                        .multiply(BigDecimal.valueOf(share));
                 record(save, block, bank(rig, value), false);
                 payouts++;
             }
@@ -347,7 +361,11 @@ public final class MiningRules {
             if (!Double.isFinite(mean) || mean <= 0) {
                 return BigInteger.ZERO;
             }
-            rig.miningWorkDone += seconds / mean;
+            // ⚠ The ACCRUAL is scaled, never the payout or the target. A share that paid half would
+            // make a share mean two things; a bigger target would re-rate the draw and stop a stored
+            // seed being a replay. Slowing the clock leaves a share worth exactly a share and simply
+            // earns fewer of them, and the residue carries into the next tick as it always did.
+            rig.miningWorkDone += (offline ? Balance.OFFLINE_MINING_WIN_WEIGHT : 1.0d) * seconds / mean;
             while (rig.miningWorkDone >= rig.miningWorkTarget && payouts < 4096) {
                 rig.miningWorkDone -= rig.miningWorkTarget;
                 rig.miningWorkTarget = ChainRules.drawWork(rng);
