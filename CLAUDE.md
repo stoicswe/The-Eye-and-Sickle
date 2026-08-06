@@ -1734,6 +1734,21 @@ Service**. Settings → Bluesky connects an account; `ClientProfile.Settings.blu
   nowhere to interpolate a password. `SecretStoreTest.NeverInArgv` reads the source and fails on a
   command list mentioning the secret — a run-time check cannot ask a process which argument was a
   password.
+- ⚠ **THE ROUND-TRIP TESTS ARE OPT-IN AND SKIP BY DEFAULT (2026-08-06)** — `SecretStoreTest.Roundtrip`,
+  `@EnabledIfSystemProperty("eyeandsickle.credentials.roundtrip")`:
+  ```bash
+  mvn -pl client test -Deyeandsickle.credentials.roundtrip=true
+  ```
+  Every other test in that file is inert (it reads source, or builds a command list and looks at it);
+  these are the only ones with a **side effect on the developer's own machine**. They write a
+  throwaway item to a real keychain — deleted in a `finally`, but a failure in between leaves a
+  credential-shaped entry in somebody's personal store — and these tools **prompt** when they cannot
+  proceed, which in a build reads as a hang (bounded at 10s by `ToolRunner`, so really a slow
+  confusing failure). They are also platform-specific by construction, so a green run never meant
+  what it looked like. ⚠ **The gate is on the CLASS, not each method**, so a Windows or Secret Service
+  round trip is opt-in by being written there rather than by somebody remembering an annotation; the
+  per-store `available()` assumptions stay underneath. ⚠ **Kept, never deleted** — running this exact
+  code is what found both surprises below, and neither is visible from a command list.
 - ⚠ **VERIFIED AGAINST A REAL KEYCHAIN, and it had two surprises.** `security add-generic-password`
   prompts **twice** (password, retype) so the secret is written twice — and sending it once fails the
   comparison while **still exiting zero**, so the status code would never have told us. Exit **44** is

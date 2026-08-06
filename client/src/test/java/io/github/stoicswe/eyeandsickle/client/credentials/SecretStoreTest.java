@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
@@ -26,9 +27,10 @@ import org.junit.jupiter.api.io.TempDir;
  *
  * <h2>Why most of this is source inspection rather than round trips</h2>
  *
- * A real round trip writes to the developer's own keychain, prompts, and only exercises one of three
- * platforms. {@link Roundtrip} does it anyway on macOS, behind an assumption and with a throwaway
- * item it deletes — because the alternative is trusting a command shape nobody ever ran.
+ * A real round trip writes to the developer's own keychain, can raise an OS prompt, and only ever
+ * exercises one of three platforms. {@link Roundtrip} does it anyway — because the alternative is
+ * trusting a command shape nobody has ever run — but it is <b>opt-in and skipped by default</b>. See
+ * that class for why and for how to run it.
  */
 class SecretStoreTest {
 
@@ -215,8 +217,56 @@ class SecretStoreTest {
         }
     }
 
+    /**
+     * Round trips against the machine's <b>real</b> credential store — opt-in, skipped by default.
+     *
+     * <pre>{@code
+     * mvn -pl client test -Deyeandsickle.credentials.roundtrip=true
+     * }</pre>
+     *
+     * <h2>⚠ WHY THESE DO NOT RUN ON THEIR OWN</h2>
+     *
+     * Every other test in this file is inert — it reads source, or builds a command list and looks at
+     * it. These are the only ones with a <b>side effect on the developer's own machine</b>, and that
+     * is a different kind of test:
+     *
+     * <ul>
+     *   <li><b>They write to a real keychain.</b> A throwaway item, deleted in a {@code finally} —
+     *       but a failure between the store and the cleanup leaves a credential-shaped entry behind
+     *       in somebody's personal keychain, which no unit test should be able to do as a side effect
+     *       of {@code mvn verify}.
+     *   <li><b>They can raise an OS prompt.</b> These tools <em>ask</em> when they cannot proceed — a
+     *       locked keychain, a missing agent — and a prompt in a build is a build that appears to
+     *       hang. {@code ToolRunner} bounds it at ten seconds, so the honest outcome is a slow,
+     *       confusing failure rather than a hang, and neither belongs in the default loop.
+     *   <li><b>They are platform-specific by construction.</b> Whichever machine runs them, at most
+     *       one store is exercised and the rest report as skipped — so a green run here never meant
+     *       what it looked like it meant.
+     * </ul>
+     *
+     * <h2>⚠ THE GATE IS ON THE CLASS, NOT ON EACH METHOD, and that is deliberate</h2>
+     *
+     * A Windows or Secret Service round trip is worth adding one day — {@code CLAUDE.md} records that
+     * both are currently <b>unverified on real hardware</b>. Gating the enclosing class means such a
+     * test is opt-in <em>by being written here</em>, rather than by somebody remembering to repeat an
+     * annotation. The per-store {@code available()} assumptions stay underneath as well: opting in on
+     * Linux must still not try to run {@code /usr/bin/security}.
+     *
+     * <h2>⚠ THEY ARE KEPT, NOT DELETED, AND THAT IS THE POINT</h2>
+     *
+     * Running this exact code is what found the two things nothing else could: {@code security}
+     * prompts for the password <b>twice</b> and sending it once fails while <b>still exiting zero</b>,
+     * and {@code -U} is required or a changed app password silently keeps the old secret. Neither is
+     * visible from the command list, so deleting these would delete the only check that the shape
+     * this file so carefully verifies actually <em>works</em>.
+     */
     @Nested
-    @DisplayName("a real round trip")
+    @DisplayName("a real round trip (opt-in: -Deyeandsickle.credentials.roundtrip=true)")
+    @EnabledIfSystemProperty(
+            named = "eyeandsickle.credentials.roundtrip",
+            matches = "true",
+            disabledReason = "touches the machine's real credential store; opt in with "
+                    + "-Deyeandsickle.credentials.roundtrip=true")
     class Roundtrip {
 
         /**
