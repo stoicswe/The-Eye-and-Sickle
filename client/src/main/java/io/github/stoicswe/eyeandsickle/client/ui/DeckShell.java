@@ -1122,8 +1122,12 @@ public final class DeckShell {
         // the open would spend a third of the reading time on it.
         var built = io.github.stoicswe.eyeandsickle.client.view.ChainSyncPanel.build(
                 report, () -> syncBanner.dismissAfter(SYNC_DWELL_MS));
+        // ⚠ Confined to the desk too, though the balance cell is at the far RIGHT and this has never
+        // reached the rail. The failure there is latent rather than absent: on a narrow deck the
+        // report is wider than everything to the left of the balance, and the old clamp would put it
+        // over the rail exactly as it did for the operator panel. One rule, both drawers.
         syncBanner.show(
-                balanceCell, topStrip, built.node(), () -> built.release().run());
+                balanceCell, topStrip, desk.root(), built.node(), () -> built.release().run());
     }
 
     public void focusCommandLine() {
@@ -1225,6 +1229,11 @@ public final class DeckShell {
         operatorPanel.show(
                 anchor,
                 topStrip,
+                // ⚠ THE DESK, so the panel lands on the wallpaper rather than over the rail. The
+                // operator cell is the FIRST cell in the strip, so there is nothing to its left to
+                // right-align against — Anchoring's old clamp put this flush with the window edge,
+                // covering the rail's top and lined up with nothing, which reads as half off screen.
+                desk.root(),
                 io.github.stoicswe.eyeandsickle.client.view.Views.operatorProfile(session, profile),
                 () -> operatorOpen = false);
     }

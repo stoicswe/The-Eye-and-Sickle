@@ -37,20 +37,43 @@ import javafx.scene.layout.Region;
  * vertical anchor is the <b>strip</b>. A cell is centred in a strip taller than it, so anchoring the
  * top to the cell leaves a few pixels of overlay painted over the readouts; measured at 27 against
  * 31, which looked right and was right by luck.
+ *
+ * <h2>⚠ RIGHT-ALIGNED IS NOT UNIVERSAL, and assuming it was put a panel in the screen's corner</h2>
+ *
+ * "Right-align to the cell, clamp at zero" is correct for a cell near the right-hand <em>end</em> of
+ * the strip, which every overlay was until the operator panel. The operator cell is the <b>first</b>
+ * cell: right-aligning a 420px panel to a cell whose right edge is at 290 asks for {@code -130}, the
+ * clamp turns that into {@code 0}, and what lands is a panel jammed against the window edge, over
+ * the rail, lined up with nothing. It reads as having slid in from off screen — which is exactly how
+ * it was reported.
+ *
+ * <p>So the alignment is chosen rather than assumed: right-aligned when there is room to the left of
+ * the cell, <b>left-aligned to the cell</b> when there is not. And {@code within} names the region
+ * the overlay must stay inside — the <b>desk</b>, so an overlay never covers the rail and never runs
+ * off the far edge. A clamp against the whole root cannot express that: the rail is part of the root
+ * and is precisely what an overlay must not be clamped on top of.
  */
 public final class Anchoring {
 
     private Anchoring() {}
 
+    /** Places {@code self} under the strip with nothing constraining it but the deck's own root. */
+    public static Size place(Region self, Node xAnchor, Node yAnchor) {
+        return place(self, xAnchor, yAnchor, null);
+    }
+
     /**
-     * Places {@code self} under the strip, right-aligned to its cell, and sizes it.
+     * Places {@code self} under the strip, aligned to its cell and kept inside {@code within}.
      *
      * @param self the overlay — must be {@code setManaged(false)} and a child of the deck's root
-     * @param xAnchor the cell whose right edge the overlay lines up with
+     * @param xAnchor the cell the overlay lines up with; see the class note on which edge
      * @param yAnchor the band whose bottom edge is the overlay's top edge
+     * @param within the region the overlay must stay horizontally inside — the desk, so it never
+     *     covers the rail. Null means the whole parent, which is only right for an overlay that
+     *     cannot reach the rail anyway.
      * @return the size it was given, so a caller can drive a clip or a slide from it
      */
-    public static Size place(Region self, Node xAnchor, Node yAnchor) {
+    public static Size place(Region self, Node xAnchor, Node yAnchor, Node within) {
         if (xAnchor == null || self.getParent() == null) {
             return new Size(0, 0);
         }
@@ -62,18 +85,72 @@ public final class Anchoring {
         double width = self.prefWidth(-1);
         double height = self.prefHeight(width);
 
-        // ⚠ Clamped at zero. On a narrow deck — or with the strip wrapped onto two rows — the overlay
-        // can be wider than everything to the left of its cell, and a negative translate would put it
-        // off the left-hand edge rather than merely overlapping.
-        self.setTranslateX(Math.max(0, cell.getMaxX() - parent.getMinX() - width));
+        // The band the overlay may occupy, in the parent's own coordinates.
+        double leftLimit = 0;
+        double rightLimit = parent.getWidth();
+        if (within != null) {
+            Bounds field = within.localToScene(within.getLayoutBounds());
+            leftLimit = field.getMinX() - parent.getMinX();
+            rightLimit = field.getMaxX() - parent.getMinX();
+        }
+
+        self.setTranslateX(horizontal(
+                cell.getMinX() - parent.getMinX(), cell.getMaxX() - parent.getMinX(),
+                width, leftLimit, rightLimit));
         self.setTranslateY(strip.getMaxY() - parent.getMinY());
         self.resize(width, height);
         return new Size(width, height);
     }
 
+    /**
+     * Where the overlay's left edge goes, in the parent's coordinates.
+     *
+     * <h2>⚠ Pure and package-private SO IT CAN BE TESTED WITHOUT A TOOLKIT</h2>
+     *
+     * The same seam {@code SecurityCenterView.latestOf} and {@code markStateFor} exist for, and for
+     * the same reason: the previous version of this rule lived inside a method that needs live scene
+     * bounds, so the only way to check it was to render the deck and look — which is how it shipped
+     * wrong. Geometry that decides <em>where</em> rather than <em>what</em> is exactly the kind this
+     * codebase keeps getting wrong invisibly, and arithmetic is the part that can be pinned.
+     *
+     * @param cellMinX the anchor cell's left edge
+     * @param cellMaxX its right edge
+     * @param width the overlay's width
+     * @param leftLimit the left edge of the region it must stay inside
+     * @param rightLimit that region's right edge
+     */
+    static double horizontal(double cellMinX, double cellMaxX, double width, double leftLimit, double rightLimit) {
+        // Right-aligned to the cell, which is what a readout near the right-hand end of the strip
+        // wants — the overlay is far wider than its cell and grows leftward into the space there.
+        double x = cellMaxX - width;
+        if (x < leftLimit) {
+            // ⚠ LEFT-aligned when that does not fit, because a cell near the left-hand END has
+            // nothing to its left to align against. Clamping instead — which is what this did until
+            // the operator panel existed — produces an overlay flush with the edge of the field,
+            // touching neither its own cell nor anything else, which reads as half off screen.
+            x = cellMinX;
+        }
+        // ⚠ min BEFORE max. An overlay wider than the field cannot satisfy both bounds, and this
+        // order leaves it flush with the field's LEFT edge overflowing right — visible, and readable
+        // from its first character — rather than flush right and running off under the rail.
+        return Math.max(leftLimit, Math.min(x, rightLimit - width));
+    }
+
     /** Runs {@code onChange} whenever anything that could move the overlay moves. */
     public static void watch(Region self, Node xAnchor, Node yAnchor, Runnable onChange) {
-        for (Node node : new Node[] {xAnchor, yAnchor, self.getParent()}) {
+        watch(self, xAnchor, yAnchor, null, onChange);
+    }
+
+    /**
+     * The same, also watching the region the overlay is confined to.
+     *
+     * <p>⚠ The field has to be watched in its own right. The rail collapses below
+     * {@code NARROW_WIDTH}, so the desk's left edge moves without the deck root's bounds changing at
+     * all — and an overlay placed against the old edge would sit in the wrong place until something
+     * else happened to move.
+     */
+    public static void watch(Region self, Node xAnchor, Node yAnchor, Node within, Runnable onChange) {
+        for (Node node : new Node[] {xAnchor, yAnchor, within, self.getParent()}) {
             if (node == null) {
                 continue;
             }

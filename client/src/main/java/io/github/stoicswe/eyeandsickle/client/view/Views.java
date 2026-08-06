@@ -3365,6 +3365,80 @@ public final class Views {
                                         + "refresh spends part of the daily allowance you are paying for. The "
                                         + "market window reads this when you open it."))));
 
+        // ── Discord ──────────────────────────────────────────────────────────────────────────
+        //
+        // ⚠ THE ONLY SETTING IN THIS PANEL THAT TELLS ANYONE ANYTHING ABOUT THE PLAYER.
+        //
+        // docs/client/00 §7's "not a telemetry client" non-goal was amended to admit this rather
+        // than stretched to cover it, and docs/client/02 §2.9's exhaustive outbound list grew from
+        // nothing to one entry. Both amendments turn on the same four conditions, and every one of
+        // them is visible on this page: off by default, the player turns it on, what it may say is
+        // a closed list they can read here, and nothing reaches this project.
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch discord =
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch(
+                        t("settings.discord.enable", "Show what I am doing on Discord"));
+        discord.setSelected(profile.settings().discordPresenceEnabled);
+
+        Label discordStatus = Ui.micro("");
+        // ⚠ On a clock, not painted once. Connecting happens on a background thread up to a second
+        // after the switch is flicked, so a one-shot label reads "Discord is not running" for
+        // exactly the moment the player is looking at it to find out whether it worked — a control
+        // that appears to do nothing, which is the failure the rounded-corners setting records.
+        AutoCloseable discordClock = Pulse.shared()
+                .every(
+                        1_000,
+                        () -> discordStatus.setText(io.github.stoicswe.eyeandsickle.client.presence.RichPresence.shared()
+                                .describe()));
+        discordStatus.setText(
+                io.github.stoicswe.eyeandsickle.client.presence.RichPresence.shared().describe());
+
+        // ⚠ A build with no application id cannot do this at all, and the switch says so instead of
+        // saving a preference nothing reads. Disabled rather than hidden: a missing control is
+        // indistinguishable from a feature that was never built, and somebody running a fork needs
+        // to know which of the two they are looking at.
+        boolean discordAvailable = !io.github.stoicswe.eyeandsickle.client.presence.RichPresence.shared()
+                .applicationId()
+                .isEmpty();
+        discord.setDisable(!discordAvailable);
+        discord.selectedProperty().addListener((o, was, now) -> {
+            profile.settings().discordPresenceEnabled = now;
+            profile.save();
+            io.github.stoicswe.eyeandsickle.client.presence.RichPresence.shared().setEnabled(now);
+            discordStatus.setText(
+                    io.github.stoicswe.eyeandsickle.client.presence.RichPresence.shared().describe());
+        });
+
+        pages.put(
+                t("settings.cat.discord", "Discord"),
+                settingsPage(
+                        Ui.label(t("settings.discord.presence", "Rich presence")),
+                        discord,
+                        discordStatus,
+                        wrapped(t(
+                                "settings.discord.note",
+                                "Off unless you turn it on. With it on, the Discord app already running on "
+                                        + "this machine shows your friends a single line about which tool you "
+                                        + "have open, and how long the client has been running.")),
+                        new Separator(),
+                        Ui.label(t("settings.discord.says", "Everything it can ever say")),
+                        wrapped(discordVocabulary()),
+                        wrapped(t(
+                                "settings.discord.says.note",
+                                "That is the whole list, fixed in the code rather than assembled from what "
+                                        + "is on screen. It never sends your operator name, your picture, your "
+                                        + "balance, your standing, or the address or name of any machine "
+                                        + "anywhere near you.")),
+                        new Separator(),
+                        wrapped(t(
+                                "settings.discord.scope",
+                                "Nothing goes to this game's servers, and nothing is stored. It talks to the "
+                                        + "Discord app over a pipe on this machine, on your own account, and "
+                                        + "stops the moment you switch it off or close the game.")),
+                        wrapped(t(
+                                "settings.discord.absent",
+                                "With Discord not installed or not running, this does nothing at all and "
+                                        + "reports so above."))));
+
         pages.put(
                 t("settings.cat.language", "Language"),
                 settingsPage(
@@ -3411,7 +3485,43 @@ public final class Views {
         // The visible symptom was not the pages: it was the sidebar's divider stopping partway down
         // the window with dead space under it, so a short category looked like the panel had ended
         // early. See scrollable(Region, boolean).
+        releaseOnDetach(root, discordClock);
         return scrollable(root, true);
+    }
+
+    /**
+     * Every line Discord could ever be told, read off the enum that decides it.
+     *
+     * <h2>⚠ DERIVED, never a list typed into this panel</h2>
+     *
+     * The page's claim is "that is the whole list". A hand-written copy of it would be true on the
+     * day it was written and would then quietly become a false statement about what the client
+     * transmits — the worst possible thing for this particular caption to be wrong about, because a
+     * player reads it to decide whether to consent. Walking {@code PresenceState.values()} means a
+     * new state cannot be added without appearing here.
+     *
+     * <p>⚠ Not translated, for the same reason the states themselves are not
+     * ({@code PresenceState}'s class note): this is quoting what other people will see, and quoting
+     * it in a language they will not is a translation that misleads.
+     *
+     * <h2>⚠ ONE PER LINE, and the first version was a run-on paragraph</h2>
+     *
+     * Joined with separators it wrapped into four lines of continuous prose 1300px wide, which is
+     * the worst possible format for the one caption whose entire job is to be <em>audited</em>: a
+     * player reading it to satisfy themselves it never says their balance has to scan a wall rather
+     * than a list. Sixteen short lines in a monospace column is a list. <b>Found by rendering</b> —
+     * it was correct, wrapped properly, and unreadable.
+     */
+    private static String discordVocabulary() {
+        StringBuilder out = new StringBuilder();
+        for (io.github.stoicswe.eyeandsickle.client.presence.PresenceState state :
+                io.github.stoicswe.eyeandsickle.client.presence.PresenceState.values()) {
+            if (!out.isEmpty()) {
+                out.append('\n');
+            }
+            out.append("  ").append(state.details());
+        }
+        return out.toString();
     }
 
     // ------------------------------------------------------------------ still-proposal windows

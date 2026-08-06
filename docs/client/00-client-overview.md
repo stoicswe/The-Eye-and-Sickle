@@ -383,6 +383,17 @@ Stated plainly so they do not get relitigated one plausible feature at a time.
 - **Not a storefront.** No real-money surfaces of any kind: no currency packs, no cosmetics shop, no battle pass, no "buy compute." I1 and I2 make several of these outright unimplementable, and the rest are not being designed around. The in-game `market` window trades ethecoin only.
 - **Not an authority.** No client-side gate evaluation, no client-side loot rolls, no client-side balance arithmetic, no optimistic outcome display (C4, I14). The `client-is-not-authoritative` enforcer rule in `client/pom.xml` is the mechanical half of this; C4 is the design half.
 - **Not a telemetry client.** Nothing is collected beyond what the game protocol requires. Playtest instrumentation (`../design/03-economy.md` §6) is server-side, over data the server already owns.
+
+  **⚠ AMENDED 2026-08-05 — Discord rich presence, on explicit direction, as an opt-in under four conditions.** The amendment is written the way §9.4 of `../design/ui-design-language.md` amends the glassmorphism ban: the non-goal is not stretched to cover a thing it plainly did not, it is narrowed to what it was actually protecting, and the exception is named and fenced.
+
+  What this non-goal is *for* is **collection** — the game gathering facts about the player and sending them somewhere the player did not choose. Every clause of that inverts for presence, and all four have to stay true or the amendment lapses:
+
+  1. **Opt-in and off by default** (`ClientProfile.Settings.discordPresenceEnabled`). A player who never opens the setting is running a client that opens no pipe and sends nothing.
+  2. **It goes to a program the player installed and is already running**, over local IPC, on their own Discord account. Nothing reaches this project's infrastructure, and nothing is stored anywhere by us.
+  3. **What it may say is a closed set of compile-time constants** (`client/presence/PresenceState`), not a format string. The builder takes a state and a clock and is not given a session, so no handle, DID, balance, standing, item, machine name or address can reach the wire without a signature change. `PresenceLeakTest` drives every state against probe values and was verified against a deliberately-leaking build.
+  4. **The player can read the whole list** on the Settings page, generated from the enum rather than typed beside it, so the page cannot come to describe something other than what is sent.
+
+  The precedent this follows is already in the tree: AnonShare's quote feed (§2.9's list, and `client/stocks/HttpStockFeed`) is an outbound connection to a third party the player chose, dark until they supply their own credential. What is still ruled out is unchanged — no analytics, no crash reporting, no usage counters, no identifiers, and nothing outbound that the player did not switch on.
 - **Not skinnable by players.** Two families, authored and verified against the §3.5 floor. User CSS injection would make the contrast floor unenforceable and would give the *appearance* of client authority over presentation of server truth. Revisit only with a signed-theme model — see **CL-5**.
 
 ---

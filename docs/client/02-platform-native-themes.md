@@ -224,6 +224,17 @@ Stated as a closed list so that "the client is not a telemetry client" (`00-clie
 
 **Never transmits:** any of the above. None of it reaches the home server, and none of it is game state (I14 runs in the other direction: the *server* owns game state, the *client* owns presentation, and presentation preferences stay local — `00-client-overview.md` §4.5).
 
+### 2.9a What the client sends anywhere that is not a home server, exhaustively
+
+Stated as a closed list for the same reason §2.9 is: so `00-client-overview.md` §7 is checkable rather than aspirational. Both entries are **opt-in and dark by default**, and adding a third is a documented decision, not a convenience.
+
+| Destination | Sent | Gate |
+| --- | --- | --- |
+| The quote provider the player picked (`client/stocks/HttpStockFeed`, `SymbolLookup`) | A ticker symbol, and the player's own API key in the URL | Blank key by default — the panel runs on the simulated feed until the player pastes one |
+| The Discord client running on this machine (`client/presence/*`) | One constant from `PresenceState`, an elapsed timestamp, and this process's pid | `discordPresenceEnabled`, off by default; also inert with no application id configured |
+
+Neither carries anything from §2.9's read list, nor an operator handle, DID, avatar, balance, standing, item, machine name or address. ⚠ The Discord entry is **not a network socket** — it is a Unix domain socket or a named pipe to a local process — and its candidate paths are **composed from environment variables rather than discovered by listing a directory**, because enumerating `$TMPDIR` would mean reading the names of every other program's IPC endpoints, which is the fingerprinting §2.9 says this client never does.
+
 ---
 
 ## 3. macOS

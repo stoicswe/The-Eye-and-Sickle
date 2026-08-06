@@ -78,6 +78,20 @@ public final class SyncBanner extends StackPane {
      */
     private Node yAnchor;
 
+    /**
+     * The region the panel must stay horizontally inside — the desk.
+     *
+     * <h2>⚠ The desk, NOT the deck root, and the difference is the rail</h2>
+     *
+     * The root includes the 34px rail down the left-hand side, so an overlay clamped against the
+     * root is free to land on top of it. The desk is the wallpaper area, which is where a drawer
+     * hanging off the strip belongs and the only place it can be without covering chrome. The
+     * operator panel hangs off the <b>first</b> cell in the strip and so is the one that actually
+     * reached the rail; the chain-sync report passes the same field because the failure is latent
+     * rather than absent — a narrow deck puts its left edge over the rail too.
+     */
+    private Node field;
+
     private Region content;
     private Runnable onDismiss = () -> {};
 
@@ -106,8 +120,18 @@ public final class SyncBanner extends StackPane {
      * @param onDismiss run once when the panel goes away, however it goes away
      */
     public void show(Node xAnchor, Node yAnchor, Region panel, Runnable onDismiss) {
+        show(xAnchor, yAnchor, null, panel, onDismiss);
+    }
+
+    /**
+     * The same, confined to {@code field}.
+     *
+     * @param field the region the panel must stay horizontally inside — the desk. See {@link #field}.
+     */
+    public void show(Node xAnchor, Node yAnchor, Node field, Region panel, Runnable onDismiss) {
         this.xAnchor = xAnchor;
         this.yAnchor = yAnchor;
+        this.field = field;
         this.content = panel;
         this.onDismiss = onDismiss == null ? () -> {} : onDismiss;
 
@@ -136,7 +160,7 @@ public final class SyncBanner extends StackPane {
         // so the panel lands as soon as there is somewhere to land.
         reposition();
 
-        Anchoring.watch(this, xAnchor, yAnchor, this::reposition);
+        Anchoring.watch(this, xAnchor, yAnchor, field, this::reposition);
         // ⚠ And the CONTENT itself. The panel is not a fixed size: ChainSyncPanel adds its summary
         // lines when the replay finishes, roughly two seconds after this runs, and without this the
         // clip keeps the height it was given before those lines existed — the report visibly cut off
@@ -155,7 +179,7 @@ public final class SyncBanner extends StackPane {
 
     /** Puts the panel where the anchors say, and opens it the first time that yields a real size. */
     private void reposition() {
-        Anchoring.Size size = Anchoring.place(this, xAnchor, yAnchor);
+        Anchoring.Size size = Anchoring.place(this, xAnchor, yAnchor, field);
         clip.setWidth(size.width());
         clip.setHeight(size.height());
         if (!opened && size.real()) {
@@ -224,6 +248,7 @@ public final class SyncBanner extends StackPane {
         opened = false;
         xAnchor = null;
         yAnchor = null;
+        field = null;
         content = null;
         Runnable done = onDismiss;
         onDismiss = () -> {};

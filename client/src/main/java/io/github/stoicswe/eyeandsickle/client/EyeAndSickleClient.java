@@ -139,6 +139,17 @@ public class EyeAndSickleClient extends Application {
 
         themes.followSystemPreferences();
 
+        // ⚠ The saved answer is REPLAYED, not assumed. Rich presence is the one thing here that
+        // tells anyone outside this machine anything (docs/client/00 §7, as amended), so it has to
+        // come back on for a player who turned it on and stay dark for everyone else — and "stay
+        // dark for everyone else" is the half that has to be true without anybody remembering it,
+        // which is why it is driven from the setting rather than from a call somewhere in startSolo.
+        //
+        // ⚠ Before any character exists, so the menu and the setup assistant report as MENU rather
+        // than as whatever the last session left standing.
+        io.github.stoicswe.eyeandsickle.client.presence.RichPresence.shared()
+                .setEnabled(profile.settings().discordPresenceEnabled);
+
         // ⚠ A THEME CAN CHANGE THE GEOMETRY NOW, so something has to re-shape the windows when one
         // is picked — and this is the chokepoint rather than the pickers, deliberately. Rounding is
         // applied by a clip and a style class, neither of which a stylesheet swap touches, and there
@@ -772,6 +783,11 @@ public class EyeAndSickleClient extends Application {
             profile.save();
         });
         session = local;
+        // ⚠ Follows the desk's own event stream rather than being poked from fourteen views. A hook
+        // per view is one new window away from a tool that never reports; the desk already publishes
+        // opened, raised, focused and closed at one chokepoint, which is what EventRecorder's own
+        // notes give as the reason for subscribing at the bus.
+        io.github.stoicswe.eyeandsickle.client.presence.RichPresence.shared().attach(session);
 
         Shell.CommandRegistry commands = BuiltinCommands.registry();
         shell = new Shell(session, commands);
@@ -907,6 +923,10 @@ public class EyeAndSickleClient extends Application {
 
     /** Closes and persists any live session. Called before the menu and on exit. */
     private void closeSession() {
+        // ⚠ FIRST, and before the bus it subscribed to goes away. Detaching drops the desk
+        // subscription and falls back to MENU, so a player who quits to the menu stops being
+        // reported as standing in a terminal on a character that is no longer open.
+        io.github.stoicswe.eyeandsickle.client.presence.RichPresence.shared().detach();
         if (heartbeat != null) {
             heartbeat.stop();
             heartbeat = null;
@@ -1185,6 +1205,10 @@ public class EyeAndSickleClient extends Application {
 
     private void shutdown() {
         closeSession();
+        // ⚠ CLEARS the activity on the way out rather than merely stopping updates. Discord clears a
+        // dead process's presence on its own eventually, and "eventually" is a window in which the
+        // player's friends are still being told they are in a breach after they have quit.
+        io.github.stoicswe.eyeandsickle.client.presence.RichPresence.shared().close();
         profile.save();
     }
 

@@ -1619,6 +1619,24 @@ manual · settings. Fourteen windows.
   96px square of nothing that reads as a failed load.
 - ⚠ **`-Ddeck.operator=1`** on the render harness slides it out; it opens on a click and a synchronous
   render never delivers one.
+- ⚠ **`Anchoring` RIGHT-ALIGNED EVERY OVERLAY, and the operator cell is the FIRST cell (2026-08-05).**
+  "Right-align to the cell, clamp at zero" is correct for a readout near the right-hand *end* of the
+  strip, which every drop-down was until this one. Right-aligning a 420px panel to a cell whose right
+  edge is at 290 asks for **−130**; the clamp made it **0**, so the panel landed flush with the window
+  edge, **on top of the rail**, lined up with nothing — reported as "looks like it's off screen a bit".
+  ⚠ **The alignment is chosen now, not assumed**: right-aligned when there is room to the left of the
+  cell, **left-aligned to the cell** when there is not. ⚠ And `place`/`watch` take a **`within`** node —
+  **the desk, never the deck root**, because the rail is part of the root and is exactly what an
+  overlay must not be clamped on top of. Both drawers pass `desk.root()`; the sync banner's failure was
+  **latent rather than absent** (a narrow deck puts its left edge over the rail too).
+  ⚠ **`min` BEFORE `max`**: an overlay wider than the desk cannot satisfy both bounds, and this order
+  spills it **right** (readable from its first character) rather than left under the rail.
+  ⚠ **The rule is extracted as pure package-private `Anchoring.horizontal`** — `SecurityCenterView
+  .latestOf`'s seam, for its reason: it shipped wrong *because* it lived inside a method needing live
+  scene bounds, so the only check was to render and look. `AnchoringTest` needs no toolkit and was
+  verified against the clamp-only version.
+  ⚠ **The field must be watched in its own right** — the rail collapses below `NARROW_WIDTH`, so the
+  desk's left edge moves while the root's bounds do not change at all.
 
 **THE WINDOW CATALOGUE WAS RESHAPED (2026-08-04).** `recon`, `breach` and `botnet` → **NETWORK**
 (`view/NetworkView`, in that operational order: find, study, get in, what you left running);
@@ -2398,6 +2416,67 @@ toggle each. `client/log/{ClientLog,LogEntry,LogLevel}` capture; `view/ClientLog
   `DeskManager.open/close`, `LocalDatabase` migration, and every previously-silent catch —
   `AvatarChooser`, `CharacterSlots`, `EventBus`'s subscriber-failed handler. Instrumenting call sites
   instead means the next one added goes unrecorded.
+
+**DISCORD RICH PRESENCE — the ONE thing this client tells anyone outside the machine (2026-08-05).**
+`client/presence/{PresenceState,DiscordIpc,RichPresence,Transport}`, Settings → Discord,
+`ClientProfile.Settings.discordPresenceEnabled`. **Off by default.**
+
+- ⚠ **`docs/client/00` §7's "not a telemetry client" was AMENDED, not stretched**, the way §9.4 amends
+  the glassmorphism ban — narrowed to what it protects (*collection*: the game gathering facts and
+  sending them where the player did not choose) under four conditions that must all stay true. And
+  §2.9 gained **§2.9a**, an exhaustive list of everything outbound that is not a home server: **two
+  entries**, this and AnonShare's quote feed, which was the precedent. A third is a decision.
+- ⚠ **THE GUARANTEE IS STRUCTURAL, NOT CARE AT THE CALL SITES.** `RichPresence.activity` takes a
+  `PresenceState` and an `Instant` and is handed no session, so what it *can* transmit is the set of
+  constants in `PresenceState`. A format string is one interpolation from a handle or a target
+  address, with nothing on screen reporting it — and the leak goes to a friends list, not to a log.
+- ⚠ **The window id is the one subject that could smuggle something**: the desk publishes
+  `shell:<address>`. `forWindowId` resolves it to `TERMINAL` and **drops the address**; that exact
+  case has its own test. `PresenceLeakTest` was verified against a deliberately-leaking build —
+  three planted leaks, three intended assertions, then reverted.
+- ⚠ **NO NEW DEPENDENCY, and that is the point.** Local IPC: a named pipe on Windows, a Unix domain
+  socket elsewhere, 8-byte **little-endian** header + UTF-8 JSON — all JDK (`SocketChannel` +
+  `StandardProtocolFamily.UNIX`, `RandomAccessFile`), Jackson 3 already present. A library would mean
+  widening the enforcer, a jar in all five uber jars, and supply-chain surface on a repo publishing
+  **unsigned** executables, for 200 bytes down a pipe.
+- ⚠ **Little-endian fails SILENTLY when wrong** — the connection opens, the handshake is accepted, and
+  Discord waits for a 16-million-byte payload. Asserted byte by byte, never through the reader (which
+  would agree with its own mistake). ⚠ **Every reply is drained** or the pipe buffer fills and the
+  next write blocks forever. ⚠ The frame length is **bounded**: another process chooses it and it is
+  fed to `new byte[n]`. ⚠ Candidate paths are **composed from env vars, never a directory listing** —
+  enumerating `$TMPDIR` reads every other program's IPC endpoint names, which §2.9 forbids.
+- ⚠ **ONE update per 15s, COALESCED — Discord's limit.** Latest-wanted, never a queue (a queue replays
+  a stale sequence minutes behind the player). That is what makes reporting a window *closing* as
+  `DECK` safe: the focus event that follows overwrites it before anything is sent.
+- ⚠ **Two clocks, the documented inversion of the session-clock rule.** Pacing is `System.nanoTime`
+  (how long *this machine* took — `Frost`'s reasoning); the elapsed stamp is `Instant.now()`, because
+  Discord renders it as real time to another person. Neither is a game deadline.
+- ⚠ **Off, and shutdown, CLEAR the activity** rather than stopping updates — a presence frozen on "At
+  a terminal" after quitting is the feature still talking about them.
+- ⚠ **A BLANK APPLICATION ID IS A SUPPORTED STATE.** The id is public, not a credential, but it
+  belongs to whoever registered the app — a fork has none. Blank disables with one `FINE` line and the
+  Settings switch is **disabled and says which of three conditions applies** (no id / off / on but
+  Discord absent). Arrives via `build.properties` (`<discord.app.id>` in `client/pom.xml`);
+  `-Deyeandsickle.discord.appId=` overrides at run time.
+- ⚠ **`applicationId()` IS AN INSTANCE METHOD WITH A TEST SEAM, AND IT WAS STATIC UNTIL A REAL ID WAS
+  SET.** As a static reading only the property and the resource, a test could say "no id" only by
+  **clearing the system property** — which works exactly while `<discord.app.id>` is empty and breaks
+  the moment somebody fills it in. `noApplicationIdMeansOff` duly failed on the first build that
+  configured one. ⚠ **Worse than the red build**: with the built-in id satisfying the check, that test
+  started the worker holding the **real** connector and would have opened a pipe to the developer's
+  own Discord — the side effect `DiscordIpcTest` refuses by never calling `connect` at all. Now
+  `useApplicationId("")` says it explicitly, `@BeforeEach` installs a recording transport for **every**
+  test in the file, and a partner test asserts a configured id *does* start (a refusal test with no
+  partner passes just as well when the thing is unreachable for an unrelated reason).
+  ⚠ **A test that is green because a build property happens to be unconfigured is testing the build.**
+- ⚠ **The vocabulary caption is GENERATED from the enum** — a typed copy becomes a false statement
+  about what is transmitted, on the caption a player reads to decide whether to consent. ⚠ Joining
+  sixteen states with separators gave four lines of run-on prose: correct, wrapped, and the wrong
+  shape for something whose job is to be *audited*. One per line. **Found by rendering** —
+  `DeckSnapshot` gained **`-Ddeck.settingsPage=`**, since the panel opens on its first category and
+  every other page was unrenderable.
+- ⚠ **The presence strings are NOT translated**: the reader is the friends list, not the player, and
+  the player's own locale says nothing about what those people read.
 
 **The client has an event bus, and it is CloudEvents v1.0.2 (2026-07-29)** — `client/.../events/`,
 over Spring's `SimpleApplicationEventMulticaster`. The LOG window gained an **EVENTS** tab beside

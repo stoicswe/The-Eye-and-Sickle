@@ -288,6 +288,53 @@ public final class DeckSnapshot {
                 deck.root().layout();
             }
 
+            // ⚠ `-Ddeck.settingsPage=Discord` selects a Settings category by its sidebar label. The
+            // panel opens on the FIRST category and there is no other way in, so every other page is
+            // unrenderable without this — which is how a page could ship having never been looked at
+            // while the harness reported the Settings window as covered.
+            //
+            // ⚠ It clicks the real row rather than reaching into settingsBody, so what is
+            // photographed is the state a player reaches by clicking, not one only a test can build.
+            String settingsPage = System.getProperty("deck.settingsPage");
+            if (settingsPage != null) {
+                boolean found = false;
+                for (var node : deck.root().lookupAll(".es-settings-row")) {
+                    if (node instanceof javafx.scene.control.Label row
+                            && row.getText().equalsIgnoreCase(settingsPage)) {
+                        javafx.event.Event.fireEvent(
+                                row,
+                                new javafx.scene.input.MouseEvent(
+                                        javafx.scene.input.MouseEvent.MOUSE_CLICKED,
+                                        0,
+                                        0,
+                                        0,
+                                        0,
+                                        javafx.scene.input.MouseButton.PRIMARY,
+                                        1,
+                                        false,
+                                        false,
+                                        false,
+                                        false,
+                                        true,
+                                        false,
+                                        false,
+                                        false,
+                                        false,
+                                        false,
+                                        null));
+                        found = true;
+                        break;
+                    }
+                }
+                // ⚠ Says so rather than rendering the default page. A silent miss photographs
+                // whichever category happened to be first and reports it as the one asked for.
+                System.out.println(found
+                        ? "settings page: " + settingsPage
+                        : "settings page NOT FOUND: " + settingsPage);
+                scene.getRoot().applyCss();
+                deck.root().layout();
+            }
+
             scene.getRoot().applyCss();
             deck.root().layout();
             // ⚠ The blurred backdrop is captured through Platform.runLater in the running client,

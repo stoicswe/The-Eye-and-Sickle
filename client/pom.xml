@@ -36,6 +36,20 @@
       artefacts for exactly that reason. Reaches the code through build.properties.
     -->
     <client.version>${project.version}</client.version>
+    <!--
+      The Discord application id for rich presence (client/presence/RichPresence).
+
+      ⚠ DELIBERATELY EMPTY, and empty is a supported state rather than a missing step. The id is
+      public — it identifies the game to Discord and is not a credential — but it belongs to whoever
+      registered the application at https://discord.com/developers, so a fork or a contributor's
+      local build has no business carrying ours. With this blank, the Settings switch is disabled and
+      explains why, nothing opens a pipe, and every test still passes.
+
+      Fill it in here for a real build, or pass -Ddiscord.app.id=… on the command line. It reaches
+      the code through build.properties, which is the one filtered resource (see <resources> below);
+      -Deyeandsickle.discord.appId=… overrides it at run time without a rebuild.
+    -->
+    <discord.app.id>1534704782927724584</discord.app.id>
   </properties>
 
   <dependencies>

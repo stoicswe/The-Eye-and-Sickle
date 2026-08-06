@@ -438,6 +438,30 @@ public final class ClientProfile {
         public static final int DISCOVERED_LIMIT = 500;
 
         /**
+         * Whether the client tells Discord roughly what the player is doing.
+         *
+         * <h2>⚠ OFF, and it is the default that makes the feature defensible</h2>
+         *
+         * Rich presence is broadcast to everyone on the player's friends list through a third
+         * party's servers. {@code docs/client/00-client-overview.md} §7 amended its
+         * <b>"not a telemetry client"</b> non-goal to admit exactly this, on exactly these terms —
+         * opt-in, off by default, to a program the player already runs, on their own account, with
+         * nothing reaching this project. Defaulting it on would break every clause of that at once.
+         *
+         * <p>⚠ What may be said is a closed set of constants in
+         * {@code client/presence/PresenceState} — never the handle, the balance, a machine or an
+         * item — and that is enforced by construction rather than by care at the call sites.
+         *
+         * <h2>⚠ MACHINE-WIDE, not per character</h2>
+         *
+         * The same line {@link #language}, {@link #stockProvider} and {@link #uiScalePercent} sit
+         * on. Appearance is per character because a palette is a costume; this is a decision about
+         * what this installation is allowed to tell other people, and asking a player to re-consent
+         * on every new character would be asking until they said yes.
+         */
+        public boolean discordPresenceEnabled = false;
+
+        /**
          * Whether the deck takes the whole screen.
          *
          * <p><b>Off by default, and deliberately.</b> Full screen on macOS moves the window to its
