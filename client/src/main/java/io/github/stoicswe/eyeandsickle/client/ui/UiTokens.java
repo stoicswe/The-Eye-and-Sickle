@@ -393,6 +393,27 @@ public final class UiTokens {
     public static final double FROST_MS = 1000.0 / 24.0;
 
     /**
+     * The sync mark's own clock — 30fps.
+     *
+     * <h2>⚠ WHY THIS IS NOT A {@code Pulse} PERIOD, which is the mistake it was written as</h2>
+     *
+     * {@code SyncSpin} asked {@code Pulse} for 60ms and got <b>100</b>. Pulse quantises every
+     * subscription to a multiple of its own 100ms driver —
+     * {@code Math.max(TICK_MS, round(periodMs / TICK_MS) * TICK_MS)} — so anything under 150ms
+     * silently becomes 10fps. Nothing reports it; the widget simply steps a third as often as the
+     * number beside it says, which is what made a hand-tuned 20-entry table read as a stutter.
+     *
+     * <p>⚠ The fix is not to lower Pulse's driver: that would speed up <b>every</b> decorative widget
+     * in the client to smooth one mark. This is the same reasoning — and the same resolution —
+     * {@link #FROST_MS} already records.
+     *
+     * <p>⚠ 30 rather than 24 because this one is <b>rotation</b>. A blurred backdrop is forgiving of
+     * a dropped frame; a rotating shape at 24fps beats visibly against the eye's motion tracking, and
+     * the cost here is one {@code setRotate} per tick against the frost's several snapshots.
+     */
+    public static final double SPIN_MS = 1000.0 / 30.0;
+
+    /**
      * The largest share of wall-clock time the frosted backdrop may spend on itself.
      *
      * <h2>⚠ Why 24fps has to be a CEILING rather than a rate</h2>

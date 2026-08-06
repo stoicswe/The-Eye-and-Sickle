@@ -82,6 +82,40 @@ Ground is cold blue-black. Grayscale is cold. The single accent is warm sodium a
 2. **The negative case reuses `alarm`.** A debit and a hostile state are the same red, because `alarm` already means loss — so exactly **one** new hue enters the palette, not three.
 3. **Never a persistent readout.** The balance delta is on screen for about two seconds; the node states also carry a bracket marker (`[/]`, `[!]`, `[#]`) and a sentence in the tooltip, so §4.4 holds — neither state is colour alone, and both survive greyscale and a screen reader.
 
+### 2.1b The accent as authorship — DIRECT's chat bubbles (amended 2026-08-06)
+
+§2.1 reserves `amber` for **cycles doing work and money arriving**. COMS' **DIRECT** tab fills the
+player's own messages with it and the other side with a neutral ground (`-es-bubble-them`). Taken on
+explicit direction, and fenced the same way §2.1a is:
+
+| Site | Fill | Meaning |
+|---|---|---|
+| `.es-dm-mine` | `-es-amber` | This message is yours |
+| `.es-dm-them` | `-es-bubble-them` | Everyone else — a neutral, never a second hue |
+
+**Why this is not the semantic colour system arriving through the back door:**
+
+1. **It is deixis, not a category.** In a two-party transcript the accent does not classify anything —
+   it means *"this one is yours"*. It says nothing about value, nothing about state, and it is
+   meaningless outside a conversation, which is exactly why it cannot spread. One style class, used
+   nowhere else.
+2. **Only ONE side is marked.** Two coloured bubbles would be a colour system, and would additionally
+   claim the two speakers are two *kinds* of thing. The other side is the unmarked default — the same
+   "position is the primary cue, fill the secondary" split §4.4 already asks of `Switch`.
+3. **Alignment carries it, and the colour is redundant.** Own messages sit right, everyone else's
+   left, and the sender's name is on every bubble regardless. §4.4 holds: greyscale, a colour vision
+   difference or a screen reader all still read the transcript correctly.
+4. **The bubble is a NEW GROUND, so it is measured.** `ContrastTest.chatBubblesAreLegible` computes
+   the text on both fills in all eight palettes and also asserts the neutral bubble is distinguishable
+   from the panel behind it — a bubble that matched the window body would leave the fill doing nothing
+   while the text stayed perfectly legible, which no text-contrast check can see.
+
+⚠ **A third site needs another amendment, not a precedent** — the same fence §2.1a sets.
+
+⚠ **The corners obey §9.3.** Square by default, rounded only under `.es-rounded`. A chat bubble is the
+one shape in this client a reader expects to be round, which is precisely why it takes the player's
+setting rather than an exemption.
+
 The steady balance keeps its amber. §2.1's "amber means money" is untouched.
 
 ### 2.2 Type

@@ -39,6 +39,9 @@
 
     /* Burnt amber: 6.4:1 on the panel, so a live figure is legible rather than merely tinted. */
     -es-amber:     #8A4A00;
+    /* DIRECT chat bubbles. `mine` is the accent itself; these are what sits ON it. */
+    -es-bubble-mine-text: #FFFFFF;
+    -es-bubble-them: #C9C9C9;
     -es-amber-mid: #B4762A;
     -es-amber-low: #C9A87A;
 

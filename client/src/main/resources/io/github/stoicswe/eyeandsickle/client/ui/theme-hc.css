@@ -49,6 +49,9 @@
     /* Amber stays the only accent. Lifted to 12.9:1, so a live figure is not merely different from
        a dead one but legible on its own. */
     -es-amber:     #FFC048;
+    /* DIRECT chat bubbles. `mine` is the accent itself; these are what sits ON it. */
+    -es-bubble-mine-text: #000000;
+    -es-bubble-them: #2E2E2E;
     -es-amber-mid: #FFAE38;
     -es-amber-low: #C08A2A;
 

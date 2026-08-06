@@ -2962,6 +2962,217 @@ toggle each. `client/log/{ClientLog,LogEntry,LogLevel}` capture; `view/ClientLog
   `AvatarChooser`, `CharacterSlots`, `EventBus`'s subscriber-failed handler. Instrumenting call sites
   instead means the next one added goes unrecorded.
 
+**THE MESSENGER SENDS NOW, AND MESSAGES ARE BUBBLES (2026-08-06).** `BlueskyChat.send` over
+`chat.bsky.convo.sendMessage`; `DirectView.Composer` + `DirectView.bubble`. Own messages are
+`-es-amber` and right-aligned, everyone else's a neutral ground and left-aligned.
+
+- ⚠ **THE TAB IS CALLED "ALO MESSENGER"; THE KEY AND THE CLASS ARE STILL `direct`.** `ui.comms.direct`
+  is what a translation is filed under and the class is still `DirectView` — renaming either to
+  follow a display name moves three things to change what one strip says. Same rule COMMS' own id
+  records from being relabelled COMPort.
+  ⚠ **`-Ddeck.commsTab=` matches a PREFIX now, not for equality**, which is what survived the rename:
+  an exact match against a label breaks silently the day the word is edited, and it breaks by
+  printing NOT FOUND and then photographing the wrong tab — the failure the flag exists to stop.
+- ⚠ **A `TextArea`, not a `TextField`, and Enter had to be taken back from it.** Wrapping, newlines
+  and growth are all impossible on a field. **Enter sends; Shift+Enter inserts a newline** — via an
+  event **FILTER**, because a text area's own skin handles Enter first: a normal handler runs *after*
+  the newline is inserted, so the message would send AND leave a blank line in a box just cleared.
+  Shift+Enter is deliberately **not** consumed and falls through to the default rather than
+  re-implementing insertion.
+- ⚠ **It grows to six rows and then scrolls, and the row count is MEASURED FROM A STANDALONE `Text`
+  NODE.** The obvious version reads the control's own laid-out `.text` node and **never grows**:
+  running from a text listener, the skin has not re-laid-out the new string, so the node still
+  carries the *previous* height. Measured — one row for a 351-character message, always exactly one
+  layout pass stale, so the box grows one line late forever and looks simply broken.
+  ⚠ **`Platform.runLater` is the other tempting fix and is worse**: no queued runnable executes
+  during a synchronous `Scene.snapshot`, so every render harness would photograph a one-line box and
+  report the feature absent. `rowsFor(text, width, font)` is pure, needs no Scene, and is tested.
+  ⚠ It also refits on **width**, since a wrapped message's line count is a function of its column.
+  ⚠ Verified by render: **2 rows → 53px, 6 rows → 121px (capped)**.
+- ⚠ **`field.setMinHeight/​setMaxHeight(USE_PREF_SIZE)`** or the HBox fills it to the row height and
+  the growth does nothing visible; and the row is **`BOTTOM_LEFT`**, because a centred Send button
+  drifts upward as the box grows — the one control on the panel that must not move.
+- ⚠ **THE SEND BUTTON IS A DRAWN ENVELOPE — `ui/widgets/MailMark` — AND NOT A GLYPH.** `U+2709` is in
+  neither bundled face and `GlyphCoverageTest` scans **source** for literals; it already rejected
+  `U+26A0` in this same window. ⚠ **§9's icon-set ban is intact**: what that forbids is a *vocabulary*
+  of symbols standing in for words across the interface, and this is one shape for one control, on
+  the same footing as `SecurityMark` and `SectionMark`. A second one is the moment to ask whether a
+  set is being assembled.
+  ⚠ **Stroked, and drawn AT SIZE rather than authored large and scaled** — a scale transform scales
+  the stroke with it, so a 1px hairline from a 24px box arrives at ~0.5px and greys into a smudge at
+  the 14px this renders at. ⚠ **`-fx-fill: transparent` is load-bearing**: an `SVGPath` defaults to a
+  **black** fill, so both subpaths would paint solid — a black blob on a dark button, i.e. invisible
+  rather than obviously wrong. ⚠ The stroke is **`-es-text`, never a literal and never amber**: it is
+  the token `ContrastTest` already measures against `-es-panel-hi`, which *is* this button's ground,
+  so it inverts on uOS Classic for free (measured: `#A9BCBD` on the deck, `#101010` on Classic).
+  ⚠ **`accessibleText` AND a tooltip are both required, not decoration.** `SocialMark`'s "the words
+  carry it, the mark reinforces" argument does **not** apply — there are no words, the mark is the
+  whole control, so that is the only place "Send" exists. The tooltip names **Enter** as well, since
+  an icon cannot say which key sends. ⚠ The disabled state colours the *mark*, because an icon button
+  has no greyed-out word to carry it.
+- ⚠ **A CONVERSATION OPENS ON ITS NEWEST MESSAGE — `DirectView.scrollToEnd`, and it must lay out the
+  SCROLL PANE, not just the transcript.** `vvalue` is clamped against the pane's own idea of its
+  content height, which it only learns during **its** layout pass — laying out the content alone
+  leaves the pane still measuring the *previous* conversation, so opening a long history after a
+  short one lands part-way down and reads as scrolling to a random place. ⚠ Synchronous, never
+  `Platform.runLater`: that never runs inside a synchronous `Scene.snapshot`, so a harness would
+  photograph a transcript at the top and report the behaviour absent. ⚠ Package-private so
+  `DirectSnapshot` drives **the real thing** — a harness reimplementing the two layout calls would
+  agree with itself and prove nothing. Verified: `vvalue=1.00` on a 40-message history.
+
+**AN ARRIVING MESSAGE CHIMES AND PREVIEWS, UNLESS IT IS ALREADY ON SCREEN (2026-08-06).**
+`DirectView.Alerts`, supplied by `EyeAndSickleClient.deckAlerts()`.
+
+- ⚠ **THE SUPPRESSION NEEDS BOTH HALVES: COMS FOCUSED *AND* THAT CONVERSATION OPEN.** Either alone
+  gets a case backwards — COMS focused on a *different* conversation is exactly when a preview is
+  most useful, and the right conversation open *behind another window* is a message the player cannot
+  see.
+- ⚠ **ONE CHIME PER POLL, NOT PER CONVERSATION.** A poll can report several at once (the first after
+  an absence usually does) and a chime each is a burst of identical sounds. Previews still stack.
+- ⚠ **NOTHING IS ANNOUNCED FOR THE PLAYER'S OWN MESSAGES.** `logCreateMessage` fires for every message
+  in a conversation the account is in — that is what keeps this client in step with their phone — so
+  a reply typed elsewhere arrives here as a change. `Convo.lastSenderDid` exists solely for this;
+  chiming for it would be the app notifying somebody about themselves.
+- ⚠ **`Alerts` is an interface, not a `DeckShell` handle.** This view has never known what a deck is,
+  and the window manager has never known what a conversation is — the rule needs both, so it lives at
+  the one place that has them. `Alerts.NONE` is what a pane built without a deck gets.
+- ⚠ **The notice is NOT severe.** §2.1 rations alarm to loss and hostile state; a message from a
+  friend is neither, and shouting would spend the stack's whole alarm budget on somebody saying hello.
+- ⚠ **`snippet` flattens whitespace and cuts on a WORD boundary** — a notice is one line, and a
+  message pasted with breaks would make the stack jump in height. ⚠ Its test asserts the *original*
+  has a space at the cut point; asserting the preview "does not end mid-word" is trivially true of
+  every cut and would have passed against a blind substring.
+
+- ⚠ **THIS IS THE ONLY THING THE CLIENT WRITES TO SOMEBODY ELSE'S SERVICE.** Everything else in
+  `docs/client/02` §2.9a's exhaustive outbound list reads. **Nothing of the game's goes with it** —
+  no handle, DID, balance, standing, item, machine name or address; the request is a convo id and the
+  text the player typed, which is what keeps `00` §7 true rather than merely narrow.
+- ⚠ **`maxLength` IS UTF-8 BYTES AND `maxGraphemes` IS GRAPHEME CLUSTERS — neither is
+  `String.length()`.** The lexicon caps text at 10000/1000. Checking `length()` passes a message the
+  server then rejects: family emoji are a handful of graphemes and a great many chars, accented Latin
+  is fewer bytes than it looks. `withinLimits` uses `BreakIterator.getCharacterInstance`, refusing
+  before the round trip rather than after an unexplained 400.
+- ⚠ **THE COMPOSER LIVES OUTSIDE THE SCROLLING TRANSCRIPT, and that is structural.** The poll rebuilds
+  the transcript whenever the open conversation changes, and a `TextField` in a container repainted on
+  a clock is destroyed **mid-keystroke** — **UI-7**, which `ReconView` records from having shipped it.
+  A sibling node cannot be taken away by the refresh path by accident.
+- ⚠ **The field is cleared on SUCCESS and only on success.** A failed send must leave what the player
+  wrote where it is; clearing on the attempt loses somebody's words to a network error they did not
+  cause. The **server's** returned `messageView` is what gets rendered, never the typed string — the
+  id and timestamp are the real ones and it costs no second round trip.
+- ⚠ **A BUBBLE MUST BE WRAPPED IN AN `HBox` OR IT IS A FULL-WIDTH BAND.** A `VBox` stretches children
+  to its width, so a bubble added straight to the transcript reads as a section background rather
+  than a message however its alignment is set. `setFillHeight(false)` on the row too — the rig
+  monitor's core cutaway records the same trap.
+- ⚠ **`-es-amber` HERE AMENDS §2.1, and it is fenced as `ui-design-language.md` §2.1b.** The accent is
+  reserved for cycles doing work and income; a message is neither. What makes it defensible is that
+  it is **deixis, not a category** — it means "this one is yours", says nothing about value or state,
+  and is meaningless outside a conversation. **Only one side is marked**; two coloured bubbles would
+  be the semantic colour system §2.1 bans. Alignment is the primary cue and the sender's name is on
+  every bubble, so §4.4 holds under greyscale and a screen reader.
+- ⚠ **A BUBBLE IS A NEW GROUND, AND EVERY OTHER CONTRAST CHECK MEASURES AGAINST THE PANEL.**
+  `-es-amber` is a bright sodium on six palettes and a burnt brown on two, so one hard-coded text
+  colour would be illegible on half of them whichever it was — the `DiskLamp` trap.
+  `-es-bubble-mine-text` and `-es-bubble-them` are per palette and
+  `ContrastTest.chatBubblesAreLegible` measures both, compositing the neutral bubble over the panel
+  (it is deliberately **translucent** on the two glass themes so it tints the frost instead of
+  punching an opaque box through the window). ⚠ It also asserts the neutral bubble is **distinguishable
+  from the panel** — one that matched the window body would leave the fill doing nothing while the
+  text stayed perfectly legible, which no text-contrast check can see.
+- ⚠ **Two-class selectors, or the fill silently loses.** `theme.css` sets `.label { -fx-text-fill:
+  -es-text; }`, so `.es-dm-mine .label` (0,2,0) is what actually paints. Sizes live in rules that set
+  no fill, so the two concerns cannot fight on ordering.
+- ⚠ **§9 unamended: square by default, rounded only under `.es-rounded`.** A chat bubble is the one
+  shape here a reader expects to be round, which is exactly why it obeys the player's setting rather
+  than taking an exemption. Verified by **sampling the corner pixel** of a rendered bubble: bubble
+  colour when square, panel colour when rounded.
+- ⚠ **`scrollToEnd` must `applyCss()` + `layout()` BEFORE `setVvalue(1.0)`.** A `ScrollPane` clamps
+  against a content height it does not know until the new bubbles are measured, so setting it in the
+  same frame scrolls to the end of the *old* content. `AttentionLedger` records the same fix.
+- ⚠ **`DirectSnapshot` renders the transcript on a PANEL, not the desk, and the first version got that
+  wrong.** `es-scene-ground` paints `-es-void`; the real transcript sits in a window body. On the dark
+  palettes the two are a shade apart and the mistake is invisible — on uOS Classic they are `#A8A8A8`
+  and `#E4E4E4`, so the neutral bubble was being judged against a ground it never sits on.
+  ⚠ **Verify renders by SAMPLING PIXELS, not by looking at the preview** — the preview misrepresented
+  a `#E4E4E4` light-theme ground as dark, twice, and the pixel data settled it in one command.
+
+**THE SYNC MARK MOVED OFF `Pulse` ONTO ITS OWN 30 FPS CLOCK (2026-08-06).** `UiTokens.SPIN_MS`.
+
+- ⚠ **`Pulse` QUANTISES EVERY SUBSCRIPTION TO A MULTIPLE OF ITS 100 ms DRIVER**, silently:
+  `Math.max(TICK_MS, round(periodMs / TICK_MS) * TICK_MS)`. So `SyncSpin`'s `animate(60, …)` was
+  **100 ms — 10 fps**, and a hand-tuned table stepped a third as often as the number beside it said.
+  Nothing reports it. Same trap `Frost` records for asking Pulse for 24 fps.
+- ⚠ **The fix is NOT to lower Pulse's driver** — that speeds up every decorative widget in the client
+  to smooth one mark. A `Timeline` with an **action-only `KeyFrame`** interpolates nothing, so §5's
+  easing ban is not in play and neither contract test fires (they scan for `Interpolator.EASE/SPLINE`,
+  `Interpolator.LINEAR` and `AnimationTimer`): this is a sampling rate, not a tween. `Frost`'s
+  precedent exactly.
+- ⚠ **30 rather than the frost's 24, because this one is ROTATION** — a turning shape at 24 fps beats
+  against the eye's motion tracking, and the cost is one `setRotate` per tick.
+- ⚠ **Smoothness comes from a FINER LADDER, never interpolation** — 20 entries became 51, authored
+  once and pasted as **data**. The table's size fence rose 40 → 80, which is what keeps "finer" from
+  becoming "generated".
+- ⚠ **A TURN THAT HAS BEGUN ALWAYS RUNS TO THE END OF THE TABLE**, on explicit direction. A `getLog`
+  poll can return in a couple of hundred milliseconds, and snapping home on completion rendered a
+  **twitch** whose length was a function of somebody else's latency — the same event looking different
+  every time. ⚠ **This reverses a rule this file used to hold** ("motion after the thing it reports has
+  stopped is the one lie a progress indicator can tell"): the mark can now turn for up to ~1.7 s after
+  the sync ends. An indicator that is legible slightly too long beats one that is illegible every time.
+- ⚠ **Reduce motion is the ONE case that still stops mid-turn**, and it had to become explicit — on
+  `Pulse.animate` a decorative subscription simply never fires there, so the mark held still without
+  this widget knowing why. Asked **every tick**, because the setting can be turned on mid-sync.
+- ⚠ **`advance(step, syncing)` is pure and package-private** so the always-completes rule is testable
+  without a toolkit — `DirectView.state`'s seam, for its reason.
+
+⚠ **`bsky.social` IS NOT A PDS, AND ASSUMING IT WAS BROKE EVERY DIRECT MESSAGE (2026-08-06).**
+`BlueskyChat` hard-coded `https://bsky.social` and sent the sign-in *and every later call* there.
+Sign-in **succeeded** — which is what made this unreadable — and every `chat.bsky.*` call came back
+**501 MethodNotImplemented**. `bsky.social` is the **entryway**: it fronts account and session
+methods for every Bluesky-hosted account, holds none of them, and does not pipethrough chat. The
+real host is in the account's DID document — measured: `stoicswe.com` → `did:plc:zczf6tbnu4prqmdtj2hemgqu`
+→ **`https://leccinum.us-west.host.bsky.network`**. `client/bsky/PdsDirectory` resolves it.
+
+- ⚠ **501 IS THE SIGNATURE OF AN UNROUTED METHOD, and knowing that ends the search in one probe.**
+  Measured against the live services: `api.bsky.chat` answers **401** for `getLog` (method exists,
+  auth missing) and **501** for a method that does not exist at all. So a 501 was never a wrong
+  header, a wrong scope or a missing parameter — it meant *the server that answered had never heard
+  of the method and was not forwarding it*. Only the host was wrong. ⚠ The `atproto-proxy` header
+  was present and correct the whole time; **the header is only half of the routing.**
+- ⚠ **BOTH SERVERS ANSWER 401 UNAUTHENTICATED, so an anonymous probe cannot tell them apart.**
+  `bsky.social/xrpc/<anything>` is 401 — including a nonsense method — because auth middleware runs
+  first. The discriminating probe is against **`api.bsky.chat`**, which answers before auth.
+- ⚠ **RESOLUTION HAPPENS BEFORE THE PASSWORD IS SENT, and that order is the entire privacy argument.**
+  The free fix is to sign in at the entryway and adopt the `didDoc` that `createSession` returns
+  (verified optional in the lexicon; it is what `@atproto/api` does, and it is kept here as a second
+  correction). On its own it means **a self-hosting player's app password reaches Bluesky before
+  anyone discovers their account is not there.** So the host is settled first from public data —
+  `com.atproto.identity.resolveHandle`, then `plc.directory` — and the credential is posted only to
+  the machine meant to hold it. Two requests, **once per sign-in**, never per poll.
+- ⚠ **`resolveHandle` on the entryway answers for SELF-HOSTED handles too** — it runs the full
+  network resolution. Verified against `pfrazee.com`, which is not a Bluesky-hosted account. That is
+  what makes one lookup enough instead of DNS plus a well-known fetch against a domain the player
+  typed.
+- ⚠ **The `service` array is a list of DIFFERENT services — never take `service[0]`.** A labeler and
+  a feed generator sit in the same array, so the first entry works for a plain account and silently
+  points the client at a labeler for anybody running one — failing identically, with the same
+  unreadable 501. Matched on `#atproto_pds` / `AtprotoPersonalDataServer`.
+- ⚠ **The endpoint is a CREDENTIAL DESTINATION, so it is validated rather than trusted**: HTTPS only
+  (an `http://` endpoint puts the app password in clear), no userinfo (`https://real@evil/` reads as
+  one host and resolves to another), trailing slash stripped (every caller appends `/xrpc/…`).
+  Anything unusable **falls back to the entryway** rather than failing the sign-in.
+- ⚠ **An absent `didDoc` must leave the host ALONE, not clear it.** It is optional in the lexicon, so
+  blanking on absence turns a good session into a stream of malformed URLs — a worse failure than the
+  one being fixed, and only against certain servers.
+- ⚠ **The host is now VOLATILE and changes.** The field it replaced was `final`, which is precisely
+  what made this unfixable in place: there was one host and it was decided before anyone knew whose
+  account it was. `chatHost()` and `adoptDidDocument` are package-private **so the routing is
+  checkable without a network** — `SecurityCenterView.latestOf`'s seam, for its reason. Negative-
+  tested: with the adoption neutered, `theHostMovesToTheAccountsOwnPds` fails with
+  `but was: "https://bsky.social"`.
+- ⚠ **A 501 now has its own sentence** in `describeChatFailure`. The raw status points a reader at
+  the wrong thing entirely, and this failure is silent in the worst way: sign-in works, the tab says
+  connected, and only the messages never arrive.
+
 **DISCORD RICH PRESENCE — the ONE thing this client tells anyone outside the machine (2026-08-05).**
 `client/presence/{PresenceState,DiscordIpc,RichPresence,Transport}`, Settings → Discord,
 `ClientProfile.Settings.discordPresenceEnabled`. **Off by default.**

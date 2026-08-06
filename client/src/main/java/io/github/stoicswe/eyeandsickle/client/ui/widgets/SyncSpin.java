@@ -1,7 +1,12 @@
 package io.github.stoicswe.eyeandsickle.client.ui.widgets;
 
 import io.github.stoicswe.eyeandsickle.client.ui.Pulse;
+import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
+import javafx.animation.Animation;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.scene.layout.Region;
+import javafx.util.Duration;
 
 /**
  * The wind-up-and-release spin the Bluesky mark does while a sync is running.
@@ -55,13 +60,13 @@ public final class SyncSpin {
      */
     private static final double[] ANGLES = {
         // wind up — leaning into the tension, and slowing as it loads
-        -3, -6, -8, -9,
-        // release — through zero and round, fastest in the middle
-        -5, 12, 46, 98, 159, 220, 274, 316,
-        // settle — the last of the turn, decelerating hard
-        340, 352, 358, 361, 363,
+        -1.7, -3.2, -4.6, -5.8, -6.8, -7.6, -8.2, -8.6, -8.9, -9,
+        // release — back through zero and round, fastest in the middle
+        -8.9, -8, -5.8, -1.9, 4.1, 12.4, 23.1, 36.1, 51.3, 68.7, 87.8, 108.5, 130.3, 152.9, 176,
+        199.1, 221.7, 243.5, 264.2, 283.3, 300.7, 315.9, 328.9, 339.6, 347.9, 353.9, 357.8, 360,
+        360.9, 361,
         // one small overshoot the other way, then rest
-        362, 360
+        362.4, 363, 363.2, 362.9, 362.3, 361.6, 361, 360.6, 360.3, 360.1, 360
     };
 
     /** Where the mark sits when nothing is happening. */
@@ -83,19 +88,65 @@ public final class SyncSpin {
      */
     public static AutoCloseable spin(Region node, java.util.function.BooleanSupplier running) {
         int[] step = {-1};
-        return Pulse.shared().animate(60, () -> {
-            if (!running.getAsBoolean()) {
-                // ⚠ Snaps home rather than finishing the table. A sync that ends mid-turn should
-                // leave the mark upright at once — carrying on to the end would show motion after
-                // the thing it reports has stopped, which is the one lie a progress indicator can
-                // tell.
+        Timeline clock = new Timeline(new KeyFrame(Duration.millis(UiTokens.SPIN_MS), event -> {
+            // ⚠ REDUCE MOTION IS ASKED EVERY TICK, and it used to be free. On `Pulse.animate` a
+            // decorative subscription simply never fires there, so the mark held still without this
+            // widget knowing why. Off Pulse, that has to be explicit — and it is asked per tick
+            // rather than at start-up because the setting can be turned on while a sync is running,
+            // and a spinner that kept turning would be motion the player had just switched off.
+            if (Pulse.shared().reducedMotion()) {
+                // ⚠ The ONE case that stops mid-turn, and it must. Reduce motion is a request to
+                // stop moving now, not to finish the flourish first.
                 step[0] = -1;
                 node.setRotate(REST);
                 return;
             }
-            step[0] = (step[0] + 1) % ANGLES.length;
-            node.setRotate(ANGLES[step[0]]);
-        });
+            step[0] = advance(step[0], running.getAsBoolean());
+            node.setRotate(step[0] < 0 ? REST : ANGLES[step[0]]);
+        }));
+        clock.setCycleCount(Animation.INDEFINITE);
+        clock.play();
+        return clock::stop;
+    }
+
+    /**
+     * Where the mark goes next. {@code -1} is at rest.
+     *
+     * <h2>⚠ ONCE A TURN HAS STARTED IT ALWAYS RUNS TO THE END OF THE TABLE</h2>
+     *
+     * A sync check is usually fast — a {@code getLog} poll that finds nothing can be back in a couple
+     * of hundred milliseconds — and the earlier version snapped the mark home the instant it
+     * finished. So the common case never showed a spin at all: it showed a <b>twitch</b>, a few
+     * degrees of lean and then nothing, which reads as a rendering glitch rather than as work
+     * happening. Worse, how far it got was a function of somebody else's server latency, so the same
+     * event looked different every time.
+     *
+     * <p>⚠ The honest cost, stated because it reverses a rule this file used to hold: the mark can
+     * now still be turning for up to one table's worth of time <em>after</em> the sync it reports has
+     * finished — about 1.7 seconds. That was previously called "the one lie a progress indicator can
+     * tell". The trade was made deliberately, on explicit direction: an indicator that is legible
+     * slightly too long beats one that is illegible every time, and the alternative — a spin whose
+     * length encodes latency — is not information anybody can read at this size.
+     *
+     * <p>⚠ It <b>restarts</b> rather than easing out while the sync is still going, so a slow sync
+     * turns continuously.
+     *
+     * <p>Package-private and pure so the rule can be checked without a toolkit — the same seam
+     * {@code DirectView.state} and {@code SecurityCenterView.latestOf} exist for.
+     *
+     * @param step where it is now, or {@code -1} at rest
+     * @param syncing whether a sync is still in flight
+     */
+    static int advance(int step, boolean syncing) {
+        if (step < 0) {
+            // At rest. Only a new sync starts a turn.
+            return syncing ? 0 : -1;
+        }
+        int next = step + 1;
+        if (next >= ANGLES.length) {
+            return syncing ? 0 : -1;
+        }
+        return next;
     }
 
     /** The table, for a test that has to know the motion without a toolkit. */

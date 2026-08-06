@@ -59,7 +59,11 @@ public final class CommsView {
         javafx.scene.control.Tab inbox = new javafx.scene.control.Tab(Views.t("ui.comms.inbox", "INBOX"), inbox(session));
         tabs.getTabs().add(inbox);
         if (direct != null) {
-            tabs.getTabs().add(new javafx.scene.control.Tab(Views.t("ui.comms.direct", "DIRECT"), direct));
+            // ⚠ THE LABEL CHANGED, THE KEY DID NOT. `ui.comms.direct` is what any translation is
+            // filed under, and the class behind it is still `DirectView` — renaming either to follow
+            // a display name moves three things to change what one strip says, which is the rule
+            // COMMS' own id already records from being relabelled COMPort.
+            tabs.getTabs().add(new javafx.scene.control.Tab(Views.t("ui.comms.direct", "ALO MESSENGER"), direct));
         }
         return tabs;
     }

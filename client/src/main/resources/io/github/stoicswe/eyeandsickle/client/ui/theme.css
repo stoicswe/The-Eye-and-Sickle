@@ -51,6 +51,9 @@
 
     /* the single accent — sodium amber. cycles doing work, or income. nothing else. */
     -es-amber:     #FFAE38;
+    /* DIRECT chat bubbles. `mine` is the accent itself; these are what sits ON it. */
+    -es-bubble-mine-text: #0C1012;
+    -es-bubble-them: #1C2429;
     -es-amber-mid: #B87A28;
     -es-amber-low: #6A4715;
 
@@ -3734,6 +3737,83 @@
 /* ⚠ A message body is prose, so it gets the readable face rather than the deck's mono. Line height
  * is left to the font: §2.3's scale is a closed set and this is not a new size. */
 .es-comms-body { -fx-text-fill: -es-text; -fx-font-size: 11.5px; }
+
+/* DIRECT — chat bubbles.
+ *
+ * ⚠ THIS IS THE THIRD SITE ALLOWED TO SPEND -es-amber ON SOMETHING THAT IS NOT WORK OR INCOME.
+ * §2.1 reserves the accent for cycles doing work and money arriving, and §2.1a fences the exceptions
+ * to a NAMED list so the reservation stays checkable rather than eroding one screen at a time. This
+ * was asked for directly, and the reading is defensible: in a two-party transcript the accent is not
+ * a category, it is deixis — it means "this one is yours". It says nothing about value, nothing about
+ * state, and it is meaningless outside a conversation, which is exactly why it cannot leak into the
+ * rest of the palette's vocabulary. It is confined to `.es-dm-mine` and used nowhere else.
+ *
+ * ⚠ THE OTHER SIDE IS A NEUTRAL GROUND, NEVER A SECOND HUE. Two coloured bubbles would be the
+ * semantic colour system §2.1 bans, and it would also say the two speakers are two KINDS of thing.
+ * One side is marked and the other is the default — the same "position is the primary cue, fill the
+ * secondary" split §4.4 already asks of the Switch, and here alignment carries it.
+ *
+ * ⚠ ALIGNMENT IS THE PRIMARY CUE AND THE COLOUR IS THE SECOND (§4.4). This survives greyscale, and
+ * it is the reason the sender's name stays on every bubble: a player who cannot separate these two
+ * fills still reads the transcript correctly. */
+.es-dm-bubble {
+    -fx-padding: 6 10 6 10;
+    -fx-background-radius: 0;
+    -fx-border-radius: 0;
+}
+/* ⚠ A TWO-CLASS SELECTOR IS REQUIRED, and a one-class one silently loses. theme.css sets
+ * `.label { -fx-text-fill: -es-text; }` late in the file, so `.es-dm-text` alone is equal
+ * specificity and the LATER rule wins — the text would paint body-grey on the accent while every
+ * other property in the block applied normally. Same trap `.es-block-yours` records. */
+.es-dm-mine  { -fx-background-color: -es-amber; }
+.es-dm-them  { -fx-background-color: -es-bubble-them; }
+.es-dm-mine .label { -fx-text-fill: -es-bubble-mine-text; }
+.es-dm-them .label { -fx-text-fill: -es-text; }
+/* ⚠ The stamp on an accent bubble cannot be -es-dim-2 — that token is measured against the PANEL,
+ * and on a bright accent it is close to invisible. It rides the same fill as the message at reduced
+ * opacity, which keeps it subordinate without leaving the measured pair. */
+.es-dm-mine .es-dm-meta { -fx-text-fill: -es-bubble-mine-text; -fx-opacity: 0.72; }
+.es-dm-them .es-dm-meta { -fx-text-fill: -es-dim-2; }
+/* ⚠ Sizes only, and they must stay in rules that set no fill. `.es-dm-*-meta` above is 0,2,0 and
+ * these are 0,1,0, so they cannot fight — separating the two concerns is what keeps the ordering
+ * here from mattering. A message is prose and gets the readable size, the stamp the quiet one. */
+.es-dm-meta { -fx-font-size: 9.5px; }
+.es-dm-text { -fx-font-size: 11.5px; }
+/* ⚠ §9's ban is UNAMENDED: square by default, and a radius only under the player's opt-in. A chat
+ * bubble is the one shape in this client a reader expects to be round, which is exactly why it has
+ * to obey the toggle rather than being granted an exception. */
+.es-rounded .es-dm-bubble { -fx-background-radius: 11; -fx-border-radius: 11; }
+/* The composer. ⚠ Its ground is the well token, so it reads as sunk into the panel and transmits
+ * correctly on the two glass palettes rather than punching a black box through them. */
+.es-dm-composer { -fx-padding: 8 10 8 10; -fx-background-color: -es-panel-hi; }
+
+/* The send button is an ENVELOPE and no words.
+ *
+ * ⚠ -es-text, deliberately not -es-amber. §2.1 spends the accent on cycles doing work and on income;
+ * a send button is neither, and colouring the one control on the panel would claim it meant something
+ * about the game. It is also the token ContrastTest already measures against -es-panel-hi — which IS
+ * this button's ground — in all eight palettes, so the mark inverts correctly on uOS Classic for free
+ * where a literal would be invisible on one half of the themes.
+ *
+ * ⚠ -fx-fill MUST be transparent. An SVGPath defaults to a BLACK fill, so the flap's subpath would
+ * paint a solid triangle and the body a solid box: the envelope becomes a filled blob, and on the
+ * dark palettes it is a black blob on a dark button, i.e. invisible rather than obviously wrong.
+ *
+ * ⚠ Stroke width is set in Java, not here. It is a SIZE — sizes live in UiTokens and the view, colours
+ * live in this file — and a width declared in CSS would overwrite the Java one at the next applyCss.
+ * Same split the ring wallpaper's GLOW_STROKES records. */
+.es-mail-mark {
+    -fx-stroke: -es-text;
+    -fx-fill: transparent;
+    -fx-stroke-line-join: round;
+}
+/* ⚠ Padding tightened from the default button box: with no text the standard horizontal padding
+ * leaves a 14px mark floating in a wide slab that reads as an empty button. */
+.es-dm-send { -fx-padding: 6 10 6 10; }
+.es-dm-send:hover .es-mail-mark { -fx-stroke: -es-text-hi; }
+/* ⚠ A disabled icon button has no greyed-out WORD to say it is disabled, so the mark itself has to
+ * carry it — otherwise the only cue is the button's own background, which is a very small step. */
+.es-dm-send:disabled .es-mail-mark { -fx-stroke: -es-dim-2; }
 
 /* The FIREWALL table — one row per protective measure, with its own switch.
  *

@@ -61,7 +61,20 @@ public final class BlueskyChat {
     /** The service DID the PDS proxies chat calls to. Verified against docs.bsky.app. */
     private static final String CHAT_PROXY = "did:web:api.bsky.chat#bsky_chat";
 
-    /** The default PDS. A player on their own server overrides it; most are here. */
+    /**
+     * Where an account is looked up when nothing else is known.
+     *
+     * <h2>⚠ THIS IS THE ENTRYWAY, AND IT IS NOT A PDS — treating it as one broke every chat call</h2>
+     *
+     * {@code bsky.social} fronts account and session methods for every Bluesky-hosted account, so
+     * {@code createSession} succeeds here for anybody and the client looked signed in. It does not
+     * hold the repository and it does not pipethrough {@code chat.bsky.*}, so every conversation
+     * fetch came back <b>501 MethodNotImplemented</b> — which reads as "this API does not exist" and
+     * actually meant "you are asking the wrong machine". See {@link PdsDirectory}.
+     *
+     * <p>So this is the <b>bootstrap host</b> only. The host requests are sent to is
+     * {@link #chatHost()}, which is resolved per account at sign-in.
+     */
     public static final String DEFAULT_PDS = "https://bsky.social";
 
     private static final ObjectMapper JSON = new ObjectMapper();
@@ -73,16 +86,55 @@ public final class BlueskyChat {
             .followRedirects(HttpClient.Redirect.NEVER)
             .build();
 
-    private final String pds;
+    /** The bootstrap host — where a handle is resolved, and the fall-back if resolution fails. */
+    private final String entry;
+
+    /**
+     * The host every request actually goes to. Starts as {@link #entry} and is replaced at sign-in
+     * with the account's real PDS.
+     *
+     * <p>⚠ <b>Volatile, and it changes.</b> The field it replaced was final, which is what made the
+     * wrong-host bug unfixable without this: there was one host and it was decided before anyone knew
+     * whose account it was.
+     */
+    private volatile String pds;
+
     private volatile String accessJwt = "";
     private volatile String selfDid = "";
 
+    private final PdsDirectory directory;
+
     public BlueskyChat(String pds) {
-        this.pds = pds == null || pds.isBlank() ? DEFAULT_PDS : pds.strip();
+        this.entry = pds == null || pds.isBlank() ? DEFAULT_PDS : pds.strip();
+        this.pds = this.entry;
+        this.directory = new PdsDirectory(this.entry);
     }
 
-    /** One conversation. {@code members} excludes nobody — a group is simply a convo with more of them. */
-    public record Convo(String id, List<Member> members, int unreadCount, String lastMessage, boolean request) {
+    /**
+     * The host chat calls are sent to — the account's own PDS once signed in.
+     *
+     * <p>Exposed so a test can assert the routing without a network, which is the whole fence around
+     * the 501.
+     */
+    public String chatHost() {
+        return pds;
+    }
+
+    /**
+     * One conversation. {@code members} excludes nobody — a group is simply a convo with more of them.
+     *
+     * @param lastSenderDid who wrote {@code lastMessage}. ⚠ Needed because {@code logCreateMessage}
+     *     fires for <b>every</b> message in a conversation the account is in, including ones the
+     *     player sent from another device — and notifying somebody about their own message, with a
+     *     chime, is the most annoying thing this feature could do.
+     */
+    public record Convo(
+            String id,
+            List<Member> members,
+            int unreadCount,
+            String lastMessage,
+            String lastSenderDid,
+            boolean request) {
 
         /** ⚠ A group is more than two members. There is no separate type for one. */
         public boolean group() {
@@ -129,6 +181,10 @@ public final class BlueskyChat {
      * @return empty on success, or a sentence to show the player
      */
     public Optional<String> signIn(String handle, String appPassword) {
+        // ⚠ RESOLVED BEFORE THE PASSWORD IS BUILT INTO A REQUEST, not after. A player who hosts their
+        // own server must not have their credential posted to Bluesky first and corrected afterwards.
+        // Falls back to the entryway, which is right for every Bluesky-hosted account.
+        pds = directory.resolve(handle).orElse(entry);
         try {
             String body = JSON.writeValueAsString(Map.of("identifier", handle, "password", appPassword));
             HttpRequest request = HttpRequest.newBuilder(URI.create(pds + "/xrpc/com.atproto.server.createSession"))
@@ -163,14 +219,50 @@ public final class BlueskyChat {
                 LOG.warning("bluesky: sign-in returned 200 with no session token");
                 return Optional.of("Bluesky accepted the sign-in but sent no token.");
             }
+            adoptDidDocument(node.path("didDoc"));
             // ⚠ The DID is a public identifier and is what every later call is scoped to, so it is
-            // the one thing worth recording — but the TOKEN never is, at any level.
-            LOG.log(Level.INFO, "bluesky: signed in as {0}", selfDid);
+            // the one thing worth recording — but the TOKEN never is, at any level. ⚠ The HOST is
+            // logged beside it deliberately: "signed in, and here is the machine that will be asked
+            // for the messages" is the one line that would have made the 501 obvious in a day
+            // rather than in three rounds of guessing.
+            LOG.log(Level.INFO, "bluesky: signed in as {0}, chat host {1}", new Object[] {selfDid, pds});
             return Optional.empty();
         } catch (Exception e) {
             LOG.log(Level.WARNING, "bluesky: sign-in could not reach " + pds, e);
             return Optional.of("Could not reach Bluesky (" + e.getClass().getSimpleName() + ").");
         }
+    }
+
+    /**
+     * Takes the PDS endpoint out of the DID document {@code createSession} hands back.
+     *
+     * <h2>⚠ A SECOND CORRECTION, AND IT IS FREE</h2>
+     *
+     * {@code com.atproto.server.createSession} returns an optional {@code didDoc} — verified against
+     * the lexicon — and this is exactly how {@code @atproto/api} re-points its own agent after
+     * logging in. It costs no request, so it runs even when {@link PdsDirectory} already answered:
+     * the directory's answer can be stale by a migration, and this one comes from the server that
+     * just authenticated the account.
+     *
+     * <p>⚠ <b>It is not a substitute for resolving first.</b> On its own it means the password has
+     * already been sent to the entryway by the time the real host is known, which is fine for a
+     * Bluesky-hosted account and wrong for anybody else. Belt <em>and</em> braces, in that order.
+     *
+     * <p>⚠ Absent or unusable leaves the current host alone rather than clearing it. A blank host
+     * would turn a working session into a stream of malformed URLs.
+     *
+     * <p>⚠ Package-private rather than private <b>so the routing can be checked without a network</b>
+     * — the same seam {@code SecurityCenterView.latestOf} and {@code Anchoring.horizontal} exist for,
+     * and for the same reason: the rule that shipped wrong here was one that could only be reached by
+     * signing in to a real account and looking.
+     */
+    void adoptDidDocument(JsonNode didDoc) {
+        PdsDirectory.pdsFromDidDocument(didDoc).ifPresent(host -> {
+            if (!host.equals(pds)) {
+                LOG.log(Level.INFO, "bluesky: the session''s DID document moves the chat host to {0}", host);
+            }
+            pds = host;
+        });
     }
 
     /** The {@code error} code out of an XRPC error body, or {@code ""}. Never the message. */
@@ -220,6 +312,17 @@ public final class BlueskyChat {
         }
         if (status == 429) {
             return "Bluesky is rate-limiting this account. It will retry on the next sync.";
+        }
+        if (status == 501) {
+            // ⚠ THE SHAPE OF THE BUG THIS CLASS SHIPPED WITH, kept as a sentence because it is not
+            // self-evident and the raw status points the reader at the wrong thing entirely. 501 is
+            // what a server answers for a method it does not implement AND is not forwarding — so it
+            // is never a scope, a parameter or a header problem. It means the request went to a
+            // machine that does not host this account. Measured: bsky.social is the entryway, not a
+            // PDS, and answers 501 to every chat call.
+            return "That request went to a server that does not host this account — the direct-message "
+                    + "service could not be reached through it. Reconnect in Settings → Bluesky to "
+                    + "look up the right one.";
         }
         return "Bluesky refused " + endpoint + " (" + status
                 + (error.isBlank() ? "" : ", " + error) + ").";
@@ -348,6 +451,7 @@ public final class BlueskyChat {
                     // ⚠ A deleted or system last-message has no `text`, so this is empty rather than
                     // absent — the list shows a blank preview instead of the word "null".
                     node.path("lastMessage").path("text").asText(""),
+                    node.path("lastMessage").path("sender").path("did").asText(""),
                     request));
         }
         return convos;
@@ -527,11 +631,140 @@ public final class BlueskyChat {
     }
 
     /**
+     * Sends a message to a conversation.
+     *
+     * <h2>⚠ THE ONLY THING THIS CLIENT WRITES TO SOMEBODY ELSE'S SERVICE</h2>
+     *
+     * Everything else here reads. This posts text the player typed to an account they chose, and
+     * <b>nothing of the game's goes with it</b> — no handle, DID, balance, standing, item, machine
+     * name or address. The request carries a conversation id and the message, and that is all. The
+     * exhaustive outbound list in {@code docs/client/02} §2.9a stays true because what crosses the
+     * wire is what the player wrote and nothing the game knows.
+     *
+     * <h2>⚠ THE LIMITS ARE GRAPHEMES AND BYTES, NEITHER OF WHICH IS {@code String.length()}</h2>
+     *
+     * The lexicon caps {@code text} at {@code maxLength} 10000 and {@code maxGraphemes} 1000, and in
+     * AT Protocol those mean <b>UTF-8 bytes</b> and <b>grapheme clusters</b> respectively. Checking
+     * {@code length()} passes a message the server then rejects: a string of family emoji is a handful
+     * of graphemes and a great many chars and bytes, and one of accented Latin is fewer bytes than it
+     * looks. Refusing here, before the round trip, is the difference between a message that will not
+     * send and a message that vanishes with an unexplained 400.
+     *
+     * @return the message as the server recorded it, or empty with {@link #lastError()} set
+     */
+    public Optional<Message> send(String convoId, String text) {
+        if (convoId == null || convoId.isBlank() || text == null || text.isBlank()) {
+            return Optional.empty();
+        }
+        // ⚠ Trailing whitespace is stripped, never the whole message reshaped. A player's own line
+        // breaks and spacing are theirs.
+        String message = text.strip();
+        if (!withinLimits(message)) {
+            lastError = "That message is too long for Bluesky.";
+            return Optional.empty();
+        }
+        JsonNode root = post(
+                "chat.bsky.convo.sendMessage",
+                Map.of("convoId", convoId, "message", Map.of("text", message)));
+        if (root == null) {
+            // ⚠ `post` has already recorded WHY in lastError. Returning empty without it would put
+            // the pane back to a silent failure, which is the defect this class keeps re-learning.
+            return Optional.empty();
+        }
+        // ⚠ The RETURNED view is what gets rendered, never the string that was typed. The server
+        // assigns the id and the timestamp, and a transcript built from the local copy would show a
+        // message that does not match the one everybody else received.
+        Message sent = new Message(
+                root.path("id").asText(""),
+                root.path("sender").path("did").asText(selfDid),
+                root.path("text").asText(message),
+                parseInstant(root.path("sentAt").asText("")),
+                false);
+        LOG.log(Level.INFO, "bluesky: a message was sent to a conversation");
+        return Optional.of(sent);
+    }
+
+    /**
+     * Whether a message fits what the lexicon will accept.
+     *
+     * <p>⚠ Package-private so it can be checked without a network — the grapheme rule is the kind
+     * that is silently wrong for years because nobody on the team types emoji into a test.
+     */
+    static boolean withinLimits(String text) {
+        if (text.getBytes(StandardCharsets.UTF_8).length > MAX_MESSAGE_BYTES) {
+            return false;
+        }
+        // ⚠ CHARACTER instance, not word or sentence — a grapheme cluster is what the spec counts,
+        // and it is what a person would call "one character" even when it is several code points.
+        java.text.BreakIterator graphemes = java.text.BreakIterator.getCharacterInstance(java.util.Locale.ROOT);
+        graphemes.setText(text);
+        int count = 0;
+        while (graphemes.next() != java.text.BreakIterator.DONE) {
+            count++;
+            if (count > MAX_MESSAGE_GRAPHEMES) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** {@code maxLength} on an AT Protocol string is UTF-8 bytes. */
+    static final int MAX_MESSAGE_BYTES = 10_000;
+
+    /** And {@code maxGraphemes} is grapheme clusters, which is the tighter of the two in practice. */
+    static final int MAX_MESSAGE_GRAPHEMES = 1_000;
+
+    /**
+     * One authenticated, proxied POST.
+     *
+     * <p>⚠ Identical routing to {@link #get}: the account's own PDS plus {@code atproto-proxy}. A
+     * procedure sent to the entryway fails exactly as a query does, with the same 501 that says
+     * nothing about what is wrong.
+     *
+     * @return the parsed reply, or {@code null} with {@link #lastError()} set
+     */
+    private JsonNode post(String endpoint, Map<String, Object> payload) {
+        if (!signedIn()) {
+            return null;
+        }
+        try {
+            HttpRequest request = HttpRequest.newBuilder(URI.create(pds + "/xrpc/" + endpoint))
+                    .header("Authorization", "Bearer " + accessJwt)
+                    .header("atproto-proxy", CHAT_PROXY)
+                    .header("Content-Type", "application/json")
+                    .timeout(Duration.ofSeconds(20))
+                    .POST(HttpRequest.BodyPublishers.ofString(JSON.writeValueAsString(payload)))
+                    .build();
+            HttpResponse<String> response = http.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() != 200) {
+                String code = errorCode(response.body());
+                LOG.log(
+                        Level.WARNING,
+                        "bluesky: {0} returned {1} error {2}",
+                        new Object[] {endpoint, response.statusCode(), code.isBlank() ? "(none)" : code});
+                lastError = describeChatFailure(endpoint, response.statusCode(), code);
+                return null;
+            }
+            LOG.log(Level.FINE, "bluesky: {0} ok", endpoint);
+            return JSON.readTree(response.body());
+        } catch (Exception e) {
+            LOG.log(Level.WARNING, "bluesky: " + endpoint + " could not be reached", e);
+            lastError = "Could not reach Bluesky (" + e.getClass().getSimpleName() + ").";
+            return null;
+        }
+    }
+
+    /**
      * One authenticated, proxied GET.
      *
      * <p>⚠ The {@code atproto-proxy} header is what routes a {@code chat.bsky.*} call from the
      * player's PDS to the chat service. Without it the PDS answers "unknown method" — which reads as
      * the endpoint not existing rather than as a missing header.
+     *
+     * <p>⚠ <b>And the header is only half of it: it has to be the right host.</b> The same 501 comes
+     * back, with the header present and correct, if the request goes to the entryway instead of the
+     * account's own PDS — because the entryway has no chat method to forward. {@link #chatHost()} is
+     * resolved per account at sign-in and this is the one place it is used. See {@link PdsDirectory}.
      *
      * @return the parsed body, or {@code null} on any failure. Callers show what they have.
      */

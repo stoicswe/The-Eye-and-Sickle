@@ -66,6 +66,9 @@
        one meaningful colour into decoration. Dark enough to be read as a value, still unmistakably
        the warm accent and not a second neutral. */
     -es-amber:     #8A5200;
+    /* DIRECT chat bubbles. `mine` is the accent itself; these are what sits ON it. */
+    -es-bubble-mine-text: #FFFFFF;
+    -es-bubble-them: #3A445433;
     -es-amber-mid: #B07A28;
     -es-amber-low: #D9BC92;
 

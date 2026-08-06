@@ -36,6 +36,9 @@
 
     /* Sodium vapour. Same single meaning as -es-amber everywhere else: money, and live work. */
     -es-amber:     #FF9B3D;
+    /* DIRECT chat bubbles. `mine` is the accent itself; these are what sits ON it. */
+    -es-bubble-mine-text: #0A1218;
+    -es-bubble-them: #17262F;
     -es-amber-mid: #C06A1E;
     -es-amber-low: #6B3A0F;
 

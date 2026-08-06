@@ -217,6 +217,54 @@ class ContrastTest {
     }
 
     /**
+     * ⚠ <b>A CHAT BUBBLE IS A NEW GROUND, AND EVERY OTHER CHECK HERE MEASURES AGAINST THE PANEL.</b>
+     *
+     * <p>DIRECT fills the player's own messages with {@code -es-amber} and the other side with
+     * {@code -es-bubble-them}. Neither is the panel, so the whole rest of this file says nothing
+     * about whether the text on them can be read — and the accent bubble is the dangerous one: on
+     * six palettes {@code -es-amber} is a bright sodium and on two it is a burnt brown, so a single
+     * hard-coded text colour would be illegible on one half of the themes whichever it was. That is
+     * exactly the failure {@code DiskLamp} records for picking a literal white.
+     *
+     * <p>⚠ The bubble is composited over the panel first, which matters only for the two glass
+     * palettes — where {@code -es-bubble-them} is deliberately translucent so it tints the frost
+     * instead of punching an opaque box through the window.
+     */
+    @Test
+    @DisplayName("text on a DIRECT chat bubble clears the floor, on both sides, in every theme")
+    void chatBubblesAreLegible() throws IOException {
+        for (String theme : THEMES) {
+            Map<String, String> palette = palette(theme);
+
+            // The accent bubble. Its ground IS -es-amber — the rule names that token directly, so
+            // there is no second copy of the accent to drift from the palette's own.
+            String mineText = palette.get("-es-bubble-mine-text");
+            String accent = palette.get("-es-amber");
+            assertThat(mineText).as("%s declares -es-bubble-mine-text", theme).isNotNull();
+            assertThat(contrast(mineText, accent))
+                    .as("%s: your own message (%s) on the accent bubble (%s)", theme, mineText, accent)
+                    .isGreaterThanOrEqualTo(FLOOR);
+
+            // The other side, composited over the panel it sits in.
+            String them = palette.get("-es-bubble-them");
+            assertThat(them).as("%s declares -es-bubble-them", theme).isNotNull();
+            String themGround = over(them, panelOf(palette));
+            assertThat(contrast(palette.get("-es-text"), themGround))
+                    .as("%s: their message on the neutral bubble (%s)", theme, themGround)
+                    .isGreaterThanOrEqualTo(FLOOR);
+
+            // ⚠ AND THE BUBBLE MUST BE VISIBLE AGAINST THE PANEL AT ALL. A neutral bubble that
+            // matched the window body would leave the two sides distinguished by alignment alone —
+            // the fill would be doing nothing, and nobody would notice because the text stays
+            // perfectly legible. Not a text threshold: this is a surface, so it is held to the
+            // shallow step §2.1 uses for depth-from-brightness.
+            assertThat(contrast(themGround, panelOf(palette)))
+                    .as("%s: the neutral bubble (%s) must be distinguishable from the panel", theme, themGround)
+                    .isGreaterThan(1.12d);
+        }
+    }
+
+    /**
      * ⚠ The quiet states must stay quiet, or this test would have "fixed" the design.
      *
      * <p>Raising a floor is only correct if the hierarchy above it survives. A contact is meant to

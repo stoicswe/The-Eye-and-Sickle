@@ -31,6 +31,9 @@
 
     /* P3 amber, the phosphor this is named after. */
     -es-amber:     #FFB000;
+    /* DIRECT chat bubbles. `mine` is the accent itself; these are what sits ON it. */
+    -es-bubble-mine-text: #120C05;
+    -es-bubble-them: #2A1E0C;
     -es-amber-mid: #C77F00;
     -es-amber-low: #7A4D00;
 

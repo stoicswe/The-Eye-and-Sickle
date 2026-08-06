@@ -126,6 +126,9 @@
        else. Slightly lighter and cleaner than the deck's #FFAE38, which reads muddy against a
        lifted graphite panel rather than against the deck's near-black. */
     -es-amber:     #FFC97F;
+    /* DIRECT chat bubbles. `mine` is the accent itself; these are what sits ON it. */
+    -es-bubble-mine-text: #1A1F29;
+    -es-bubble-them: #C6D3EE24;
     -es-amber-mid: #E0AC72;
     -es-amber-low: #9A7A4A;
 

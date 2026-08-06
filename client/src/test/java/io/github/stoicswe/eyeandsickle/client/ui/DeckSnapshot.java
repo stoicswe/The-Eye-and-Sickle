@@ -247,7 +247,7 @@ public final class DeckSnapshot {
                                 : io.github.stoicswe.eyeandsickle.client.view.DirectView.create(
                                         new io.github.stoicswe.eyeandsickle.client.bsky.BlueskyChat(null),
                                         "you.bsky.social",
-                                        60));
+                                        60, io.github.stoicswe.eyeandsickle.client.view.DirectView.Alerts.NONE));
                 // ⚠ The real market, because the TOR Marknet tab appears and disappears with an
                 // ITEM and the whole point of rendering it is to see whether it did.
                 case MARKET -> (Region)
@@ -449,10 +449,15 @@ public final class DeckSnapshot {
             // there is no other way in, so AUDIT, FIREWALL and SCHEDULE were all unrenderable and
             // the harness reported the SECURITY window as covered while having only ever
             // photographed a quarter of it.
-            // ⚠ `-Ddeck.commsTab=DIRECT` selects a COMS sub-tab by its label. Same gap
+            // ⚠ `-Ddeck.commsTab=ALO` selects a COMS sub-tab by its label. Same gap
             // `deck.securitySection` closed one window along: the pane opens on its first tab and
-            // there is no other way in, so DIRECT was unrenderable and a render of COMS reported
-            // the window as covered while only ever photographing INBOX.
+            // there is no other way in, so the messenger was unrenderable and a render of COMS
+            // reported the window as covered while only ever photographing INBOX.
+            // ⚠ Matched as a PREFIX, not for equality, and that is what survived the DIRECT →
+            // ALO MESSENGER rename. An exact match against a label is a selector that breaks
+            // silently the day anybody edits the word — and it breaks by printing NOT FOUND and
+            // then photographing the wrong tab, which is the failure this whole flag exists to
+            // stop. A prefix also spares the caller quoting a system property with a space in it.
             String commsTab = System.getProperty("deck.commsTab");
             if (commsTab != null) {
                 boolean found = false;
@@ -461,7 +466,9 @@ public final class DeckSnapshot {
                         continue;
                     }
                     for (var tab : pane.getTabs()) {
-                        if (commsTab.equalsIgnoreCase(tab.getText())) {
+                        String label = tab.getText() == null ? "" : tab.getText();
+                        if (label.toLowerCase(java.util.Locale.ROOT)
+                                .startsWith(commsTab.toLowerCase(java.util.Locale.ROOT))) {
                             pane.getSelectionModel().select(tab);
                             found = true;
                             break;

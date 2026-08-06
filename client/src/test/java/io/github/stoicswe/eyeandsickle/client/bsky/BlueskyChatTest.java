@@ -42,11 +42,12 @@ class BlueskyChatTest {
         @DisplayName("a group is a convo with more than two members")
         void groups() {
             var pair = new BlueskyChat.Convo(
-                    "c1", List.of(member("did:me", "me", ""), member("did:a", "a", "")), 0, "", false);
+                    "c1", List.of(member("did:me", "me", ""), member("did:a", "a", "")), 0, "", "", false);
             var group = new BlueskyChat.Convo(
                     "c2",
                     List.of(member("did:me", "me", ""), member("did:a", "a", ""), member("did:b", "b", "")),
                     0,
+                    "",
                     "",
                     false);
 
@@ -59,7 +60,12 @@ class BlueskyChatTest {
         @DisplayName("the title names the other people, not you")
         void titleExcludesSelf() {
             var convo = new BlueskyChat.Convo(
-                    "c1", List.of(member("did:me", "me", "Me"), member("did:a", "kyrell", "Kyrell")), 0, "", false);
+                    "c1",
+                    List.of(member("did:me", "me", "Me"), member("did:a", "kyrell", "Kyrell")),
+                    0,
+                    "",
+                    "",
+                    false);
             assertThat(convo.title("did:me")).isEqualTo("Kyrell");
         }
 
@@ -73,6 +79,7 @@ class BlueskyChatTest {
                             member("did:a", "a", "Ana"),
                             member("did:b", "b", "Bo")),
                     0,
+                    "",
                     "",
                     false);
             assertThat(convo.title("did:me")).contains("2 people").contains("Ana").contains("Bo");
@@ -96,7 +103,7 @@ class BlueskyChatTest {
         @Test
         @DisplayName("a conversation with only you says so")
         void selfOnly() {
-            var convo = new BlueskyChat.Convo("c1", List.of(member("did:me", "me", "Me")), 0, "", false);
+            var convo = new BlueskyChat.Convo("c1", List.of(member("did:me", "me", "Me")), 0, "", "", false);
             assertThat(convo.title("did:me")).isNotBlank();
         }
     }
@@ -153,10 +160,28 @@ class BlueskyChatTest {
          * endpoint and the status — this client captures its own log and invites the player to send
          * it in.
          */
+        /**
+         * ⚠ <b>BOTH FILES, and widening this was not optional.</b>
+         *
+         * <p>{@code PdsDirectory} was split out of the sign-in path and logs on its own. A guard that
+         * scanned only the file it was written against would have gone on passing while the new one
+         * grew a log line carrying a URL — which is the failure mode this whole test exists to stop,
+         * arriving through the door the refactor opened.
+         */
+        private static String sensitiveSources() throws IOException {
+            return source() + "\n" + read("PdsDirectory.java");
+        }
+
+        private static String read(String name) throws IOException {
+            Path path = Path.of("src/main/java/io/github/stoicswe/eyeandsickle/client/bsky/" + name);
+            Assumptions.assumeTrue(Files.exists(path), "source not on this classpath layout");
+            return Files.readString(path);
+        }
+
         @Test
         @DisplayName("no log line carries a body, a URL or a token")
         void nothingSensitiveIsLogged() throws IOException {
-            for (String line : source().split("\n")) {
+            for (String line : sensitiveSources().split("\n")) {
                 String code = line.strip();
                 if (code.startsWith("*") || code.startsWith("//") || !code.contains("LOG.")) {
                     continue;
@@ -356,6 +381,75 @@ class BlueskyChatTest {
                     .map(java.lang.reflect.RecordComponent::getName)
                     .toList();
             assertThat(fields).containsExactly("id", "senderDid", "text", "sentAt", "deleted");
+        }
+    }
+
+    /**
+     * ⚠ <b>THE 501 REGRESSION — chat calls were being sent to the entryway.</b>
+     *
+     * <p>{@code bsky.social} accepts a sign-in for every Bluesky-hosted account and hosts none of
+     * them. It answered {@code 501 MethodNotImplemented} to every {@code chat.bsky.*} call, which
+     * reads as "this API does not exist" and meant "wrong machine". The host is per account and is
+     * settled at sign-in; these assert that it actually moves.
+     *
+     * <p>⚠ Verified against the unfixed code before being trusted: with the host final and set from
+     * the constructor, {@link #theHostMovesToTheAccountsOwnPds} fails.
+     */
+    @Nested
+    @DisplayName("which server the messages are asked for")
+    class Routing {
+
+        private static final tools.jackson.databind.ObjectMapper JSON = new tools.jackson.databind.ObjectMapper();
+
+        /** The real document for the account this was found on. */
+        private static final String SESSION_DID_DOC = """
+                {
+                  "id": "did:plc:zczf6tbnu4prqmdtj2hemgqu",
+                  "service": [
+                    {
+                      "id": "#atproto_pds",
+                      "type": "AtprotoPersonalDataServer",
+                      "serviceEndpoint": "https://leccinum.us-west.host.bsky.network"
+                    }
+                  ]
+                }
+                """;
+
+        /** ⚠ Before anyone knows whose account it is, the entryway is the only sane starting point. */
+        @Test
+        @DisplayName("it starts at the entryway")
+        void itStartsAtTheEntryway() {
+            assertThat(new BlueskyChat(null).chatHost()).isEqualTo(BlueskyChat.DEFAULT_PDS);
+        }
+
+        /** ⚠ The one that fails against the old code. */
+        @Test
+        @DisplayName("the session's DID document moves it to the account's own PDS")
+        void theHostMovesToTheAccountsOwnPds() {
+            var chat = new BlueskyChat(null);
+            chat.adoptDidDocument(JSON.readTree(SESSION_DID_DOC));
+
+            assertThat(chat.chatHost())
+                    .as("asking the entryway for a conversation is the 501, and it is silent — "
+                            + "sign-in succeeds and only the messages fail")
+                    .isEqualTo("https://leccinum.us-west.host.bsky.network")
+                    .isNotEqualTo(BlueskyChat.DEFAULT_PDS);
+        }
+
+        /**
+         * ⚠ A session without a {@code didDoc} must leave a working host alone.
+         *
+         * <p>{@code didDoc} is optional in the lexicon, so clearing the host on its absence would
+         * turn a perfectly good session into a stream of malformed URLs — a worse failure than the
+         * one being fixed, and one that would only appear against certain servers.
+         */
+        @Test
+        @DisplayName("a session with no DID document changes nothing")
+        void noDocumentChangesNothing() {
+            var chat = new BlueskyChat("https://pds.example");
+            chat.adoptDidDocument(JSON.readTree("{}"));
+
+            assertThat(chat.chatHost()).isEqualTo("https://pds.example");
         }
     }
 }

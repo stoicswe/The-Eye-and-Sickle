@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.github.stoicswe.eyeandsickle.client.bsky.BlueskyChat;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -70,5 +71,98 @@ class DirectViewTest {
     @DisplayName("the pane never second-guesses whether an account exists")
     void theQuestionIsAnsweredInOnePlace() {
         assertThat(DirectView.state(new BlueskyChat(null))).isEqualTo(DirectView.State.CONNECTING);
+    }
+
+    /**
+     * The preview that rides in the notice stack.
+     *
+     * <p>⚠ A notice is <b>one line</b>. A message pasted with line breaks in it would make the stack
+     * jump in height, and one long enough to be the message itself defeats the point of a preview.
+     */
+    @Nested
+    @DisplayName("the notification preview")
+    class Snippets {
+
+        @Test
+        @DisplayName("a short message is shown as it is")
+        void shortIsUntouched() {
+            assertThat(DirectView.snippet("on my way")).isEqualTo("on my way");
+        }
+
+        /** ⚠ Flattened, never left with the breaks in. */
+        @Test
+        @DisplayName("line breaks are flattened into one line")
+        void flattened() {
+            assertThat(DirectView.snippet("first\n\nsecond   third")).isEqualTo("first second third");
+        }
+
+        /** ⚠ Cut on a word boundary — a preview ending mid-word reads as corrupted text. */
+        @Test
+        @DisplayName("a long message is cut on a word boundary and marked")
+        void longIsCut() {
+            String long1 = "the vault estimate on that estate box was completely wrong and I want "
+                    + "another look before anybody else goes near it";
+            String cut = DirectView.snippet(long1);
+
+            assertThat(cut).endsWith("…").doesNotContain("\n");
+            assertThat(cut.length()).isLessThan(long1.length());
+
+            String kept = cut.substring(0, cut.length() - 1);
+            assertThat(long1).as("the preview is a real prefix of the message").startsWith(kept);
+            // ⚠ THE actual word-boundary property: the message has a SPACE where the cut was made.
+            // Asserting the preview does not end mid-word is not the same thing and is trivially
+            // true of every cut, word boundary or not — the first version of this check did that
+            // and would have passed against a blind substring.
+            assertThat(long1.charAt(kept.length()))
+                    .as("cut between words, not through one")
+                    .isEqualTo(' ');
+        }
+
+        /**
+         * ⚠ A deleted or attachment-only message has no text at all, and an empty preview is
+         * indistinguishable from a broken notification.
+         */
+        @Test
+        @DisplayName("an empty message still says something")
+        void emptySaysSomething() {
+            assertThat(DirectView.snippet("")).isNotBlank();
+            assertThat(DirectView.snippet(null)).isNotBlank();
+            assertThat(DirectView.snippet("   ")).isNotBlank();
+        }
+    }
+
+    /**
+     * The composer's growth rule.
+     *
+     * <h2>⚠ Only the fallback is checkable without a toolkit, and it is the half that matters here</h2>
+     *
+     * The wrapped measurement needs a real {@link javafx.scene.text.Font}, which needs the graphics
+     * toolkit — and this repo keeps toolkit-dependent checks to a single file, verifying the rest by
+     * render. What IS checkable is the contract when there is nothing to measure against: before the
+     * first layout there is no width, and the answer must still be sane rather than zero or a crash.
+     *
+     * <p>⚠ It must <b>undercount</b> in that state, never overcount. A box one row short for a single
+     * frame corrects itself on the next width change; one that opened six rows tall on an empty
+     * conversation would look broken and stay that way.
+     */
+    @Nested
+    @DisplayName("how tall the composer gets")
+    class Rows {
+
+        @Test
+        @DisplayName("with no width to wrap into it counts hard line breaks")
+        void fallsBackToHardLines() {
+            assertThat(DirectView.Composer.rowsFor("one line", -1, null)).isEqualTo(1);
+            assertThat(DirectView.Composer.rowsFor("one\ntwo", -1, null)).isEqualTo(2);
+            assertThat(DirectView.Composer.rowsFor("one\ntwo\nthree", 0, null)).isEqualTo(3);
+        }
+
+        /** ⚠ An empty box is one row, never zero — a zero-row TextArea has no height at all. */
+        @Test
+        @DisplayName("an empty box is one row")
+        void emptyIsOneRow() {
+            assertThat(DirectView.Composer.rowsFor("", 400, null)).isEqualTo(1);
+            assertThat(DirectView.Composer.rowsFor(null, 400, null)).isEqualTo(1);
+        }
     }
 }

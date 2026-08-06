@@ -31,6 +31,9 @@
 
     /* The beam at full intensity: still the single accent, still meaning live/earning only. */
     -es-amber:     #4AFF6E;
+    /* DIRECT chat bubbles. `mine` is the accent itself; these are what sits ON it. */
+    -es-bubble-mine-text: #061206;
+    -es-bubble-them: #14291A;
     -es-amber-mid: #2FBF4C;
     -es-amber-low: #176A2A;
 

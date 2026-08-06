@@ -932,7 +932,43 @@ public class EyeAndSickleClient extends Application {
             chat.credentials(handle, secret.get());
         }
         return io.github.stoicswe.eyeandsickle.client.view.DirectView.create(
-                chat, handle, profile.settings().blueskySyncSeconds);
+                chat, handle, profile.settings().blueskySyncSeconds, deckAlerts());
+    }
+
+    /**
+     * What DIRECT is allowed to do to the deck when a message arrives.
+     *
+     * <p>⚠ The two halves of the suppression rule live here because this is the only place that can
+     * answer either: the view has never known what a deck is, and the window manager has never known
+     * what a conversation is.
+     *
+     * <p>⚠ {@code WindowSpec.COMMS.id()} rather than a literal — the id keys saved desk layouts and
+     * accelerators, and a second spelling of it is one rename away from a notification rule that
+     * silently never suppresses.
+     */
+    private io.github.stoicswe.eyeandsickle.client.view.DirectView.Alerts deckAlerts() {
+        return new io.github.stoicswe.eyeandsickle.client.view.DirectView.Alerts() {
+            @Override
+            public boolean commsFocused() {
+                return deck != null
+                        && deck.desk()
+                                .focusedWindow()
+                                .map(window -> window.id()
+                                        .equals(io.github.stoicswe.eyeandsickle.client.window.WindowSpec.COMMS.id()))
+                                .orElse(false);
+            }
+
+            @Override
+            public void preview(String who, String snippet) {
+                if (deck == null) {
+                    return;
+                }
+                // ⚠ NOT severe. §2.1 rations the alarm colour to loss and hostile state, and a
+                // message from a friend is neither — a notice that shouted would spend the panel's
+                // whole alarm budget on somebody saying hello.
+                deck.notices().say("bsky", who + " — " + snippet, false);
+            }
+        };
     }
 
     private GlobalShortcuts.Handlers globalHandlers() {

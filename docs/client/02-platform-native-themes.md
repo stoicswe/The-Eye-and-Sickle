@@ -233,6 +233,7 @@ Stated as a closed list for the same reason §2.9 is: so `00-client-overview.md`
 | The quote provider the player picked (`client/stocks/HttpStockFeed`, `SymbolLookup`) | A ticker symbol, and the player's own API key in the URL | Blank key by default — the panel runs on the simulated feed until the player pastes one |
 | The Discord client running on this machine (`client/presence/*`) | One constant from `PresenceState`, an elapsed timestamp, and this process's pid | `discordPresenceEnabled`, off by default; also inert with no application id configured |
 | The player's own **Bluesky PDS** (`client/bsky/BlueskyChat`) ‡ | An app password once, at sign-in; thereafter a bearer token and a conversation id | No account connected by default; needs a handle **and** an app password the player put in the OS credential store |
+| The **handle resolver** and the **PLC directory** (`client/bsky/PdsDirectory`) § | The handle the player typed, then their DID — both public by construction. **No credential, ever** | Same gate: only on a sign-in the player initiated |
 
 > **‡ THE THIRD ENTRY, added 2026-08-06 on explicit direction — and the first that is somebody's real social account.**
 >
@@ -258,7 +259,33 @@ Stated as a closed list for the same reason §2.9 is: so `00-client-overview.md`
 > `request`; the client shows both and marks the pending ones. Building a second, parallel allow-list
 > here would be this game keeping a social graph, which is exactly what §2.9 forbids.
 
-None of the first two carries anything from §2.9's read list, nor an operator handle, DID, avatar, balance, standing, item, machine name or address. ⚠ The Discord entry is **not a network socket** — it is a Unix domain socket or a named pipe to a local process — and its candidate paths are **composed from environment variables rather than discovered by listing a directory**, because enumerating `$TMPDIR` would mean reading the names of every other program's IPC endpoints, which is the fingerprinting §2.9 says this client never does.
+> **§ THE FOURTH ENTRY EXISTS TO KEEP THE THIRD ONE HONEST, added 2026-08-06.**
+>
+> The client cannot know which server hosts an account until it looks, and **`bsky.social` is not
+> that server** — it is the entryway, which fronts session methods for every Bluesky-hosted account
+> and holds none of them. Assuming otherwise is what made direct messages fail outright: sign-in
+> succeeded and every `chat.bsky.*` call came back **501 MethodNotImplemented**, because the entryway
+> has no chat method to forward.
+>
+> ⚠ **The order is the privacy argument, and it is the whole reason this is two requests rather than
+> zero.** The free fix is to keep signing in at the entryway and adopt the `didDoc` that
+> `createSession` returns — which is what `@atproto/api` does, and which is kept here as a second
+> correction. On its own it means **a self-hosting player's app password reaches Bluesky before
+> anyone discovers their account is not there.** A password belongs to exactly one server, so the
+> host is settled first out of public data, and the credential is posted only to the machine meant to
+> hold it.
+>
+> ⚠ **Nothing about the player or the game is sent** — a handle and a DID, both already public, and
+> no bearer token. It happens **once per sign-in**, never on a poll.
+>
+> ⚠ **The endpoint that comes back is a credential destination, so it is validated rather than
+> trusted**: HTTPS only (an `http://` endpoint would put the app password in clear), no userinfo
+> (`https://real@evil/` reads as one host and resolves to another), and the `#atproto_pds` service is
+> matched by name rather than taken as the first entry in the array — a labeler sits in the same
+> list. Anything unusable falls back to the entryway, which is correct for every Bluesky-hosted
+> account.
+
+None of the first two carries anything from §2.9's read list, nor an operator handle, DID, avatar, balance, standing, item, machine name or address. ⚠ **The last two do carry a handle and a DID, and the distinction is which one:** that is the player's **Bluesky** identity, which they typed in themselves and which is public on a public network — never the *operator* handle, DID or avatar the game holds, and never anything else about the game. No entry in this table transmits game state in either direction. ⚠ The Discord entry is **not a network socket** — it is a Unix domain socket or a named pipe to a local process — and its candidate paths are **composed from environment variables rather than discovered by listing a directory**, because enumerating `$TMPDIR` would mean reading the names of every other program's IPC endpoints, which is the fingerprinting §2.9 says this client never does.
 
 ---
 

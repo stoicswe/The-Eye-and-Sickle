@@ -31,7 +31,57 @@ class SyncSpinTest {
     @DisplayName("the motion is a finite table, short enough to read")
     void itIsATable() {
         double[] angles = SyncSpin.angles();
-        assertThat(angles).hasSizeBetween(8, 40);
+        // ⚠ The ceiling was 40 and is 80. It rose because the mark moved off `Pulse` onto a 30fps
+        // clock of its own — Pulse quantises to 100ms, so the old table was stepping at 10fps
+        // however small its entries were — and smoothness on this deck comes from a FINER LADDER,
+        // never from interpolation (§5). More entries is the sanctioned way to be smooth; a formula
+        // is not, and the bound is what keeps "finer" from becoming "generated".
+        assertThat(angles).hasSizeBetween(8, 80);
+    }
+
+    /**
+     * ⚠ <b>A TURN THAT HAS STARTED ALWAYS FINISHES.</b>
+     *
+     * <p>A sync check is often back within a few hundred milliseconds, and the first version snapped
+     * the mark home the moment it was. So the common case rendered a twitch — a few degrees of lean
+     * and then nothing — and how far it got was a function of somebody else's server latency, making
+     * the same event look different every time.
+     *
+     * <p>This walks the rule the way the clock does and asserts it reaches the last entry, having
+     * been told from the very first step that the sync is already over.
+     */
+    @Test
+    @DisplayName("a turn that has begun runs to the end of the table even when the sync is over")
+    void aTurnAlwaysCompletes() {
+        int steps = SyncSpin.angles().length;
+        int step = SyncSpin.advance(-1, true);
+        assertThat(step).as("a sync starts the turn at the first entry").isZero();
+
+        // From here on the sync is finished. It must still walk every remaining entry.
+        for (int i = 1; i < steps; i++) {
+            step = SyncSpin.advance(step, false);
+            assertThat(step)
+                    .as("step %d: cutting the turn short here is the twitch this rule exists to stop", i)
+                    .isEqualTo(i);
+        }
+        assertThat(SyncSpin.advance(step, false))
+                .as("and only THEN does it come to rest")
+                .isEqualTo(-1);
+    }
+
+    /** ⚠ At rest and nothing happening, it must stay at rest rather than turning on its own. */
+    @Test
+    @DisplayName("it does not turn when no sync is running")
+    void itRestsWhenIdle() {
+        assertThat(SyncSpin.advance(-1, false)).isEqualTo(-1);
+    }
+
+    /** ⚠ A sync still in flight when the table runs out starts another turn, so a slow one turns on. */
+    @Test
+    @DisplayName("a sync still running restarts the turn")
+    void aSlowSyncKeepsTurning() {
+        int last = SyncSpin.angles().length - 1;
+        assertThat(SyncSpin.advance(last, true)).isZero();
     }
 
     /**
