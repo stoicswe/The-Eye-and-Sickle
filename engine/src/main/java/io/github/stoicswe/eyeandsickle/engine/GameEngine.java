@@ -1,20 +1,5 @@
 package io.github.stoicswe.eyeandsickle.engine;
 
-import io.github.stoicswe.eyeandsickle.protocol.game.BreachAction;
-import io.github.stoicswe.eyeandsickle.protocol.game.BreachSnapshot;
-import io.github.stoicswe.eyeandsickle.protocol.game.BreachTarget;
-import io.github.stoicswe.eyeandsickle.protocol.game.ComputeBudget;
-import io.github.stoicswe.eyeandsickle.protocol.game.ComputeConsumer;
-import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
-import io.github.stoicswe.eyeandsickle.protocol.game.FeeTier;
-import io.github.stoicswe.eyeandsickle.protocol.game.FsEntry;
-import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
-import io.github.stoicswe.eyeandsickle.protocol.game.MiningPool;
-import io.github.stoicswe.eyeandsickle.protocol.game.MiningSnapshot;
-import io.github.stoicswe.eyeandsickle.protocol.game.NetDocument;
-import io.github.stoicswe.eyeandsickle.protocol.game.NetMap;
-import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
-import io.github.stoicswe.eyeandsickle.protocol.game.SweepReport;
 import io.github.stoicswe.eyeandsickle.engine.breach.BreachResult;
 import io.github.stoicswe.eyeandsickle.engine.breach.BreachRules;
 import io.github.stoicswe.eyeandsickle.engine.breach.BreachSnapshots;
@@ -40,16 +25,30 @@ import io.github.stoicswe.eyeandsickle.engine.save.SaveStore;
 import io.github.stoicswe.eyeandsickle.engine.state.AllocationState;
 import io.github.stoicswe.eyeandsickle.engine.state.ChainState;
 import io.github.stoicswe.eyeandsickle.engine.state.DefenseState;
+import io.github.stoicswe.eyeandsickle.engine.state.GameSave;
 import io.github.stoicswe.eyeandsickle.engine.state.HostState;
 import io.github.stoicswe.eyeandsickle.engine.state.ItemState;
 import io.github.stoicswe.eyeandsickle.engine.state.LedgerEntryState;
 import io.github.stoicswe.eyeandsickle.engine.state.MinerState;
 import io.github.stoicswe.eyeandsickle.engine.state.NodeState;
-import io.github.stoicswe.eyeandsickle.engine.state.PendingTxState;
 import io.github.stoicswe.eyeandsickle.engine.state.ScanReportState;
 import io.github.stoicswe.eyeandsickle.engine.state.SessionState;
-import io.github.stoicswe.eyeandsickle.engine.state.GameSave;
 import io.github.stoicswe.eyeandsickle.engine.state.TaskState;
+import io.github.stoicswe.eyeandsickle.protocol.game.BreachAction;
+import io.github.stoicswe.eyeandsickle.protocol.game.BreachSnapshot;
+import io.github.stoicswe.eyeandsickle.protocol.game.BreachTarget;
+import io.github.stoicswe.eyeandsickle.protocol.game.ComputeBudget;
+import io.github.stoicswe.eyeandsickle.protocol.game.ComputeConsumer;
+import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
+import io.github.stoicswe.eyeandsickle.protocol.game.FeeTier;
+import io.github.stoicswe.eyeandsickle.protocol.game.FsEntry;
+import io.github.stoicswe.eyeandsickle.protocol.game.MiningMode;
+import io.github.stoicswe.eyeandsickle.protocol.game.MiningPool;
+import io.github.stoicswe.eyeandsickle.protocol.game.MiningSnapshot;
+import io.github.stoicswe.eyeandsickle.protocol.game.NetDocument;
+import io.github.stoicswe.eyeandsickle.protocol.game.NetMap;
+import io.github.stoicswe.eyeandsickle.protocol.game.StorageTier;
+import io.github.stoicswe.eyeandsickle.protocol.game.SweepReport;
 import java.math.BigInteger;
 import java.time.Clock;
 import java.time.Duration;
@@ -364,6 +363,12 @@ public final class GameEngine {
         // bug would be permanent for anyone who had already taken a machine — they would have to
         // breach it a second time, on a target the game would still be refusing `connect` to.
         settleBreachOutcomes();
+        // ⚠ A one-time relabel for characters created before machine names existed, and a deliberate
+        // exception to the no-legacy-machinery rule — see TopologyGenerator.relabelLegacy, which also
+        // records that it should be deleted the moment a build ships. It runs BEFORE nothing in
+        // particular and AFTER settleBreachOutcomes only so that a report the breach just created is
+        // corrected in the same load rather than on the next one.
+        TopologyGenerator.relabelLegacy(save);
         long recovered = ComputeRules.settleRecovered(save.rig, now);
         // ⚠ Tasks settle HERE, not only in tick(). resume() sets lastTick = now, so the first tick
         // after loading sees zero elapsed time and returns early — a six-minute scan that ended
@@ -552,11 +557,7 @@ public final class GameEngine {
         // consistently.
         if (io.github.stoicswe.eyeandsickle.engine.rules.ComputeLadder.reconcile(save)) {
             changed = true;
-            EventLog.notice(
-                    save,
-                    "rig",
-                    "Compute ceiling is now " + save.rig.totalCycles + " cycles.",
-                    now);
+            EventLog.notice(save, "rig", "Compute ceiling is now " + save.rig.totalCycles + " cycles.", now);
         }
         // ⚠ THE BLACK MARKET NOTICES YOU ON THE TICK, so the introduction happens while the player
         // is playing rather than only on the load after they earned it. Standing and heat both move
@@ -585,8 +586,8 @@ public final class GameEngine {
                             started -> EventLog.notice(
                                     save,
                                     "scan",
-                                    "scheduled " + chosen.flag() + " audit started -- "
-                                            + chosen.cycles() + " cycles committed.",
+                                    "scheduled " + chosen.flag() + " audit started -- " + chosen.cycles()
+                                            + " cycles committed.",
                                     now),
                             () -> EventLog.notice(
                                     save,
@@ -603,42 +604,35 @@ public final class GameEngine {
         // ⚠ Dividends land on the TICK, and are paid whether or not the market is open — a dividend
         // is not a trade, and gating it on session hours would mean a weekend-only player never
         // collected anything.
-        for (var paid : io.github.stoicswe.eyeandsickle.engine.rules.Brokerage.settleDividends(
-                save, stockFeed, now)) {
+        for (var paid : io.github.stoicswe.eyeandsickle.engine.rules.Brokerage.settleDividends(save, stockFeed, now)) {
             changed = true;
             EventLog.notice(
                     save,
                     "market",
-                    "dividend: " + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.format(
-                                    paid.amountWei())
+                    "dividend: " + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.format(paid.amountWei())
                             + " on " + paid.shares() + " × " + paid.symbol() + ".",
                     now);
         }
         // ⚠ Listings sell on the TICK, at a RATE PER HOUR — never a chance per tick. A per-tick roll
         // makes a faster-ticking client sell faster and gives a three-day absence exactly one roll,
         // both invisible in play. `elapsed` is what converts either into the same answer.
-        for (var sale : io.github.stoicswe.eyeandsickle.engine.rules.ShadowTrading.settleListings(
-                save, elapsed, now)) {
+        for (var sale : io.github.stoicswe.eyeandsickle.engine.rules.ShadowTrading.settleListings(save, elapsed, now)) {
             changed = true;
             EventLog.notice(
                     save,
                     "market",
                     sale.owesDelivery()
                             ? "somebody took your listing for " + sale.itemType() + " at "
-                                    + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.format(
-                                            sale.priceWei())
+                                    + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.format(sale.priceWei())
                                     + " (less "
-                                    + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.format(
-                                            sale.feeWei())
+                                    + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.format(sale.feeWei())
                                     + " listing fee). You have " + Balance.SHADOW_FULFILMENT_HOURS
                                     + " hours to send it — they have already paid, and the fee stands "
                                     + "whether or not you do."
                             : "sold " + sale.itemType() + " off your listing for "
-                                    + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.format(
-                                            sale.priceWei())
+                                    + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.format(sale.priceWei())
                                     + " (less "
-                                    + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.format(
-                                            sale.feeWei())
+                                    + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.format(sale.feeWei())
                                     + " listing fee). The goods were attached, so it is done.",
                     now);
         }
@@ -656,13 +650,12 @@ public final class GameEngine {
                                     + "they keep nothing but the story."
                             : lapsed.counterparty() + " never sent the " + lapsed.itemType()
                                     + " you paid "
-                                    + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.format(
-                                            lapsed.paidWei())
+                                    + io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin.format(lapsed.paidWei())
                                     + " for. There was no escrow; that money is gone.",
                     now);
         }
-        for (var fill : io.github.stoicswe.eyeandsickle.engine.rules.ShadowMarket.settle(
-                save, now, now.getEpochSecond())) {
+        for (var fill :
+                io.github.stoicswe.eyeandsickle.engine.rules.ShadowMarket.settle(save, now, now.getEpochSecond())) {
             changed = true;
             EventLog.notice(
                     save,
@@ -1601,8 +1594,7 @@ public final class GameEngine {
         String activeId = io.github.stoicswe.eyeandsickle.engine.rules.DownloadQueue.active(save)
                 .map(order -> order.orderId)
                 .orElse("");
-        java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.DownloadOrder> out =
-                new java.util.ArrayList<>();
+        java.util.List<io.github.stoicswe.eyeandsickle.protocol.game.DownloadOrder> out = new java.util.ArrayList<>();
         for (var order : queue) {
             var task = io.github.stoicswe.eyeandsickle.engine.rules.DownloadQueue.taskFor(save, order);
             boolean active = order.orderId.equals(activeId);
@@ -1680,15 +1672,15 @@ public final class GameEngine {
     public io.github.stoicswe.eyeandsickle.protocol.game.SharesSnapshot shares(String symbol, String query) {
         Instant now = clock.instant();
         var listing = io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.bySymbol(symbol)
-                .orElseGet(() -> io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.all().getFirst());
+                .orElseGet(() -> io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.all()
+                        .getFirst());
         var quote = stockFeed.quote(listing.symbol(), now);
         var session = io.github.stoicswe.eyeandsickle.engine.stocks.MarketCalendar.sessionAt(now);
 
-        java.math.BigInteger price = quote
-                .map(io.github.stoicswe.eyeandsickle.engine.stocks.StockFeed.Quote::priceWei)
+        java.math.BigInteger price = quote.map(io.github.stoicswe.eyeandsickle.engine.stocks.StockFeed.Quote::priceWei)
                 .orElse(java.math.BigInteger.ZERO);
-        java.math.BigInteger previous = quote
-                .map(io.github.stoicswe.eyeandsickle.engine.stocks.StockFeed.Quote::previousCloseWei)
+        java.math.BigInteger previous = quote.map(
+                        io.github.stoicswe.eyeandsickle.engine.stocks.StockFeed.Quote::previousCloseWei)
                 .orElse(java.math.BigInteger.ZERO);
 
         var results = io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.search(query).stream()
@@ -1738,8 +1730,7 @@ public final class GameEngine {
                                     .orElse(position.averageCostWei()),
                             q.map(io.github.stoicswe.eyeandsickle.engine.stocks.StockFeed.Quote::changePercent)
                                     .orElse(0.0d),
-                            io.github.stoicswe.eyeandsickle.engine.rules.Brokerage
-                                    .priceHistory(save, position.symbol())
+                            io.github.stoicswe.eyeandsickle.engine.rules.Brokerage.priceHistory(save, position.symbol())
                                     .stream()
                                     .map(sample ->
                                             new io.github.stoicswe.eyeandsickle.protocol.game.SharesSnapshot.Point(
@@ -1797,28 +1788,26 @@ public final class GameEngine {
                                     each,
                                     tickerNameOf(each),
                                     io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.bySymbol(each)
-                                            .map(io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.Listing
-                                                    ::sector)
+                                            .map(io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.Listing::sector)
                                             .orElse(""),
                                     q.map(io.github.stoicswe.eyeandsickle.engine.stocks.StockFeed.Quote::priceWei)
                                             .orElse(java.math.BigInteger.ZERO),
-                                    q.map(io.github.stoicswe.eyeandsickle.engine.stocks.StockFeed.Quote
-                                                    ::changePercent)
+                                    q.map(io.github.stoicswe.eyeandsickle.engine.stocks.StockFeed.Quote::changePercent)
                                             .orElse(0.0d),
                                     io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.bySymbol(each)
-                                            .map(io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.Listing
-                                                    ::annualYieldBp)
+                                            .map(
+                                                    io.github.stoicswe.eyeandsickle.engine.stocks.Tickers.Listing
+                                                            ::annualYieldBp)
                                             .orElse(0L),
                                     save.brokerage.holdings.stream()
                                             .filter(holding -> holding.symbol.equals(each))
                                             .mapToInt(holding -> holding.shares)
                                             .sum(),
-                                    io.github.stoicswe.eyeandsickle.engine.rules.Brokerage
-                                            .priceHistory(save, each)
+                                    io.github.stoicswe.eyeandsickle.engine.rules.Brokerage.priceHistory(save, each)
                                             .stream()
                                             .map(sample ->
-                                                    new io.github.stoicswe.eyeandsickle.protocol.game
-                                                            .SharesSnapshot.Point(sample.at, sample.wei))
+                                                    new io.github.stoicswe.eyeandsickle.protocol.game.SharesSnapshot
+                                                            .Point(sample.at, sample.wei))
                                             .toList());
                         })
                         .toList(),
@@ -1840,7 +1829,8 @@ public final class GameEngine {
     public io.github.stoicswe.eyeandsickle.protocol.game.ShadowSnapshot shadowMarket(
             String itemType, io.github.stoicswe.eyeandsickle.engine.rules.ShadowMarket.Interval interval, int candles) {
         if (itemType == null
-                || !io.github.stoicswe.eyeandsickle.engine.rules.ShadowMarket.listings().contains(itemType)) {
+                || !io.github.stoicswe.eyeandsickle.engine.rules.ShadowMarket.listings()
+                        .contains(itemType)) {
             return io.github.stoicswe.eyeandsickle.protocol.game.ShadowSnapshot.none(String.valueOf(itemType));
         }
         Instant now = clock.instant();
@@ -2449,7 +2439,9 @@ public final class GameEngine {
                         save,
                         "storage",
                         "extracted " + VirtualFs.nameOf(task.outcome) + ": "
-                                + unpacked.stream().map(file -> file.name).collect(java.util.stream.Collectors.joining(", "))
+                                + unpacked.stream()
+                                        .map(file -> file.name)
+                                        .collect(java.util.stream.Collectors.joining(", "))
                                 + ". The archive is gone; the packages install once your payment confirms.",
                         task.endsAt);
                 continue;
@@ -2557,8 +2549,8 @@ public final class GameEngine {
                 // reconciling, because the allocation is real.
                 ComputeRules.beginRecovery(save.rig, task.allocationId, task.endsAt);
                 Rng scanRng = Rng.of(save);
-                var report =
-                        io.github.stoicswe.eyeandsickle.engine.net.PortScanRules.settle(save, task, scanRng, task.endsAt);
+                var report = io.github.stoicswe.eyeandsickle.engine.net.PortScanRules.settle(
+                        save, task, scanRng, task.endsAt);
                 lastPortScans.put(report.address(), report);
                 // ⚠ Folded into the machine's file BEFORE anything is logged, so the completion
                 // notice and the RECON list cannot disagree about what was learned.
@@ -2727,10 +2719,7 @@ public final class GameEngine {
         }
         save.defenses.remove(found);
         EventLog.notice(
-                save,
-                "defense",
-                kind + " disarmed; " + found.reservedCycles + " cycles released.",
-                clock.instant());
+                save, "defense", kind + " disarmed; " + found.reservedCycles + " cycles released.", clock.instant());
         return true;
     }
 

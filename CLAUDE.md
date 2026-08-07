@@ -1171,10 +1171,29 @@ from computing, mathematics, physics, quantum and astronomy), operators are ordi
   `ragnhild` and `torbjorn` are not in the pool. A machine name does not fit at all (23 at worst), so
   it takes a line and ~2.5% of combinations clip; the full name is on the tooltip, in the host list
   and in the RECON file.
-- ⚠ **Existing characters keep their old `<server>-<index>` names.** `TopologyGenerator.generate`
-  returns early when a topology exists — that guard is what stops a player rerolling the world — so
-  the new scheme applies to **new characters only**. Nothing migrates it, deliberately: a relabelling
-  pass is the legacy-save machinery this repo does not have.
+- ⚠ **EXISTING CHARACTERS ARE RELABELLED ON LOAD — `TopologyGenerator.relabelLegacy`, and it is the
+  ONE migration in this repo.** `generate` returns early when a topology exists (that guard is what
+  stops a player rerolling their world), so without this a character made before 2026-08-07 would
+  carry `home-relay-00` names **forever** and the only remedy on offer would be "delete your
+  character". ⚠ It is an explicit exception to the no-legacy-machinery rule, justified by a name
+  having **no mechanical consequence** — rewriting one cannot change an outcome, which is what makes
+  it safe where a rules migration would not be. ⚠ **Delete it the moment a build ships.**
+- ⚠ **Idempotent by construction, never by a flag** — after one pass every label satisfies
+  `NpcNames.looksGenerated`, so the second finds nothing. No "migrated" marker to fall out of step.
+  ⚠ **`looksGenerated` asks "is this one of MINE", not "is this the old format"**: testing for
+  `<server>-<NN>` would need a copy of the old scheme kept in step by hand, and the positive question
+  needs only the pools and survives however many schemes came before.
+- ⚠ **THE RIG MUST BE SKIPPED, on `SELF` and not on its label.** `localhost` is not a generated name,
+  so the obvious loop renames the player's own machine to something like `sultry-adleman` — the most
+  confusing single outcome available here. Negative-tested: it fires two assertions.
+- ⚠ **A name already PINNED on a recon file is corrected in the same pass.** `NodeReportState
+  .hostName` is write-once, so a machine breached before this shipped has the old name defended
+  against every future scan — the map would show one name and RECON another, on the same machine,
+  permanently.
+- ⚠ **The symptom, for next time: operator names updated and machine names did not.** Operators are
+  derived at read time (`VirtualFs.hostUser` → `NpcNames.operator`), so an existing save picked them
+  up instantly; labels are stored at generation, so they did not. A screenshot reading `10.0.0.2 xan`
+  over `home-relay-00` is that split, not a renderer taking the server name by mistake.
 
 **Recon decides which breach puzzle you draw (2026-07-29).** The class was an even coin flip; it is
 now weighted by how complete the target's port-scan report is. **Offset Cipher is the DEFAULT** — the

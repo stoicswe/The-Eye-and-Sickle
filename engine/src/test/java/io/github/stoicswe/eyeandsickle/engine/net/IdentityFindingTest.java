@@ -14,6 +14,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -315,6 +316,97 @@ class IdentityFindingTest {
             resolution.outcome = "BREACHED";
             resolution.targetId = "node:" + host.address;
             game.state().resolutions.add(resolution);
+        }
+    }
+
+    @Nested
+    @DisplayName("a character made before machine names existed")
+    class LegacyRelabel {
+
+        /** The scheme this replaced: `<server name>-<two-digit index>`. */
+        private void wearOldLabels(GameEngine game) {
+            int index = 0;
+            for (HostState host : game.state().topology.hosts) {
+                if (!"SELF".equals(host.kind)) {
+                    host.label = String.format("home-relay-%02d", index++);
+                }
+            }
+        }
+
+        @Test
+        @DisplayName("gets generated names on load, and the rig is left alone")
+        void oldLabelsAreReplaced(@TempDir Path dir) {
+            GameEngine game = open(dir, new Winding(T0));
+            wearOldLabels(game);
+
+            assertThat(TopologyGenerator.relabelLegacy(game.state())).isTrue();
+
+            for (HostState host : game.state().topology.hosts) {
+                if ("SELF".equals(host.kind)) {
+                    // ⚠ The rig is called `localhost`, which is not a generated name — without the
+                    // SELF guard it would be renamed to something like `sultry-adleman`, which is the
+                    // most confusing single outcome available here.
+                    assertThat(host.label).isEqualTo("localhost");
+                } else {
+                    assertThat(NpcNames.looksGenerated(host.label))
+                            .as("%s -> %s", host.address, host.label)
+                            .isTrue();
+                }
+            }
+        }
+
+        @Test
+        @DisplayName("still gives every machine a distinct name")
+        void relabellingKeepsNamesUnique(@TempDir Path dir) {
+            GameEngine game = open(dir, new Winding(T0));
+            wearOldLabels(game);
+            TopologyGenerator.relabelLegacy(game.state());
+
+            List<String> names = game.state().topology.hosts.stream()
+                    .filter(h -> !"SELF".equals(h.kind))
+                    .map(h -> h.label)
+                    .toList();
+            assertThat(names).doesNotHaveDuplicates();
+        }
+
+        /**
+         * ⚠ Write-once would otherwise defend the OLD name forever.
+         *
+         * <p>A machine breached before this shipped has `home-relay-00` pinned on its recon file, and
+         * `NodeReports.merge` refuses to overwrite an established identity — so without correcting the
+         * file in the same pass, the map would show the new name and the RECON report the old one, on
+         * the same machine, permanently.
+         */
+        @Test
+        @DisplayName("corrects a name already pinned on a recon file")
+        void pinnedNamesAreCorrectedToo(@TempDir Path dir) {
+            GameEngine game = open(dir, new Winding(T0));
+            HostState host = discovered(game);
+            wearOldLabels(game);
+            NodeReports.establishIdentity(game.state(), host, T0);
+            assertThat(NodeReports.find(game.state(), host.address).orElseThrow().hostName)
+                    .startsWith("home-relay-");
+
+            TopologyGenerator.relabelLegacy(game.state());
+
+            assertThat(NodeReports.find(game.state(), host.address).orElseThrow().hostName)
+                    .isEqualTo(host.label)
+                    .matches(NpcNames::looksGenerated);
+        }
+
+        /** Idempotent by construction — no flag, so there is no flag to get out of step. */
+        @Test
+        @DisplayName("does nothing on a world that already has generated names")
+        void secondPassIsANoOp(@TempDir Path dir) {
+            GameEngine game = open(dir, new Winding(T0));
+            wearOldLabels(game);
+            TopologyGenerator.relabelLegacy(game.state());
+            List<String> after =
+                    game.state().topology.hosts.stream().map(h -> h.label).toList();
+
+            assertThat(TopologyGenerator.relabelLegacy(game.state())).isFalse();
+            assertThat(game.state().topology.hosts.stream().map(h -> h.label).toList())
+                    .isEqualTo(after);
         }
     }
 }

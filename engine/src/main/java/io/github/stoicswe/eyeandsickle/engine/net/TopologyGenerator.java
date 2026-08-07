@@ -333,6 +333,79 @@ public final class TopologyGenerator {
         save.topology = topology;
     }
 
+    /**
+     * Gives every machine still carrying a pre-{@code NpcNames} label a generated one.
+     *
+     * <h2>⚠ This is a MIGRATION, and this repo does not otherwise have any</h2>
+     *
+     * {@code CLAUDE.md}'s standing rule is that no build has shipped, so nothing predates the current
+     * format and every reader of an older one has been deleted. This is a deliberate exception with a
+     * narrow justification: the world is generated <b>once</b> and {@link #generate} returns early
+     * ever after — that guard is what stops a player re-rolling their world — so a character created
+     * before 2026-08-07 would carry {@code home-relay-00} names <em>forever</em>, and the only
+     * alternative on offer is "delete your character". A name has no mechanical consequence, so
+     * rewriting one cannot change an outcome; that is what makes this safe where a rules migration
+     * would not be.
+     *
+     * <p>⚠ <b>Delete this the moment a build ships.</b> At that point the rule it is an exception to
+     * starts protecting real players' saves, and a relabelling pass that runs on every load is
+     * exactly the accumulated legacy machinery the rule exists to prevent.
+     *
+     * <h2>Why it is safe to run on every load</h2>
+     *
+     * Idempotent by construction rather than by a flag: after one pass every label satisfies
+     * {@link NpcNames#looksGenerated}, so the second pass finds nothing to do. There is no "migrated"
+     * marker to get out of step with the thing it describes.
+     *
+     * <p>⚠ <b>The rig is skipped explicitly.</b> Its label is {@code localhost}, which is not a
+     * generated name and never will be — without the guard the player's own machine would be renamed
+     * to something like {@code sultry-adleman}, which is the single most confusing outcome available
+     * here. Keyed on {@code SELF} rather than on the label, because a label is what is being rewritten.
+     *
+     * <p>⚠ <b>Already-recorded intelligence is rewritten too.</b> {@code NodeReportState.hostName} is
+     * write-once, so a machine breached before this ran has the old name pinned on its file — and
+     * write-once would then defend it against every future scan. The file is corrected in the same
+     * pass, and only where it holds a name this generator did not produce.
+     *
+     * @return whether anything changed
+     */
+    public static boolean relabelLegacy(GameSave save) {
+        if (save == null || save.topology == null) {
+            return false;
+        }
+        // Seeded with the names already in the new format, so a world that is half relabelled — a
+        // load interrupted, or a future pool edit — cannot hand out a name it is already using.
+        java.util.Set<String> taken = new java.util.HashSet<>();
+        for (HostState host : save.topology.hosts) {
+            if (NpcNames.looksGenerated(host.label)) {
+                taken.add(host.label);
+            }
+        }
+
+        Map<String, String> renamed = new HashMap<>();
+        for (HostState host : save.topology.hosts) {
+            if (HostKind.SELF.name().equals(host.kind) || NpcNames.looksGenerated(host.label)) {
+                continue;
+            }
+            String fresh = NpcNames.machine(host.address, taken);
+            taken.add(fresh);
+            renamed.put(host.address, fresh);
+            host.label = fresh;
+        }
+        if (renamed.isEmpty()) {
+            return false;
+        }
+        if (save.nodeReports != null) {
+            for (var report : save.nodeReports) {
+                String fresh = renamed.get(report.address);
+                if (fresh != null && !NpcNames.looksGenerated(report.hostName)) {
+                    report.hostName = fresh;
+                }
+            }
+        }
+        return true;
+    }
+
     // ================================================================== the home floor (§1.7)
 
     /**
