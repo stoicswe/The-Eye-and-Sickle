@@ -45,8 +45,7 @@ import javafx.scene.layout.VBox;
  */
 public final class DirectView {
 
-    private static final java.util.logging.Logger LOG =
-            java.util.logging.Logger.getLogger(DirectView.class.getName());
+    private static final java.util.logging.Logger LOG = java.util.logging.Logger.getLogger(DirectView.class.getName());
 
     private DirectView() {}
 
@@ -111,10 +110,10 @@ public final class DirectView {
         VBox.setVgrow(split, Priority.ALWAYS);
 
         if (state(chat) == State.NO_ACCOUNT) {
-            transcript.getChildren()
+            transcript
+                    .getChildren()
                     .setAll(Views.wrapped(Views.t(
-                            "ui.direct.not-connected",
-                            "No Bluesky account is connected. Settings → Bluesky.")));
+                            "ui.direct.not-connected", "No Bluesky account is connected. Settings → Bluesky.")));
             return root;
         }
 
@@ -148,12 +147,11 @@ public final class DirectView {
                     // somebody can actually fix. An app password without direct-message access signs
                     // in perfectly and fails here, so this is exactly where that has to be said.
                     String why = chat.lastError();
-                    transcript.getChildren()
+                    transcript
+                            .getChildren()
                             .setAll(Views.wrapped(
                                     why.isBlank()
-                                            ? Views.t(
-                                                    "ui.direct.empty",
-                                                    "No conversations on this account yet.")
+                                            ? Views.t("ui.direct.empty", "No conversations on this account yet.")
                                             : why));
                     return;
                 }
@@ -170,7 +168,15 @@ public final class DirectView {
                 };
                 paint[0].run();
                 startPolling(
-                        chat, syncing, convos, selected, paint, convoList, transcript, syncSeconds, scrollToEnd,
+                        chat,
+                        syncing,
+                        convos,
+                        selected,
+                        paint,
+                        convoList,
+                        transcript,
+                        syncSeconds,
+                        scrollToEnd,
                         alerts);
             });
         });
@@ -224,8 +230,7 @@ public final class DirectView {
                         // bury everything else in the client log within an hour.
                         LOG.fine("comms: polling Bluesky for changes");
                         var touched = chat.changedSince();
-                        List<BlueskyChat.Convo> fresh =
-                                touched.isEmpty() ? List.of() : chat.conversations(CONVO_LIMIT);
+                        List<BlueskyChat.Convo> fresh = touched.isEmpty() ? List.of() : chat.conversations(CONVO_LIMIT);
                         Platform.runLater(() -> {
                             syncing[0] = false;
                             if (touched.isEmpty()) {
@@ -234,10 +239,7 @@ public final class DirectView {
                             // ⚠ The chime rides on a CHANGE the log reported, not on the list being
                             // re-fetched — so a poll that found nothing is silent, which is almost
                             // every poll.
-                            LOG.log(
-                                    java.util.logging.Level.INFO,
-                                    "comms: {0} conversation(s) changed",
-                                    touched.size());
+                            LOG.log(java.util.logging.Level.INFO, "comms: {0} conversation(s) changed", touched.size());
                             announce(chat, alerts, touched, fresh, selected[0]);
                             if (!fresh.isEmpty()) {
                                 convos.clear();
@@ -433,7 +435,8 @@ public final class DirectView {
         transcript.getChildren().addAll(heading, new Separator());
 
         if (history.isEmpty()) {
-            transcript.getChildren()
+            transcript
+                    .getChildren()
                     .add(Views.secondary(Views.t("ui.direct.no-history", "No messages yet — say something.")));
             return;
         }
@@ -546,7 +549,8 @@ public final class DirectView {
             announced = true;
         }
         if (announced) {
-            io.github.stoicswe.eyeandsickle.client.sound.Sfx.message();
+            io.github.stoicswe.eyeandsickle.client.sound.Audio.shared()
+                    .play(io.github.stoicswe.eyeandsickle.client.sound.Sfx.MESSAGE);
         }
     }
 
@@ -600,17 +604,15 @@ public final class DirectView {
      */
     static Region bubble(String selfDid, Map<String, String> names, BlueskyChat.Message message) {
         boolean mine = message.senderDid().equals(selfDid);
-        String who = mine
-                ? Views.t("ui.direct.you", "you")
-                : names.getOrDefault(message.senderDid(), message.senderDid());
+        String who =
+                mine ? Views.t("ui.direct.you", "you") : names.getOrDefault(message.senderDid(), message.senderDid());
 
         Label meta = new Label(who + "  ·  " + WHEN.format(message.sentAt()));
         meta.getStyleClass().add("es-dm-meta");
 
         // ⚠ A deleted message has NO text on the wire. Rendering it as an empty line is
         // indistinguishable from a bug, so it says what it is.
-        Label body =
-                new Label(message.deleted() ? Views.t("ui.direct.deleted", "(message deleted)") : message.text());
+        Label body = new Label(message.deleted() ? Views.t("ui.direct.deleted", "(message deleted)") : message.text());
         body.setWrapText(true);
         body.getStyleClass().add("es-dm-text");
 
@@ -670,6 +672,7 @@ public final class DirectView {
          * content is a picture is a button that has to say what it does twice over.
          */
         private final Button send = new Button();
+
         private final Label problem = new Label();
         private final VBox root;
 

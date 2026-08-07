@@ -13,14 +13,13 @@ import io.github.stoicswe.eyeandsickle.client.theme.ThemeManager;
 import io.github.stoicswe.eyeandsickle.client.view.CalcView;
 import io.github.stoicswe.eyeandsickle.client.view.CommandPalette;
 import io.github.stoicswe.eyeandsickle.client.view.CommsView;
-import io.github.stoicswe.eyeandsickle.client.view.NotesView;
 import io.github.stoicswe.eyeandsickle.client.view.FileManagerView;
 import io.github.stoicswe.eyeandsickle.client.view.LogView;
 import io.github.stoicswe.eyeandsickle.client.view.MainMenuView;
 import io.github.stoicswe.eyeandsickle.client.view.ManView;
-import io.github.stoicswe.eyeandsickle.client.view.MoreViews;
 import io.github.stoicswe.eyeandsickle.client.view.NetMapView;
 import io.github.stoicswe.eyeandsickle.client.view.NodeShellView;
+import io.github.stoicswe.eyeandsickle.client.view.NotesView;
 import io.github.stoicswe.eyeandsickle.client.view.PortScanView;
 import io.github.stoicswe.eyeandsickle.client.view.RigMonitorView;
 import io.github.stoicswe.eyeandsickle.client.view.SetupWizardView;
@@ -151,6 +150,8 @@ public class EyeAndSickleClient extends Application {
         // than as whatever the last session left standing.
         io.github.stoicswe.eyeandsickle.client.presence.RichPresence.shared()
                 .setEnabled(profile.settings().discordPresenceEnabled);
+
+        applyAudioSettings();
 
         // ⚠ A THEME CAN CHANGE THE GEOMETRY NOW, so something has to re-shape the windows when one
         // is picked — and this is the chokepoint rather than the pickers, deliberately. Rounding is
@@ -389,6 +390,16 @@ public class EyeAndSickleClient extends Application {
         // to the machine, not to whichever operator was last sitting at it.
         profile.useMenuAppearance();
         themes.reloadAppearance();
+        // ⚠ The cue is asked for whether or not a track exists — a missing one is silence, by design
+        // (sound/MusicCue). Wiring the cues now is what makes dropping a correctly named .wav into
+        // the music directory the WHOLE procedure for scoring a screen; leaving them unwired would
+        // mean the first person to add a track also has to find the four places to call this from.
+        //
+        // ⚠ Safe to call on every return to the menu because it is idempotent — asking for the cue
+        // already playing is free. Without that the bed would restart from the top every time
+        // somebody quit to the menu and back.
+        io.github.stoicswe.eyeandsickle.client.sound.Audio.shared()
+                .music(io.github.stoicswe.eyeandsickle.client.sound.MusicCue.MENU);
 
         MainMenuView.Actions actions = new MainMenuView.Actions() {
             @Override
@@ -598,6 +609,48 @@ public class EyeAndSickleClient extends Application {
         root.setClip(clip);
     }
 
+    /**
+     * Replays the saved audio settings into the engine, and wires window focus to muting.
+     *
+     * <h2>⚠ REPLAYED FROM THE SETTINGS, NEVER LEFT AT THE ENGINE'S DEFAULTS</h2>
+     *
+     * {@code Audio} is a singleton with its own sensible starting values, so a client that forgot to
+     * call this would still make a noise — at the wrong volume, on the wrong device, and ignoring a
+     * player who had turned the music off. That is the worst shape a bug like this can take, because
+     * it works well enough that nobody investigates. Same reasoning as the rich-presence line above:
+     * the saved answer is replayed rather than assumed.
+     *
+     * <h2>⚠ CALLED BEFORE ANY CHARACTER EXISTS</h2>
+     *
+     * The login screen and the setup assistant can both make noise, and both run before a save is
+     * loaded. Every setting here is machine-wide precisely so this can happen at startup rather than
+     * waiting for a character.
+     */
+    private void applyAudioSettings() {
+        var audio = io.github.stoicswe.eyeandsickle.client.sound.Audio.shared();
+        var settings = profile.settings();
+        audio.setMasterVolume(settings.soundVolumePercent);
+        audio.setBusVolume(io.github.stoicswe.eyeandsickle.client.sound.Bus.MUSIC, settings.musicVolumePercent);
+        audio.setBusVolume(io.github.stoicswe.eyeandsickle.client.sound.Bus.EFFECTS, settings.effectsVolumePercent);
+        audio.setDuckingEnabled(settings.duckMusicUnderEffects);
+        audio.setDuckDepth(settings.duckDepthPercent);
+        audio.setDevice(settings.audioDeviceName);
+        // Decoding every effect now means no first play is ever late. It is a background thread and a
+        // few tens of kilobytes; doing it lazily would put the one audible delay on the first
+        // notification of the session, which is the one most likely to be noticed.
+        audio.warmUp();
+
+        // ⚠ The listener is installed ONCE and reads the setting when it fires, rather than being
+        // added and removed as the setting changes. A listener that is attached conditionally is one
+        // that can be attached twice, and the symptom of that is a mute that needs two focus changes
+        // to lift. Reading the flag inside is free and cannot get out of step.
+        stage.focusedProperty().addListener((observable, was, focused) -> {
+            if (profile.settings().muteWhenUnfocused) {
+                io.github.stoicswe.eyeandsickle.client.sound.Audio.shared().setMuted(!focused);
+            }
+        });
+    }
+
     /** Pushes the desk options to the live shell. A no-op from the menu, where there is no desk. */
     private void applyDeskSettings() {
         if (deck != null) {
@@ -790,6 +843,10 @@ public class EyeAndSickleClient extends Application {
         // opened, raised, focused and closed at one chokepoint, which is what EventRecorder's own
         // notes give as the reason for subscribing at the bus.
         io.github.stoicswe.eyeandsickle.client.presence.RichPresence.shared().attach(session);
+        // Crossfades from the menu bed. See showMainMenu for why the cues are wired before any track
+        // exists to play through them.
+        io.github.stoicswe.eyeandsickle.client.sound.Audio.shared()
+                .music(io.github.stoicswe.eyeandsickle.client.sound.MusicCue.DECK);
 
         Shell.CommandRegistry commands = BuiltinCommands.registry();
         shell = new Shell(session, commands);
@@ -1336,6 +1393,10 @@ public class EyeAndSickleClient extends Application {
         // dead process's presence on its own eventually, and "eventually" is a window in which the
         // player's friends are still being told they are in a breach after they have quit.
         io.github.stoicswe.eyeandsickle.client.presence.RichPresence.shared().close();
+        // ⚠ Releases the audio device rather than relying on the daemon threads dying with the JVM.
+        // Both are daemons, so the cost of skipping this is not a leak — but an audio device still
+        // held by an application that has visibly closed is something macOS shows the player.
+        io.github.stoicswe.eyeandsickle.client.sound.Audio.shared().close();
         profile.save();
     }
 

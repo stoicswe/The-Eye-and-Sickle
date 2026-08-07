@@ -145,7 +145,8 @@ public final class Notifications extends VBox {
                 // ⚠ `primed` above is what stops the whole backlog chiming at startup. Without it,
                 // opening the game after a few days away plays the sound once per stored message.
                 if ("comms".equals(line.facility())) {
-                    io.github.stoicswe.eyeandsickle.client.sound.Sfx.message();
+                    io.github.stoicswe.eyeandsickle.client.sound.Audio.shared()
+                            .play(io.github.stoicswe.eyeandsickle.client.sound.Sfx.MESSAGE);
                 }
             }
         }

@@ -1,176 +1,160 @@
 package io.github.stoicswe.eyeandsickle.client.sound;
 
-import java.io.BufferedInputStream;
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import javax.sound.sampled.AudioInputStream;
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.Clip;
-import javax.sound.sampled.FloatControl;
+import java.util.function.Supplier;
 
 /**
- * The client's sound effects. There is currently one.
+ * Every noise the game can make, and the rules for making it.
  *
- * <h2>⚠ {@code javax.sound.sampled}, NOT {@code javafx-media}, and that is the whole design</h2>
+ * <h2>⚠ A CLOSED ENUM, FOR THE REASON {@code PresenceState} IS ONE</h2>
  *
- * JavaFX Media plays MP3 and would have been the obvious choice. It is also a <b>new module</b>, and
- * this client ships <b>five platform uber jars</b> — so it would add {@code libjfxmedia} natives to
- * every one of them, and a sixth dependency to the enforcer's surface, for a one-second notification
- * chime. {@code javax.sound.sampled} is in the JDK and costs nothing.
+ * A method that took a resource path would let any call site invent a sound, and the set of things
+ * the game can do to a player's ears would then be discoverable only by grepping. As an enum it is a
+ * list — one place to read, one place to add to, and a compiler error rather than a silent miss when
+ * something is removed. {@code SfxTest} walks {@link #values()} rather than a hand-kept list, so a
+ * new constant is checked by existing.
  *
- * <p>The price is that it does not decode MP3: it handles WAV, AU and AIFF. So the supplied
- * {@code youGotmail.mp3} was converted once, at authoring time, and the <b>WAV is what ships</b>:
+ * <h2>⚠ WHAT IS DECLARED HERE IS AVAILABLE, NOT NECESSARILY WIRED</h2>
  *
- * <pre>{@code
- * afconvert -f WAVE -d LEI16@11025 -c 1 youGotmail.mp3 message.wav
- * }</pre>
+ * Only {@link #MESSAGE} is currently triggered by the game — from {@code ui/Notifications} and
+ * {@code view/DirectView}. The rest are a palette with no call sites yet, and that is a deliberate
+ * boundary rather than an oversight: deciding that a refusal makes a noise is a <b>design</b>
+ * decision about the attention ladder ({@code docs/client/05} §6), not a plumbing one, and it should
+ * be taken deliberately per surface. Wiring one is a single call —
+ * {@code Audio.shared().play(Sfx.REFUSE)} — at the moment somebody decides that surface should speak.
  *
- * <p>Mono, 11 kHz, 16-bit — the source's own rate, so nothing was resampled — and <b>23 KB</b>, which
- * is a fifth of what one platform's media native would have cost. Same reasoning
- * {@code presence/DiscordIpc} records for writing its own IPC rather than taking a library.
+ * <h2>⚠ EVERY CONSTANT CARRIES ITS OWN RETRIGGER GUARD, AND THAT IS NOT A DETAIL</h2>
  *
- * <h2>⚠ THE CLIP IS LOADED ONCE AND REUSED</h2>
- *
- * Opening a {@link Clip} allocates a line on the system mixer, and a machine has a finite number.
- * Opening one per notification leaks lines until playback silently stops working — which presents as
- * "the sound stopped after a while" and is very hard to attribute.
- *
- * <h2>⚠ EVERY FAILURE IS SILENT, and that is deliberate</h2>
- *
- * A headless CI box, a machine with no mixer, a locked audio device, a WAV that will not decode: none
- * of those is worth a dialog, a log spike, or a thrown exception on the path that was about to tell
- * the player they had mail. Sound is decoration. The message still arrives.
+ * The engine is polyphonic, so nothing stops forty log lines from becoming forty simultaneous
+ * chimes. {@code DirectView} already had to solve this by hand — one chime per poll rather than one
+ * per message — and the general answer belongs here rather than at each call site, because the next
+ * caller will not know they were supposed to. {@link #minGapMs} is the shortest interval at which a
+ * given effect may retrigger; anything faster is dropped, silently and by design.
  */
-public final class Sfx {
-
-    private Sfx() {}
-
-    private static final Logger LOG = Logger.getLogger(Sfx.class.getName());
-
-    private static final String MESSAGE = "/io/github/stoicswe/eyeandsickle/client/sound/message.wav";
-
-    /** Loaded lazily and kept. Null once loading has failed, so it is not retried on every message. */
-    private static volatile Clip messageClip;
-
-    private static volatile boolean tried;
+public enum Sfx {
 
     /**
-     * How loud, 0–100. Read from the player's settings on every play.
+     * A message arrived — the rig's inbox, or a Bluesky DM.
      *
-     * <p>⚠ Read rather than cached, for the same reason {@code profile.appearance()} must not be
-     * cached: the player can change it in Settings while the client is running, and a cached value
-     * would leave the slider apparently doing nothing until a restart.
+     * <p>The only recorded asset in the game, and the only constant with a call site. 250 ms guard,
+     * which is comfortably shorter than any interval a person reads a notification at and long enough
+     * to collapse a burst that arrives in one poll.
      */
-    private static volatile int volumePercent = 60;
+    MESSAGE(() -> Sample.load("message", "/io/github/stoicswe/eyeandsickle/client/sound/message.wav"), 1.0f, 250, 0.0),
 
-    /** ⚠ Called by Settings on every change. See {@link #volumePercent}. */
-    public static void setVolumePercent(int percent) {
-        volumePercent = Math.max(0, Math.min(100, percent));
-    }
-
-    public static int volumePercent() {
-        return volumePercent;
-    }
+    /** An action was accepted. Rising, tonal, short. */
+    CONFIRM(() -> Tone.blip("confirm", 880, 90, 2.0), 0.5f, 80, 0.02),
 
     /**
-     * Plays the new-message chime, if sound is on and the machine can.
+     * An action was refused.
      *
-     * <p>⚠ <b>Zero means silent and returns immediately</b> — not "play at zero gain". A muted client
-     * should not be opening mixer lines at all, and on some drivers a zero-gain play is still an
-     * audible click.
-     *
-     * <p>⚠ Safe to call from any thread. It is called from the FX thread, and playback is handed to
-     * the mixer's own thread by {@code Clip.start()} — nothing here blocks on the sound finishing.
+     * <p>⚠ Quieter than {@link #CONFIRM}, not louder. A refusal is already visible — every refusal in
+     * this client puts a sentence on screen — and a loud noise for "no" trains players to brace
+     * rather than to read. It marks the moment; the words carry the reason.
      */
-    public static void message() {
-        if (volumePercent <= 0) {
-            return;
-        }
-        Clip clip = clip();
-        if (clip == null) {
-            return;
-        }
-        try {
-            synchronized (Sfx.class) {
-                // ⚠ Rewound before every play, or a second notification inside a second finds the
-                // clip already at its end and plays nothing — which reads as the sound being
-                // unreliable rather than as a cursor that was never reset.
-                clip.stop();
-                clip.setFramePosition(0);
-                applyGain(clip);
-                clip.start();
-            }
-        } catch (RuntimeException failed) {
-            LOG.log(Level.FINE, "could not play the message chime", failed);
-        }
-    }
+    REFUSE(() -> Tone.refusal("refuse", 440, 130), 0.45f, 120, 0.02),
 
     /**
-     * Maps 0–100 onto the mixer's gain control, in decibels.
+     * A small mechanical tick: selection, a step, a keystroke.
      *
-     * <h2>⚠ A LINEAR SLIDER IS NOT A LINEAR LOUDNESS, and dB is not a percentage</h2>
-     *
-     * {@code MASTER_GAIN} is in <b>decibels</b>, and its range is typically about −80…+6. Feeding it
-     * a percentage directly makes 50 mean "+50 dB" — clamped to the maximum, so every setting above a
-     * few percent would sound identical and full volume. The conversion is
-     * {@code 20 · log10(fraction)}, which is what turns a slider into a volume control rather than an
-     * on/off switch with extra steps.
+     * <p>⚠ The widest pitch spread in the catalogue and the shortest guard, because this is the one
+     * that repeats fastest and the one where identical repetition is most fatiguing. 6% either way is
+     * enough to break the pattern and too little to read as a change in pitch.
      */
-    private static void applyGain(Clip clip) {
-        if (!clip.isControlSupported(FloatControl.Type.MASTER_GAIN)) {
-            return;
-        }
-        FloatControl gain = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
-        double fraction = volumePercent / 100.0d;
-        float decibels = (float) (20.0d * Math.log10(fraction));
-        gain.setValue(Math.max(gain.getMinimum(), Math.min(gain.getMaximum(), decibels)));
+    TICK(() -> Tone.tick("tick", 35, 0.45), 0.30f, 25, 0.06),
+
+    /** Something long finished — a transfer, an extraction, a flash. */
+    DONE(() -> Tone.sweep("done", 520, 1040, 220), 0.5f, 300, 0.01),
+
+    /**
+     * Something wants attention now.
+     *
+     * <p>⚠ The one effect here allowed to be conspicuous, and it is rationed the way {@code -es-alarm}
+     * is rationed in §2.1: this is for loss and hostile state, not for anything merely important. A
+     * game that plays its alarm for ordinary events has no alarm.
+     */
+    ALERT(() -> Tone.sweep("alert", 300, 760, 400), 0.6f, 1000, 0.0);
+
+    private final Supplier<Sample> source;
+    private final float gain;
+    private final int minGapMs;
+    private final double pitchSpread;
+
+    /**
+     * ⚠ Resolved once and kept, including a failed load. A sound whose file is missing must not send
+     * the loader back to the classpath on every trigger.
+     */
+    private volatile Sample resolved;
+
+    private volatile boolean attempted;
+
+    /**
+     * ⚠ {@code System.nanoTime}, and this is one of the documented inversions of the always-use-the
+     * -session-clock rule — the same one {@code Frost} and the event bus record. The question here is
+     * "how long since <i>this machine</i> last made this noise", which is a fact about the process
+     * rather than a game deadline, and a wound-forward test clock would make a retrigger guard
+     * believe a burst of chimes was spread over an afternoon.
+     */
+    private volatile long lastPlayedNanos;
+
+    Sfx(Supplier<Sample> source, float gain, int minGapMs, double pitchSpread) {
+        this.source = source;
+        this.gain = gain;
+        this.minGapMs = minGapMs;
+        this.pitchSpread = pitchSpread;
     }
 
-    /** Loads the clip once. Returns null forever after a failure rather than retrying per message. */
-    private static Clip clip() {
-        Clip existing = messageClip;
-        if (existing != null || tried) {
+    public float gain() {
+        return gain;
+    }
+
+    public int minGapMs() {
+        return minGapMs;
+    }
+
+    public double pitchSpread() {
+        return pitchSpread;
+    }
+
+    /** Loads on first ask and caches. ⚠ Never call from the FX thread — {@code Audio} handles that. */
+    Sample sample() {
+        Sample existing = resolved;
+        if (existing != null || attempted) {
             return existing;
         }
-        synchronized (Sfx.class) {
-            if (tried) {
-                return messageClip;
+        synchronized (this) {
+            if (!attempted) {
+                attempted = true;
+                resolved = source.get();
             }
-            tried = true;
-            try (InputStream raw = Sfx.class.getResourceAsStream(MESSAGE)) {
-                if (raw == null) {
-                    LOG.fine("no message chime on the classpath");
-                    return null;
-                }
-                // ⚠ Read fully into memory first. AudioSystem needs a mark-supporting stream to sniff
-                // the format, and a resource stream inside a jar does not always provide one — the
-                // failure is an UnsupportedAudioFileException on a file that is perfectly valid.
-                byte[] bytes = raw.readAllBytes();
-                try (AudioInputStream audio =
-                        AudioSystem.getAudioInputStream(new BufferedInputStream(new ByteArrayInputStream(bytes)))) {
-                    Clip clip = AudioSystem.getClip();
-                    clip.open(audio);
-                    messageClip = clip;
-                    return clip;
-                }
-            } catch (Exception | UnsatisfiedLinkError unavailable) {
-                // ⚠ Catches Error as well as Exception: a headless or driverless machine fails at the
-                // native layer, and a notification path that threw would take the notification with
-                // it. Sound is decoration; the message still arrives.
-                LOG.log(Level.FINE, "sound is unavailable on this machine", unavailable);
-                return null;
-            }
+            return resolved;
         }
     }
 
-    /** Test seam — releases the mixer line and allows a reload. */
-    static synchronized void reset() {
-        if (messageClip != null) {
-            messageClip.close();
-            messageClip = null;
+    /** Whether this sound has already been decoded, so a caller can take the non-blocking path. */
+    boolean resident() {
+        return resolved != null || attempted;
+    }
+
+    /**
+     * Whether enough time has passed, stamping the clock when it has.
+     *
+     * <p>⚠ Test-and-set in one call rather than a separate {@code allowed()} and {@code stamp()}. Two
+     * threads asking at the same moment would both be told yes by a read-only check, which is exactly
+     * the burst this exists to stop — and bursts are, by their nature, concurrent.
+     */
+    synchronized boolean claim() {
+        long now = System.nanoTime();
+        if (lastPlayedNanos != 0 && now - lastPlayedNanos < minGapMs * 1_000_000L) {
+            return false;
         }
-        tried = false;
+        lastPlayedNanos = now;
+        return true;
+    }
+
+    /** Test seam — forgets the decoded sample and the retrigger clock. */
+    synchronized void reset() {
+        resolved = null;
+        attempted = false;
+        lastPlayedNanos = 0;
     }
 }

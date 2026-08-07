@@ -483,20 +483,97 @@ public final class ClientProfile {
         public String blueskyHandle = "";
 
         /**
-         * How loud sound effects are, 0–100. Zero is silent.
+         * The master level, 0–100. Zero is silent.
          *
          * <h2>⚠ MACHINE-WIDE, the same line accessibility settings sit on</h2>
          *
          * Volume is a property of where the player is sitting — headphones, an office, a sleeping
          * household — not of which character they loaded. Per-character would mean a player who
          * muted the game hearing it again on their next character, which is the kind of thing that
-         * gets an application closed rather than adjusted.
+         * gets an application closed rather than adjusted. Every field below it here for the same
+         * reason.
          *
-         * <p>⚠ 60 rather than 100 by default. The one sound this client has is a notification, and a
-         * game that announces itself at full volume the first time it is opened is one people mute
-         * permanently instead of turning down.
+         * <p>⚠ 60 rather than 100 by default. A game that announces itself at full volume the first
+         * time it is opened is one people mute permanently instead of turning down.
+         *
+         * <p>⚠ THE KEY IS DELIBERATELY UNCHANGED though this is now one of six audio settings rather
+         * than the only one. It has always meant "how loud is the game", which is exactly what a
+         * master level is, so renaming it to {@code masterVolumePercent} would buy a tidier name at
+         * the price of a migration — and Jackson has {@code FAIL_ON_UNKNOWN_PROPERTIES} <b>off</b>,
+         * so a rename without a {@code @JsonProperty} hook silently drops the player's setting and
+         * resets them to 60 with nothing anywhere reporting it.
          */
         public int soundVolumePercent = 60;
+
+        /**
+         * The music bed level, 0–100, applied under {@link #soundVolumePercent}.
+         *
+         * <p>⚠ A separate control from effects because they answer different questions — see
+         * {@code sound/Bus}. This one is also the client's WCAG 1.4.2 (Audio Control) compliance:
+         * audio that plays automatically for more than three seconds must be independently
+         * stoppable, and a music bed is exactly that.
+         *
+         * <p>⚠ 70 rather than 100, because a soundtrack sitting at the same level as a notification
+         * is one that masks it. Music is the bed; effects carry the information.
+         */
+        public int musicVolumePercent = 70;
+
+        /**
+         * The effects level, 0–100, applied under {@link #soundVolumePercent}.
+         *
+         * <p>⚠ Full by default, and it is the bus that should be. Effects are how the game says
+         * something happened, and every one of them is already rationed by its own gain and
+         * retrigger guard in {@code sound/Sfx} — attenuating the whole bus by default would be
+         * turning down a decision that was already taken per sound.
+         */
+        public int effectsVolumePercent = 100;
+
+        /**
+         * Whether sound stops while the client's window is not the focused one.
+         *
+         * <p><b>On by default</b>, which is the opposite of this file's usual instinct for new
+         * behaviour, and deliberately. A game that keeps playing music over the video call the player
+         * alt-tabbed to is a game that gets muted at the operating system and never turned back on.
+         * The polite default is the one that makes the feature survivable.
+         *
+         * <p>⚠ It mutes rather than writing zero into {@link #soundVolumePercent} — see
+         * {@code Audio.setMuted}. Writing the setting would destroy the player's chosen level the
+         * first time they switched windows.
+         */
+        public boolean muteWhenUnfocused = true;
+
+        /**
+         * Whether music steps down while an effect is sounding.
+         *
+         * <p>⚠ On by default. Effects carry information and music does not, so the case where they
+         * compete has exactly one right answer. It ramps rather than steps ({@code SoftMixer}), so
+         * what the player hears is the bed making room rather than the bed cutting out.
+         */
+        public boolean duckMusicUnderEffects = true;
+
+        /**
+         * How far music drops while ducking, 0–100, where 100 is "not at all" and 0 is silence.
+         *
+         * <p>⚠ 45 — a clear step down that still leaves the bed audible. Ducking all the way to
+         * silence is more distracting than not ducking at all, because the return is then a track
+         * starting rather than a track recovering.
+         */
+        public int duckDepthPercent = 45;
+
+        /**
+         * Which output device to use, by its mixer name, or blank for the system default.
+         *
+         * <p>⚠ Stored as the <b>name</b> rather than an index. Device indices are assigned in
+         * enumeration order and change when anything is plugged in or removed, so a stored index
+         * silently comes to mean a different device — and the failure is that the game starts
+         * speaking through the wrong speakers, which the player attributes to the game rather than to
+         * the setting.
+         *
+         * <p>⚠ A name that no longer resolves falls back to the default rather than to silence
+         * ({@code SoftMixer.openLine}). Headphones get unplugged, and no sound at all is a far worse
+         * answer than the wrong speakers.
+         */
+        public String audioDeviceName = "";
 
         /**
          * How often the DIRECT tab asks Bluesky for new messages, in seconds.

@@ -30,6 +30,7 @@ cites by name. Nothing below `01` re-defines a colour, a size or a component —
 | 05 | [`05-tool-windows-and-layout.md`](05-tool-windows-and-layout.md) | ⚠️ **[PROPOSAL]** | The operator's desk: the 13-window catalogue, window management and shortcuts, workspaces, the **single-window docked fallback**, and the attention ladder |
 | 06 | [`06-resource-and-inventory-ui.md`](06-resource-and-inventory-ui.md) | ⚠️ **[PROPOSAL]** | Compute, ethecoin, noise/heat, storage tiers, the item card, inventory at scale, the provenance/item-history view, and cost-before-commit |
 | 07 | [`07-accessibility.md`](07-accessibility.md) | ⚠️ **[PROPOSAL]** | The accessibility specification and its **testable checklist** — the document that answers a flag this project raised twice |
+| 08 | [`08-audio.md`](08-audio.md) | ⚠️ **[PROPOSAL]** | Sound effects and music: the software mixer, the effect and cue catalogues, generated sounds, the size budget, and the accessibility pass — **answers CL-7** |
 
 ## Status tags — what they mean here
 

@@ -1733,26 +1733,98 @@ at which point §5 has been *abandoned* rather than amended. ⚠ It **snaps home
 rather than finishing the table — motion after the thing it reports has stopped is the one lie a
 progress indicator can tell.
 
-**SOUND: ONE CHIME, `javax.sound.sampled`, NOT `javafx-media` (2026-08-06).** `client/sound/Sfx`,
-Settings → Sound (0–100, default **60**, machine-wide).
+**SOUND IS A REAL ENGINE NOW — ONE LINE, SOFTWARE MIXING (2026-08-07).** `client/sound/`:
+`Audio` (the one public door) over `SoftMixer`, `Voice`, `Sample`, `Tone`, `Gain`, plus the `Sfx` and
+`MusicCue` catalogues. Polyphony, MUSIC/EFFECTS buses + master, ramped ducking, streamed music with an
+equal-power crossfade, per-effect retrigger guards and pitch variation. `docs/client/08-audio.md`
+**closes CL-7**; `design/15` §3. Still `javax.sound.sampled`, never `javafx-media` — Media would add
+`libjfxmedia` natives to **all five** uber jars, the argument `presence/DiscordIpc` records.
 
-- ⚠ **Media would have played the supplied MP3 directly and would also have added `libjfxmedia`
-  natives to ALL FIVE platform uber jars** for a one-second chime. The file was converted once at
-  authoring time — `afconvert -f WAVE -d LEI16@11025 -c 1` — and the **23 KB WAV** ships, a fifth of
-  what one platform's media native costs. Same argument `presence/DiscordIpc` records.
-- ⚠ **A LINEAR SLIDER IS NOT A LINEAR LOUDNESS.** `MASTER_GAIN` is in **decibels** over roughly
-  −80…+6, so feeding it a percentage makes 50 mean "+50 dB" — clamped to the maximum, so every
-  setting above a few percent sounds identical and full. It is `20·log10(fraction)`.
-- ⚠ **The clip is opened ONCE and rewound before each play.** A `Clip` holds a mixer line and a
-  machine has finitely many; one per notification leaks lines until sound silently stops. Not
-  rewinding means a second chime within a second plays nothing.
-- ⚠ **Zero is silent and returns immediately** — not "play at zero gain", which on some drivers is
-  still an audible click.
-- ⚠ **Every failure is silent, and catches `Error` as well as `Exception`** — a headless box fails at
-  the native layer, and a notification path that threw would take the notification with it.
+- ⚠ **ONE `Clip` PER SOUND FAILS ON THE SECOND SOUND, THREE WAYS, and only the first is expected.**
+  A `Clip` has **one playback cursor**, so the same effect twice in a second restarts rather than
+  layers — two messages at once make one noise, and the fix is a *pool per effect*. Every open `Clip`
+  **holds a mixer line**; measured here every device said `maxLines=unlimited`, which is a fact about
+  macOS on Apple Silicon and not about Windows or ALSA, and where a platform is meaner playback
+  silently stops after a while. And a `Clip` **holds the whole sound decoded**, so music means a
+  multi-megabyte track resident with no way to fade, duck or crossfade. Summing in software answers
+  all three and makes per-bus volume, ducking and crossfade *arithmetic* rather than three mechanisms.
+- ⚠ **THE LINE IS THE CLOCK. NO TIMER ANYWHERE IN THE PACKAGE.** Measured: 200 ms of frames into an
+  80 ms buffer took **162 ms**, because `SourceDataLine.write` blocks once the buffer fills. So the
+  mix loop needs no sleep, no `Pulse`, no `Timeline`, no `AnimationTimer` — and needs **no exemption**
+  from `UiContractTest`, which scans all of `src/main/java` for `AnimationTimer` and rations it to two
+  files by name.
+- ⚠ **A PLATFORM THREAD, DELIBERATELY NOT VIRTUAL — the inverse of `RichPresence`**, which is right to
+  use one. `write` blocks in a **native** call, and a virtual thread blocked in native code *pins* its
+  carrier. Loading is a **third** thread: a decode on the mixer thread puts a multi-megabyte read
+  behind a hard deadline, and on the FX thread it drops frames.
+- ⚠ **THE BUS GAIN GOES TO EACH VOICE PER BUFFER — never baked in, never applied to the sum.** The
+  first version scaled the summed accumulator and is wrong outright: once both buses are in one buffer
+  no gain is correct for both. Baking it in at construction is the other tempting shape and breaks the
+  case everybody actually tests — a volume change would apply only to sounds started *afterwards*, so
+  dragging the music slider would do nothing to the music playing.
+- ⚠ **A CUBIC SOFT CLIPPER CANNOT BE A TRANSPARENT LIMITER, and the first one here claimed to be.**
+  `y = 1.5x − 0.5x³` is flat-topped at ±1 and its slope at zero is **1.5**, so it was quietly making
+  the whole game 3.5 dB louder. The general result kills the family: unit slope forces `a = 1`, and
+  passing through (1,1) then forces `b = 0` — the identity. **No cubic is both transparent at the
+  origin and saturating at ±1**, so it has to be piecewise. Caught on the test's first run.
+- ⚠ **REDUCE MOTION MUST NOT SILENCE THE GAME**, and this inverts the instinct everywhere else here.
+  Decoration rides `Pulse.animate` and stops under WCAG 2.2.2; applying that to audio is an
+  accessibility setting that costs somebody their notifications. **Sound is not motion.** WCAG
+  **1.4.2** is what applies, and the **music bus being its own slider** satisfies it — which is also
+  why music and effects are not one control.
+- ⚠ **A LINEAR SLIDER IS NOT A LINEAR LOUDNESS**, and the fix moved. It used to set the line's
+  `MASTER_GAIN` to `20·log10(fraction)` dB, which is **exactly linear amplitude**; gain is in float in
+  the mix now (per-bus and per-voice are impossible otherwise, and `MASTER_GAIN` is not supported on
+  every line). The taper is **square-law**, so the same setting is quieter than before — 60 was 0.60
+  and is 0.36 — the safe direction for a default to move.
+- ⚠ **WAVE, AU AND AIFF ONLY** (measured, `getAudioFileTypes()`), but **resampling IS provided** —
+  verified on both JDKs here, 11 kHz mono → 44.1 kHz stereo with the duration exact. ⚠ Unlike
+  **secp256k1**, which `protocol/crypto` records as differing on those same two runtimes, the two
+  agreed. ⚠ **Format support is an SPI question, not a code one** — nothing names a format, so a
+  Vorbis provider on the classpath loads `.ogg` unchanged. That matters at **2.6 MB per minute**
+  (22 kHz mono) across **five uber jars plus a jpackage image**: every megabyte is six of release.
+  **AU-1**.
+- ⚠ **FIVE OF THE SIX EFFECTS ARE SYNTHESISED** (`Tone`) — the decision the client already makes about
+  its cursor, chrome, icons and wallpaper, and zero bytes in six build outputs. ⚠ **Generation is
+  deterministic; per-play pitch variation is not.** A generated asset differing per run means two
+  players hearing different games and nothing to compare a render against; the pitch spread is safe
+  because **nothing derived from it reaches a rule**. ⚠ It is **not a replacement for recorded audio**
+  — it cannot make a room tone, a mechanism or a bed.
+- ⚠ **A RETRIGGER GUARD PER EFFECT, on the constant and not at the call site.** The engine is
+  polyphonic, so nothing else stops forty log lines becoming forty chimes — `DirectView` already had
+  to solve this by hand, and the next caller will not know they were supposed to. ⚠ `claim()` is
+  **test-and-set in one call**: a separate check would tell every thread in a simultaneous burst
+  "yes", and bursts are concurrent by nature.
+- ⚠ **DECLARED IS NOT WIRED, on purpose.** Only `MESSAGE` has call sites (`Notifications`,
+  `DirectView`). Whether a refusal makes a noise is an attention-ladder decision per `client/05` §6.
+  **AU-2**.
+- ⚠ **NO TRACK SHIPS, AND THE CUES ARE WIRED ANYWAY** (`MENU`, `DECK`). A cue with no file is
+  **silence**, so dropping a correctly named `.wav` into `client/.../sound/music/` is the *whole*
+  procedure for scoring a screen. ⚠ `music()` is **idempotent** — call sites are screen changes and a
+  screen is re-entered constantly, so without that the bed restarts every time a window closes.
+  ⚠ `SfxTest.everyMusicFileIsClaimed` fails the build on a file no cue names, **including a `.mp3`**,
+  which looks like a soundtrack and can never play.
+- ⚠ **Zero is exactly silent and skips opening the device**, not "play at zero gain" — on some drivers
+  that is still an audible click. ⚠ **Muting is NOT writing zero into the setting**: that destroys the
+  player's level the first time they alt-tab.
+- ⚠ **Every failure is silent and latches, and catches `Error`** — a headless box fails in the native
+  layer, and a notification path that threw would take the notification with it. The one place it
+  speaks is the Settings status line, which reports what the engine **actually did** (`feedIsLive`'s
+  rule): otherwise a muted game and a broken one look identical.
 - ⚠ **The chime rides on the NOTIFICATION the player already asked for**, so a muted facility is
   silent too — one decision, not two that can disagree — and `Notifications.primed` is what stops the
   whole backlog chiming at startup after a few days away.
+- ⚠ **Settings is seven controls, all machine-wide**: master, music, effects, silence-when-unfocused
+  (**on** by default — a game playing over the video call somebody alt-tabbed to gets muted at the OS
+  and never turned back on), duck on/off, duck depth, and an output device picker stored **by name,
+  not index** (indices shift when anything is plugged in, so the game starts speaking through the
+  wrong speakers and the player blames the game). ⚠ A name that no longer resolves **falls back to
+  the default rather than to silence** — headphones get unplugged, and no sound is worse than the
+  wrong speakers.
+- ⚠ **Device tests are OPT-IN at the class** (`-Deyeandsickle.audio.device=true`), `SecretStoreTest
+  .Roundtrip`'s arrangement for its reasons: they make a noise on the developer's machine and hold a
+  real device, and on a machine without one they would pass by doing nothing. Everything else —
+  taper, crossfade, limiter, mixing, looping, pan, the catalogue — is pure and runs headless.
 
 ⚠ **A STATISTICAL BAND HAD TO WIDEN WITH THE CEILING.**
 `GameEngineTest.offlineSelfMiningIsCappedNotProportional` compares a 30-day absence against a 5-hour

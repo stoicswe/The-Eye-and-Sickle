@@ -120,7 +120,20 @@ detail and live there. These are the ones that block implementation or need a pr
   WCAG 1.4.11 wants 3:1. `../client/07-accessibility.md` §5.4 specifies a structural fix (track-coloured
   gaps + mandatory per-role texture, so meaning never rests on hue); whether the **hexes** also move is
   the open decision, and should be taken when the generated per-theme palette lands.
-- **CL-7: audio is undesigned.** This doc set is visual and interaction only. Sound is one of the few ways
+- **CL-7 ✅ RESOLVED 2026-08-07 — [`../client/08-audio.md`](../client/08-audio.md).** The doc and the
+  accessibility pass it asked for both exist, and the client has a real audio engine
+  (`client/sound/`): one `SourceDataLine`, software mixing, polyphony, two buses plus master,
+  ducking, streamed music with equal-power crossfade, and seven machine-wide settings. The question's
+  own framing survived intact — sound is the one channel that signals without occupying screen space
+  or interrupting a keystroke — and became `08` §1's boundary: **sound marks that something happened
+  and never carries the only copy of what happened**, which is what makes muting lossless and lets
+  every failure in the stack be silent. Three sub-questions are left open as **AU-1…AU-4** in `08` §9.
+  ⚠ The accessibility finding worth carrying: **reduce motion must NOT silence the game.** The
+  client's instinct everywhere else is that decoration rides `Pulse.animate` and therefore stops under
+  WCAG 2.2.2 — applying that here would be an accessibility setting that costs a player their
+  notifications. WCAG 1.4.2 (Audio Control) is satisfied by the **music bus being a separate slider**,
+  which is also why music and effects are not one control. Superseded text follows.
+- **CL-7 (superseded, kept for the record): audio is undesigned.** This doc set is visual and interaction only. Sound is one of the few ways
   to signal urgency without stealing focus mid-keystroke, so it interacts directly with the attention
   ladder (`../client/05` §6) and needs its own doc plus an accessibility pass.
 - **CL-4 / T-2 ✅ RESOLVED 2026-07-25 — asked once, on the main menu.** The question worried that a
@@ -508,6 +521,18 @@ Two closed on implementation; what survives is below, plus what the implementati
 ## 3. Resolution log
 
 Record resolutions here when they land (date — question — outcome — where it moved).
+
+- 2026-08-07 — **CL-7 closed: the client has an audio engine** — `client/sound/` and [`../client/08-audio.md`](../client/08-audio.md). One `SourceDataLine`, software mixing, polyphony with voice stealing, MUSIC and EFFECTS buses plus master, ramped ducking, streamed music with an equal-power crossfade, a closed effect catalogue with per-effect gain and retrigger guard, and seven machine-wide settings.
+
+  ⚠ **THE ONE-`Clip`-PER-SOUND SHAPE FAILS ON THE SECOND SOUND, FOR THREE INDEPENDENT REASONS**, and only the first is the one people expect. A `Clip` has **one playback cursor**, so the same effect twice in a second restarts rather than layers — two messages arriving together make one noise, and fixing it needs a *pool per effect*. Every open `Clip` **holds a mixer line**; measured here every device reported `maxLines=unlimited`, which is a fact about macOS on Apple Silicon and not about Windows or ALSA, and where a platform is less generous playback silently stops working after a while. And a `Clip` **holds the whole sound decoded**, so music means a multi-megabyte track resident with no way to fade, duck or crossfade except through per-line gain controls not every platform provides. Summing in software answers all three at once and makes per-bus volume, ducking and crossfade *arithmetic* rather than three more mechanisms.
+  ⚠ **THE LINE IS THE CLOCK — there is no timer anywhere in the package.** Measured: writing 200 ms of frames into an 80 ms buffer took **162 ms**, because `SourceDataLine.write` blocks once the buffer is full. So the mix loop needs no sleep, no `Pulse`, no `Timeline` and no `AnimationTimer`, and the device's own consumption rate is a more accurate schedule than any clock this client could ask for. ⚠ That is also why the package needs **no exemption** from `UiContractTest`, which scans all of `src/main/java` for `AnimationTimer` and rations it to two files by name.
+  ⚠ **A PLATFORM THREAD, DELIBERATELY NOT A VIRTUAL ONE** — the inverse of `presence/RichPresence`, which is right to use one. `write` blocks in a **native** call, and a virtual thread blocked in native code *pins* its carrier, so an audio engine on one quietly occupies a scheduler thread forever.
+  ⚠ **THE BUS GAIN IS HANDED TO EACH VOICE PER BUFFER, NEVER BAKED IN AND NEVER APPLIED TO THE SUM.** The first implementation scaled the summed accumulator and was wrong outright: once music and effects are in one buffer there is no gain correct for both, so whichever is right leaves the other at the wrong level. Baking it into the voice at construction is the other tempting shape and breaks the case everybody actually tests — a volume change would apply only to sounds started *afterwards*, so dragging the music slider would do nothing to the music playing.
+  ⚠ **A CUBIC SOFT CLIPPER CANNOT BE A TRANSPARENT LIMITER, and the first version here claimed to be.** `y = 1.5x − 0.5x³` is smooth and flat-topped at ±1, and its derivative at zero is **1.5** — so it was quietly making the whole game 3.5 dB louder. The general result rules out the family: for `y = ax + bx³` through the origin, unit slope forces `a = 1`, and passing through (1,1) then forces `b = 0`, the identity. **No cubic is both transparent at the origin and saturating at ±1**, so a limiter that is transparent where it matters has to be piecewise. Caught on the test's first run.
+  ⚠ **REDUCE MOTION MUST NOT SILENCE THE GAME**, and this inverts the client's instinct everywhere else. Decoration here rides `Pulse.animate` and therefore stops under WCAG 2.2.2 — applying that reasoning to audio would take away the one channel that reaches a player who is not looking at the screen, i.e. an accessibility setting that costs somebody their notifications. **Sound is not motion.** WCAG **1.4.2** (Audio Control) is what actually applies, and it is satisfied by the **music bus being its own slider**, which is also the reason music and effects are not one control.
+  ⚠ **WAVE, AU AND AIFF ONLY** — measured with `AudioSystem.getAudioFileTypes()`; the JDK ships no MP3 or Vorbis decoder. Resampling *is* provided and was verified on both JDKs on this machine (11 kHz mono → 44.1 kHz stereo, duration exact) — ⚠ unlike **secp256k1**, which `protocol/crypto` records as behaving *differently* on those same two runtimes. ⚠ **Format support is an SPI question, not a code one**: nothing in the package names a format, so a Vorbis provider on the classpath would load `.ogg` through the existing path unchanged. That matters because uncompressed music is **2.6 MB per minute** at 22 kHz mono and this client ships **five uber jars plus a jpackage image** — every megabyte is six of release. Left open as **AU-1**.
+  ⚠ **FIVE OF THE SIX EFFECTS ARE SYNTHESISED**, the same decision the client already makes about its cursor, chrome, icons and wallpaper (§9 bans an icon set outright and every mark on screen is geometry). Zero bytes in six build outputs. ⚠ **Generation is deterministic and per-play pitch variation is not**, and the split is deliberate: a generated asset differing per run would mean two players hearing different games, while the pitch spread is safe because **nothing derived from it reaches a rule**.
+  ⚠ **DECLARED IS NOT WIRED, on purpose.** Only `MESSAGE` has call sites. Deciding that a refusal makes a noise is an attention-ladder decision per `../client/05` §6, not a plumbing one, and it belongs to whoever owns each surface. **AU-2**.
 
 - 2026-08-05 — **The operator panel dropped out of the strip onto the rail, because `Anchoring` right-aligned every overlay** — reported as "the profile identity looks like it's off screen a bit". `client/ui/{Anchoring,SyncBanner}`, `DeckShell`.
 

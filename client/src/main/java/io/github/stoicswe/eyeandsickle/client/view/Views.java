@@ -2238,7 +2238,12 @@ public final class Views {
                 new Def("detection-array", 1, "Detection Array T1", "WATCH", Balance.DEFENSE_DETECTION_ARRAY_T1_CYCLES),
                 new Def("detection-array", 2, "Detection Array T2", "WATCH", Balance.DEFENSE_DETECTION_ARRAY_T2_CYCLES),
                 new Def("detection-array", 3, "Detection Array T3", "WATCH", Balance.DEFENSE_DETECTION_ARRAY_T3_CYCLES),
-                new Def("auto-counter-daemon", 1, "Auto-Counter Daemon", "STRIKE", Balance.DEFENSE_AUTO_COUNTER_CYCLES));
+                new Def(
+                        "auto-counter-daemon",
+                        1,
+                        "Auto-Counter Daemon",
+                        "STRIKE",
+                        Balance.DEFENSE_AUTO_COUNTER_CYCLES));
 
         Label summary = new Label();
         summary.getStyleClass().add("es-sec-card-state");
@@ -2337,10 +2342,11 @@ public final class Views {
                     owned.add(item.itemType());
                 }
             }
-            summary.setText(armed.isEmpty()
-                    ? t("ui.views.fw-nothing-armed", "Nothing armed. This rig is relying on not being found.")
-                    : armed.size() + (armed.size() == 1 ? " measure armed · " : " measures armed · ") + held
-                            + " cycles held");
+            summary.setText(
+                    armed.isEmpty()
+                            ? t("ui.views.fw-nothing-armed", "Nothing armed. This rig is relying on not being found.")
+                            : armed.size() + (armed.size() == 1 ? " measure armed · " : " measures armed · ") + held
+                                    + " cycles held");
 
             syncing[0] = true;
             try {
@@ -2400,8 +2406,8 @@ public final class Views {
                                         ? "Sold in the market for " + Ethecoin.format(offering.priceWei()) + "."
                                         : offering.gateRequirement());
                     } else if (sibling != null) {
-                        tip = def.label() + " cannot be armed: this rig already has " + def.kind()
-                                + " armed at tier " + sibling.tier() + ".";
+                        tip = def.label() + " cannot be armed: this rig already has " + def.kind() + " armed at tier "
+                                + sibling.tier() + ".";
                     } else {
                         tip = def.label() + " — holds " + def.cycles()
                                 + " cycles for as long as it stays armed, and never generates heat.";
@@ -2419,9 +2425,10 @@ public final class Views {
                     // A canary that fired is the whole evidence path in design/12, and a table that
                     // showed only armed-or-not would be the one surface hiding it.
                     actions.get(i)
-                            .setText(on && mine.triggered()
-                                    ? def.action() + " · TRIPPED"
-                                    : gateNote.isEmpty() ? def.action() : gateNote);
+                            .setText(
+                                    on && mine.triggered()
+                                            ? def.action() + " · TRIPPED"
+                                            : gateNote.isEmpty() ? def.action() : gateNote);
                     actions.get(i).getStyleClass().remove("es-fw-tripped");
                     if (on && mine.triggered()) {
                         actions.get(i).getStyleClass().add("es-fw-tripped");
@@ -3422,51 +3429,183 @@ public final class Views {
                                         + "somewhere other than where you see the control. Text stays straight."))));
 
         // ── Sound ─────────────────────────────────────────────────────────────────────────────
-        Slider volume = new Slider(0, 100, profile.settings().soundVolumePercent);
-        volume.setShowTickMarks(true);
-        volume.setMajorTickUnit(25);
-        volume.setBlockIncrement(5);
-        Label volumeValue = Ui.micro("");
-        Runnable describeVolume = () -> {
-            int percent = profile.settings().soundVolumePercent;
-            volumeValue.setText(percent == 0 ? t("settings.sound.silent", "silent") : percent + "%");
-        };
-        describeVolume.run();
-        volume.valueProperty().addListener((obs, was, now) -> {
-            profile.settings().soundVolumePercent = (int) Math.round(now.doubleValue());
-            // ⚠ Pushed to Sfx on every change, not read from settings at play time by the player's
-            // next message — so dragging the slider is audible on the NEXT sound rather than after a
-            // restart. Sfx keeps it in a volatile field for the same reason.
-            io.github.stoicswe.eyeandsickle.client.sound.Sfx.setVolumePercent(
-                    profile.settings().soundVolumePercent);
-            describeVolume.run();
-        });
-        // ⚠ Persisted on RELEASE, not on every frame. A slider fires continuously while dragged, and
-        // writing the profile per frame lights the disk lamp like a fault — the scan-schedule slider
-        // records the same rule.
-        volume.setOnMouseReleased(e -> profile.save());
+        // ⚠ Every control on this page is MACHINE-WIDE, the line accessibility settings sit on.
+        var audio = io.github.stoicswe.eyeandsickle.client.sound.Audio.shared();
 
+        // ⚠ ONE HELPER FOR ALL FOUR LEVELS rather than four near-identical blocks. The rules a volume
+        // slider has to obey are subtle enough that a fourth copy would eventually get one of them
+        // wrong: push to the engine on EVERY change (so dragging is audible while it is being
+        // dragged, not after a restart); persist only on RELEASE (a slider fires continuously, and
+        // saving per frame lights the disk lamp like a fault — the scan-schedule slider records the
+        // same rule); and say "silent" rather than "0%" at the bottom, because zero is a state and
+        // not a quantity.
+        record Level(String key, String english, int initial, java.util.function.IntConsumer apply) {}
+        java.util.function.Function<Level, Region[]> levelRow = level -> {
+            Slider slider = new Slider(0, 100, level.initial());
+            slider.setShowTickMarks(true);
+            slider.setMajorTickUnit(25);
+            slider.setBlockIncrement(5);
+            Label readout = Ui.micro("");
+            Runnable describe = () -> {
+                int percent = (int) Math.round(slider.getValue());
+                readout.setText(percent == 0 ? t("settings.sound.silent", "silent") : percent + "%");
+            };
+            describe.run();
+            slider.valueProperty().addListener((obs, was, now) -> {
+                level.apply().accept((int) Math.round(now.doubleValue()));
+                describe.run();
+            });
+            slider.setOnMouseReleased(e -> profile.save());
+            return new Region[] {Ui.label(t(level.key(), level.english())), slider, readout};
+        };
+
+        Region[] masterRow = levelRow.apply(
+                new Level("settings.sound.master", "Master", profile.settings().soundVolumePercent, percent -> {
+                    profile.settings().soundVolumePercent = percent;
+                    audio.setMasterVolume(percent);
+                }));
+        Region[] musicRow = levelRow.apply(
+                new Level("settings.sound.music", "Music", profile.settings().musicVolumePercent, percent -> {
+                    profile.settings().musicVolumePercent = percent;
+                    audio.setBusVolume(io.github.stoicswe.eyeandsickle.client.sound.Bus.MUSIC, percent);
+                }));
+        Region[] effectsRow = levelRow.apply(new Level(
+                "settings.sound.effects", "Sound effects", profile.settings().effectsVolumePercent, percent -> {
+                    profile.settings().effectsVolumePercent = percent;
+                    audio.setBusVolume(io.github.stoicswe.eyeandsickle.client.sound.Bus.EFFECTS, percent);
+                }));
+        Region[] duckRow = levelRow.apply(new Level(
+                "settings.sound.duck.depth",
+                "Music level while an effect plays",
+                profile.settings().duckDepthPercent,
+                percent -> {
+                    profile.settings().duckDepthPercent = percent;
+                    audio.setDuckDepth(percent);
+                }));
+
+        // ⚠ The test plays the one sound the game actually triggers today, not a synthesised tone. A
+        // test button demonstrating something the player will never hear in play would answer a
+        // different question from the one they pressed it to ask.
         Button volumeTest = new Button(t("settings.sound.test", "Test"));
-        volumeTest.setOnAction(e -> io.github.stoicswe.eyeandsickle.client.sound.Sfx.message());
+
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch unfocused =
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch(
+                        t("settings.sound.unfocused", "Silence while the window is not in front"));
+        unfocused.setSelected(profile.settings().muteWhenUnfocused);
+        unfocused.selectedProperty().addListener((obs, was, now) -> {
+            profile.settings().muteWhenUnfocused = now;
+            // ⚠ Unmutes immediately when switched OFF. Settings is by definition open in a focused
+            // window, so this can only be toggled while focused — but a player turning it off is
+            // asking for sound now, not at the next focus change.
+            if (!now) {
+                audio.setMuted(false);
+            }
+            profile.save();
+        });
+
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch ducking =
+                new io.github.stoicswe.eyeandsickle.client.ui.widgets.Switch(
+                        t("settings.sound.duck", "Turn music down while an effect plays"));
+        ducking.setSelected(profile.settings().duckMusicUnderEffects);
+        ducking.selectedProperty().addListener((obs, was, now) -> {
+            profile.settings().duckMusicUnderEffects = now;
+            audio.setDuckingEnabled(now);
+            profile.save();
+        });
+
+        // ⚠ The device list is read ONCE, when the page is built, not on a clock. Enumerating mixers
+        // touches the platform's audio stack, and polling it every second to notice a headset being
+        // plugged in would be asking the operating system about a change the player is about to tell
+        // us about anyway by opening this picker.
+        String systemDefault = t("settings.sound.device.default", "System default");
+        ChoiceBox<String> device = new ChoiceBox<>();
+        device.getItems().add(systemDefault);
+        device.getItems().addAll(io.github.stoicswe.eyeandsickle.client.sound.Audio.outputDevices());
+        String savedDevice = profile.settings().audioDeviceName;
+        // ⚠ A device chosen earlier that is not plugged in NOW is still shown, by adding it to the
+        // list. Dropping it would silently rewrite the player's choice to the default the moment they
+        // unplugged a headset, and they would have to set it again on every reconnection. Playback
+        // already falls back to the default on its own; the setting remembers what was asked for.
+        if (savedDevice != null && !savedDevice.isBlank() && !device.getItems().contains(savedDevice)) {
+            device.getItems().add(savedDevice);
+        }
+        device.getSelectionModel().select(savedDevice == null || savedDevice.isBlank() ? systemDefault : savedDevice);
+
+        // ⚠ The status line reports what the engine ACTUALLY did, never what was configured — the
+        // rule AnonShare's `feedIsLive` follows. On a machine with no working audio device every
+        // control here still moves, and without this there is no way to tell a muted game from a
+        // broken one.
+        Label audioStatus = Ui.micro("");
+        Runnable describeStatus = () -> {
+            var state = audio.status();
+            if (state.failed()) {
+                audioStatus.setText(
+                        t("settings.sound.status.failed", "No usable audio device — sound is off this session."));
+            } else if (state.running()) {
+                audioStatus.setText(t("settings.sound.status.on", "Playing through") + " " + state.device());
+            } else {
+                audioStatus.setText(t("settings.sound.status.idle", "Ready — nothing is playing."));
+            }
+        };
+        describeStatus.run();
+        volumeTest.setOnAction(e -> {
+            audio.play(io.github.stoicswe.eyeandsickle.client.sound.Sfx.MESSAGE);
+            describeStatus.run();
+        });
+        device.valueProperty().addListener((obs, was, now) -> {
+            String chosen = now == null || now.equals(systemDefault) ? "" : now;
+            profile.settings().audioDeviceName = chosen;
+            audio.setDevice(chosen);
+            profile.save();
+            describeStatus.run();
+        });
 
         pages.put(
                 t("settings.cat.sound", "Sound"),
                 settingsPage(
-                        Ui.label(t("settings.sound.effects", "Sound effects")),
-                        volume,
-                        volumeValue,
-                        volumeTest,
+                        masterRow[0],
+                        masterRow[1],
+                        masterRow[2],
                         new Separator(),
+                        musicRow[0],
+                        musicRow[1],
+                        musicRow[2],
+                        wrapped(t(
+                                "settings.sound.music.note",
+                                "No soundtrack ships with the game yet, so this currently governs nothing "
+                                        + "you can hear. It is a separate control from sound effects on "
+                                        + "purpose: music is continuous and optional, effects tell you "
+                                        + "something happened, and turning the first off should never cost "
+                                        + "you the second.")),
+                        new Separator(),
+                        effectsRow[0],
+                        effectsRow[1],
+                        effectsRow[2],
+                        volumeTest,
                         wrapped(t(
                                 "settings.sound.what",
-                                "One sound: a chime when a message arrives, in the rig's inbox or in "
-                                        + "your Bluesky direct messages. Nothing else in the game makes a "
-                                        + "noise.")),
+                                "Today that is a chime when a message arrives, in the rig's inbox or in "
+                                        + "your Bluesky direct messages. More will follow.")),
+                        new Separator(),
+                        unfocused,
+                        ducking,
+                        duckRow[0],
+                        duckRow[1],
+                        duckRow[2],
+                        new Separator(),
+                        Ui.label(t("settings.sound.device", "Output")),
+                        device,
+                        audioStatus,
                         new Separator(),
                         wrapped(t(
                                 "settings.sound.machine-wide",
-                                "This is set for this machine rather than per character \u2014 volume is a "
-                                        + "property of where you are sitting, not of who you are playing."))));
+                                "These are set for this machine rather than per character \u2014 volume is a "
+                                        + "property of where you are sitting, not of who you are playing.")),
+                        wrapped(t(
+                                "settings.sound.motion",
+                                "Reduce motion does not silence the game. Sound is not movement, and it is "
+                                        + "the one channel that still reaches you when you are not looking at "
+                                        + "the screen \u2014 these sliders are how you turn it down."))));
 
         pages.put(
                 t("settings.cat.notices", "Notices"),
@@ -3653,10 +3792,11 @@ public final class Views {
         AutoCloseable discordClock = Pulse.shared()
                 .every(
                         1_000,
-                        () -> discordStatus.setText(io.github.stoicswe.eyeandsickle.client.presence.RichPresence.shared()
-                                .describe()));
-        discordStatus.setText(
-                io.github.stoicswe.eyeandsickle.client.presence.RichPresence.shared().describe());
+                        () -> discordStatus.setText(
+                                io.github.stoicswe.eyeandsickle.client.presence.RichPresence.shared()
+                                        .describe()));
+        discordStatus.setText(io.github.stoicswe.eyeandsickle.client.presence.RichPresence.shared()
+                .describe());
 
         // ⚠ A build with no application id cannot do this at all, and the switch says so instead of
         // saving a preference nothing reads. Disabled rather than hidden: a missing control is
@@ -3669,9 +3809,10 @@ public final class Views {
         discord.selectedProperty().addListener((o, was, now) -> {
             profile.settings().discordPresenceEnabled = now;
             profile.save();
-            io.github.stoicswe.eyeandsickle.client.presence.RichPresence.shared().setEnabled(now);
-            discordStatus.setText(
-                    io.github.stoicswe.eyeandsickle.client.presence.RichPresence.shared().describe());
+            io.github.stoicswe.eyeandsickle.client.presence.RichPresence.shared()
+                    .setEnabled(now);
+            discordStatus.setText(io.github.stoicswe.eyeandsickle.client.presence.RichPresence.shared()
+                    .describe());
         });
 
         // ── Bluesky account ───────────────────────────────────────────────────────────────────
@@ -3699,16 +3840,15 @@ public final class Views {
                                 + "safely — and it will not be written to a file instead. Direct "
                                 + "messages are unavailable here."));
             } else if (connected.isBlank()) {
-                bskyStatus.setText(t("settings.bsky.none", "No account connected. Stored in: ")
-                        + secrets.describe());
+                bskyStatus.setText(t("settings.bsky.none", "No account connected. Stored in: ") + secrets.describe());
             } else if (secrets.lookup(connected).isPresent()) {
-                bskyStatus.setText(t("settings.bsky.connected", "Connected as ") + connected + "  ·  "
-                        + secrets.describe());
+                bskyStatus.setText(
+                        t("settings.bsky.connected", "Connected as ") + connected + "  ·  " + secrets.describe());
             } else {
-                bskyStatus.setText(t(
-                                "settings.bsky.handle-without-secret",
-                                "A handle is saved but its app password is not in ")
-                        + secrets.describe() + t("settings.bsky.reenter", ". Enter it again."));
+                bskyStatus.setText(
+                        t("settings.bsky.handle-without-secret", "A handle is saved but its app password is not in ")
+                                + secrets.describe()
+                                + t("settings.bsky.reenter", ". Enter it again."));
             }
         };
         refreshBsky.run();
@@ -3716,7 +3856,8 @@ public final class Views {
         Button bskyConnect = new Button(t("settings.bsky.connect", "Connect"));
         bskyConnect.setDisable(!secrets.available());
         bskyConnect.setOnAction(e -> {
-            String typed = bskyHandle.getText() == null ? "" : bskyHandle.getText().strip();
+            String typed =
+                    bskyHandle.getText() == null ? "" : bskyHandle.getText().strip();
             String secret = bskySecret.getText();
             if (typed.isBlank() || secret == null || secret.isEmpty()) {
                 bskyStatus.setText(t("settings.bsky.need-both", "Both a handle and an app password."));
