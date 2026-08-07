@@ -529,8 +529,20 @@ public final class UiTokens {
     /** Glyph columns in one node box. */
     public static final int NET_NODE_COLS = 18;
 
-    /** Glyph rows in one node box. About half the columns — see the aspect note above. */
-    public static final int NET_NODE_LINES = 4;
+    /**
+     * Glyph rows in one node box. About half the columns — see the aspect note above.
+     *
+     * <p>⚠ <b>Five, not four, since 2026-08-07.</b> The fifth is the machine's name, under its
+     * address, and it appears only once {@code PortScanTarget.IDENTITY} has established one. The
+     * <em>slot</em> is reserved whether or not the name is known: a box that grew a line when a scan
+     * came back would re-flow the whole map underneath the player, so an unnamed machine keeps a
+     * blank line and the column geometry never moves.
+     *
+     * <p>Every consumer derives its arithmetic from this constant rather than from a literal 4
+     * ({@code NetCanvas} in five places, {@code NetGraph}'s blank slot, {@code NetGraphTest}), which
+     * is what made the change one line here instead of a hunt.
+     */
+    public static final int NET_NODE_LINES = 5;
 
     /** Columns reserved between hop layers for edge routing. */
     public static final int NET_LATERAL_COLS = 10;

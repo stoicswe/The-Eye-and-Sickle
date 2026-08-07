@@ -21,7 +21,10 @@ import java.util.Map;
  * different answers about a machine somebody is deciding whether to rob.
  *
  * @param address the machine
- * @param label the name the world gave it, or empty
+ * @param label the name the machine answers to, or empty until {@link PortScanTarget#IDENTITY} has
+ *     been established. ⚠ Not ground truth — a machine nobody has named yet has no name here, which
+ *     is why the interface falls back to the address rather than inventing one
+ * @param operatorName the account that runs it, or empty until the same rung establishes it
  * @param alias the name the PLAYER gave it, or empty — never a replacement for the address
  * @param tags the player's own labels, lowercased
  * @param createdAt when the first scan of it came back
@@ -33,6 +36,7 @@ import java.util.Map;
 public record NodeReport(
         String address,
         String label,
+        String operatorName,
         String alias,
         java.util.List<String> tags,
         Instant createdAt,
@@ -90,7 +94,13 @@ public record NodeReport(
             return true;
         }
         String needle = query.trim().toLowerCase(java.util.Locale.ROOT);
-        if (contains(address, needle) || contains(alias, needle) || contains(label, needle)) {
+        // ⚠ The operator is searched too. "The one dana runs" is exactly the kind of thing a player
+        // remembers about a machine whose address they have forgotten, and the name is on screen
+        // beside the others — a field the interface shows and the search ignores reads as broken.
+        if (contains(address, needle)
+                || contains(alias, needle)
+                || contains(label, needle)
+                || contains(operatorName, needle)) {
             return true;
         }
         for (String tag : tags) {
@@ -119,7 +129,7 @@ public record NodeReport(
     }
 
     /**
-     * How complete the file is, as a count of the seven rungs.
+     * How complete the file is, as a count of the rungs.
      *
      * <p>What the RECON list shows so a player can tell at a glance which machines they have actually
      * worked on from the ones they glanced at once.

@@ -698,10 +698,27 @@ public final class NetCanvas {
         // standard idiom for "this row", is not used anywhere else on this surface, and reads at a
         // glance without being confusable with anything the routing draws.
         String lead = selected ? String.valueOf(AsciiCanvas.BAR_HALF) : blank(1);
+
+        // ⚠ THE OPERATOR RIDES ON THE ADDRESS LINE AND THE NAME GETS ITS OWN.
+        //
+        // Both are the IDENTITY rung's product and both are empty until it has been paid for, so an
+        // unscanned machine reads exactly as it did before this line existed: address, then a blank.
+        //
+        // The widths are the reason they are split this way rather than sharing one line. The widest
+        // address this scheme can produce is `10.6.0.255` — ten columns — which with the lead and a
+        // separator leaves seven for an account name, and the longest name in the pool is six. So the
+        // pair always fits. A machine NAME does not: `adjective-pioneer` runs to 23 columns at worst
+        // (`practical-chandrasekhar`) against a box of 18, so it takes a whole line and is clipped for
+        // the ~2.5% of combinations that overrun. Clipped rather than elided in the middle, because a
+        // name is read from its front — and the unclipped one is on the tooltip, in the host list and
+        // in the RECON file.
+        String operator = sighting.operatorName();
+        String addressLine = lead + sighting.address() + (operator.isEmpty() ? "" : blank(1) + operator);
         return tl + rule + tr
                 + "\n" + vertical + clip(interior, UiTokens.NET_NODE_COLS - 2) + vertical
                 + "\n" + bl + rule + br
-                + "\n" + padRight(lead + sighting.address(), UiTokens.NET_NODE_COLS);
+                + "\n" + padRight(clip(addressLine, UiTokens.NET_NODE_COLS), UiTokens.NET_NODE_COLS)
+                + "\n" + padRight(clip(blank(1) + sighting.label(), UiTokens.NET_NODE_COLS), UiTokens.NET_NODE_COLS);
     }
 
     /**

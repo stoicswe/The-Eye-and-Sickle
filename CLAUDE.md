@@ -1102,11 +1102,86 @@ marker to desync).
   "found" that agree only because a sweep sets both. A fixture setting just the flag yields a host the
   map has never heard of, failing with `NoSuchElement` rather than anything that names the problem.
 
+**NPC MACHINES AND OPERATORS HAVE NAMES, AND THE NAME IS NOW A PORT-SCAN FINDING (2026-08-07).**
+`engine/net/NpcNames` holds three pools; machines are Docker-style `adjective-pioneer` (the pioneer
+from computing, mathematics, physics, quantum and astronomy), operators are ordinary given names.
+`PortScanTarget.IDENTITY` is a new **eighth rung at the bottom** of the port-scan ladder.
+
+- ⚠ **DERIVED FROM THE ADDRESS, NEVER DRAWN — and the hash is FNV-1a for a measured reason.**
+  `TopologyGenerator`'s draw count is a pure function of the world's shape, so one draw per machine
+  would re-roll every existing world; `DocumentPool` already solved this by hashing. ⚠ **`String
+  .hashCode` is `31·h + c`, so addresses differing by one in the last character land one apart and a
+  modulo walks the pool in order.** The eight-name array in `VirtualFs.hostUser` did exactly that:
+  measured, the first machines of every server were `wren dana kai morgan riley sasha toma ves` — the
+  pool in declaration order, offset by the server index. The "random" name was the host index in
+  disguise. Second time this trap has bitten here, so the hash lives in one place now.
+- ⚠ **THE LOCKSTEP GUARD TOOK THREE ATTEMPTS AND THE FIRST TWO PASSED AGAINST THE BROKEN HASH.** The
+  march happens **only** between addresses differing by one in their *final character*. A run from
+  index 0 crosses `10.s.0.9 → 10.s.0.10`, a character longer, and breaks on its own; a run of
+  same-length addresses still breaks at `…19 → …20`, where the delta is 31−9. The working test walks
+  one **decade**. Each version was caught only by reinstating `hashCode` and watching it pass —
+  which is the rule this repo already has, and the third place it has paid for itself.
+- ⚠ **NAMES ARE DE-COLLIDED GLOBALLY, and the set is threaded through the whole generator.** 184 × 159
+  is 29,256 combinations against a few hundred machines, so by the birthday bound a duplicate is
+  *expected*, not unlikely — and two machines called `bold-turing` is worse than a dull name, because
+  the map, the list, the shell prompt and the recon file all key a machine by what it is called.
+  Resolved the way Docker resolves it (keep looking) but deterministically: walk the adjectives from
+  the hashed start, then advance the pioneer. Zero draws, so the RNG contract is untouched.
+- ⚠ **NO ADJECTIVE MAY BE DEMEANING.** Real people, much of the pool living. Docker special-cases
+  `boring_wozniak` out with the comment that Steve Wozniak is not boring; a rule over the whole list
+  is the version that cannot be defeated by adding one more word. ⚠ The rule is **"not demeaning",
+  not "complimentary"** — the pool is deliberately moody and a little suggestive, which is atmosphere,
+  not a judgement of the person. ⚠ **Surnames only, one word**: the separator is a hyphen, so
+  `bold-berners-lee` could not be split back into its halves, and RFC 1123 governs the result because
+  these reach `Hostname`'s vocabulary.
+- ⚠ **A MACHINE NAME MUST NOT ENCODE WHAT THE MACHINE IS** — naming a node's type is the Passive
+  Sniffer's published function (`design/07` §1). The old `<server>-<index>` scheme leaked it quietly:
+  host index 0 is the gateway on **every** server, so a trailing `-00` was a free and completely
+  reliable tell. An adjective and a surname correlate with nothing.
+- ⚠ **A SWEEP NO LONGER NAMES THE MACHINE, and that is the behavioural change.** `NetRules.nodeFor`
+  used to copy `host.label` into the player's knowledge, so every machine arrived named and `IDENTITY`
+  would have had nothing to sell. `Sighting.label` is read off the **recon file** now, not off ground
+  truth — one stored answer, in the one place that applies the write-once rule. `NodeState.label` is
+  left empty and nothing reads it.
+- ⚠ **ADDING A RUNG AT THE BOTTOM DID NOT RE-PRICE THE SEVEN ABOVE IT, and the naive version would
+  have.** Every cost was `f(depth)`, so inserting `IDENTITY` at depth 1 shifted all seven up a number
+  and would have raised their cycles, duration, noise **and** detection risk as a side effect —
+  silently, since every screen still renders. The formulas key on **`PortScanTarget.steps()`**
+  (`depth − 1`); `IdentityFindingTest.theCalibratedRungsAreUnchanged` pins the seven literally,
+  because a formula compared against itself proves nothing. ⚠ `IDENTITY_SECONDS`/`IDENTITY_NOISE` are
+  floors that bind on the bottom rung **and provably nowhere else** — at `steps ≥ 1` both multipliers
+  already exceed them. A rung that took no time and made no sound would be one nobody decides about.
+- ⚠ **THE STORED IDENTITY IS WRITE-ONCE; EVERY OTHER FINDING ON THE FILE REFRESHES.** A firewall tier
+  is a measurement and a rescan should re-read it. A name is an identity — and because names are
+  *derived*, editing a pool shifts every derived name at once, so pinning at first contact is what
+  makes "the operator you found when you first broke in" a fact about that break-in rather than about
+  the current build. The rule lives in `NodeReports.merge`/`establishIdentity` and is one `if` from
+  becoming a refresh.
+- ⚠ **A BREACH ESTABLISHES THE IDENTITY AND NOTHING ELSE.** Standing on a machine, the name and the
+  account are in the prompt; the vault estimate is not. Hooked into `NetRules.reconcileFootholds`
+  **outside** the foothold guard, so a machine breached before this existed gets a name on the next
+  load — safe because that method is idempotent by construction and runs on every resume. ⚠ It does
+  **not** bump `scans`: a file whose only entry came from a break-in has had no scans, and reporting
+  one would make the detection ratio beside it a fraction of a number that never happened.
+- ⚠ **`UiTokens.NET_NODE_LINES` WENT 4 → 5, and the slot is reserved whether or not a name is known.**
+  A box that grew a line when a scan came back would re-flow the whole map underneath the player.
+  ⚠ **The operator rides on the ADDRESS line and the machine name takes its own**, and the widths are
+  why: the widest address is `10.6.0.51` (nine), leaving **seven** for an account after the gutter and
+  a separator — so **operator names are capped at seven characters**, which is the only reason
+  `ragnhild` and `torbjorn` are not in the pool. A machine name does not fit at all (23 at worst), so
+  it takes a line and ~2.5% of combinations clip; the full name is on the tooltip, in the host list
+  and in the RECON file.
+- ⚠ **Existing characters keep their old `<server>-<index>` names.** `TopologyGenerator.generate`
+  returns early when a topology exists — that guard is what stops a player rerolling the world — so
+  the new scheme applies to **new characters only**. Nothing migrates it, deliberately: a relabelling
+  pass is the legacy-save machinery this repo does not have.
+
 **Recon decides which breach puzzle you draw (2026-07-29).** The class was an even coin flip; it is
 now weighted by how complete the target's port-scan report is. **Offset Cipher is the DEFAULT** — the
 puzzle that needs nothing from the far side — and **Breach Protocol** is the puzzle of someone who
-knows the host, so a full report draws it ~95% (`Balance.breachProtocolShare`, linear at one seventh
-per finding). This is RECON's first mechanical consequence: a report used to be intelligence read by
+knows the host, so a full report draws it ~95% (`Balance.breachProtocolShare`, linear at one eighth
+per finding — one seventh until `PortScanTarget.IDENTITY` became an eighth rung on 2026-08-07; the
+step is `1 / values().length` and was never a literal). This is RECON's first mechanical consequence: a report used to be intelligence read by
 hand, and now it changes what the breach *is*.
 
 - ⚠ **It buys a DIFFERENT puzzle, never an easier one.** Tier, attention, strikes, layers and cycles

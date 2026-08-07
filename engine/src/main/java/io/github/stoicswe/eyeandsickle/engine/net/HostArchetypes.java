@@ -1,8 +1,8 @@
 package io.github.stoicswe.eyeandsickle.engine.net;
 
+import io.github.stoicswe.eyeandsickle.engine.state.HostState;
 import io.github.stoicswe.eyeandsickle.protocol.game.HostKind;
 import io.github.stoicswe.eyeandsickle.protocol.game.SignalStrength;
-import io.github.stoicswe.eyeandsickle.engine.state.HostState;
 import java.util.List;
 import java.util.Locale;
 
@@ -75,17 +75,14 @@ public final class HostArchetypes {
         return "srv-" + Math.max(0, index);
     }
 
-    /**
-     * A machine's name: {@code <server name>-<two-digit index>}.
-     *
-     * <p>⚠ It must not encode the host's kind. A label like {@code sentry-04} would name the type at
-     * the moment a sweep discovered the machine, and naming types is the 15 EC Passive Sniffer's
-     * entire published function ({@code docs/design/07-recon-tools.md} §1). Four recon products, four
-     * gates, no overlap — and the sweep's product is existence and adjacency.
-     */
-    public static String hostLabel(String serverName, int index) {
-        return serverName + "-" + String.format(Locale.ROOT, "%02d", Math.max(0, index));
-    }
+    // ⚠ Machine names live in NpcNames, not here.
+    //
+    // This class held `hostLabel(serverName, index)` — `<server name>-<two-digit index>` — with the
+    // constraint that a label must never encode the host's kind, because naming types is the 15 EC
+    // Passive Sniffer's published function (`docs/design/07-recon-tools.md` §1). That constraint
+    // still holds and now lives on `NpcNames.machine`, which also records the way the old scheme
+    // broke it: the generator makes host index 0 the gateway on every server, so a trailing `-00`
+    // was a free and completely reliable "this is the gateway".
 
     /**
      * How loud this kind of machine is, before any miner running on it.

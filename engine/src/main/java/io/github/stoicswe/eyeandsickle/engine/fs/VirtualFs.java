@@ -1,8 +1,8 @@
 package io.github.stoicswe.eyeandsickle.engine.fs;
 
+import io.github.stoicswe.eyeandsickle.engine.state.HostState;
 import io.github.stoicswe.eyeandsickle.protocol.game.FsEntry;
 import io.github.stoicswe.eyeandsickle.protocol.game.FsKind;
-import io.github.stoicswe.eyeandsickle.engine.state.HostState;
 import java.math.BigInteger;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -346,7 +346,8 @@ public final class VirtualFs {
                     // ⚠ Readable to the owner, always. Whether a REMOTE actor may take it is the
                     // tier's answer and is decided in AccessLog, not here — this is a view onto an
                     // item, not a second place it lives.
-                    String suffix = io.github.stoicswe.eyeandsickle.engine.rules.Repac.installableSuffix(item.itemType());
+                    String suffix =
+                            io.github.stoicswe.eyeandsickle.engine.rules.Repac.installableSuffix(item.itemType());
                     out.add(new FsEntry(
                             slug(item.displayName()) + suffix,
                             dir + "/" + slug(item.displayName()) + suffix,
@@ -561,13 +562,20 @@ public final class VirtualFs {
         return (tail.isBlank() ? "fragment" : tail) + ".txt";
     }
 
-    /** The account name a host's own operator uses. Derived from the address, so it is stable. */
+    /**
+     * The account name a host's own operator uses. Derived from the address, so it is stable.
+     *
+     * <p>⚠ The pool and the hash both live in {@link io.github.stoicswe.eyeandsickle.engine.net.NpcNames}
+     * rather than here. This method used to hold an eight-name array indexed by
+     * {@code address.hashCode()}, which walked the pool in lockstep with the host index — every
+     * server's operators arrived in the same rotation, so the name was the index in disguise. That is
+     * the trap {@code DocumentPool} documents, hit a second time; the fix belongs in one place.
+     */
     public static String hostUser(HostState host) {
         if (host == null) {
             return DEFAULT_USER;
         }
-        String[] names = {"dana", "kai", "morgan", "riley", "sasha", "toma", "ves", "wren"};
-        return names[Math.floorMod(seedOf(host.address), names.length)];
+        return io.github.stoicswe.eyeandsickle.engine.net.NpcNames.operator(host.address);
     }
 
     /** Whether a path is one this tree has anything at. Used to refuse {@code cd} honestly. */

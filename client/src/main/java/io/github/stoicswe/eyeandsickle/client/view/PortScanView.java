@@ -180,6 +180,12 @@ public final class PortScanView {
         }
 
         List<String> lines = new ArrayList<>();
+        // ⚠ The two halves are ONE finding and share one row, because that is what the rung sells.
+        // Splitting them into "name" and "operator" would put two "— not scanned for" lines on every
+        // unscanned machine for a single unpaid rung, which reads as two gaps rather than one.
+        // Rendered `operator@machine` — the order Hostname.prompt teaches and argues for: who you are,
+        // then where you are.
+        lines.add(line("identity", report.knows(PortScanTarget.IDENTITY) ? identityOf(report) : null));
         lines.add(line("firewall", report.knows(PortScanTarget.FIREWALL) ? "tier " + report.firewallTier() : null));
         lines.add(line("os", report.knows(PortScanTarget.OS_VERSION) ? report.osName() : null));
         lines.add(line(
@@ -218,6 +224,23 @@ public final class PortScanView {
         note.setWrapText(true);
         note.getStyleClass().addAll("es-mono", report.detected() ? "es-portscan-risk-high" : "es-portscan-risk-low");
         into.getChildren().add(note);
+    }
+
+    /**
+     * The identity finding as one string: {@code operator@machine}.
+     *
+     * <p>⚠ Either half may be missing and the row still has to read. A gateway has a name and no
+     * account worth speaking of, so {@code PortScanReport.knows} counts the rung as answered when
+     * <em>either</em> is present — and a naive {@code operator + "@" + name} would render a bare
+     * {@code @bold-turing} or {@code dana@} for a scan that came back with everything there was.
+     */
+    static String identityOf(PortScanReport report) {
+        String who = report.operatorName() == null ? "" : report.operatorName();
+        String where = report.hostName() == null ? "" : report.hostName();
+        if (who.isEmpty()) {
+            return where;
+        }
+        return where.isEmpty() ? who : who + "@" + where;
     }
 
     /** One finding, or the honest absence of one. */

@@ -1,10 +1,12 @@
 package io.github.stoicswe.eyeandsickle.engine.net;
 
+import io.github.stoicswe.eyeandsickle.engine.fs.VirtualFs;
+import io.github.stoicswe.eyeandsickle.engine.state.GameSave;
+import io.github.stoicswe.eyeandsickle.engine.state.HostState;
+import io.github.stoicswe.eyeandsickle.engine.state.NodeReportState;
 import io.github.stoicswe.eyeandsickle.protocol.game.NodeReport;
 import io.github.stoicswe.eyeandsickle.protocol.game.PortScanReport;
 import io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget;
-import io.github.stoicswe.eyeandsickle.engine.state.NodeReportState;
-import io.github.stoicswe.eyeandsickle.engine.state.GameSave;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -69,6 +71,17 @@ public final class NodeReports {
             return report;
         }
 
+        if (scan.knows(PortScanTarget.IDENTITY)) {
+            // ⚠ Write-once — see NodeReportState#hostName. Every other finding below REFRESHES; this
+            // one must not, or a rescan after a name-pool edit silently renames a machine the player
+            // has been working with. `learnedAt` is stamped only on the first establishment too, so
+            // the age shown beside the name is the age of the discovery rather than of the last scan.
+            if (report.hostName.isBlank() && report.operatorName.isBlank()) {
+                report.hostName = scan.hostName();
+                report.operatorName = scan.operatorName();
+                report.learnedAt.put(PortScanTarget.IDENTITY.name(), now);
+            }
+        }
         if (scan.knows(PortScanTarget.FIREWALL)) {
             report.firewallTier = scan.firewallTier();
             report.learnedAt.put(PortScanTarget.FIREWALL.name(), now);
@@ -102,6 +115,50 @@ public final class NodeReports {
     }
 
     /**
+     * Records what a machine calls itself and who runs it, without that counting as a scan.
+     *
+     * <h2>Why a breach establishes this and no other finding</h2>
+     *
+     * Standing on a machine, its name and its logged-in account are the two facts you cannot avoid
+     * learning — they are in the prompt. Everything else on the file stays a scan's product: a
+     * foothold does not tell you the vault estimate, and handing out the rest here would delete the
+     * whole ladder for anyone who breaches first and asks questions later.
+     *
+     * <p>⚠ <b>Write-once, and this is the "retains the name from the first breach" guarantee.</b>
+     * Called from {@code NetRules.reconcileFootholds}, which runs on every load and every breach
+     * settlement, so it is reached many times per machine — the first one wins and the rest are
+     * no-ops. See {@code NodeReportState#hostName} for why an identity is pinned where a measurement
+     * is refreshed.
+     *
+     * <p>⚠ It creates the file if there is none, so a machine breached without ever being scanned
+     * still has a name on record. But it deliberately does <b>not</b> bump {@code scans}: a file
+     * whose only entry came from a break-in has had no scans, and reporting one would make the
+     * detection ratio beside it a fraction of a number that never happened.
+     *
+     * @return whether anything was written
+     */
+    public static boolean establishIdentity(GameSave save, HostState host, Instant now) {
+        if (save == null || host == null || host.address == null || host.address.isBlank()) {
+            return false;
+        }
+        NodeReportState report = find(save, host.address).orElseGet(() -> {
+            NodeReportState fresh = new NodeReportState();
+            fresh.address = host.address;
+            fresh.createdAt = now;
+            save.nodeReports.add(fresh);
+            return fresh;
+        });
+        if (!report.hostName.isBlank() || !report.operatorName.isBlank()) {
+            return false;
+        }
+        report.hostName = host.label == null ? "" : host.label;
+        report.operatorName = VirtualFs.hostUser(host);
+        report.learnedAt.put(PortScanTarget.IDENTITY.name(), now);
+        report.updatedAt = now;
+        return true;
+    }
+
+    /**
      * How complete a machine's file is, {@code 0} to {@code 1}.
      *
      * <p>The fraction of {@link PortScanTarget}s that have ever been established, which is what
@@ -132,17 +189,19 @@ public final class NodeReports {
                 .orElse(0.0d);
     }
 
-    /** One machine's file, rendered for the interface. */
+    /**
+     * One machine's file, rendered for the interface.
+     *
+     * <p>⚠ The name comes off the <b>file</b>, not off {@code save.knownNodes}. It used to be read
+     * from the discovered node, which a sweep filled in from ground truth — so every machine the
+     * player had ever seen was already named and {@code PortScanTarget.IDENTITY} would have had
+     * nothing left to sell. One stored answer, in the one place that applies the write-once rule.
+     */
     public static NodeReport read(GameSave save, NodeReportState state) {
-        String label = save.knownNodes.stream()
-                .filter(node -> state.address.equals(node.address))
-                .map(node -> node.label)
-                .filter(name -> name != null && !name.isBlank())
-                .findFirst()
-                .orElse("");
         return new NodeReport(
                 state.address,
-                label,
+                state.hostName == null ? "" : state.hostName,
+                state.operatorName == null ? "" : state.operatorName,
                 state.alias == null ? "" : state.alias,
                 List.copyOf(state.tags),
                 state.createdAt,

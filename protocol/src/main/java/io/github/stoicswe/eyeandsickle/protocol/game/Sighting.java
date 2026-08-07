@@ -115,7 +115,23 @@ public record Sighting(
          * line, which is the right place for it — a marker that tried to carry completeness would need
          * seven states and would be read as none of them.
          */
-        boolean reported) {
+        boolean reported,
+        /**
+         * The account that runs this machine, or {@code ""} until it has been established.
+         *
+         * <h2>⚠ Both this and {@code label} are FINDINGS, not facts about the world</h2>
+         *
+         * They are {@code PortScanTarget.IDENTITY}'s product — the cheapest rung on the ladder — or
+         * they come from having breached the machine, where the name and the account are simply in
+         * the prompt. Until one of those has happened both are empty and the map shows the address
+         * alone.
+         *
+         * <p>⚠ <b>{@code label} used to be ground truth</b>, copied straight off the host by the
+         * sweep, so every machine on the map arrived already named. That made the identity rung
+         * unsellable and it made a name something the player never had to work for. The two fields
+         * sit together here so it is obvious they are gated together.
+         */
+        String operatorName) {
 
     /**
      * The reading without a patch state — every producer that has one today.
@@ -162,7 +178,8 @@ public record Sighting(
                 hostsDeployedMiner,
                 documentAvailable,
                 bridgePeerServerName,
-                false);
+                false,
+                "");
     }
 
     /**
@@ -204,7 +221,8 @@ public record Sighting(
                 hostsDeployedMiner,
                 documentAvailable,
                 bridgePeerServerName,
-                false);
+                false,
+                "");
     }
 
     public Sighting {
@@ -218,6 +236,7 @@ public record Sighting(
         kind = kind == null ? HostKind.UNKNOWN : kind;
         signal = signal == null ? SignalStrength.LOW : signal;
         bridgePeerServerName = bridgePeerServerName == null ? "" : bridgePeerServerName;
+        operatorName = operatorName == null ? "" : operatorName;
 
         // tier is deliberately NOT defaulted. DifficultyTier's scale starts at 1 and has no "unknown"
         // member, so any default would be a difficulty claim about a machine nobody has assessed — and

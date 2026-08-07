@@ -82,6 +82,10 @@ public final class NodeReportView {
         into.getChildren().add(micro("complete   " + report.known() + " of " + NodeReport.total() + " findings"));
         into.getChildren().add(new Label(" "));
 
+        // ⚠ First, because it is the cheapest rung and because it is the row a player reads to know
+        // WHICH machine this file is about. Both halves share one row: they are one finding, and one
+        // unpaid rung should read as one gap rather than two.
+        into.getChildren().add(finding(report, PortScanTarget.IDENTITY, now, identityOf(report)));
         into.getChildren()
                 .add(finding(
                         report,
@@ -129,6 +133,28 @@ public final class NodeReportView {
                         report.vaultMediumEstimate() < 0
                                 ? null
                                 : report.vaultMediumLow() + "-" + report.vaultMediumHigh() + " items  (estimate)"));
+    }
+
+    /**
+     * The identity finding as one string: {@code operator@machine}, or null when nobody has looked.
+     *
+     * <p>⚠ Either half may legitimately be missing — a gateway has a name and no account worth
+     * speaking of — so a bare {@code who + "@" + where} would render {@code @bold-turing} for a scan
+     * that came back with everything there was to have. Same rule and same shape as
+     * {@code PortScanView.identityOf}; the two are separate because one reads a live
+     * {@code PortScanReport} and the other the stored {@code NodeReport}, and merging them would mean
+     * one of the two panels taking a dependency on the other's record type.
+     */
+    static String identityOf(NodeReport report) {
+        String who = report.operatorName() == null ? "" : report.operatorName();
+        String where = report.label() == null ? "" : report.label();
+        if (who.isEmpty() && where.isEmpty()) {
+            return null;
+        }
+        if (who.isEmpty()) {
+            return where;
+        }
+        return where.isEmpty() ? who : who + "@" + where;
     }
 
     /** One finding, its value and its age — or a plain statement that nobody has looked. */

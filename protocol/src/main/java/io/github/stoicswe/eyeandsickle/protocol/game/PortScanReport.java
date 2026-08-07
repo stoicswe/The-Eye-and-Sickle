@@ -26,6 +26,8 @@ import java.time.Instant;
  * @param at when the snapshot was taken; {@link #cyclesUsed} is only true as of this instant
  * @param detected whether the target noticed
  * @param blocked whether the target refused the scan outright, in which case the findings are partial
+ * @param hostName what the machine calls itself, or empty when unknown
+ * @param operatorName the account that runs it, or empty when unknown
  * @param firewallTier 1–3, or -1 when unknown
  * @param osName the OS and version string, or empty when unknown
  * @param cyclesTotal the machine's capability, or -1
@@ -42,6 +44,8 @@ public record PortScanReport(
         Instant at,
         boolean detected,
         boolean blocked,
+        String hostName,
+        String operatorName,
         int firewallTier,
         String osName,
         long cyclesTotal,
@@ -58,6 +62,10 @@ public record PortScanReport(
             return false;
         }
         return switch (target) {
+            // ⚠ Either half counts. A machine can legitimately answer with a name and no account —
+            // a gateway has no operator to speak of — and requiring both would make the rung report
+            // "not established" for a scan that came back with everything there was to have.
+            case IDENTITY -> !isBlank(hostName) || !isBlank(operatorName);
             case FIREWALL -> firewallTier >= 0;
             case OS_VERSION -> osName != null && !osName.isBlank();
             case CYCLE_CAPABILITY -> cyclesTotal >= 0;
@@ -83,8 +91,12 @@ public record PortScanReport(
         return vaultMediumEstimate < 0 ? -1 : vaultMediumEstimate + vaultMediumError;
     }
 
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
     /** A scan that was refused before it learned anything worth reporting. */
     public static PortScanReport refused(String address, PortScanTarget target, Instant at, String why) {
-        return new PortScanReport(address, target, at, true, true, -1, "", -1L, -1L, -1L, -1, -1, 0, why);
+        return new PortScanReport(address, target, at, true, true, "", "", -1, "", -1L, -1L, -1L, -1, -1, 0, why);
     }
 }

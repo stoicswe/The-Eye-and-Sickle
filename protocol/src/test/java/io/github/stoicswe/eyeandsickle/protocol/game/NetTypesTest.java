@@ -189,7 +189,11 @@ class NetTypesTest {
     class Sightings {
 
         @Test
-        @DisplayName("carries exactly the fourteen fields recon can establish")
+        // ⚠ The display name deliberately states NO COUNT. It read "the fourteen fields" while the
+        // list held sixteen — a number in a title drifts silently, because nothing asserts it, and a
+        // reader who trusts it miscounts the very thing the test exists to pin. The list below is the
+        // contract; its length is not a separate claim. Same lesson `ScreenArtefactTest` records.
+        @DisplayName("carries exactly the fields recon can establish, and nothing else")
         void carriesTheContract() {
             // Locked by name, not just by count. Every addition to this list is a claim about a machine
             // that some tool has to have been sold to the player to justify, so it should be a
@@ -231,7 +235,34 @@ class NetTypesTest {
                             // much is in the file is the report's own first line; a column trying to
                             // carry that would need seven states in a space that has room for three
                             // characters, and would be read as none of them.
-                            "reported");
+                            "reported",
+                            // ⚠ Added 2026-08-07, and it clears the bar by being PAID FOR rather
+                            // than by being the player's own relationship to the machine. The
+                            // operator's account name is `PortScanTarget.IDENTITY`'s product — the
+                            // cheapest rung on the port-scan ladder — or it comes from having
+                            // breached the host, where the account is simply in the prompt.
+                            //
+                            // ⚠ `label` beside it changed MEANING on the same day without changing
+                            // its name, which is the more dangerous half of this edit and is why it
+                            // is recorded here rather than only in the record. It used to be ground
+                            // truth copied off the host by the sweep, so every machine on the map
+                            // arrived already named; it is now the same finding as this one and is
+                            // empty until that finding has been established. A field list cannot
+                            // catch a field that keeps its name and stops being free —
+                            // `identityIsNotFree` below is what actually guards it.
+                            "operatorName");
+        }
+
+        @Test
+        @DisplayName("defaults the operator to empty, so a producer that says nothing claims nothing")
+        void operatorDefaultsToEmpty() {
+            // ⚠ This is NOT the guard that a sweep leaves a machine unnamed. That rule lives in
+            // NetRules and is tested there (`NetRulesTest.aSweepDoesNotNameTheMachine`) — the lowest
+            // level the behaviour is visible at. A first attempt asserted it here against `contact()`
+            // and was meaningless: that fixture passes the address in as the label, so it was
+            // measuring the fixture's own convention rather than any rule. What this file can
+            // honestly check is the record's default.
+            assertThat(contact("10.0.0.4").operatorName()).isEmpty();
         }
 
         @Test

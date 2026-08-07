@@ -99,7 +99,8 @@ The draw was an even coin flip. It is now weighted by **how much of the target's
 
 - **Offset Cipher is the default.** It is the puzzle that needs nothing from the far side — deriving an offset from ciphertext is exactly what you do when you have no other handle on a machine. Against a target nobody has scanned it is what you get, every time (`Balance.BREACH_PROTOCOL_SHARE` = 0).
 - **Breach Protocol is the puzzle of someone who knows the host.** Its grid *is* that machine's protocol surface, so it takes knowing the machine to be looking at one. A complete report draws it about **95%** of the time (`BREACH_PROTOCOL_SHARE_INFORMED`).
-- **Linear in between** (`Balance.breachProtocolShare`), one seventh per finding, so there is no threshold to discover — a player who scans one more thing sees the odds move, which is what makes the relationship learnable.
+- **Linear in between** (`Balance.breachProtocolShare`), **one eighth per finding**, so there is no threshold to discover — a player who scans one more thing sees the odds move, which is what makes the relationship learnable.
+  > ⚠ **It was one seventh until 2026-08-07**, when `PortScanTarget.IDENTITY` became an eighth rung. Nothing here was re-tuned: `NodeReports.known` divides by `PortScanTarget.values().length`, so the step follows the ladder's length on its own and a complete report still reads 1.0. What did change is that **there is one more thing to scan for**, so reaching the informed end of the range now costs one more rung — which is the honest consequence of adding one, and the reason the step is stated as a fraction of the ladder rather than as a number.
 
 **This is RECON's first mechanical consequence.** A report used to be intelligence the player read and acted on by hand; it now changes what the breach *is*. `07`'s tools finally feed `05`'s puzzle rather than sitting beside it.
 

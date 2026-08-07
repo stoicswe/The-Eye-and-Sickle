@@ -1,13 +1,13 @@
 package io.github.stoicswe.eyeandsickle.engine.net;
 
-import io.github.stoicswe.eyeandsickle.protocol.game.HostKind;
-import io.github.stoicswe.eyeandsickle.protocol.game.SignalStrength;
 import io.github.stoicswe.eyeandsickle.engine.Balance;
 import io.github.stoicswe.eyeandsickle.engine.breach.Rng;
+import io.github.stoicswe.eyeandsickle.engine.state.GameSave;
 import io.github.stoicswe.eyeandsickle.engine.state.HostState;
 import io.github.stoicswe.eyeandsickle.engine.state.ServerState;
-import io.github.stoicswe.eyeandsickle.engine.state.GameSave;
 import io.github.stoicswe.eyeandsickle.engine.state.TopologyState;
+import io.github.stoicswe.eyeandsickle.protocol.game.HostKind;
+import io.github.stoicswe.eyeandsickle.protocol.game.SignalStrength;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -160,6 +160,11 @@ public final class TopologyGenerator {
         // ── STEP 4: machines per server ──────────────── 1 + 1 + (n-1) + 2n draws for n machines
         List<List<HostState>> grid = new ArrayList<>();
         Map<String, HostState> byAddress = new HashMap<>();
+        // ⚠ Names take NO draws — see NpcNames. This set is what makes a machine name an identifier
+        // rather than a decoration: it is threaded across every server so the de-collision is global,
+        // and it is filled in the generator's canonical order (server ascending, then host ascending)
+        // so the assignment is a pure function of the world's shape, like the draw counts around it.
+        java.util.Set<String> takenNames = new java.util.HashSet<>();
         for (int s = 0; s < serverCount; s++) {
             int lo = Balance.netMachinesMin(depth[s]);
             int hi = Balance.netMachinesMax(depth[s]);
@@ -175,12 +180,12 @@ public final class TopologyGenerator {
             count = Math.min(count, Balance.NET_MACHINES_HARD_CAP);
 
             String serverId = HostArchetypes.serverId(s);
-            String serverName = HostArchetypes.serverName(s);
             List<HostState> hosts = new ArrayList<>(count);
             for (int j = 0; j < count; j++) {
                 HostState host = new HostState();
                 host.address = address(s, j);
-                host.label = HostArchetypes.hostLabel(serverName, j);
+                host.label = NpcNames.machine(host.address, takenNames);
+                takenNames.add(host.label);
                 host.serverId = serverId;
                 hosts.add(host);
                 byAddress.put(host.address, host);

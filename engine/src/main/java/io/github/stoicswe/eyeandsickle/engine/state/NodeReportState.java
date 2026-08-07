@@ -69,6 +69,30 @@ public final class NodeReportState {
     /** How many of those were noticed. A machine that keeps catching you is worth knowing about. */
     public int detections = 0;
 
+    /**
+     * What the machine calls itself, and the account that runs it. Empty means "never established".
+     *
+     * <h2>⚠ These two are WRITE-ONCE, and every other finding on this file is not</h2>
+     *
+     * A firewall tier, a cycle load or a vault estimate is a <em>measurement</em>: it can change, a
+     * rescan should refresh it, and {@link #learnedAt} exists so an old one reads as old. A name is
+     * not a measurement, it is an <b>identity</b> — so the first scan or breach that establishes it
+     * pins it, and no later scan overwrites it.
+     *
+     * <p>The reason is not that the world renames machines; it does not. It is that the name is
+     * <em>derived</em> from the address by {@code NpcNames}, so editing a name pool shifts every
+     * derived name at once. Pinning at first contact means a machine the player has been calling
+     * {@code bold-turing} for ten hours is still called that after somebody adds a word to the
+     * adjective list — and it is what makes "the operator you found when you first broke in" a fact
+     * about that break-in rather than a fact about the current build.
+     *
+     * <p>⚠ {@code NodeReports.merge} is where the write-once rule lives, and it is one {@code if}
+     * away from being a refresh like all the others. {@code NodeReportTest} pins it.
+     */
+    public String hostName = "";
+
+    public String operatorName = "";
+
     public int firewallTier = -1;
     public String osName = "";
     public long cyclesTotal = -1L;

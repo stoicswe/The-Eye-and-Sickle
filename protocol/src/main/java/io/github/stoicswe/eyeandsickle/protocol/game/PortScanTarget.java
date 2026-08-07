@@ -17,6 +17,10 @@ package io.github.stoicswe.eyeandsickle.protocol.game;
  * the ordering of how <em>loudly</em> you have to ask:
  *
  * <ol>
+ *   <li>{@link #IDENTITY} — what the machine calls itself, and whose account runs it. The cheapest
+ *       rung there is, and it is cheapest for a real reason: a name is the one thing a network hands
+ *       out without being asked. Reverse DNS answers it with no packet sent to the target at all
+ *       ({@code nmap -sL} is exactly this), and mDNS, NetBIOS and a login banner all volunteer it.
  *   <li>{@link #FIREWALL} — a closed port answers differently from a filtered one. This is nearly
  *       free, because refusing you <em>is</em> an answer.
  *   <li>{@link #OS_VERSION} — banner grabbing and stack fingerprinting. Still passive-ish, and real:
@@ -39,13 +43,14 @@ package io.github.stoicswe.eyeandsickle.protocol.game;
  * strictly correct every time and there would be no choice to make.
  */
 public enum PortScanTarget {
-    FIREWALL("Firewall posture", "what is filtered, and how hard", 1),
-    OS_VERSION("OS and version", "banner and stack fingerprint", 2),
-    CYCLE_CAPABILITY("Cycle capability", "how big the machine is", 3),
-    CYCLE_LOAD("Cycles free / used", "a snapshot, stale the moment it is taken", 4),
-    DOWNLOADS("Downloads folder", "how much is sitting in it", 5),
-    VAULT_HIGH("High-risk vault", "how many items are in the exposed tier", 6),
-    VAULT_MEDIUM("Medium-risk vault", "an estimate, never a count", 7);
+    IDENTITY("Name and operator", "what it calls itself, and whose account runs it", 1),
+    FIREWALL("Firewall posture", "what is filtered, and how hard", 2),
+    OS_VERSION("OS and version", "banner and stack fingerprint", 3),
+    CYCLE_CAPABILITY("Cycle capability", "how big the machine is", 4),
+    CYCLE_LOAD("Cycles free / used", "a snapshot, stale the moment it is taken", 5),
+    DOWNLOADS("Downloads folder", "how much is sitting in it", 6),
+    VAULT_HIGH("High-risk vault", "how many items are in the exposed tier", 7),
+    VAULT_MEDIUM("Medium-risk vault", "an estimate, never a count", 8);
 
     private final String label;
     private final String detail;
@@ -65,9 +70,31 @@ public enum PortScanTarget {
         return detail;
     }
 
-    /** How deep the scan has to go, 1–7. Everything at or above this depth comes back with it. */
+    /**
+     * How deep the scan has to go, 1–8. Everything at or above this depth comes back with it.
+     *
+     * <h2>⚠ Depth is an ORDER, and {@code PortScanRules} prices the STEPS above the cheapest rung</h2>
+     *
+     * {@link #IDENTITY} was added to the bottom of this ladder after the other seven had been
+     * calibrated, which shifted every one of them up a number. The costs are keyed on
+     * {@code depth − 1} for exactly that reason: {@code CLAUDE.md} makes the economy numbers a set
+     * that is re-checked together rather than spot-edited, and a formula reading {@code depth}
+     * directly would have raised the price, the duration, the noise and the detection risk of all
+     * seven existing rungs as a side effect of inserting one below them — invisibly, since every
+     * screen would still have rendered.
+     */
     public int depth() {
         return depth;
+    }
+
+    /**
+     * How many rungs sit below this one. What the cost formulas are actually built on.
+     *
+     * <p>Zero for {@link #IDENTITY}, which is what makes it the floor rather than a re-tune of
+     * everything above it — see {@link #depth()}.
+     */
+    public int steps() {
+        return depth - 1;
     }
 
     /** Whether a scan aimed at {@code deepest} also answers this one. */

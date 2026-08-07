@@ -1,12 +1,13 @@
 package io.github.stoicswe.eyeandsickle.engine.net;
 
-import io.github.stoicswe.eyeandsickle.protocol.game.PortScanReport;
-import io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget;
 import io.github.stoicswe.eyeandsickle.engine.breach.Rng;
+import io.github.stoicswe.eyeandsickle.engine.fs.VirtualFs;
+import io.github.stoicswe.eyeandsickle.engine.state.GameSave;
 import io.github.stoicswe.eyeandsickle.engine.state.HostState;
 import io.github.stoicswe.eyeandsickle.engine.state.NodeState;
-import io.github.stoicswe.eyeandsickle.engine.state.GameSave;
 import io.github.stoicswe.eyeandsickle.engine.state.TaskState;
+import io.github.stoicswe.eyeandsickle.protocol.game.PortScanReport;
+import io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
@@ -73,19 +74,37 @@ public final class PortScanRules {
     // ── what a depth costs ─────────────────────────────────────────────────────────────────────
 
     /**
+     * ⚠ The floors below apply to {@link PortScanTarget#IDENTITY} and to nothing else, by arithmetic.
+     *
+     * <p>Every cost here is keyed on {@link PortScanTarget#steps()} — rungs above the cheapest — so
+     * that adding {@code IDENTITY} to the bottom of the ladder left the seven calibrated rungs at
+     * exactly the prices they already had. {@code PortScanRulesTest} asserts those seven figures
+     * literally, because "unchanged" is the whole claim and a formula that merely looks equivalent is
+     * not evidence.
+     *
+     * <p>{@code steps == 0} would otherwise make the cheapest rung take no time and make no noise,
+     * which is not "cheap" but "free" — and a free rung is one every player runs on every machine
+     * without a decision, which is what the ladder exists to avoid. For {@code steps ≥ 1} both
+     * multipliers already exceed their floor, so neither floor can ever move a rung above the bottom.
+     */
+    static final long IDENTITY_SECONDS = 8L;
+
+    static final long IDENTITY_NOISE = 1L;
+
+    /**
      * Cycles for a scan of this depth.
      *
      * <p>Deliberately in the same range as the audit ladder's 5–35 ({@code Balance.SCAN_*_CYCLES}) so
      * that a player who has learned what a scan feels like to pay for is not learning a second scale.
-     * The rungs are closer together because there are seven of them rather than three.
+     * The rungs are closer together because there are eight of them rather than three.
      */
     public static long cyclesFor(PortScanTarget target) {
-        return 3L + 2L * depth(target);
+        return 3L + 2L * steps(target);
     }
 
     /** How long it takes. Roughly fifteen seconds a rung, so the deepest is a touch under two minutes. */
     public static Duration durationFor(PortScanTarget target) {
-        return Duration.ofSeconds(15L * depth(target));
+        return Duration.ofSeconds(Math.max(IDENTITY_SECONDS, 15L * steps(target)));
     }
 
     /**
@@ -97,7 +116,7 @@ public final class PortScanRules {
      * impossible to do quietly.
      */
     public static long noiseFor(PortScanTarget target) {
-        return 2L * depth(target);
+        return Math.max(IDENTITY_NOISE, 2L * steps(target));
     }
 
     /**
@@ -113,12 +132,17 @@ public final class PortScanRules {
      */
     public static int riskPercent(HostState host, PortScanTarget target) {
         int firewall = host == null ? 0 : Math.max(0, Math.min(3, host.firewallTier));
-        int risk = 3 + 4 * depth(target) + 6 * firewall;
+        int risk = 3 + 4 * steps(target) + 6 * firewall;
         return Math.max(3, Math.min(70, risk));
     }
 
     private static int depth(PortScanTarget target) {
         return target == null ? 1 : target.depth();
+    }
+
+    /** Rungs above the cheapest. See {@link #IDENTITY_SECONDS} for why every cost is keyed on this. */
+    private static int steps(PortScanTarget target) {
+        return target == null ? 0 : target.steps();
     }
 
     // ── running one ────────────────────────────────────────────────────────────────────────────
@@ -269,14 +293,16 @@ public final class PortScanRules {
                 now,
                 detected,
                 false,
-                depth >= 1 ? Math.max(0, Math.min(3, host.firewallTier)) : -1,
-                depth >= 2 ? osOf(host) : "",
-                depth >= 3 ? capabilityOf(host) : -1L,
-                depth >= 4 ? loadOf(host, now) : -1L,
-                depth >= 5 ? downloadsOf(host) : -1L,
-                depth >= 6 ? vaultHighOf(host) : -1,
-                depth >= 7 ? vaultMediumOf(host) : -1,
-                depth >= 7 ? vaultMediumErrorOf(host, deepScans) : 0,
+                depth >= 1 ? host.label : "",
+                depth >= 1 ? VirtualFs.hostUser(host) : "",
+                depth >= 2 ? Math.max(0, Math.min(3, host.firewallTier)) : -1,
+                depth >= 3 ? osOf(host) : "",
+                depth >= 4 ? capabilityOf(host) : -1L,
+                depth >= 5 ? loadOf(host, now) : -1L,
+                depth >= 6 ? downloadsOf(host) : -1L,
+                depth >= 7 ? vaultHighOf(host) : -1,
+                depth >= 8 ? vaultMediumOf(host) : -1,
+                depth >= 8 ? vaultMediumErrorOf(host, deepScans) : 0,
                 detected
                         ? "The scan completed, and the target noticed. Expect an answer."
                         : "Clean — nothing on the far side reacted.");

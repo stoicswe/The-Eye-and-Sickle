@@ -1,5 +1,20 @@
 package io.github.stoicswe.eyeandsickle.engine.net;
 
+import io.github.stoicswe.eyeandsickle.engine.Balance;
+import io.github.stoicswe.eyeandsickle.engine.breach.Rng;
+import io.github.stoicswe.eyeandsickle.engine.rules.ComputeRules;
+import io.github.stoicswe.eyeandsickle.engine.rules.EventLog;
+import io.github.stoicswe.eyeandsickle.engine.rules.LedgerRules;
+import io.github.stoicswe.eyeandsickle.engine.state.AllocationState;
+import io.github.stoicswe.eyeandsickle.engine.state.GameSave;
+import io.github.stoicswe.eyeandsickle.engine.state.HostState;
+import io.github.stoicswe.eyeandsickle.engine.state.ItemState;
+import io.github.stoicswe.eyeandsickle.engine.state.NodeReportState;
+import io.github.stoicswe.eyeandsickle.engine.state.NodeState;
+import io.github.stoicswe.eyeandsickle.engine.state.ResolutionState;
+import io.github.stoicswe.eyeandsickle.engine.state.ServerState;
+import io.github.stoicswe.eyeandsickle.engine.state.TaskState;
+import io.github.stoicswe.eyeandsickle.engine.state.TopologyState;
 import io.github.stoicswe.eyeandsickle.protocol.game.ComputeConsumer;
 import io.github.stoicswe.eyeandsickle.protocol.game.DifficultyTier;
 import io.github.stoicswe.eyeandsickle.protocol.game.Ethecoin;
@@ -11,20 +26,6 @@ import io.github.stoicswe.eyeandsickle.protocol.game.ServerRef;
 import io.github.stoicswe.eyeandsickle.protocol.game.Sighting;
 import io.github.stoicswe.eyeandsickle.protocol.game.SignalStrength;
 import io.github.stoicswe.eyeandsickle.protocol.game.SweepReport;
-import io.github.stoicswe.eyeandsickle.engine.Balance;
-import io.github.stoicswe.eyeandsickle.engine.breach.Rng;
-import io.github.stoicswe.eyeandsickle.engine.rules.ComputeRules;
-import io.github.stoicswe.eyeandsickle.engine.rules.EventLog;
-import io.github.stoicswe.eyeandsickle.engine.rules.LedgerRules;
-import io.github.stoicswe.eyeandsickle.engine.state.AllocationState;
-import io.github.stoicswe.eyeandsickle.engine.state.HostState;
-import io.github.stoicswe.eyeandsickle.engine.state.ItemState;
-import io.github.stoicswe.eyeandsickle.engine.state.NodeState;
-import io.github.stoicswe.eyeandsickle.engine.state.ResolutionState;
-import io.github.stoicswe.eyeandsickle.engine.state.ServerState;
-import io.github.stoicswe.eyeandsickle.engine.state.GameSave;
-import io.github.stoicswe.eyeandsickle.engine.state.TaskState;
-import io.github.stoicswe.eyeandsickle.engine.state.TopologyState;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -212,7 +213,14 @@ public final class NetRules {
     /**
      * One machine as the player knows it.
      *
-     * <p>Four fields are deliberately the player's knowledge and not the truth beside them:
+     * <p>⚠ <b>{@code label} is one of them, and it was the truth until 2026-08-07.</b> A sweep used to
+     * copy {@link HostState#label} straight into the player's knowledge, so every machine arrived
+     * already named. Its name is now a finding — {@code PortScanTarget.IDENTITY}, the cheapest rung —
+     * and until that rung has been paid for, or the machine has been breached, this is empty and the
+     * interface shows the address alone. Read from the recon file rather than from a second copy on
+     * {@link NodeState}, because one stored answer cannot disagree with itself.
+     *
+     * <p>Five fields are deliberately the player's knowledge and not the truth beside them:
      * {@code kind} stays {@code UNKNOWN} until a type-revealing tool has run (a sweep sells existence
      * and adjacency, the Passive Sniffer sells identity), {@code honeypotSuspected} comes off
      * {@link NodeState} and never off {@link HostState#honeypot}, {@code documentAvailable} is only
@@ -252,9 +260,18 @@ public final class NetRules {
             peerServerName = peerServerName(host, servers, topology);
         }
 
+        // Your own rig is never a finding about somebody else's machine — it is called what it is
+        // called, from the first second, and gating it would make `localhost` something to scan for.
+        // Its operator is the player, and the top strip already says who that is, so it stays empty
+        // rather than printing the handle twice.
+        Optional<NodeReportState> file = self ? Optional.empty() : NodeReports.find(save, host.address);
+        String knownName =
+                self ? host.label : file.map(report -> report.hostName).orElse("");
+        String knownOperator = file.map(report -> report.operatorName).orElse("");
+
         return new Sighting(
                 host.address,
-                host.label,
+                knownName,
                 host.serverId,
                 kind,
                 tier,
@@ -271,7 +288,8 @@ public final class NetRules {
                 hostsMiner,
                 host.foothold && !host.documentId.isEmpty() && !host.documentTaken,
                 peerServerName,
-                NodeReports.any(save, host.address));
+                NodeReports.any(save, host.address),
+                knownOperator);
     }
 
     /**
@@ -623,6 +641,14 @@ public final class NetRules {
                         "foothold on " + host.address + "; `connect " + host.address + "` to sweep from it.",
                         now);
             }
+            // ⚠ Outside the foothold guard, so a machine breached before identities were recorded
+            // gets one on the next load rather than staying permanently anonymous — this method is
+            // idempotent by construction and runs on every resume, which is what makes that safe.
+            // It is write-once itself, so the name a player learned on the first break-in is the name
+            // they keep. See NodeReports#establishIdentity.
+            if (NodeReports.establishIdentity(save, host, now)) {
+                changed = true;
+            }
             if (!host.looted) {
                 host.looted = true;
                 changed = true;
@@ -790,11 +816,16 @@ public final class NetRules {
      * would delete a purchased or gated tool at the point of discovery, and setting
      * {@code trafficAnalyzed} would additionally hand out proof-of-skill credit (Invariant I7). A test
      * asserts all three.
+     *
+     * <p>⚠ <b>{@code label} is now a fourth, added 2026-08-07.</b> This method used to copy
+     * {@link HostState#label} in, which named every machine the moment a sweep touched it. The name
+     * is a port-scan finding now ({@code PortScanTarget.IDENTITY}) and lives on the recon file, so
+     * this field stays empty and nothing reads it — a sweep's product is existence and adjacency, and
+     * a name is neither.
      */
     private static NodeState nodeFor(HostState host, Instant now) {
         NodeState node = new NodeState();
         node.address = host.address;
-        node.label = host.label;
         node.serverId = host.serverId;
         node.kind = HostKind.UNKNOWN.name();
         // ⚠ The default is Instant.now(); a rule that leaves it there dates every discovery to the
