@@ -1735,6 +1735,111 @@ public final class Balance {
     public static final long NET_SWEEP_DEEP_SECONDS = 90L;
 
     /**
+     * The lowest sweep tier that can see a {@code BRIDGE} at all.
+     *
+     * <h2>⚠ THIS IS A GATE ON CANDIDACY, NOT ON REACH — Invariant I2 is untouched</h2>
+     *
+     * A bridge is the way <em>onward</em> from a server, and until 2026-08-07 it was the single most
+     * reliable thing the free starting instrument could find: bridges are {@code SignalStrength.HIGH},
+     * so {@link #netSweepBase} gave them 0.85 at tier 1. Finding the exit was easier than finding
+     * anything worth taking.
+     *
+     * <p>⚠ <b>Withholding it does NOT sell reach.</b> {@code NetRules.hopCeiling} still takes no sweep
+     * tier and is still 1, or 2 with the Topology Mapper schematic; crossing a bridge is still earned
+     * the way it always was — breach, foothold, {@code connect}, sweep again from there. What a wide
+     * sweep buys is <em>knowing the door is there</em>, which is sensitivity, which is what
+     * {@code docs/design/02} §1.1 puts on ethecoin. A tier that made the far side reachable would be
+     * an I2 violation; this one leaves a player exactly as far from the next server as before, and
+     * merely tells them which machine to work on.
+     *
+     * <p>⚠ <b>2, not 3.</b> At 3 the only route to the rest of the world would sit behind the dearest
+     * sweep, and a player who had not bought it would have no way to learn that servers beyond their
+     * own exist — which is content invisible rather than content gated. WIDE is the first upgrade a
+     * new player buys, so this makes "what is out there" the thing that upgrade is <em>for</em>.
+     * <strong>[PROPOSAL]</strong>.
+     */
+    public static final int NET_SWEEP_BRIDGE_MIN_TIER = 2;
+
+    /**
+     * How often a bridge on the <em>home</em> server carries somebody else's MonJob. Zero.
+     *
+     * <h2>⚠ ITS OWN NAMED VALUE, FOR {@link #NET_COUNTER_HACK_HOME}'S REASON, WORD FOR WORD</h2>
+     *
+     * That constant exists "so a re-tune of {@code netCounterHackChance} cannot make it non-zero by
+     * accident", because "<b>a player who has never left home is never counter-hacked</b>: the home
+     * server is where the game teaches, and a teaching space that occasionally plants a parasite on
+     * the student is a teaching space they learn to avoid."
+     *
+     * <p>All of that transfers. The first bridge a player ever crosses is clean, always, so the
+     * mechanic is introduced by <em>reaching out</em> rather than by being watched at home before
+     * they know what a MonJob is. <strong>[PROPOSAL]</strong>.
+     */
+    public static final double MONJOB_DENSITY_HOME = 0.0d;
+
+    /**
+     * The chance a bridge at this depth carries an NPC MonJob.
+     *
+     * <h2>⚠ THE SAME CURVE SHAPE AS {@link #netCounterHackChance}, NOT A SECOND UNRELATED ONE</h2>
+     *
+     * Counter-hack runs {@code 0.00 / 0.04 / 0.10 / 0.18 / 0.28}. This is flat at home, accelerating
+     * outward, flattening at the top — the same story — so the two read as one escalation rather than
+     * as two systems that happen to both notice distance. A player learning "further out is worse"
+     * learns it once.
+     *
+     * <h2>⚠ MUCH HIGHER THAN COUNTER-HACK AT EVERY DEPTH, AND DELIBERATELY</h2>
+     *
+     * <b>Being watched is not being attacked.</b> A MonJob costs the player nothing directly — it is
+     * the thing that makes the <em>later</em> attack legible, and at tier 2 it is the only warning the
+     * game gives before one. Tuning it as though it were a hazard would make deep play unbearable
+     * while removing the signal that deep play is dangerous, which is exactly backwards.
+     * <strong>[PROPOSAL]</strong>.
+     */
+    public static double monJobDensity(int depth) {
+        return switch (netDepth(depth)) {
+            case 0 -> MONJOB_DENSITY_HOME;
+            case 1 -> 0.10d;
+            case 2 -> 0.28d;
+            case 3 -> 0.50d;
+            default -> 0.70d;
+        };
+    }
+
+    /**
+     * Of the MonJobs at this depth, what fraction are tier 2 — the ones that tell the intruder.
+     *
+     * <h2>⚠ THE MIX SHIFTS AS WELL AS THE DENSITY, AND WITHOUT THIS THE WHOLE SYSTEM IS INVISIBLE</h2>
+     *
+     * A <b>tier-1 MonJob is invisible to the intruder by design</b> — it notifies its owner and tells
+     * the machine that tripped it nothing at all. So density alone teaches the player nothing: cross
+     * ten distant bridges watched by ten tier-1 jobs, learn nothing, and then get counter-hacked with
+     * no visible cause. {@code NetRules} already names that failure for sweeps — "<em>a mechanic that
+     * punishes without explaining is indistinguishable from a bug</em>".
+     *
+     * <p>Tier 2 is the only thing that says, in words, that the network noticed. Shifting the mix
+     * outward means the warning arrives where the danger is.
+     *
+     * <h2>⚠ It also fits who is out there</h2>
+     *
+     * Tier 2's cost is that it <em>reveals the watcher</em> — which a cautious operator minds and an
+     * aggressive one does not. Distant NPCs are the aggressive ones ({@code docs/design/17} §6), so
+     * the mix is a fact about them rather than a dial with no fiction behind it.
+     *
+     * <p>Combined with {@link #monJobDensity}, the chance of being watched <em>and told</em> runs
+     * about {@code 0 / 1.5% / 8% / 23% / 42%} by depth: near home almost never, deep often enough to
+     * be a pattern. ⚠ Not higher — a warning that fires on every crossing stops being read, which is
+     * §2.1's rationing argument one system along. <strong>[PROPOSAL]</strong>.
+     */
+    public static double monJobTierTwoShare(int depth) {
+        return switch (netDepth(depth)) {
+            case 0 -> 0.0d;
+            case 1 -> 0.15d;
+            case 2 -> 0.30d;
+            case 3 -> 0.45d;
+            default -> 0.60d;
+        };
+    }
+
+    /**
      * Ethecoin prices for the two purchasable sweep tiers.
      *
      * <p>Priced against {@code docs/design/03-economy.md} §2's bands, and 25 EC sits deliberately

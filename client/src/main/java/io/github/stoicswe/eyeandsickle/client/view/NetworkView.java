@@ -25,12 +25,20 @@ import javafx.scene.layout.Region;
  * simultaneity problem. A tabbed shell makes it a memory problem instead, which is a different and
  * worse game."</em>
  *
- * <p>Tabs here mean the map and the breach cannot be on screen at once. Nothing breaks today,
- * because the minigame in {@code design/05} is a {@code [PROPOSAL]} and is deliberately not built —
- * so this is a real cost that is currently unpaid. ⚠ <b>If the breach puzzle is built, the breach
- * probably has to come back out of this window</b>, and the cross-referencing steps are the test:
- * the moment a layer requires reading a recon log while looking at the board, a tab is the wrong
- * container. Logged as <b>UI-8</b> in {@code docs/design/15-open-questions.md}.
+ * <p>Tabs here mean the map and the breach cannot be on screen at once.
+ *
+ * <p>⚠ <b>THIS COMMENT USED TO SAY "nothing breaks today, because the minigame is deliberately not
+ * built". THAT IS NO LONGER TRUE (2026-08-07).</b> {@code design/05} reads <em>Decided
+ * 2026-07-26</em>, {@code design/16} is <em>"The Breach, As Built"</em>, and there are two puzzle
+ * classes, nine classes in {@code engine/breach/} and a {@link BreachView} playing it. The claim came
+ * from a stale line in {@code CLAUDE.md}, now corrected. <b>So the cost is being paid right now
+ * rather than deferred</b>, and the test §44 names is answerable today: the moment a layer requires
+ * reading a recon log while looking at the board, a tab is the wrong container and the breach has to
+ * come back out. Logged as <b>UI-8</b> in {@code docs/design/15-open-questions.md}.
+ *
+ * <p>⚠ Note the tension with the node menu's one-gesture breach, which deliberately makes this tab
+ * <em>easier</em> to reach from the map. That is a bet on the tab; if UI-8 resolves the other way, it
+ * is the thing to revisit.
  */
 public final class NetworkView {
 
@@ -55,18 +63,30 @@ public final class NetworkView {
         tabs.getStyleClass().add("es-market-tabs");
         tabs.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
 
+        Tab breach = new Tab("BREACH", BreachView.create(session, terms, profile, arming));
+
         // ⚠ MAP first. It is the only one of the three that answers "what is out there at all", so
         // it is where somebody with no target starts — and the other two are about a target.
         tabs.getTabs()
                 .addAll(
                         new Tab("MAP", NetMapView.create(session, arming, nodeActions)),
                         new Tab("RECON", ReconView.create(session, nodeActions::info)),
-                        new Tab("BREACH", BreachView.create(session, terms, profile, arming)),
+                        breach,
                         // ⚠ BOTNET last, and the order is the operational sequence rather than an
                         // alphabet: find a machine, study it, get in, and then what you left running
                         // on it. A bot is the residue of the three tabs to its left.
                         new Tab("BOTNET", MoreViews.botnet(session)));
+
+        // ⚠ REGISTERED HERE BECAUSE THIS IS THE ONLY PLACE THAT HOLDS THE TAB.
+        //
+        // Choosing Breach on the map's node menu has to land the player on this tab — the window
+        // opens on MAP, so without this the menu armed a target, raised a window already in front of
+        // them, and left the breach they asked for one tab away with nothing saying so.
+        //
+        // ⚠ Registered on every build, not once. DeskManager calls the window factory afresh each
+        // time the window opens, so a selector captured at startup would point at a TabPane belonging
+        // to a window that has since been closed.
+        arming.setBreachFocus(() -> tabs.getSelectionModel().select(breach));
         return tabs;
     }
-
 }

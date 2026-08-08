@@ -202,10 +202,7 @@ public final class MoreViews {
         for (var report : reports) {
             into.getChildren()
                     .add(mono(pad(report.address(), 18)
-                            + pad(
-                                    report.known() + "/"
-                                            + io.github.stoicswe.eyeandsickle.protocol.game.NodeReport.total(),
-                                    8)
+                            + pad(report.known() + "/" + report.total(), 8)
                             + pad(String.valueOf(report.scans()), 8)
                             + pad(NodeReportView.age(report.createdAt(), now), 20)
                             + NodeReportView.age(report.updatedAt(), now)));

@@ -51,7 +51,8 @@ public record NodeReport(
         int vaultHighCount,
         int vaultMediumEstimate,
         int vaultMediumError,
-        Map<String, Instant> learnedAt) {
+        Map<String, Instant> learnedAt,
+        HostKind kind) {
 
     /** Whether this finding has ever been established. */
     public boolean knows(PortScanTarget target) {
@@ -138,8 +139,17 @@ public record NodeReport(
         return learnedAt.size();
     }
 
-    /** How many rungs there are to know. */
-    public static int total() {
-        return PortScanTarget.values().length;
+    /**
+     * How many rungs there are to know <em>about this machine</em>.
+     *
+     * <h2>⚠ AN INSTANCE METHOD, BECAUSE THE ANSWER DEPENDS ON THE KIND</h2>
+     *
+     * It was {@code static}, returning {@code PortScanTarget.values().length}. That was already only
+     * accidentally right — the ladder was universal — and it broke the moment bridges gained findings
+     * of their own: a bridge would have reported "3 of 10 findings" while having five, and every
+     * ordinary machine "8 of 10" while having eight. Both numbers render perfectly.
+     */
+    public int total() {
+        return PortScanTarget.countFor(kind);
     }
 }

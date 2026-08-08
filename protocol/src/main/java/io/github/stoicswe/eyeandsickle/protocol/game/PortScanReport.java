@@ -54,6 +54,9 @@ public record PortScanReport(
         int vaultHighCount,
         int vaultMediumEstimate,
         int vaultMediumError,
+        int peerCount,
+        String peerServerName,
+        int monitored,
         String note) {
 
     /** Whether this scan actually answered {@code target}. */
@@ -73,6 +76,12 @@ public record PortScanReport(
             case DOWNLOADS -> downloadsBytes >= 0;
             case VAULT_HIGH -> vaultHighCount >= 0;
             case VAULT_MEDIUM -> vaultMediumEstimate >= 0;
+            case PEERS -> peerCount >= 0;
+            // ⚠ TRI-STATE, and it has to be. -1 is "never looked", 0 is "looked, nothing watching",
+            // 1 is "looked, something is". A boolean would collapse the first two, so an unscanned
+            // bridge would report as clean — which is the one wrong answer that reads as reassuring.
+            // Same convention every numeric rung above already uses.
+            case MONITORED -> monitored >= 0;
         };
     }
 
@@ -97,6 +106,7 @@ public record PortScanReport(
 
     /** A scan that was refused before it learned anything worth reporting. */
     public static PortScanReport refused(String address, PortScanTarget target, Instant at, String why) {
-        return new PortScanReport(address, target, at, true, true, "", "", -1, "", -1L, -1L, -1L, -1, -1, 0, why);
+        return new PortScanReport(
+                address, target, at, true, true, "", "", -1, "", -1L, -1L, -1L, -1, -1, 0, -1, "", -1, why);
     }
 }

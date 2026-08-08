@@ -234,7 +234,7 @@ public final class ReconView {
                 .addAll(Ui.micro(report.address()), addTag(session, report, addressLine, repaint, editing));
 
         Label figures = Ui.micro("");
-        Runnable retime = () -> figures.setText(report.known() + "/" + NodeReport.total() + " known"
+        Runnable retime = () -> figures.setText(report.known() + "/" + report.total() + " known"
                 + "  ·  " + report.scans() + (report.scans() == 1 ? " scan" : " scans")
                 + "  ·  opened " + NodeReportView.age(report.createdAt(), session.now())
                 + "  ·  updated " + NodeReportView.age(report.updatedAt(), session.now()));
@@ -260,7 +260,7 @@ public final class ReconView {
         row.getStyleClass().add("es-recon-row");
         row.setAccessibleText("Report on " + report.address()
                 + (report.alias().isBlank() ? "" : ", which you called " + report.alias())
-                + ". " + report.known() + " of " + NodeReport.total() + " findings"
+                + ". " + report.known() + " of " + report.total() + " findings"
                 + (report.tags().isEmpty() ? "" : ", tagged " + String.join(", ", report.tags()))
                 + ". Double-click the name to rename it.");
         return row;

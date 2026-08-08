@@ -371,6 +371,16 @@ public final class NetRules {
             if (host.discovered) {
                 continue;
             }
+            // ⚠ A HARD GATE ON WHICH KINDS THIS TIER CAN SEE, applied before the roll and never as a
+            // probability. Bridges need a WIDE sweep or better — see HostArchetypes.detectableBySweep.
+            //
+            // ⚠ It gates candidacy, NOT reach: the host is still inside the hop ceiling either way,
+            // and hopCeiling still takes no tier. A base sweep is standing in exactly the same place
+            // as a wide one and simply does not hear this kind of machine, which is sensitivity —
+            // what ethecoin is allowed to buy — rather than distance, which it is not (I2).
+            if (!HostArchetypes.detectableBySweep(host.kind, tier.tier())) {
+                continue;
+            }
             boolean hostsMiner = false;
             double threshold = Balance.netSweepBase(
                             tier.tier(),

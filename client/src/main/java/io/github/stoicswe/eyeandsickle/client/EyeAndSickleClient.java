@@ -1216,10 +1216,34 @@ public class EyeAndSickleClient extends Application {
                         () -> session.closeSession(address));
             }
 
+            /**
+             * The map's node menu: aim, jump to the tab, and go — one gesture.
+             *
+             * <h2>⚠ THE ONLY ENTRY POINT EXEMPT FROM THE TWO-STEP, and the fence is in BreachArming</h2>
+             *
+             * Arming is normally free and reversible, and START BREACH is the commitment, because a
+             * breach reserves compute that no outcome refunds. That rule was written against a
+             * <b>reflowing list</b> — aim at row three, a sweep lands, the rows move, and row three is
+             * a different machine you have already committed to. A per-node context menu cannot do
+             * that: the machine and the verb are the same gesture on the same object.
+             *
+             * <h2>⚠ THE ORDER OF THESE THREE CALLS IS LOAD-BEARING</h2>
+             *
+             * {@code armAndStart} records the request first, so it is already set whichever way the
+             * next line goes: if the window is <b>closed</b>, {@code open()} builds the breach panel
+             * and its first refresh picks the request up; if it is <b>already open</b>, the notify
+             * inside {@code armAndStart} reaches the live panel. Recording it after {@code open()}
+             * would miss the second case entirely — and that is the common one, since the player is
+             * looking at the map inside this very window when they right-click.
+             *
+             * <p>{@code focusBreach()} comes last because it needs the tab to exist, and the tab is
+             * registered by {@code NetworkView} while {@code open()} builds it.
+             */
             @Override
             public void breach(String address) {
-                arming.rearm("node:" + address);
+                arming.armAndStart("node:" + address);
                 arming.open();
+                arming.focusBreach();
             }
 
             /**

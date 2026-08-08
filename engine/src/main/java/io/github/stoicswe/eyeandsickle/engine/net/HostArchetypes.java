@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.engine.net;
 
+import io.github.stoicswe.eyeandsickle.engine.Balance;
 import io.github.stoicswe.eyeandsickle.engine.state.HostState;
 import io.github.stoicswe.eyeandsickle.protocol.game.HostKind;
 import io.github.stoicswe.eyeandsickle.protocol.game.SignalStrength;
@@ -156,6 +157,67 @@ public final class HostArchetypes {
     public static boolean infrastructure(String hostKind) {
         HostKind kind = kindOrUnknown(hostKind);
         return kind == HostKind.GATEWAY || kind == HostKind.BRIDGE;
+    }
+
+    /**
+     * Whether a sweep of this tier may find this kind of machine at all.
+     *
+     * <h2>⚠ A HARD GATE ON CANDIDACY, NOT A PROBABILITY — and that distinction keeps I2 intact</h2>
+     *
+     * {@code Balance.netSweepBase}'s own note says a sweep tier "returns a probability that is
+     * multiplied by a hop factor after <em>a hard gate has already decided candidacy</em>". This is
+     * one of those gates. It changes <b>which machines a tier can see</b>, never how far it can see,
+     * so {@code NetRules.hopCeiling} still takes no tier and there is still no code path from
+     * ethecoin to reach.
+     *
+     * <h2>⚠ BRIDGES ARE INVISIBLE TO A BASE SWEEP (2026-08-07), which REVERSES a documented line</h2>
+     *
+     * {@code netSweepBase}'s doc used to read "the base sweep reliably finds the loud furniture of a
+     * network — gateways, relays, bridges". A bridge is {@code SignalStrength.HIGH}, so at tier 1 it
+     * was found 85% of the time: the way out of a server was the single most reliable thing a new
+     * player's free instrument could see. Bridges now need {@link Balance#NET_SWEEP_BRIDGE_MIN_TIER}.
+     *
+     * <p>⚠ <b>Gateways and relays are deliberately NOT gated with them.</b> A gateway is a signpost —
+     * host index 0, no loot, its whole function is to be the first thing found on a server — so
+     * hiding it would leave a base sweep finding nothing but quiet desktops on a server it has
+     * already reached. What is being withheld is specifically the <em>way onward</em>.
+     *
+     * <h2>⚠ MONOTONICITY SURVIVES, and it is a required property rather than a nicety</h2>
+     *
+     * A test asserts {@code detected(T1) ⊆ detected(T2) ⊆ detected(T3)} from one vantage, because a
+     * player who buys a better instrument must never lose a contact they already had. A gate that
+     * only ever <em>adds</em> kinds as the tier rises preserves that by construction. Gating a kind
+     * <em>out</em> at a higher tier would break it, which is why this reads as a floor and not a band.
+     */
+    public static boolean detectableBySweep(String hostKind, int sweepTier) {
+        if (kindOrUnknown(hostKind) == HostKind.BRIDGE) {
+            return sweepTier >= Balance.NET_SWEEP_BRIDGE_MIN_TIER;
+        }
+        return true;
+    }
+
+    /**
+     * Whether work may be left running on this kind of machine — a miner, and eventually a bot.
+     *
+     * <h2>⚠ A BRIDGE IS A ROUTER, NOT A COMPUTER</h2>
+     *
+     * It forwards traffic between servers; it is not a general-purpose host with spare cycles to
+     * borrow. Invariant <b>I6</b> is what makes that matter mechanically — a deployed miner consumes
+     * the <em>host's</em> compute — so a bridge that accepted one would have to be modelled as having
+     * a cycle budget, and every argument for reaching a further server would become an argument for
+     * parking a miner on the way there.
+     *
+     * <p>⚠ <b>Nothing calls this yet, and that is stated rather than hidden.</b> There is no player
+     * deploy action in the engine today: {@code NodeState.deployedMiners} is read in six places and
+     * written by none, because bots are {@code docs/design/10} and deliberately unbuilt. This is the
+     * predicate that action must consult when it is written, and {@code HostArchetypesTest} is what
+     * gives the rule something to be wrong against in the meantime — the arrangement
+     * {@code BreachArmingTest}'s own note describes. ⚠ A rule with no caller is exactly how
+     * {@code reconcileFootholds} was broken for weeks, so <b>the deploy action must call this on the
+     * day it exists</b>.
+     */
+    public static boolean acceptsDeployedWork(String hostKind) {
+        return kindOrUnknown(hostKind) != HostKind.BRIDGE;
     }
 
     /** Parses a stored kind name, defaulting to {@code UNKNOWN} rather than throwing on a hand-edited save. */

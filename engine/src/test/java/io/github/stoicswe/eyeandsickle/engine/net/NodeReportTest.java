@@ -2,8 +2,8 @@ package io.github.stoicswe.eyeandsickle.engine.net;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget;
 import io.github.stoicswe.eyeandsickle.engine.GameEngine;
+import io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
@@ -154,7 +154,7 @@ class NodeReportTest {
 
         scanned(clock, game, address, PortScanTarget.VAULT_MEDIUM);
         var deep = NodeReports.at(game.state(), address).orElseThrow();
-        assertThat(deep.known()).isEqualTo(io.github.stoicswe.eyeandsickle.protocol.game.NodeReport.total());
+        assertThat(deep.known()).isEqualTo(deep.total());
         int estimate = deep.vaultMediumEstimate();
         Instant deepAt = deep.when(PortScanTarget.VAULT_MEDIUM);
 

@@ -1,6 +1,5 @@
 package io.github.stoicswe.eyeandsickle.engine.net;
 
-import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
 
@@ -598,10 +597,10 @@ public final class NpcNames {
      * about whether the pools are evenly spread.
      */
     private static long hash(String address) {
-        long h = 0xCBF29CE484222325L;
-        for (byte b : String.valueOf(address).getBytes(StandardCharsets.UTF_8)) {
-            h = (h ^ (b & 0xFFL)) * 0x100000001B3L;
-        }
-        return h ^ (h >>> 32);
+        // ⚠ Moved to AddressHash 2026-08-07, byte-for-byte the same function. A third caller
+        // (MonJobs) was about to make a third copy of it, which is the point at which "identical, and
+        // deliberately so" becomes "nobody extracted it". Delegating rather than inlining keeps this
+        // method as the documented entry point the class comment above still describes.
+        return AddressHash.of(address);
     }
 }

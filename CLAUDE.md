@@ -169,7 +169,19 @@ hand-kept list; negative-tested by hiding a controller.
 
 The **Established spine is implemented and boots** (`ServerContextLoadsIT` starts the full context against a real database): schema (Flyway core + federation), JdbcClient data layer, AT-Proto-auth + allowlist, compute ledger, ethecoin/public ledger + gates, provenance persistence & ingress verification, validator quorum (A-Res sampling + AIMD reputation), peer discovery, and the `Content-Digest` checksum filter. ~168 main + ~117 test classes; `mvn verify` and `mvn -Pit verify` both green (203 integration tests, no Docker).
 
-What is **stubbed at documented seams** (see `docs/design/15-open-questions.md` W-1…W-6): external DID→key resolution over the network, schematic ownership, gated-offering content, faction-tool forfeiture, and a production AT Proto provider — each a safe `@ConditionalOnMissingBean` default a real implementation supersedes. REST controllers exist only where a slice reached them; most surface is service-level. `[PROPOSAL]` game systems (minigame `05`, bots `10`, narrative `14`) are deliberately not implemented.
+What is **stubbed at documented seams** (see `docs/design/15-open-questions.md` W-1…W-6): external DID→key resolution over the network, schematic ownership, gated-offering content, faction-tool forfeiture, and a production AT Proto provider — each a safe `@ConditionalOnMissingBean` default a real implementation supersedes. REST controllers exist only where a slice reached them; most surface is service-level. `[PROPOSAL]` game systems (bots `10`, narrative `14`) are deliberately not implemented.
+
+⚠ **THE BREACH MINIGAME IS BUILT, and this paragraph said otherwise until 2026-08-07.** It listed
+"minigame `05`" among the systems "deliberately not implemented", which stopped being true when
+`design/16-breach-implementation.md` — *"The Breach, As Built"* — landed: two puzzle classes (Breach
+Protocol, Offset Cipher), nine classes in `engine/breach/`, seven test classes, and `view/BreachView`
+playing it. `design/05` has read **Decided 2026-07-26** since then.
+⚠ **A STALE "not implemented" IS WORSE THAN NO NOTE, because it is load-bearing in arguments.** Two
+places leaned on it to defer a real cost — `design/15` **UI-8** and `NetworkView`'s class comment both
+justified the breach living in a tab with *"nothing breaks today because the minigame is not built"* —
+and that premise is now void. It also sent this session's first draft of `design/17` §7 to the wrong
+conclusion about the anti-trace minigame. **Re-check anything that reasons from a system being
+unbuilt.**
 
 ### Releasing
 

@@ -6,11 +6,11 @@ import static io.github.stoicswe.eyeandsickle.engine.breach.BreachTestKit.withNo
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.offset;
 
-import io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget;
 import io.github.stoicswe.eyeandsickle.engine.Balance;
 import io.github.stoicswe.eyeandsickle.engine.net.NodeReports;
-import io.github.stoicswe.eyeandsickle.engine.state.NodeReportState;
 import io.github.stoicswe.eyeandsickle.engine.state.GameSave;
+import io.github.stoicswe.eyeandsickle.engine.state.NodeReportState;
+import io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -88,7 +88,12 @@ class BreachPuzzleWeightingTest {
         @Test
         @DisplayName("each finding is worth the same increment, so there is no threshold to discover")
         void isLinear() {
-            int total = PortScanTarget.values().length;
+            // ⚠ THE APPLICABLE COUNT, NOT values().length. Bridges gained two findings of their
+            // own on 2026-08-07; an ordinary machine still has exactly eight, and this test is what
+            // proves the addition did not quietly re-weight every breach in the game — `known` feeds
+            // breachProtocolShare, so an 8/10 denominator would have moved the odds on every target
+            // a player has ever scanned, silently, with every screen still rendering.
+            int total = PortScanTarget.countFor(io.github.stoicswe.eyeandsickle.protocol.game.HostKind.TERMINAL);
             for (int found = 0; found <= total; found++) {
                 GameSave save = withNode(1L, 3, 0, false, false);
                 if (found > 0) {

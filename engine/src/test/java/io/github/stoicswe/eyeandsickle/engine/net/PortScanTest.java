@@ -2,9 +2,9 @@ package io.github.stoicswe.eyeandsickle.engine.net;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget;
 import io.github.stoicswe.eyeandsickle.engine.GameEngine;
 import io.github.stoicswe.eyeandsickle.engine.state.HostState;
+import io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
@@ -64,7 +64,18 @@ class PortScanTest {
         long cycles = -1;
         long seconds = -1;
         int risk = -1;
-        for (PortScanTarget rung : PortScanTarget.values()) {
+        // ⚠ ONE KIND'S RUNGS, IN DEPTH ORDER — the ladder stopped being global on 2026-08-07.
+        // PEERS and MONITORED exist only on a BRIDGE and share depths 4 and 5 with rungs that exist
+        // only on everything else, so walking values() in declaration order now walks depth
+        // 1..8 then 4,5 and the cost "falls". The property that still holds, and the one that
+        // matters, is that within the rungs a given machine HAS, deeper costs more on every axis.
+        // ⚠ Within any one kind the depths are unique — see MonJobsTest.depthsAreUniqueWithinAKind —
+        // which is what makes sharing a depth across kinds safe.
+        var applicable = java.util.Arrays.stream(PortScanTarget.values())
+                .filter(rung -> rung.appliesTo(HostArchetypes.kindOrUnknown(host.kind)))
+                .sorted(java.util.Comparator.comparingInt(PortScanTarget::depth))
+                .toList();
+        for (PortScanTarget rung : applicable) {
             assertThat(PortScanRules.cyclesFor(rung)).as("%s cycles", rung).isGreaterThan(cycles);
             assertThat(PortScanRules.durationFor(rung).toSeconds())
                     .as("%s seconds", rung)

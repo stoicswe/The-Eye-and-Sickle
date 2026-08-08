@@ -43,10 +43,14 @@ import javafx.scene.layout.StackPane;
  *
  * <h2>Motion</h2>
  *
- * §5, step timing only. Each frame is a discrete recomputation at {@value #FRAME_MS}ms — deliberately
- * slow, both because a fast ASCII tumble reads as a screensaver and because 48 steps of visible
- * stepping is what makes it look like a machine redrawing rather than an animation playing. Under
- * reduced motion it holds one frame.
+ * §5, step timing only. Each frame is a discrete recomputation on the {@value #FRAME_MS}ms tick, and
+ * 48 steps of visible stepping is what makes it look like a machine redrawing rather than an
+ * animation playing. Under reduced motion it holds one frame.
+ *
+ * <p><b>How fast it turns is the rig's load</b> — see {@link #stepsPerTick}. A rig with one cycle
+ * committed idles round in {@value #TURN_SECONDS_LIGHT}s; a rig with every cycle claimed spins in
+ * {@value #TURN_SECONDS_FULL}s. That is the second reading this widget carries, after the amber
+ * posts: how hard the machine is working, legible from across a room without a figure on it.
  */
 public final class CoreCage extends StackPane {
 
@@ -67,10 +71,49 @@ public final class CoreCage extends StackPane {
      */
     private static final int ROWS = 10;
 
-    /** 48 steps to a revolution at this period is a ~14s turn. Slow on purpose — see the class doc. */
-    private static final double FRAME_MS = 300;
+    /**
+     * The tick the cage is offered, in ms.
+     *
+     * <h2>⚠ 100 BECAUSE SPEED IS NOT THE PERIOD — IT IS HOW FAR IT TURNS PER TICK</h2>
+     *
+     * This was 300, one step per tick, a fixed ~14s revolution. Making the speed follow load by
+     * varying <em>this</em> is the obvious change and it does not work: {@code Pulse} quantises every
+     * subscription to a multiple of its 100ms driver, silently
+     * ({@code max(TICK_MS, round(periodMs / TICK_MS) * TICK_MS)}), so the whole load range would
+     * collapse onto 300 / 200 / 100 — three speeds — and every load change would have to tear down
+     * and re-establish the subscription. {@code SyncSpin} records the same trap from the other side,
+     * where a request for 60ms silently became 100 and a hand-tuned table ran at a third of its
+     * intended rate.
+     *
+     * <p>So the tick is fixed at the driver's own rate and {@link #stepsPerTick} carries the speed.
+     * That gives a continuous range rather than three notches, and it needs no resubscription.
+     *
+     * <p>⚠ Ticking three times as often is not three times the work: {@link #advance} only re-renders
+     * when the integer step actually changes, so a lightly loaded cage still redraws about as rarely
+     * as it did at 300ms and a fully loaded one redraws often. The cost follows the motion, which is
+     * the point.
+     */
+    private static final double FRAME_MS = 100;
 
     private static final int STEPS = 48;
+
+    /**
+     * Seconds per revolution at the lightest load that turns at all.
+     *
+     * <p>Slower than the old fixed 14.4s on purpose: a barely-committed rig should read as calmer
+     * than the constant speed it used to have, or the change has only made things faster.
+     */
+    private static final double TURN_SECONDS_LIGHT = 18.0;
+
+    /**
+     * Seconds per revolution with every cycle claimed.
+     *
+     * <p>⚠ Not faster than this. The render is 36×10 characters and the eye reads it by the stepping;
+     * past about a three-second turn the glyph churn stops looking like a machine and starts looking
+     * like noise, which is the screensaver failure this widget's whole design is arranged against. It
+     * also sits beside {@code HexStream}, and two fast-moving things in one panel compete.
+     */
+    private static final double TURN_SECONDS_FULL = 3.0;
 
     /** The six core banks. Also the six posts, and the six vertices of each plate. */
     private static final int BANKS = 6;
@@ -95,8 +138,25 @@ public final class CoreCage extends StackPane {
     private final double[][] depth = new double[ROWS][COLS];
 
     private int step;
+
+    /**
+     * The rendered position, carried as a double so the speed can be fractional.
+     *
+     * <p>⚠ {@link #step} is still the integer position the render uses — the cage has 48 discrete
+     * orientations and always did. This accumulates between them, which is what lets a slow rig
+     * advance a step every few ticks instead of being pinned to one step per tick. Without it the
+     * speed could only be a whole number of steps per tick, i.e. 14.4s, 7.2s or 4.8s per revolution,
+     * and the fast end would jump 15° a frame.
+     */
+    private double position;
+
     private int earningBanks;
+
+    /** Fraction of the rig's cycles currently committed, 0–1. Drives the turn rate. */
+    private double load;
+
     private double heat;
+
     private AutoCloseable ticker;
 
     public CoreCage() {
@@ -115,32 +175,97 @@ public final class CoreCage extends StackPane {
     }
 
     /**
-     * @param selfMiningCycles cycles committed to self-mining
+     * @param selfMiningCycles cycles committed to self-mining — this decides how many posts are amber
      * @param totalCycles the rig's capacity
+     * @param rigLoad fraction of capacity committed, 0–1 — this decides how fast the cage turns
      * @param personalHeat 0–100. Drives the decay, and eventually what appears inside the cage
      */
-    public void show(long selfMiningCycles, long totalCycles, int personalHeat) {
+    public void show(long selfMiningCycles, long totalCycles, double rigLoad, int personalHeat) {
         this.earningBanks =
                 totalCycles <= 0 ? 0 : (int) Math.round(BANKS * Math.min(1.0, selfMiningCycles / (double) totalCycles));
+        // ⚠ TAKEN, NOT DERIVED, though `claimed / totalCycles` is right here and would need no new
+        // parameter. `RigStatus.load()` is the one definition of what load means, and the figure
+        // beside this panel is read off it — a second copy computed here is a second answer that can
+        // disagree with the readout, which is the failure `ChainState.networkHashrate` records as
+        // having cost a real character 29% of their income, silently, for weeks.
+        this.load = Math.max(0, Math.min(1, rigLoad));
         this.heat = Math.max(0, Math.min(1, personalHeat / 100.0d));
         render();
     }
 
     /**
-     * Turns the cage — but only while the rig is doing something.
+     * Turns the cage — but only while the rig is doing something, and as fast as it is working.
      *
      * <p>An idle rig holds its frame. That is the difference between a gauge and a screensaver, and
      * it is the sharpest note the design review produced: a thing that keeps moving when nothing is
      * happening is decoration, and a thing that stops is an instrument. A player glancing at a still
-     * cage has learned something true — the rig is earning nothing and nobody is looking at it —
-     * without reading a single figure.
+     * cage has learned something true — nothing is running and nobody is looking at it — without
+     * reading a single figure.
+     *
+     * <h2>⚠ THE GUARD SAYS WHETHER; {@link #stepsPerTick} SAYS HOW FAST. Neither does the other's job.</h2>
+     *
+     * Keeping them separate is what lets the rate be a plain interpolation with no special case at
+     * zero — the guard has already handled that — and it is why the "stops when idle" rule survives
+     * a change to the speed model untouched.
+     *
+     * <h2>⚠ THE GUARD NOW ASKS ABOUT LOAD, NOT ABOUT EARNING, AND THAT IS A REAL BEHAVIOUR CHANGE</h2>
+     *
+     * It used to be {@code earningBanks == 0}, i.e. self-mining alone. So a rig holding five cycles
+     * on an armed defensive array and mining nothing sat perfectly still and read as idle, which was
+     * false — those cycles are committed and unavailable. Load is every consumer, which is what the
+     * figure beside the panel has always said and what this widget now agrees with.
      */
     private void advance() {
-        if (earningBanks == 0 && heat <= 0) {
+        if (load <= 0 && heat <= 0) {
             return;
         }
-        step = (step + 1) % STEPS;
+        position = (position + stepsPerTick(load)) % STEPS;
+        int now = (int) position;
+        // ⚠ Nothing to redraw until the cage has actually moved to a new orientation. This is what
+        // makes the 100ms tick affordable: at low load most ticks fall inside the same step and cost
+        // an add and a compare, so the render rate follows the rotation rather than the clock.
+        if (now == step) {
+            return;
+        }
+        step = now;
         render();
+    }
+
+    /**
+     * How far the cage turns each tick, in steps, for a load of 0–1.
+     *
+     * <p>A straight interpolation of angular rate between {@link #TURN_SECONDS_LIGHT} and
+     * {@link #TURN_SECONDS_FULL}. Rate rather than period, because the eye judges speed and a
+     * period-linear map compresses the everyday 20–60% range into almost no visible difference.
+     *
+     * <h2>⚠ THIS IS A RATE, NOT AN EASING CURVE, AND §5 IS NOT IN PLAY</h2>
+     *
+     * §5 permits no easing anywhere and §9 makes it build-blocking. That rule is about a value moving
+     * <em>along a curve over time</em> — an element sliding into place, decelerating. Nothing here is
+     * a function of time: it is a function of load, held constant until the rig's allocation changes,
+     * and the motion it produces is the same even stepping it always was. Nothing in this file
+     * touches {@code Interpolator}, {@code Timeline} or {@code AnimationTimer}, which is what
+     * {@code UiContractTest} actually scans for.
+     *
+     * <h2>⚠ IT DOES NOT RAMP TO ZERO AT ZERO LOAD, DELIBERATELY</h2>
+     *
+     * A continuous ramp to a standstill sounds more elegant and would wreck the thing the stopped
+     * state is <em>for</em>. If a lightly loaded rig crawled imperceptibly, a player could not tell it
+     * from a stopped one — so "stopped" would stop meaning "idle" and the instrument would have lost
+     * its clearest reading. The floor keeps the two distinguishable: a rig doing anything visibly
+     * turns, and a rig doing nothing visibly does not.
+     *
+     * <p>⚠ Pure and package-private so the speed rule is testable without a toolkit. Constructing a
+     * {@code CoreCage} subscribes to {@code Pulse}, which needs a live FX toolkit, so a rule that
+     * lived inside {@link #advance} could only be checked by running the client and watching it. Same
+     * seam as {@code SyncSpin.advance}, {@code SecurityCenterView.latestOf} and
+     * {@code Anchoring.horizontal}, for the same reason.
+     */
+    static double stepsPerTick(double load) {
+        double clamped = Math.max(0, Math.min(1, load));
+        double turnsPerSecond =
+                1.0 / TURN_SECONDS_LIGHT + clamped * (1.0 / TURN_SECONDS_FULL - 1.0 / TURN_SECONDS_LIGHT);
+        return turnsPerSecond * STEPS * FRAME_MS / 1000.0;
     }
 
     private void render() {

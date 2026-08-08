@@ -274,11 +274,16 @@ public final class RigMonitorView {
             free.set(String.valueOf(available));
             recovering.set(String.valueOf(budget.recovering().cycles()));
 
+            // ⚠ Built BEFORE the cage, because the cage turns at `status.load()` and that has to be
+            // the same number the "rig at N% load" line below reads off. Recomputing claimed/total at
+            // the widget would be a second definition of load, free to drift from the readout beside
+            // it — the trap `ChainState.networkHashrate` records.
+            RigStatus status = RigStatus.of(session);
+
             grid.show(slices(budget, session.miningChain()));
-            cage.show(session.mining().selfMiningCycles(), total, session.personalHeat());
+            cage.show(session.mining().selfMiningCycles(), total, status.load(), session.personalHeat());
             activity.refresh();
 
-            RigStatus status = RigStatus.of(session);
             rate.set(status.incomePerSecond() + " EC/S");
             hourly.set(status.incomePerHour() + " EC/HR");
             // The sweep runs only while cycles are genuinely returning. §4 restricts the component

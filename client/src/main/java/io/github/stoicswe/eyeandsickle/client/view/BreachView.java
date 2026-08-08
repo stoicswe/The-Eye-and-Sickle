@@ -276,10 +276,11 @@ public final class BreachView {
         // always becomes live one pulse later.
         boolean[] live = {false};
         boolean[] pending = {false};
-        start.onInvoke(() -> {
-            if (!live[0] || !arming.isArmed()) {
-                return;
-            }
+
+        // ⚠ ONE start path, shared by the button and by the map's node menu. Copying these four lines
+        // for the automatic route would be two places that disarm, and the day one of them stopped
+        // would be a START BREACH button sitting under the sentence explaining why it will not work.
+        Runnable fire = () -> {
             String armed = arming.armed();
             // Disarmed BEFORE the attempt, not after. beginBreach either opens a breach — in which
             // case the launch panel is hidden anyway — or refuses, and a refusal that left the
@@ -287,6 +288,13 @@ public final class BreachView {
             // why it will not work.
             arming.arm("");
             presenter.begin(armed);
+        };
+
+        start.onInvoke(() -> {
+            if (!live[0] || !arming.isArmed()) {
+                return;
+            }
+            fire.run();
         });
 
         // Two presses, in place, rather than a confirmation dialog. `aborted` is a persisted outcome
@@ -410,6 +418,12 @@ public final class BreachView {
             visible(launch, armedTarget.isPresent());
             if (armedTarget.isEmpty()) {
                 live[0] = false;
+                // ⚠ A REQUESTED START DIES WITH THE TARGET IT WAS FOR. This branch is reached both
+                // when the machine is no longer a valid target and when a breach is already running
+                // (`armedTarget` is empty whenever one is open). Leaving the request pending would
+                // let it fire whenever the NEXT target became live — a spend the player never asked
+                // for, at a moment they were not expecting one, on a machine they did not choose.
+                arming.clearStartRequest();
             } else if (!live[0] && !pending[0]) {
                 // Scheduled once per arming rather than once per refresh — refresh runs on every
                 // session change, and queueing a runLater on each of them would be a slow leak on a
@@ -418,6 +432,22 @@ public final class BreachView {
                 javafx.application.Platform.runLater(() -> {
                     live[0] = true;
                     pending[0] = false;
+                    // ⚠ THE ONE-GESTURE START RIDES ON THE SETTLE THAT ALREADY EXISTS, and it has to.
+                    //
+                    // This runnable is the moment the launch panel becomes usable: it is one pulse
+                    // after a target was armed, which is exactly the delay a human press is subject
+                    // to. Firing from `refresh` instead would begin a breach *during* the window's
+                    // construction — beginBreach changes session state, which re-enters refresh
+                    // through onChange while the panel is still being built.
+                    //
+                    // ⚠ It is also what makes the start prompt. `live` is only read by the button,
+                    // so nothing re-runs refresh when it flips; a check placed in refresh would not
+                    // be reached until the next session change, and the session ticks about once a
+                    // second — a right-click that visibly does nothing for up to a second reads as a
+                    // dropped click, and the player presses it again.
+                    if (arming.takeStartRequest(arming.armed())) {
+                        fire.run();
+                    }
                 });
             }
             targets.setSelected(open ? "" : arming.armed());

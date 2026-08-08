@@ -79,7 +79,7 @@ public final class NodeReportView {
                                 ? "   ·  noticed you " + report.detections()
                                         + (report.detections() == 1 ? " time" : " times")
                                 : "   ·  never noticed you")));
-        into.getChildren().add(micro("complete   " + report.known() + " of " + NodeReport.total() + " findings"));
+        into.getChildren().add(micro("complete   " + report.known() + " of " + report.total() + " findings"));
         into.getChildren().add(new Label(" "));
 
         // ⚠ First, because it is the cheapest rung and because it is the row a player reads to know

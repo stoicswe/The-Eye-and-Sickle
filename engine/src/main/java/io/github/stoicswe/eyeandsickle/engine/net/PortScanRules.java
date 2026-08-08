@@ -6,6 +6,7 @@ import io.github.stoicswe.eyeandsickle.engine.state.GameSave;
 import io.github.stoicswe.eyeandsickle.engine.state.HostState;
 import io.github.stoicswe.eyeandsickle.engine.state.NodeState;
 import io.github.stoicswe.eyeandsickle.engine.state.TaskState;
+import io.github.stoicswe.eyeandsickle.protocol.game.HostKind;
 import io.github.stoicswe.eyeandsickle.protocol.game.PortScanReport;
 import io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget;
 import java.time.Duration;
@@ -287,6 +288,7 @@ public final class PortScanRules {
         }
 
         int deepScans = node == null ? 0 : node.deepScans;
+        boolean bridge = HostKind.BRIDGE.name().equals(host.kind);
         return new PortScanReport(
                 address,
                 target,
@@ -303,6 +305,13 @@ public final class PortScanRules {
                 depth >= 7 ? vaultHighOf(host) : -1,
                 depth >= 8 ? vaultMediumOf(host) : -1,
                 depth >= 8 ? vaultMediumErrorOf(host, deepScans) : 0,
+                // ⚠ GATED ON APPLICABILITY AS WELL AS DEPTH. A desktop scanned to depth 4 must not
+                // report a peer count of zero — zero is a finding ("this bridge goes nowhere") and
+                // would be a false one. -1 is "there is no such thing here", which is what
+                // PortScanTarget.appliesTo says and what `knows` reads.
+                bridge && depth >= 4 ? peerCountOf(save, host) : -1,
+                bridge && depth >= 4 ? peerServerNameOf(save, host) : "",
+                bridge && depth >= 5 ? monitoringOf(save, host) : -1,
                 detected
                         ? "The scan completed, and the target noticed. Expect an answer."
                         : "Clean — nothing on the far side reacted.");
@@ -391,6 +400,85 @@ public final class PortScanRules {
     }
 
     // ── lookups ────────────────────────────────────────────────────────────────────────────────
+
+    // ── bridge findings ────────────────────────────────────────────────────────────────────────
+
+    /**
+     * How many machines sit on the far side of this bridge.
+     *
+     * <h2>⚠ A COUNT, AND NOTHING THAT COULD BE ACTED ON</h2>
+     *
+     * No addresses, no kinds, no tiers, no values. The far side is still outside the hop ceiling and
+     * still needs a breach, a foothold and a {@code connect} to reach — so this is a property of a
+     * machine already in the player's files, like its firewall tier, rather than a window past it.
+     * That is what keeps it clear of Invariant <b>I2</b>; see {@code docs/design/17} §3.1.
+     *
+     * <p>⚠ Counted over the peer's whole <b>server</b>, not over the peer host's links. The question a
+     * player is asking is "how much is through there", and a bridge that happened to link to a
+     * sparsely-connected machine would otherwise report a small number about a large server.
+     */
+    private static int peerCountOf(GameSave save, HostState bridge) {
+        if (save.topology == null || bridge.bridgePeer == null || bridge.bridgePeer.isBlank()) {
+            return 0;
+        }
+        String peerServer = save.topology.hosts.stream()
+                .filter(host -> bridge.bridgePeer.equals(host.address))
+                .map(host -> host.serverId)
+                .findFirst()
+                .orElse("");
+        if (peerServer.isBlank()) {
+            return 0;
+        }
+        return (int) save.topology.hosts.stream()
+                .filter(host -> peerServer.equals(host.serverId))
+                .count();
+    }
+
+    /** What the server on the far side is called, or blank when the link goes nowhere. */
+    private static String peerServerNameOf(GameSave save, HostState bridge) {
+        if (save.topology == null || bridge.bridgePeer == null || bridge.bridgePeer.isBlank()) {
+            return "";
+        }
+        return save.topology.hosts.stream()
+                .filter(host -> bridge.bridgePeer.equals(host.address))
+                .findFirst()
+                .flatMap(peer -> save.topology.servers.stream()
+                        .filter(server -> server.serverId.equals(peer.serverId))
+                        .findFirst())
+                .map(server -> server.name)
+                .orElse("");
+    }
+
+    /**
+     * Whether anything is watching this bridge — {@code 1} yes, {@code 0} no.
+     *
+     * <h2>⚠ "MONITORED", AND NOTHING ELSE. Never whose, never what tier.</h2>
+     *
+     * That restraint is the whole reason this finding is allowed to exist. A tier-1 MonJob's value is
+     * that the intruder does not learn they were seen; reporting the tier here would make tier 1
+     * worthless and nobody would ever place one. What the player buys is the knowledge that crossing
+     * <em>would</em> be seen — which makes distance-risk a decision rather than a blind tax, and makes
+     * a MonJob deter even when it never fires. {@code docs/design/17} §4.4, MJ-4.
+     *
+     * <p>⚠ One rule for NPC and player MonJobs. Only the NPC half is derivable today
+     * ({@link MonJobs}); when player-placed jobs land in the save, they are OR-ed in here and nowhere
+     * else, so the finding cannot come to mean two different things.
+     */
+    private static int monitoringOf(GameSave save, HostState bridge) {
+        return MonJobs.watched(bridge, depthOf(save, bridge)) ? 1 : 0;
+    }
+
+    /** The bridge's server's distance from home, which is what MonJob density scales on. */
+    private static int depthOf(GameSave save, HostState host) {
+        if (save.topology == null || save.topology.servers == null) {
+            return 0;
+        }
+        return save.topology.servers.stream()
+                .filter(server -> server.serverId.equals(host.serverId))
+                .findFirst()
+                .map(server -> server.depthFromHome)
+                .orElse(0);
+    }
 
     private static Optional<HostState> hostAt(GameSave save, String address) {
         if (save.topology == null) {

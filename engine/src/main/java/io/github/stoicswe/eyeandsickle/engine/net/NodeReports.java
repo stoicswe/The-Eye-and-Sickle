@@ -176,17 +176,48 @@ public final class NodeReports {
      * makes an unscanned target behave as the default.
      */
     public static double known(GameSave save, String address) {
+        io.github.stoicswe.eyeandsickle.protocol.game.HostKind kind = kindAt(save, address);
         return find(save, address)
                 .map(state -> {
                     int found = 0;
                     for (PortScanTarget target : PortScanTarget.values()) {
-                        if (state.learnedAt.containsKey(target.name())) {
+                        // ⚠ Only findings that EXIST on this machine count, in the numerator and the
+                        // denominator alike. A stale entry for a rung that no longer applies — a
+                        // hand-edited save, or a kind that changed — must not push the fraction above
+                        // the number of things there are to know.
+                        if (target.appliesTo(kind) && state.learnedAt.containsKey(target.name())) {
                             found++;
                         }
                     }
-                    return found / (double) PortScanTarget.values().length;
+                    int applicable = PortScanTarget.countFor(kind);
+                    return applicable == 0 ? 0.0d : found / (double) applicable;
                 })
                 .orElse(0.0d);
+    }
+
+    /**
+     * What kind of machine an address is, for {@link #known}'s denominator.
+     *
+     * <h2>⚠ LOOKED UP HERE RATHER THAN PASSED IN, so no caller has to learn about kinds</h2>
+     *
+     * {@code known(save, address)} is called from {@code BoardFactory} to decide which puzzle a breach
+     * draws. Widening its signature would push a question about host archetypes into the breach
+     * generator, which has no other reason to know one — and the save already holds the answer.
+     *
+     * <p>⚠ Defaults to {@code UNKNOWN} rather than throwing, which is treated as an ordinary machine
+     * by {@code appliesTo}. An address with no host is a hand-edited save or a report for a machine
+     * that has since gone; both should read as "the usual eight findings" rather than as zero, which
+     * would silently make every such target draw the wrong puzzle.
+     */
+    private static io.github.stoicswe.eyeandsickle.protocol.game.HostKind kindAt(GameSave save, String address) {
+        if (save == null || save.topology == null || save.topology.hosts == null) {
+            return io.github.stoicswe.eyeandsickle.protocol.game.HostKind.UNKNOWN;
+        }
+        return save.topology.hosts.stream()
+                .filter(host -> host.address != null && host.address.equals(address))
+                .findFirst()
+                .map(host -> HostArchetypes.kindOrUnknown(host.kind))
+                .orElse(io.github.stoicswe.eyeandsickle.protocol.game.HostKind.UNKNOWN);
     }
 
     /**
@@ -216,7 +247,10 @@ public final class NodeReports {
                 state.vaultHighCount,
                 state.vaultMediumEstimate,
                 state.vaultMediumError,
-                java.util.Map.copyOf(state.learnedAt));
+                java.util.Map.copyOf(state.learnedAt),
+                // ⚠ The KIND decides how many findings there are to have — a bridge has five, an
+                // ordinary machine eight — so "3 of N known" is only meaningful with it attached.
+                kindAt(save, state.address));
     }
 
     /**

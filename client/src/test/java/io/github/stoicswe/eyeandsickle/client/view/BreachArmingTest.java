@@ -130,5 +130,156 @@ class BreachArmingTest {
         arming.open();
         arming.setOpener(null);
         arming.open();
+        // Same for the tab door. The map's node menu calls it from the moment the panel is built,
+        // which is before NetworkView has registered anything.
+        arming.focusBreach();
+        arming.setBreachFocus(null);
+        arming.focusBreach();
+    }
+
+    /**
+     * The one-gesture start from the map's node menu, and the ways it must not fire.
+     *
+     * <h2>⚠ EVERY TEST HERE IS ABOUT SPENDING SOMETHING THAT IS NOT REFUNDED</h2>
+     *
+     * A breach reserves compute for the whole attempt and aborting does not give it back
+     * ({@code docs/design/05} §4). So the interesting assertions are not that the start <em>happens</em>
+     * — that is one line — but that a request made for one machine can never be collected by another,
+     * and that a request nobody could act on dies rather than waiting for the next opportunity.
+     */
+    @org.junit.jupiter.api.Nested
+    @DisplayName("the node menu's one-gesture start")
+    class StartRequest {
+
+        @Test
+        @DisplayName("arms the target and asks for it, in one call")
+        void armsAndRequests() {
+            BreachArming arming = new BreachArming();
+            List<String> seen = new ArrayList<>();
+            arming.onChange(() -> seen.add(arming.armed()));
+
+            arming.armAndStart("node:10.0.0.4");
+
+            assertThat(arming.armed()).isEqualTo("node:10.0.0.4");
+            assertThat(seen).as("the panel has to hear it").containsExactly("node:10.0.0.4");
+            assertThat(arming.takeStartRequest("node:10.0.0.4")).isTrue();
+        }
+
+        @Test
+        @DisplayName("is collectable exactly once")
+        void takenOnce() {
+            // ⚠ The panel refreshes on every session change, about once a second. A request that
+            // could be read twice would begin a second breach on the next tick — on top of the one
+            // it had just started.
+            BreachArming arming = new BreachArming();
+            arming.armAndStart("node:10.0.0.4");
+
+            assertThat(arming.takeStartRequest("node:10.0.0.4")).isTrue();
+            assertThat(arming.takeStartRequest("node:10.0.0.4"))
+                    .as("a second collection")
+                    .isFalse();
+        }
+
+        @Test
+        @DisplayName("⚠ NEVER fires on a machine it was not asked for")
+        void neverFiresOnAnotherTarget() {
+            // The sequence that produces this is cheap to hit: right-click Breach on something the
+            // rules will not accept, so nothing starts and the request survives; then arm a different
+            // machine from the list — and that one is committed to with no press at all.
+            BreachArming arming = new BreachArming();
+            arming.armAndStart("node:10.0.0.4");
+
+            assertThat(arming.takeStartRequest("node:10.0.0.9"))
+                    .as("a request for .4 must not be collected by .9")
+                    .isFalse();
+        }
+
+        @Test
+        @DisplayName("⚠ asking with the wrong target CLEARS it, so it cannot fire later either")
+        void aMismatchAlsoClears() {
+            // Returning false is not enough on its own: if the request survived the mismatch it would
+            // simply wait for the machine it named to come round again, which could be minutes later
+            // and long after the player had forgotten asking.
+            BreachArming arming = new BreachArming();
+            arming.armAndStart("node:10.0.0.4");
+
+            arming.takeStartRequest("node:10.0.0.9");
+
+            assertThat(arming.takeStartRequest("node:10.0.0.4"))
+                    .as("the request should not have survived the mismatch")
+                    .isFalse();
+        }
+
+        @Test
+        @DisplayName("⚠ re-pointing the arming drops the request")
+        void rearmingDropsIt() {
+            // Selecting another row in the target list, or the panel clearing a stale id, must not
+            // leave a start pending. A request belongs to the machine it was made for.
+            BreachArming arming = new BreachArming();
+            arming.armAndStart("node:10.0.0.4");
+
+            arming.arm("node:10.0.0.9");
+            assertThat(arming.takeStartRequest("node:10.0.0.9")).isFalse();
+
+            arming.armAndStart("node:10.0.0.4");
+            arming.rearm("node:10.0.0.9");
+            assertThat(arming.takeStartRequest("node:10.0.0.9")).isFalse();
+        }
+
+        @Test
+        @DisplayName("re-pointing at the SAME target keeps it, so open-then-focus does not lose it")
+        void rearmingTheSameTargetKeepsIt() {
+            // The panel calls arm() from inside its own refresh, and the menu path runs armAndStart,
+            // open() and focusBreach() in sequence — a refresh in the middle of that must not eat the
+            // request before the panel has settled enough to act on it.
+            BreachArming arming = new BreachArming();
+            arming.armAndStart("node:10.0.0.4");
+
+            arming.rearm("node:10.0.0.4");
+
+            assertThat(arming.takeStartRequest("node:10.0.0.4"))
+                    .as("the request is still for the machine that is still armed")
+                    .isTrue();
+        }
+
+        @Test
+        @DisplayName("can be dropped outright, for when nothing could act on it")
+        void clearable() {
+            // What the panel calls when a breach is already running, or when the machine turns out
+            // not to be a target at all.
+            BreachArming arming = new BreachArming();
+            arming.armAndStart("node:10.0.0.4");
+
+            arming.clearStartRequest();
+
+            assertThat(arming.takeStartRequest("node:10.0.0.4")).isFalse();
+            assertThat(arming.armed())
+                    .as("clearing the request does not disarm")
+                    .isEqualTo("node:10.0.0.4");
+        }
+
+        @Test
+        @DisplayName("plain arming never requests a start — the list keeps its two steps")
+        void armingAloneNeverStarts() {
+            // ⚠ THE FENCE. The exemption is for the map's node menu and nothing else; if arm() or
+            // rearm() ever carried a request, the target list would begin an attempt the instant a
+            // row was selected, which is the exact defect BreachArming was created to fix.
+            BreachArming arming = new BreachArming();
+
+            arming.arm("node:10.0.0.4");
+            assertThat(arming.takeStartRequest("node:10.0.0.4")).isFalse();
+
+            arming.rearm("node:10.0.0.4");
+            assertThat(arming.takeStartRequest("node:10.0.0.4")).isFalse();
+        }
+
+        @Test
+        @DisplayName("null is a clear, and asks for nothing")
+        void nullRequestsNothing() {
+            BreachArming arming = new BreachArming();
+            arming.armAndStart(null);
+            assertThat(arming.isArmed()).isFalse();
+            assertThat(arming.takeStartRequest("")).isFalse();
+        }
     }
 }
