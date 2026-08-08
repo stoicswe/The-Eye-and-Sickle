@@ -1761,6 +1761,58 @@ public final class Balance {
     public static final int NET_SWEEP_BRIDGE_MIN_TIER = 2;
 
     /**
+     * How many machines one sweep may reveal, from one vantage, at one tier.
+     *
+     * <h2>⚠ A CEILING ON THE YIELD, NOT A ROLL — and it is absolute, not per attempt</h2>
+     *
+     * {@code NetRules}' spine is that "<b>only two things move the outcome and both cost: a higher
+     * sweep tier, or a closer vantage</b>". A cap that reset per sweep would make repetition the
+     * cheapest of the three and turn the whole discovery loop into button-mashing. So this is the
+     * total a given (vantage, tier) pair will <em>ever</em> hand over: sweep the same spot twice and
+     * the second one still says it found nothing new. The rest of the server is reached by moving —
+     * which is what the vantage is for — or by buying a better instrument.
+     *
+     * <h2>⚠ NON-DECREASING IN TIER, which is a required property rather than a nicety</h2>
+     *
+     * A player who buys a better instrument must never lose a contact they already had. The tier term
+     * only ever adds, so {@code detected(T1) ⊆ detected(T2) ⊆ detected(T3)} survives the cap exactly
+     * as it survives the detection threshold.
+     *
+     * <h2>The bands, and why home is generous</h2>
+     *
+     * <pre>
+     *   depth 0 (home)  5–7      depth 3   2–4
+     *   depth 1         4–6      depth 4+  1–3
+     *   depth 2         3–5
+     * </pre>
+     *
+     * Home is where the game teaches, and a first sweep that returns one machine reads as a broken
+     * tool rather than as a quiet neighbourhood — the same argument {@link #NET_COUNTER_HACK_HOME}
+     * and {@code MONJOB_DENSITY_HOME} both make for their own floors. Past a bridge the network stops
+     * volunteering: fewer machines per look is what makes depth expensive in <em>time</em>, alongside
+     * {@link #netCounterHackChance} making it expensive in risk.
+     *
+     * @param variation a stable 0–1 for the vantage — hashed, never drawn, so the same spot always
+     *     yields the same number and no sweep is a reroll
+     * <strong>[PROPOSAL]</strong>.
+     */
+    public static int sweepYield(int depth, int sweepTier, double variation) {
+        int floor =
+                switch (netDepth(depth)) {
+                    case 0 -> 5;
+                    case 1 -> 4;
+                    case 2 -> 3;
+                    case 3 -> 2;
+                    default -> 1;
+                };
+        // Three-wide band, so every depth has some spread without any of them overlapping into
+        // "home might be worse than two servers out".
+        int within = (int) (Math.clamp(variation, 0.0d, 1.0d) * 3);
+        int tierBonus = Math.max(0, Math.min(3, sweepTier)) - 1;
+        return Math.max(1, Math.min(7, floor + Math.min(2, within) + tierBonus));
+    }
+
+    /**
      * How often a bridge on the <em>home</em> server carries somebody else's MonJob. Zero.
      *
      * <h2>⚠ ITS OWN NAMED VALUE, FOR {@link #NET_COUNTER_HACK_HOME}'S REASON, WORD FOR WORD</h2>

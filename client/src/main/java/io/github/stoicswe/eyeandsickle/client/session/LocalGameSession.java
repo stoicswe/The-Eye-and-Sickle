@@ -1,9 +1,9 @@
 package io.github.stoicswe.eyeandsickle.client.session;
 
 import io.github.stoicswe.eyeandsickle.engine.Balance;
+import io.github.stoicswe.eyeandsickle.engine.Catalogue;
 import io.github.stoicswe.eyeandsickle.engine.GameEngine;
 import io.github.stoicswe.eyeandsickle.engine.state.DefenseState;
-import io.github.stoicswe.eyeandsickle.engine.Catalogue;
 import io.github.stoicswe.eyeandsickle.engine.state.ItemState;
 import io.github.stoicswe.eyeandsickle.engine.state.LedgerEntryState;
 import io.github.stoicswe.eyeandsickle.engine.state.NodeState;
@@ -1277,9 +1277,10 @@ public final class LocalGameSession implements GameSession {
                     state.cwd,
                     state.openedAt,
                     state.cycles,
-                    host.map(io.github.stoicswe.eyeandsickle.protocol.game.Sighting::vantage)
-                                    .orElse(false)
-                            && isOwnRig(state.address)));
+                    // ⚠ The vantage clause is gone. `x && isOwnRig(x)` reads as belt-and-braces
+                    // and is strictly narrower than `isOwnRig` alone: it made a shell on the
+                    // player's own rig stop being a local one the moment the vantage moved away.
+                    isOwnRig(state.address)));
         }
         return java.util.List.copyOf(out);
     }
@@ -1691,18 +1692,19 @@ public final class LocalGameSession implements GameSession {
         if (offering == null) {
             return Outcome.refused("this rig does not have " + name);
         }
-        return Outcome.refused(switch (offering.gate()) {
-            case ETHECOIN -> "this rig does not have " + name + " — it is sold in the market";
-            case SCHEMATIC -> "this rig does not have " + name
-                    + " — it is compiled from a schematic and is never sold";
-            case REPUTATION -> "this rig does not have " + name
-                    + " — it takes standing with a faction, not money";
-            case PROOF_OF_SKILL -> "this rig does not have " + name + " — it has to be earned";
-            // ⚠ Access, never ownership (docs/design/02 §2.5). A heat-gated item is one whose SELLER
-            // will not deal with you yet, which is a different sentence from any of the above.
-            case HEAT_STATE -> "this rig does not have " + name
-                    + " — whoever sells it is not dealing with you yet";
-        });
+        return Outcome.refused(
+                switch (offering.gate()) {
+                    case ETHECOIN -> "this rig does not have " + name + " — it is sold in the market";
+                    case SCHEMATIC ->
+                        "this rig does not have " + name + " — it is compiled from a schematic and is never sold";
+                    case REPUTATION ->
+                        "this rig does not have " + name + " — it takes standing with a faction, not money";
+                    case PROOF_OF_SKILL -> "this rig does not have " + name + " — it has to be earned";
+                    // ⚠ Access, never ownership (docs/design/02 §2.5). A heat-gated item is one whose SELLER
+                    // will not deal with you yet, which is a different sentence from any of the above.
+                    case HEAT_STATE ->
+                        "this rig does not have " + name + " — whoever sells it is not dealing with you yet";
+                });
     }
 
     /**
@@ -1793,8 +1795,8 @@ public final class LocalGameSession implements GameSession {
             // amendment was reasoned about.
             if (!io.github.stoicswe.eyeandsickle.engine.rules.ComputeLadder.rungsBelowAreHeld(
                     game.state(), rung.get())) {
-                return Outcome.refused("this rig has to take the rungs below "
-                        + rung.get().capacity() + " cycles first");
+                return Outcome.refused(
+                        "this rig has to take the rungs below " + rung.get().capacity() + " cycles first");
             }
         }
         // ⚠ OWNING ONE IS NO LONGER A REASON TO REFUSE (2026-08-04). Items do not stack — each copy

@@ -208,7 +208,30 @@ class NetTypesTest {
                             "kind",
                             "tier",
                             "signal",
+                            // ⚠ Added 2026-08-07 alongside `self`, and it clears the bar the same
+                            // way: it is not recon output. It is a distance over links the player can
+                            // already see, from their own machine, and it leaks nothing a sweep has
+                            // not already published — undiscovered hosts do not appear at all.
+                            //
+                            // ⚠ It exists because the MAP needs a different question answered from
+                            // the one the ceiling is measured in. Drawn on `hopsFromVantage`, moving
+                            // the vantage re-rooted the whole graph and demoted the player's own rig
+                            // out of column zero. Both distances are real; neither derives the other.
+                            "hopsFromRig",
                             "hopsFromVantage",
+                            // ⚠ Added 2026-08-07, and it clears this list's bar in a way no other
+                            // field on it does: it is not recon output at all. Every other entry has
+                            // to name something a tool was sold to the player to establish — `self`
+                            // needs no tool, because knowing which machine is your own is not a
+                            // finding and cannot be withheld. It leaks nothing: the player's own
+                            // address is on the command strip.
+                            //
+                            // ⚠ It exists because its ABSENCE was the bug. The rules computed it and
+                            // never published it, so five views reached for `vantage` to mean "mine"
+                            // — correct until the vantage moved, at which point the node menu
+                            // offered to breach the player's own rig and hid Breach on the machine
+                            // they were standing on.
+                            "self",
                             "vantage",
                             "foothold",
                             // ⚠ Added 2026-07-27, and it clears the bar this list guards. The rule

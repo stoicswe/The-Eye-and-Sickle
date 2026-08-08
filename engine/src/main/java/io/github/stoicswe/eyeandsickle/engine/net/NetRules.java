@@ -167,6 +167,10 @@ public final class NetRules {
         Map<String, NodeState> known = knownNodes(save);
         String vantage = vantageAddress(save);
         Map<String, Integer> hops = TopologyGenerator.bfs(hosts, vantage);
+        // ⚠ A SECOND BFS, from the RIG, and it is not the same walk. The map draws its columns on
+        // this one so that layer 0 is always the player's own machine — repositioning must not
+        // re-root the picture. See Sighting#hopsFromRig.
+        Map<String, Integer> rigHops = TopologyGenerator.bfs(hosts, topology.playerAddress);
 
         // The rig is always visible; everything else has to have been detected. Ordered so the map is
         // stable across repaints: the vantage first, then by address.
@@ -180,7 +184,8 @@ public final class NetRules {
 
         List<Sighting> sightings = new ArrayList<>();
         for (String address : visible) {
-            sightings.add(sighting(save, hosts.get(address), known.get(address), servers, hops, vantage, topology));
+            sightings.add(
+                    sighting(save, hosts.get(address), known.get(address), servers, hops, rigHops, vantage, topology));
         }
 
         List<NetLink> links = new ArrayList<>();
@@ -234,6 +239,7 @@ public final class NetRules {
             NodeState node,
             Map<String, ServerState> servers,
             Map<String, Integer> hops,
+            Map<String, Integer> rigHops,
             String vantage,
             TopologyState topology) {
 
@@ -254,6 +260,7 @@ public final class NetRules {
         // The graph is connected by construction, so the fallback is unreachable in a save this
         // engine wrote. It exists because a hand-edited one is not.
         int distance = hops.getOrDefault(host.address, 0);
+        int fromRig = rigHops.getOrDefault(host.address, 0);
 
         String peerServerName = "";
         if (kind == HostKind.BRIDGE && !host.bridgePeer.isEmpty()) {
@@ -276,7 +283,12 @@ public final class NetRules {
                 kind,
                 tier,
                 signal,
+                fromRig,
                 distance,
+                // ⚠ PUBLISHED, at last. `self` has been computed at the top of this method since it
+                // was written and never left it, so every view that needed "is this mine" had only
+                // `vantage` to reach for — correct exactly until the vantage moved. See Sighting#self.
+                self,
                 host.address.equals(vantage),
                 host.foothold,
                 // ⚠ A patched host is one that WAS breached and is not any more, so it can never be
@@ -366,7 +378,9 @@ public final class NetRules {
             deepestInRange = Math.max(deepestInRange, server == null ? 0 : server.depthFromHome);
         }
 
-        List<String> found = new ArrayList<>();
+        // ⚠ COLLECTED AS HOSTS, then ranked and capped — see the yield note below. Building the
+        // address list directly would throw away the detectRoll the ranking needs.
+        List<HostState> detected = new ArrayList<>();
         for (HostState host : candidates) {
             if (host.discovered) {
                 continue;
@@ -387,8 +401,34 @@ public final class NetRules {
                             HostArchetypes.signalOf(host, hostsMiner).name())
                     * hopFactor(hops.get(host.address));
             if (host.detectRoll < threshold) {
-                found.add(host.address);
+                detected.add(host);
             }
+        }
+
+        // ⚠ THE YIELD CAP. A sweep hands over at most `Balance.sweepYield` machines — 5–7 at home,
+        // falling to 1–3 past a couple of bridges — so a first look at a new server is a foothold on
+        // it rather than the whole thing at once.
+        //
+        // ⚠ RANKED BY detectRoll, LOWEST FIRST, and that is what keeps every existing guarantee.
+        // The roll predates the sweep by the whole game, so the ranking is fixed too: the same
+        // vantage and tier cut at exactly the same place, every time, forever. Nothing here draws,
+        // and `SweepDeterminismTest.resweepingIsNotAReroll` still holds — the cap is absolute per
+        // (vantage, tier), not per attempt, so sweeping the same spot again finds nothing new. The
+        // rest of the server is reached by MOVING, which is what the vantage is for.
+        //
+        // ⚠ Lowest roll first also means the cap keeps the LOUDEST machines rather than an arbitrary
+        // slice: detectRoll is what a threshold is compared against, so the ones a weaker instrument
+        // would also have heard are the ones that survive. A player upgrading their sweep therefore
+        // sees what they saw before plus more, never a different set.
+        int yield = Balance.sweepYield(deepestInRange, tier.tier(), AddressHash.unitOf(vantage, "sweep-yield"));
+        detected.sort(java.util.Comparator.comparingDouble((HostState host) -> host.detectRoll)
+                .thenComparing(host -> host.address));
+        List<String> found = new ArrayList<>();
+        for (HostState host : detected) {
+            if (found.size() >= yield) {
+                break;
+            }
+            found.add(host.address);
         }
 
         // The one draw. Rolled against the CANDIDATE set rather than the detected set: the machines

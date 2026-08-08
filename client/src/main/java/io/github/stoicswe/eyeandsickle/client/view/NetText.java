@@ -132,7 +132,11 @@ public final class NetText {
      */
     public static List<Sighting> ordered(NetMap map) {
         List<Sighting> sightings = new ArrayList<>(map.sightings());
-        sightings.sort(Comparator.comparing((Sighting s) -> !s.vantage())
+        // ⚠ Own rig first, THEN the vantage, then outward by hops. Keyed on the vantage alone, the
+        // player's own machine sank into the middle of their own host list the moment they moved
+        // their vantage — sorted by hop distance, like any stranger's.
+        sightings.sort(Comparator.comparing((Sighting s) -> !s.self())
+                .thenComparing(s -> !s.vantage())
                 .thenComparingInt(Sighting::hopsFromVantage)
                 .thenComparing(Sighting::address, NetText::compareAddresses));
         return sightings;
@@ -191,7 +195,16 @@ public final class NetText {
      * somebody edited one of them.
      */
     static String state(Sighting sighting) {
-        String standing = sighting.vantage() ? "vantage" : sighting.foothold() ? "foothold" : "contact";
+        // ⚠ SELF IS CHECKED FIRST, and it has to be. Keyed on the vantage alone, the player's own
+        // rig read "contact" once the vantage moved — describing their own machine as something a
+        // sweep had found. It is also why "vantage" is no longer the top branch: the two are
+        // different facts and the rig is the one that never changes.
+        //
+        // ⚠ Fits STATE's 14 columns with the [i] marker: "this rig [i]" is 12. NetHostListTest
+        // treats the widths as a contract.
+        String standing = sighting.self()
+                ? "this rig"
+                : sighting.vantage() ? "vantage" : sighting.foothold() ? "foothold" : "contact";
         // ⚠ AFTER the standing, never instead of it. The two say different things — where the player
         // can operate from, and whether there is a file to open — and a marker that replaced the word
         // would trade a fact for a fact. Square brackets because the whole client marks a state that
@@ -255,10 +268,22 @@ public final class NetText {
         String name = server == null || server.name().isBlank() ? "--" : server.name();
         int depth = server == null ? 0 : server.depthFromHome();
         int ceiling = map.hopCeiling();
+        // ⚠ A SECOND INDICATOR FOR THE VANTAGE, in words, beside the box on the graph.
+        //
+        // The heavy frame is the primary cue and stays the primary cue — but it only says WHICH node
+        // when that node is on screen, and the graph scrolls, the LIST view has no frames at all, and
+        // a reader who has just moved cannot tell at a glance where they ended up. Naming it here
+        // answers "where am I sweeping from" from every tab, and it is the number that explains a
+        // sweep's results as directly as CEILING does.
+        //
+        // ⚠ §4.4: the frame is a shape and this is a word, so the state survives greyscale and a
+        // screen reader both, which a frame alone does not.
+        String vantage = map.vantageAddress().isBlank() ? "--" : map.vantageAddress();
         return pad("SERVER", 8)
                 + pad(name, 18)
                 + pad("DEPTH " + depth + " FROM HOME", 23)
                 + pad("HOSTS SEEN " + map.sightings().size(), 18)
+                + pad("SWEEPING FROM " + vantage, 26)
                 + "CEILING " + ceiling + (ceiling == 1 ? " HOP" : " HOPS");
     }
 

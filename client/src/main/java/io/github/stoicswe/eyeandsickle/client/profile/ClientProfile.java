@@ -625,6 +625,26 @@ public final class ClientProfile {
          */
         public Map<String, DeskWindowState> deskLayout = new LinkedHashMap<>();
 
+        /**
+         * The size a window was last seen at, kept even after it is closed.
+         *
+         * <h2>⚠ SEPARATE FROM {@link #deskLayout}, and it has to be</h2>
+         *
+         * {@code deskLayout} answers "what was on the desk when I left", so a closed window is
+         * absent from it <em>by design</em> — that absence is what stops it reopening next session.
+         * But absence also threw away the size, so a window closed and reopened came back at the
+         * catalogue default and every resize a player made was undone by closing it once.
+         *
+         * <p>The two facts are genuinely different: <b>whether a window is open</b> is desk state,
+         * and <b>how big that window is</b> is a preference about the tool. Folding the second into
+         * the first is what made closing a window forget it.
+         *
+         * <p>⚠ Never pruned on close, and only ever overwritten. It is keyed by window id, and ids
+         * are a closed set, so it cannot grow without bound; a stale entry for a window a later
+         * build removed is skipped on read like any other unknown id.
+         */
+        public Map<String, DeskWindowState> windowSizes = new LinkedHashMap<>();
+
         /** Handle used for the solo character, so a returning player is not asked twice. */
         public String soloHandle = "";
 

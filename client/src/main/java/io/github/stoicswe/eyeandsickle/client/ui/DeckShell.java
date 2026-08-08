@@ -430,15 +430,55 @@ public final class DeckShell {
         if (factory == null) {
             return;
         }
+        // ⚠ THE SIZE THE PLAYER LAST LEFT IT AT, not the catalogue default. `deskLayout` records only
+        // OPEN windows — a closed one is absent from it by design, because that absence is what stops
+        // it reopening next session — so closing a window used to throw its size away with it, and
+        // every resize a player made was undone the first time they closed the thing.
+        double width = spec.defaultWidth() * UiTokens.WINDOW_OPEN_SCALE;
+        double height = spec.defaultHeight() * UiTokens.WINDOW_OPEN_SCALE;
+        var remembered = profile.settings().windowSizes.get(spec.id());
+        if (remembered != null && remembered.width > 0 && remembered.height > 0) {
+            width = remembered.width;
+            height = remembered.height;
+        }
         desk.open(new DeskManager.Spec(
                         spec.id(),
                         Text.current().title(spec),
                         designator(spec),
                         content(spec, factory),
-                        spec.defaultWidth() * UiTokens.WINDOW_OPEN_SCALE,
-                        spec.defaultHeight() * UiTokens.WINDOW_OPEN_SCALE,
-                        spec.closable()))
+                        width,
+                        height,
+                        spec.closable(),
+                        // ⚠ Captured ON CLOSE, at the moment the geometry still exists. Reading it
+                        // afterwards is not an option: the window is off the desk by then, which is
+                        // exactly why this callback is passed the way `DeskManager.Spec` documents.
+                        () -> rememberSize(spec.id())))
                 .ifPresent(window -> Motion.reveal(window.frame(), 0));
+    }
+
+    /**
+     * Records a window's current size so reopening it brings it back the same size.
+     *
+     * <p>⚠ Size only — never position. A closed window's <em>place</em> is a fact about a desk
+     * arrangement that no longer includes it, and restoring one into the exact spot it used to hold
+     * would drop it on top of whatever the player has put there since. Reopening tiles it and sizes
+     * it, which is the combination that reads as "my window, where there is room for it".
+     */
+    private void rememberSize(String id) {
+        desk.windows().stream()
+                .filter(window -> window.id().equals(id))
+                .findFirst()
+                .ifPresent(window -> {
+                    DeskManager.Geometry geometry = window.geometry();
+                    if (geometry.width() <= 0 || geometry.height() <= 0) {
+                        return;
+                    }
+                    var state = profile.settings()
+                            .windowSizes
+                            .computeIfAbsent(id, key -> new ClientProfile.DeskWindowState());
+                    state.width = geometry.width();
+                    state.height = geometry.height();
+                });
     }
 
     /**
@@ -1127,7 +1167,11 @@ public final class DeckShell {
         // report is wider than everything to the left of the balance, and the old clamp would put it
         // over the rail exactly as it did for the operator panel. One rule, both drawers.
         syncBanner.show(
-                balanceCell, topStrip, desk.root(), built.node(), () -> built.release().run());
+                balanceCell,
+                topStrip,
+                desk.root(),
+                built.node(),
+                () -> built.release().run());
     }
 
     public void focusCommandLine() {
@@ -1553,6 +1597,15 @@ public final class DeckShell {
                 state.restoreHeight = restore.height();
             }
             saved.put(window.id(), state);
+
+            // ⚠ Also into windowSizes, so a window that was OPEN at quit reopens at its size in a
+            // later session even if the player closes it first. Without this, only windows closed by
+            // hand were remembered — which is the less common way to leave one.
+            var size = profile.settings()
+                    .windowSizes
+                    .computeIfAbsent(window.id(), key -> new ClientProfile.DeskWindowState());
+            size.width = geometry.width();
+            size.height = geometry.height();
         }
     }
 

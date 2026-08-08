@@ -28,7 +28,9 @@ class NetCanvasIdentityTest {
                 HostKind.TERMINAL,
                 DifficultyTier.of(2),
                 SignalStrength.MODERATE,
-                1,
+                1, // hopsFromRig
+                1, // hopsFromVantage
+                false, // self
                 false, // vantage
                 false, // foothold
                 false, // patched

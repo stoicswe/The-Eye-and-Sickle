@@ -84,7 +84,43 @@ public record Sighting(
         HostKind kind,
         DifficultyTier tier,
         SignalStrength signal,
+        /**
+         * Hop distance from the player's <b>own rig</b>, over the full link graph.
+         *
+         * <h2>⚠ THIS IS THE MAP'S FRAME; {@link #hopsFromVantage()} IS THE SWEEP'S REACH</h2>
+         *
+         * The network map lays its columns out on this one, so <b>layer 0 is always the rig</b> and
+         * the picture a player has built up does not move when they reposition. Moving the vantage
+         * used to re-root the whole graph: the machine you connected to jumped to the leftmost column
+         * and your own rig slid rightwards among strangers, which reads as the world having been
+         * rearranged rather than as you having moved through it.
+         *
+         * <p>What repositioning should look like is a <b>branch growing rightward</b> from the node
+         * you moved to — and that falls out of this automatically, because anything a sweep finds
+         * from the new vantage sits one hop further from the rig than the vantage does.
+         *
+         * <p>⚠ Both distances are published because both are real and neither derives the other.
+         * "How far is this from me" frames the drawing; "how far is this from where I am operating"
+         * is what the hop ceiling is measured in, and it is the number the list's HOPS column and
+         * every screen-reader line quote.
+         */
+        int hopsFromRig,
         int hopsFromVantage,
+        /**
+         * Whether this is the player's <b>own rig</b>.
+         *
+         * <h2>⚠ NOT {@link #vantage()}, AND THE TWO WERE CONFLATED IN FIVE PLACES</h2>
+         *
+         * The rules have always computed this — {@code NetRules.sighting} opens with
+         * {@code host.address.equals(topology.playerAddress)} — and never published it, so every
+         * view needing "is this mine" reached for {@code vantage}, the only adjacent flag there was.
+         * That is correct exactly while the vantage has never moved, and wrong the moment it does:
+         * the player's own rig stops being "self" and somebody else's machine starts being it.
+         *
+         * <p><b>{@code self} is whose machine this is; {@code vantage} is where the next sweep
+         * measures from.</b> Moving the vantage changes only the second, and nothing else.
+         */
+        boolean self,
         boolean vantage,
         boolean foothold,
         /**
@@ -169,7 +205,14 @@ public record Sighting(
                 kind,
                 tier,
                 signal,
+                // ⚠ Both distances take the one the caller gave. These convenience constructors are
+                // for fixtures and tests, where the vantage has not moved and the two are equal by
+                // definition — the rules' own producer passes them separately.
                 hopsFromVantage,
+                hopsFromVantage,
+                // ⚠ self=false. These convenience constructors describe "the state a sweep alone
+                // leaves a machine in", and a machine a sweep found is by definition not your rig.
+                false,
                 vantage,
                 foothold,
                 false,
@@ -212,7 +255,14 @@ public record Sighting(
                 kind,
                 tier,
                 signal,
+                // ⚠ Both distances take the one the caller gave. These convenience constructors are
+                // for fixtures and tests, where the vantage has not moved and the two are equal by
+                // definition — the rules' own producer passes them separately.
                 hopsFromVantage,
+                hopsFromVantage,
+                // ⚠ self=false. These convenience constructors describe "the state a sweep alone
+                // leaves a machine in", and a machine a sweep found is by definition not your rig.
+                false,
                 vantage,
                 foothold,
                 patched,

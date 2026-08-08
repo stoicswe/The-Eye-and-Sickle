@@ -4,10 +4,11 @@ import io.github.stoicswe.eyeandsickle.client.session.GameSession;
 import io.github.stoicswe.eyeandsickle.client.ui.Ui;
 import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
 import io.github.stoicswe.eyeandsickle.client.ui.cursors.Cursors;
+import io.github.stoicswe.eyeandsickle.engine.fs.VirtualFs;
+import io.github.stoicswe.eyeandsickle.engine.rules.Archives;
 import io.github.stoicswe.eyeandsickle.protocol.game.FsEntry;
 import io.github.stoicswe.eyeandsickle.protocol.game.RemoteSession;
 import io.github.stoicswe.eyeandsickle.protocol.game.Sighting;
-import io.github.stoicswe.eyeandsickle.engine.fs.VirtualFs;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayDeque;
@@ -20,7 +21,6 @@ import javafx.scene.Node;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.control.Menu;
-import io.github.stoicswe.eyeandsickle.engine.rules.Archives;
 import javafx.scene.control.MenuItem;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.control.SeparatorMenuItem;
@@ -354,7 +354,11 @@ public final class FileManagerView {
                 session.sessions().stream().map(RemoteSession::address).toList();
         List<Sighting> breached = session.net().sightings().stream()
                 .filter(Sighting::foothold)
-                .filter(sighting -> !sighting.vantage())
+                // ⚠ Excludes YOUR OWN RIG, which has its own places above; it used to exclude the
+                // VANTAGE, so moving the vantage dropped that machine out of the Network list —
+                // losing file access to a machine you hold, for the sole reason that you were
+                // standing on it.
+                .filter(sighting -> !sighting.self())
                 .toList();
         if (breached.isEmpty()) {
             Label none = Ui.small(Views.t(
@@ -641,7 +645,8 @@ public final class FileManagerView {
         // deleting one — extraction removes the archive, which is a delete by another name.
         if (here.rig() && Archives.isArchiveName(entry.name())) {
             MenuItem extract = new MenuItem("Extract");
-            extract.setOnAction(event -> refusal.setText(session.extract(entry.path()).message()));
+            extract.setOnAction(
+                    event -> refusal.setText(session.extract(entry.path()).message()));
             menu.getItems().addAll(new SeparatorMenuItem(), extract);
         }
         // ⚠ Own rig only, and on ANY file rather than only packages — the point of being able to

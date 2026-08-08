@@ -11,6 +11,7 @@ import io.github.stoicswe.eyeandsickle.engine.net.NodeReports;
 import io.github.stoicswe.eyeandsickle.engine.state.GameSave;
 import io.github.stoicswe.eyeandsickle.engine.state.NodeReportState;
 import io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget;
+import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -44,11 +45,36 @@ class BreachPuzzleWeightingTest {
         report.createdAt = T0;
         report.updatedAt = T0;
         report.scans = 1;
-        PortScanTarget[] targets = PortScanTarget.values();
-        for (int i = 0; i < Math.min(findings, targets.length); i++) {
-            report.learnedAt.put(targets[i].name(), T0);
+        // ⚠ THE FINDINGS THIS MACHINE ACTUALLY HAS, in depth order — not the first N of values().
+        // The ladder became per-kind on 2026-08-07, and 10.0.0.5 is a BRIDGE in the generated world,
+        // whose set is IDENTITY, FIREWALL, OS_VERSION, PEERS, MONITORED. Walking values() blind
+        // established CYCLE_CAPABILITY on a router: `known` correctly refused to count it, so the
+        // fourth "finding" moved the fraction by nothing and the linearity this file exists to prove
+        // was broken by the fixture rather than by the code.
+        List<PortScanTarget> targets = java.util.Arrays.stream(PortScanTarget.values())
+                .filter(target -> target.appliesTo(kindAt(save)))
+                .sorted(java.util.Comparator.comparingInt(PortScanTarget::depth))
+                .toList();
+        for (int i = 0; i < Math.min(findings, targets.size()); i++) {
+            report.learnedAt.put(targets.get(i).name(), T0);
         }
         save.nodeReports.add(report);
+    }
+
+    /**
+     * What kind of machine {@link #ADDRESS} is in this world — the denominator {@code known} uses.
+     *
+     * <p>⚠ Read from the topology rather than assumed. {@code withNode} adds a known NODE at a fixed
+     * address over a GENERATED world, so what that address is depends on the seed, and for these
+     * seeds it is a bridge. A hard-coded kind here was wrong twice over: it named the wrong one, and
+     * it would have gone on being wrong silently the next time the generator moved.
+     */
+    private static io.github.stoicswe.eyeandsickle.protocol.game.HostKind kindAt(GameSave save) {
+        return save.topology.hosts.stream()
+                .filter(host -> ADDRESS.equals(host.address))
+                .findFirst()
+                .map(host -> io.github.stoicswe.eyeandsickle.engine.net.HostArchetypes.kindOrUnknown(host.kind))
+                .orElse(io.github.stoicswe.eyeandsickle.protocol.game.HostKind.UNKNOWN);
     }
 
     /** How often {@code findings} worth of report produces a protocol grid, over many seeds. */
@@ -93,9 +119,22 @@ class BreachPuzzleWeightingTest {
             // proves the addition did not quietly re-weight every breach in the game — `known` feeds
             // breachProtocolShare, so an 8/10 denominator would have moved the odds on every target
             // a player has ever scanned, silently, with every screen still rendering.
-            int total = PortScanTarget.countFor(io.github.stoicswe.eyeandsickle.protocol.game.HostKind.TERMINAL);
+            // ⚠ ONE SAVE, REUSED — never two calls to withNode expecting the same world.
+            //
+            // Measured 2026-08-07: `withNode(1L, …)` returns a DIFFERENT world on every call, despite
+            // taking a seed. Four consecutive calls gave 148, 136, 219 and 171 hosts, and the machine
+            // at 10.0.0.5 came back TERMINAL, TERMINAL, TERMINAL, BRIDGE. So a denominator taken from
+            // one call and findings established against another disagree about what kind of machine
+            // this even is — which is invisible while every kind has the same number of findings, and
+            // is exactly what broke here the moment bridges got their own set.
+            //
+            // ⚠ Not fixed in BreachTestKit from here: `save(seed)`'s determinism is relied on by the
+            // whole breach suite and is its own change. Logged for the user; this test simply stops
+            // depending on it.
+            GameSave save = withNode(1L, 3, 0, false, false);
+            int total = PortScanTarget.countFor(kindAt(save));
             for (int found = 0; found <= total; found++) {
-                GameSave save = withNode(1L, 3, 0, false, false);
+                save.nodeReports.clear();
                 if (found > 0) {
                     scanned(save, found);
                 }

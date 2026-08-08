@@ -1,13 +1,13 @@
 package io.github.stoicswe.eyeandsickle.engine.net;
 
-import io.github.stoicswe.eyeandsickle.protocol.game.ComputeConsumer;
 import io.github.stoicswe.eyeandsickle.engine.Balance;
 import io.github.stoicswe.eyeandsickle.engine.fs.VirtualFs;
 import io.github.stoicswe.eyeandsickle.engine.rules.ComputeRules;
 import io.github.stoicswe.eyeandsickle.engine.state.AllocationState;
+import io.github.stoicswe.eyeandsickle.engine.state.GameSave;
 import io.github.stoicswe.eyeandsickle.engine.state.HostState;
 import io.github.stoicswe.eyeandsickle.engine.state.SessionState;
-import io.github.stoicswe.eyeandsickle.engine.state.GameSave;
+import io.github.stoicswe.eyeandsickle.protocol.game.ComputeConsumer;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -87,7 +87,22 @@ public final class SessionRules {
         if (already.isPresent()) {
             return new Opened(already.get(), null);
         }
-        boolean self = wanted.equals(NetRules.vantageAddress(save)) && isOwnRig(save, wanted);
+        // ⚠ OWN RIG, AND NOTHING ABOUT THE VANTAGE. This read
+        // `wanted.equals(NetRules.vantageAddress(save)) && isOwnRig(save, wanted)`, so `self` went
+        // false on the player's own machine the moment they moved their vantage anywhere else.
+        //
+        // ⚠ THAT WAS HARMLESS, AND IT IS WORTH SAYING SO RATHER THAN CLAIMING A BUG THAT WAS NOT
+        // THERE. The only thing `self` gates is the guard below, and `TopologyGenerator` sets both
+        // `rig.discovered` and `rig.foothold` — so a rig that fell through to the `!self` branch
+        // passed both checks anyway. Nothing a player could do was refused. `session.cwd` a few
+        // lines down already asked `isOwnRig` directly and was never affected.
+        //
+        // ⚠ It is fixed because it was WRONG, not because it broke: it made a shell on your own
+        // machine depend on where your vantage happened to be, which is a coupling this class's own
+        // note says does not exist — "nothing here reads or writes vantageAddress". That was true of
+        // every line but this one. The redundant form would also start refusing on any save whose
+        // rig lacked those two flags, which is a trap left for somebody else.
+        boolean self = isOwnRig(save, wanted);
         if (!self) {
             HostState host = host(save, wanted);
             if (host == null || !host.discovered) {

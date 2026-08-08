@@ -188,7 +188,10 @@ public final class NetHostList extends VBox {
         if (sighting.address().equals(selected)) {
             label.getStyleClass().add("es-netlist-selected");
         }
-        if (!sighting.vantage() && !sighting.foothold()) {
+        // ⚠ `self`, not `vantage`. Greying is for machines the player cannot operate from, and
+        // their own rig is never one of those — but keyed to the vantage, moving it greyed out the
+        // player's own machine in their own host list.
+        if (!sighting.self() && !sighting.foothold()) {
             // The grey ramp, second. The distinction that matters most on this panel — where the
             // player can actually operate from — is already carried by the STATE column in words,
             // which is what survives a greyscale capture and a screen reader both.

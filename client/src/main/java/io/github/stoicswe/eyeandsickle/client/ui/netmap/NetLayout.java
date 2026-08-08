@@ -23,11 +23,29 @@ import java.util.Set;
  *
  * <h2>The column is the hop count, and that is what makes the picture tractable</h2>
  *
- * Nodes are placed in columns by <b>hop distance from the vantage</b>. The implementation spec derives
- * this as a BFS layering over the discovered subgraph; it is the same number, because
- * {@code Sighting.hopsFromVantage} already <em>is</em> a BFS distance — computed by the rules over the
+ * Nodes are placed in columns by <b>hop distance from the player's own rig</b>. The implementation
+ * spec derives this as a BFS layering over the discovered subgraph; it is the same number, because
+ * {@code Sighting.hopsFromRig} already <em>is</em> a BFS distance — computed by the rules over the
  * full link graph, where undiscovered intermediate machines still conduct. Reading it rather than
  * re-deriving it has three consequences worth stating:
+ *
+ * <h2>⚠ FROM THE RIG, NOT FROM THE VANTAGE — changed 2026-08-07, and it was visible on screen</h2>
+ *
+ * This laid out on {@code hopsFromVantage}, so <b>moving the vantage re-rooted the entire graph</b>:
+ * the machine you connected to jumped to the leftmost column and the player's own rig slid rightwards
+ * among strangers. Reported from a real map — {@code 10.0.0.2} at H0 with {@code SELF} demoted to H1.
+ * That reads as the world having been rearranged rather than as the player having moved through it,
+ * and it undoes the one thing a map is for, which is being the same picture as last time.
+ *
+ * <p>⚠ <b>Repositioning still shows, and shows better.</b> The vantage keeps the only heavy frame on
+ * the map ({@code NetCanvas}), and anything a sweep finds from it lands one hop further from the rig
+ * than the vantage does — so a new vantage grows a <b>branch rightward</b> from the node the player
+ * moved to, which is what traversal actually looks like. Nothing already drawn moves.
+ *
+ * <p>⚠ The other three readers of {@code hopsFromVantage} were deliberately left alone: the graph's
+ * accessible text, the host list and the LIST view's HOPS column all answer "how far is this from
+ * where I am operating", which is the unit the hop ceiling is measured in and is a different question
+ * from where a node is drawn.
  *
  * <ol>
  *   <li>The x axis of the picture is the same quantity the rules are written in. Hop range is the
@@ -52,7 +70,7 @@ import java.util.Set;
  *
  * <h2>Row assignment: one barycentre pass, never iterated</h2>
  *
- * Layer 0 is the vantage, at row 0. Each subsequent layer sorts its nodes by the mean row of their
+ * Layer 0 is the player's own rig, at row 0. Each subsequent layer sorts its nodes by the mean row of their
  * already-placed neighbours one layer back, ties broken by address, and takes rows {@code 0, 1, 2, …}
  * in that order. One pass rather than iterating to convergence, because the layout has to be
  * <b>identical on every repaint</b>: the packet animation repaints on a timer, and a layout that
@@ -81,7 +99,7 @@ public final class NetLayout {
     /**
      * A machine, and where it is drawn.
      *
-     * @param layer hop distance from the vantage — the column
+     * @param layer hop distance from the player's own rig — the column
      * @param row the slot within that column, counted from the top
      */
     public record Placed(Sighting sighting, int layer, int row) {}
@@ -148,12 +166,12 @@ public final class NetLayout {
         int layers = 0;
         for (Sighting sighting : map.sightings()) {
             byAddress.put(sighting.address(), sighting);
-            layers = Math.max(layers, sighting.hopsFromVantage() + 1);
+            layers = Math.max(layers, sighting.hopsFromRig() + 1);
         }
 
         Map<Integer, List<Sighting>> byLayer = new HashMap<>();
         for (Sighting sighting : map.sightings()) {
-            byLayer.computeIfAbsent(sighting.hopsFromVantage(), k -> new ArrayList<>())
+            byLayer.computeIfAbsent(sighting.hopsFromRig(), k -> new ArrayList<>())
                     .add(sighting);
         }
 

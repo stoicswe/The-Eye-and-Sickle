@@ -580,7 +580,10 @@ public final class NetMapView {
             // attempted — compute, an existing foothold, a gate — is the rules' answer, and this
             // panel does not pre-empt it (C4): the breach window shows the target with the rules'
             // own verdict beside it, which is a better teacher than a control that is simply absent.
-            visible(breach, chosen.map(s -> !s.vantage()).orElse(false));
+            // ⚠ Hidden on your OWN RIG, not on the vantage — see buildMenu. Keyed to the vantage,
+            // the BREACH control vanished from whatever machine you were standing on and appeared
+            // for your own.
+            visible(breach, chosen.map(s -> !s.self()).orElse(false));
 
             // ---- filing
             //
@@ -665,7 +668,13 @@ public final class NetMapView {
             java.util.function.Consumer<String> select) {
         menu.getItems().clear();
         Optional<Sighting> sighting = session.net().at(address);
-        boolean self = sighting.map(Sighting::vantage).orElse(false);
+        // ⚠ SELF IS THE PLAYER'S OWN RIG, NOT THE VANTAGE. This read `Sighting::vantage`, which is
+        // right only while the vantage has never moved. Once it has, the machine you moved TO was
+        // treated as yours — its menu hid Breach and Port scan — and your own rig stopped being
+        // "self", so the menu cheerfully offered to breach and port-scan your own machine. That is
+        // the failure CLAUDE.md already records once: "views that branched on it first told players
+        // to 'breach' their own rig".
+        boolean self = sighting.map(Sighting::self).orElse(false);
         boolean held = sighting.map(Sighting::foothold).orElse(false);
         boolean open = session.sessions().stream().anyMatch(s -> s.address().equals(address));
 
@@ -704,12 +713,27 @@ public final class NetMapView {
         info.setOnAction(event -> actions.info(address));
         menu.getItems().add(info);
 
-        javafx.scene.control.MenuItem vantage = new javafx.scene.control.MenuItem("Move vantage here");
+        // ⚠ Named for the ACT, and the rig gets its own wording: "move" describes going out, and
+        // coming back is the thing a player will look for by a different name.
+        javafx.scene.control.MenuItem vantage =
+                new javafx.scene.control.MenuItem(self ? "Sweep from this rig again" : "Move vantage here");
         // ⚠ Named for what it does, not "Connect". Moving the vantage changes where every future
         // sweep measures from (I2's ceiling), and calling it the same word as opening a shell is how
         // a player comes to believe that opening eight shells gave them eight vantages.
         vantage.setOnAction(event -> session.connectTo(address));
-        vantage.setDisable(!held || self);
+        // ⚠ THE RIG IS A LEGAL VANTAGE, AND THIS USED TO REFUSE IT. The condition was
+        // `!held || self`, which read as "you cannot move the vantage to yourself" — true only while
+        // `self` meant the vantage. Once it meant the player's own rig, it locked the player OUT of
+        // returning: there was no way back to localhost from the map at all.
+        //
+        // ⚠ The rules never had this restriction. `NetRules.connect` reads
+        // `if (!ownRig && !host.foothold) refuse` — your own rig has always been an accepted target.
+        // This was the interface refusing something the engine allows, which is the worse direction
+        // of the two to get wrong: the player cannot tell it is the menu rather than the game.
+        //
+        // What is genuinely nothing-to-do is moving the vantage to where it already is.
+        boolean alreadyVantage = sighting.map(Sighting::vantage).orElse(false);
+        vantage.setDisable(alreadyVantage || (!held && !self));
         menu.getItems().add(vantage);
 
         if (sighting.map(Sighting::documentAvailable).orElse(false)) {
