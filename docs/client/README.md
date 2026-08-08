@@ -31,6 +31,7 @@ cites by name. Nothing below `01` re-defines a colour, a size or a component —
 | 06 | [`06-resource-and-inventory-ui.md`](06-resource-and-inventory-ui.md) | ⚠️ **[PROPOSAL]** | Compute, ethecoin, noise/heat, storage tiers, the item card, inventory at scale, the provenance/item-history view, and cost-before-commit |
 | 07 | [`07-accessibility.md`](07-accessibility.md) | ⚠️ **[PROPOSAL]** | The accessibility specification and its **testable checklist** — the document that answers a flag this project raised twice |
 | 08 | [`08-audio.md`](08-audio.md) | ⚠️ **[PROPOSAL]** | Sound effects and music: the software mixer, the effect and cue catalogues, generated sounds, the size budget, and the accessibility pass — **answers CL-7** |
+| 09 | [`09-network-map-graph.md`](09-network-map-graph.md) | ⚠️ **[PROPOSAL]** | The network map's graph: **stacked nodes with a count and click-to-expand**, the arrangement algorithm, the character-grid geometry every change has to fit, and two open renderer defects |
 
 ## Status tags — what they mean here
 
