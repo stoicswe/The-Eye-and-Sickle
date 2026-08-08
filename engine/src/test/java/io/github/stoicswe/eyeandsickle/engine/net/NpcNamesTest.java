@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import io.github.stoicswe.eyeandsickle.engine.Balance;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -255,6 +256,141 @@ class NpcNamesTest {
             String at = address(0, 0);
             String first = NpcNames.machine(at, Set.of());
             assertThat(NpcNames.machine(at, Set.of(first))).isNotEqualTo(first);
+        }
+    }
+
+    @Nested
+    @DisplayName("server names")
+    class Servers {
+
+        /**
+         * ⚠ A server name is a host label too, and it reaches farther than a machine's.
+         *
+         * <p>It is what a bridge <em>advertises</em> ({@code docs/design/17} §3.1) and what the map's
+         * tab strip reads, so it crosses the wire as {@code Sighting.bridgePeerServerName} and is
+         * rendered as chrome. The same RFC 1123 vocabulary applies for the same reason.
+         */
+        @Test
+        @DisplayName("every character is lowercase letters only, 3 to 12 long")
+        void charactersAreLegal() {
+            Pattern legal = Pattern.compile("[a-z]{3,12}");
+            for (String word : NpcNames.characters()) {
+                assertThat(word).as("%s", word).matches(legal);
+            }
+        }
+
+        @Test
+        @DisplayName("no character repeats, so nothing is twice as likely as its neighbours")
+        void noDuplicates() {
+            assertThat(new HashSet<>(NpcNames.characters()))
+                    .as("distinct characters")
+                    .hasSize(NpcNames.characters().size());
+        }
+
+        /**
+         * ⚠ THE THREE POOLS MUST NOT OVERLAP, and the reasons differ for each pair.
+         *
+         * <p>Against {@code PIONEERS}: those are <b>real people</b>, and a name in both pools reads as
+         * the real one wherever it appears. Resident Evil Village's Karl Heisenberg was harvested and
+         * dropped by exactly this check — {@code wicked-heisenberg} on a server would read as Werner.
+         *
+         * <p>Against {@code OPERATORS}: an account name and a server name are different namespaces and
+         * would not actually be ambiguous, but a player who has just met an operator called
+         * {@code magnus} and then finds {@code roguish-magnus} will reasonably think the two are
+         * connected. Seven names were dropped for this.
+         *
+         * <p>Against {@code ADJECTIVES}: {@code wicked-wicked} needs no further argument.
+         */
+        @Test
+        @DisplayName("⚠ no character is also a pioneer, an operator or an adjective")
+        void poolsDoNotOverlap() {
+            Set<String> characters = new HashSet<>(NpcNames.characters());
+            assertThat(characters).as("vs pioneers").doesNotContainAnyElementsOf(NpcNames.pioneers());
+            assertThat(characters).as("vs operators").doesNotContainAnyElementsOf(NpcNames.operators());
+            assertThat(characters).as("vs adjectives").doesNotContainAnyElementsOf(NpcNames.adjectives());
+        }
+
+        @Test
+        @DisplayName("the same server id always yields the same name")
+        void namesAreDerived() {
+            for (int i = 0; i < 12; i++) {
+                String id = HostArchetypes.serverId(i);
+                assertThat(NpcNames.server(id, Set.of())).isEqualTo(NpcNames.server(id, Set.of()));
+            }
+        }
+
+        /**
+         * ⚠ The fixed list this replaced was the SAME SEVEN PLACES ON EVERY SEED — {@code home-relay},
+         * {@code south-exchange}, {@code north-yard} — because the generation sequence has no draw slot
+         * for a server name. Two players comparing worlds found identical place names on different
+         * shapes. Hashing the id costs no draws and gives a different set per world.
+         */
+        @Test
+        @DisplayName("no two servers in a world share a name")
+        void namesAreUniqueAcrossAWorld() {
+            Set<String> taken = new LinkedHashSet<>();
+            for (int i = 0; i < Balance.NET_SERVERS_MAX; i++) {
+                String name = NpcNames.server(HostArchetypes.serverId(i), taken);
+                assertThat(taken).as("server %d", i).doesNotContain(name);
+                assertThat(name).as("server %d", i).matches("[a-z]+-[a-z]+");
+                taken.add(name);
+            }
+        }
+
+        @Test
+        @DisplayName("blocked names are walked past, and what comes out is still adjective-character")
+        void theWalkFindsAFreeName() {
+            Set<String> blocked = new LinkedHashSet<>();
+            for (int i = 0; i < 20; i++) {
+                String next = NpcNames.server("srv-3", blocked);
+                assertThat(next).as("round %d", i).isNotIn(blocked);
+                assertThat(NpcNames.adjectives()).contains(next.substring(0, next.indexOf('-')));
+                assertThat(NpcNames.characters()).contains(next.substring(next.indexOf('-') + 1));
+                blocked.add(next);
+            }
+            assertThat(blocked).hasSize(20);
+        }
+
+        /**
+         * ⚠ {@code looksLikeServer} is what {@code TopologyGenerator.relabelLegacy} branches on, so a
+         * false positive renames nothing and a false negative renames something twice. It asks "is
+         * this one of MINE" rather than "is this the old format" — the same call {@code looksGenerated}
+         * records, and for the same reason: testing for the old format needs a copy of a scheme that
+         * no longer exists, kept in step by hand.
+         */
+        @Test
+        @DisplayName("⚠ recognises its own names and not the fixed list it replaced")
+        void recognisesItsOwn() {
+            assertThat(NpcNames.looksLikeServer(NpcNames.server("srv-0", Set.of()))).isTrue();
+            for (String legacy : List.of("home-relay", "south-exchange", "north-yard", "outer-span")) {
+                assertThat(NpcNames.looksLikeServer(legacy)).as("%s", legacy).isFalse();
+            }
+            assertThat(NpcNames.looksLikeServer("some-thing")).isFalse();
+            assertThat(NpcNames.looksLikeServer(null)).isFalse();
+            assertThat(NpcNames.looksLikeServer("wicked")).isFalse();
+        }
+
+        /**
+         * ⚠ A machine name and a server name must never be the same string.
+         *
+         * <p>They share the adjective pool, so the only thing separating them is the noun — which is
+         * exactly what {@link #poolsDoNotOverlap} defends. This is the consequence, asserted on the
+         * finished names rather than on the pools, because that is the form a player sees.
+         */
+        @Test
+        @DisplayName("a server name is never also a machine name")
+        void serversAndMachinesNeverCollide() {
+            Set<String> machines = new HashSet<>();
+            for (int server = 0; server < 4; server++) {
+                for (int host = 0; host < 40; host++) {
+                    machines.add(NpcNames.machine(TopologyGenerator.address(server, host), Set.of()));
+                }
+            }
+            for (int i = 0; i < Balance.NET_SERVERS_MAX; i++) {
+                assertThat(NpcNames.server(HostArchetypes.serverId(i), Set.of()))
+                        .as("server %d", i)
+                        .isNotIn(machines);
+            }
         }
     }
 }

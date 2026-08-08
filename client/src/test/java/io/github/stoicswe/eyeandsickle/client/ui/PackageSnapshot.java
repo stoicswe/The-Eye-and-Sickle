@@ -4,9 +4,9 @@ import io.github.stoicswe.eyeandsickle.client.profile.ClientProfile;
 import io.github.stoicswe.eyeandsickle.client.session.LocalGameSession;
 import io.github.stoicswe.eyeandsickle.client.theme.ThemeManager;
 import io.github.stoicswe.eyeandsickle.client.view.PackageView;
-import io.github.stoicswe.eyeandsickle.protocol.game.PackageManifest;
 import io.github.stoicswe.eyeandsickle.engine.Balance;
 import io.github.stoicswe.eyeandsickle.engine.GameEngine;
+import io.github.stoicswe.eyeandsickle.protocol.game.PackageManifest;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.nio.file.Path;
@@ -175,6 +175,59 @@ public final class PackageSnapshot {
                     900,
                     300);
         }
+
+        // ── The scanner against a BRIDGE ───────────────────────────────────────────────────────
+        //
+        // ⚠ THE ONLY MACHINE IN THE GAME WITH A DIFFERENT LADDER, and therefore the only one that
+        // says whether the panel is filtering at all. Every other shot here is of an ordinary machine
+        // — where "Peers" and "Monitoring" being absent is the fix working and their being present
+        // was the bug, and the two are one row apart in a picture nobody was taking.
+        //
+        // ⚠ It must be IDENTIFIED, not merely discovered. Sighting.kind stays UNKNOWN until a
+        // type-revealing tool has run, and an untyped bridge correctly shows the ordinary eight — so
+        // a shot that only set `discovered` would photograph the state indistinguishable from the
+        // filter being absent, and report it as working.
+        var bridge = game.state().topology == null
+                ? java.util.Optional.<io.github.stoicswe.eyeandsickle.engine.state.HostState>empty()
+                : game.state().topology.hosts.stream()
+                        .filter(h -> "BRIDGE".equals(h.kind))
+                        .findFirst();
+        if (bridge.isPresent()) {
+            var host = bridge.get();
+            host.discovered = true;
+            host.identified = true;
+            // The label lives on knownNodes, which a sweep populates — marking a topology host
+            // discovered does not create one, and NetRules builds a sighting only for a machine the
+            // player has actually found.
+            if (game.state().knownNodes.stream().noneMatch(n -> host.address.equals(n.address))) {
+                var fresh = new io.github.stoicswe.eyeandsickle.engine.state.NodeState();
+                fresh.address = host.address;
+                fresh.serverId = host.serverId;
+                fresh.kind = "UNKNOWN";
+                fresh.tier = host.tier;
+                fresh.firewallTier = host.firewallTier;
+                game.state().knownNodes.add(fresh);
+            }
+            shootPanel(
+                    themes,
+                    io.github.stoicswe.eyeandsickle.client.view.PortScanView.create(session, host.address, m -> {}),
+                    out.resolve("portscan-bridge.png"),
+                    820,
+                    700);
+            // And after the deepest rung a bridge HAS, so the findings block has to render the peer
+            // count and the monitoring line — the two findings that have been reachable and
+            // unrenderable since they landed.
+            session.portScan(host.address, io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget.MONITORED);
+            clock.advance(Duration.ofMinutes(4));
+            game.tick();
+            shootPanel(
+                    themes,
+                    io.github.stoicswe.eyeandsickle.client.view.PortScanView.create(session, host.address, m -> {}),
+                    out.resolve("portscan-bridge-done.png"),
+                    820,
+                    700);
+        }
+
         shootPanel(
                 themes,
                 io.github.stoicswe.eyeandsickle.client.view.DefenseGameView.create(

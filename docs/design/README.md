@@ -26,6 +26,9 @@ New to the project: read **`00` → `01` → `02` → `03`** in order. That's th
 | 13 | [`13-multiplayer-and-federation-play.md`](13-multiplayer-and-federation-play.md) | ⚠️ Mixed | Player-facing multiplayer (proposed) over an established tech base |
 | 14 | [`14-world-and-narrative.md`](14-world-and-narrative.md) | ⚠️ **[PROPOSAL]** | The world, environmental story, escalation |
 | 15 | [`15-open-questions.md`](15-open-questions.md) | Living | Every open question + resolution log |
+| 16 | [`16-breach-implementation.md`](16-breach-implementation.md) | Decided | The breach, as built — two puzzle classes |
+| 17 | [`17-bridges-and-surveillance.md`](17-bridges-and-surveillance.md) | ⚠️ Mixed | Bridges, peer counts, MonJobs, the Tracer |
+| 18 | [`18-network-topology.md`](18-network-topology.md) | ⚠️ **[PROPOSAL]** | Server shape and node depth; how a map grows, solo and online |
 | — | [`glossary.md`](glossary.md) | Living | Canonical terms + code-name conventions |
 
 The **client's** visual design and UI — how all of this is presented to the player — lives in [`../client/`](../client/README.md).

@@ -1566,10 +1566,16 @@ public final class Balance {
     //      What the tiers move is the PROBABILITY of detecting what is already in reach, which is
     //      breadth, which docs/design/02-unlock-gates.md §1.1 step 4 puts on ethecoin.
     //
-    //   2. DETECTION IS ROLLED ONCE, AT GENERATION, AND STORED. Every table below that produces a
-    //      threshold is compared against HostState.detectRoll, which the world was built with. A
-    //      sweep makes no detection draw, so re-sweeping is never a reroll and save-scumming is
-    //      defeated by construction rather than by a cooldown.
+    //   2. DETECTION IS NEVER DRAWN AT SWEEP TIME. Every table below that produces a threshold is
+    //      compared against a value that predates the sweep: HostState.detectRoll, which the world
+    //      was built with, scaled by a HASH of (machine, vantage). Both halves are fixed before the
+    //      player asks, so re-sweeping is never a reroll and save-scumming is defeated by
+    //      construction rather than by a cooldown.
+    //
+    //      ⚠ AMENDED 2026-08-08: the roll used to be the machine's alone. It is now a property of
+    //      the PAIR — see NET_SWEEP_VANTAGE_FLOOR — because "what you can hear depends on where you
+    //      are standing" is both the truer model and the thing that makes repositioning pay. Nothing
+    //      about determinism moved: a hash is not a draw.
 
     // ------------------------------------------------------------------ network: world size
 
@@ -1628,6 +1634,107 @@ public final class Balance {
 
     /** The brief's hard ceiling: never more than fifty machines on one server. */
     public static final int NET_MACHINES_HARD_CAP = 50;
+
+    // ------------------------------------------------------------------ network: the shape of a server
+    //
+    // docs/design/18-network-topology.md §2. NODE depth — hops from a server's gateway — as opposed to
+    // SERVER depth, which is bridges from home and is what every difficulty table keys on. The two are
+    // different questions and §1 of that document exists because they were being confused.
+
+    /**
+     * How deep one server's tree of machines runs, in hops from its gateway.
+     *
+     * <h2>⚠ CHOSEN, where it used to be an ACCIDENT</h2>
+     *
+     * The intra-server graph was a random recursive tree — every machine attached to a uniformly
+     * chosen predecessor — so its depth was roughly {@code log(count)} and its branch factor was
+     * whatever fell out. {@code docs/client/09} §8 measured the result and filed it as a defect:
+     * "layers are 1–5 machines wide, maps are 4–10 columns deep… <b>fan-out does not occur at
+     * reachable depth</b>". A depth nobody picked, and a width nobody picked either.
+     *
+     * <p>4 is a floor because a server shallower than that is crossed before the player has decided
+     * anything; 13 is a ceiling because the machine budget has to cover the spine and still leave
+     * something to branch with. <strong>[PROPOSAL]</strong>.
+     */
+    public static final int NET_NODE_DEPTH_MIN = 4;
+
+    public static final int NET_NODE_DEPTH_MAX = 13;
+
+    /**
+     * How many machines hang off one machine.
+     *
+     * <p>⚠ Drawn <b>per machine</b>, so a server has a mix of chains and fans rather than a uniform
+     * shape. 1 is a corridor and 7 is a room; both should occur on the same server, because what
+     * makes a network legible to read is that its parts are not all alike.
+     *
+     * <p><strong>[PROPOSAL]</strong>.
+     */
+    public static final int NET_BRANCH_MIN = 1;
+
+    public static final int NET_BRANCH_MAX = 7;
+
+    /**
+     * How many machines on a server must branch into more than one child.
+     *
+     * <p>⚠ A server that was one long chain would have <b>no choice in it</b> — which is exactly the
+     * argument {@code TopologyGenerator}'s class note gives for rejecting a chain at the <em>server</em>
+     * level ("a chain gives one path and no choice"), restated one level down. Two, not one, because a
+     * single fork is a fork and two is a shape.
+     *
+     * <p><strong>[PROPOSAL]</strong>.
+     */
+    public static final int NET_MIN_BRANCHING_NODES = 2;
+
+    /**
+     * The most of a server's machines that may be spent on its spine.
+     *
+     * <h2>⚠ MEASURED, AND THE FIRST VERSION OF THIS RULE PRODUCED A CORRIDOR</h2>
+     *
+     * The clamp was "leave two machines over", on the reasoning that two is what
+     * {@link #NET_MIN_BRANCHING_NODES} needs. It is arithmetically true and it makes a bad server: a
+     * 13-machine home rolled depth 11, the spine took eleven of the twelve non-gateway machines, and
+     * the whole server rendered as an eleven-hop chain with a single fork at the far end. Rendered
+     * and dumped, it read as a corridor — which is precisely the shape {@code design/18} §2 exists to
+     * stop, arrived at from the other direction.
+     *
+     * <p>Two-thirds leaves a real budget to fan with at every server size: a 12-machine home spends
+     * at most 7 on depth and has 4 spare; a 50-machine deep server hits the depth ceiling long before
+     * the share binds and has 36 spare to spread over 13 layers.
+     *
+     * <p><strong>[PROPOSAL]</strong>.
+     */
+    public static final double NET_SPINE_BUDGET_SHARE = 0.6d;
+
+    /**
+     * The node depth a server actually gets, given its machine budget.
+     *
+     * <h2>⚠ THE CLAMP IS VISIBLE ON PURPOSE — {@code design/18} §2.2 and NT-1</h2>
+     *
+     * Depth and branching cannot both be free: a depth-13 tree branching 1–7 the whole way is
+     * thousands of machines against a hard cap of fifty. So the budget wins, and it wins twice over —
+     * {@link #NET_SPINE_BUDGET_SHARE} caps what the spine may take, and the floor is never breached.
+     *
+     * <p>⚠ <b>The share is of {@code count − 1}, not of {@code count}. The gateway is the root and is
+     * not on the spine</b>, and the off-by-one in the other direction is what produced the corridor
+     * {@link #NET_SPINE_BUDGET_SHARE} records.
+     *
+     * <p>⚠ The alternative — silently ignoring a rolled depth — is how "the number in the save is not
+     * the number in the world" becomes a bug hunt. It is named, tested and logged instead.
+     *
+     * @param count how many machines this server has to spend
+     * @param u a stable 0–1
+     */
+    public static int netNodeDepth(int count, double u) {
+        int rolled = NET_NODE_DEPTH_MIN
+                + (int) (Math.clamp(u, 0.0d, 0.999_999d) * (NET_NODE_DEPTH_MAX - NET_NODE_DEPTH_MIN + 1));
+        int affordable = (int) ((count - 1) * NET_SPINE_BUDGET_SHARE);
+        return Math.max(NET_NODE_DEPTH_MIN, Math.min(rolled, affordable));
+    }
+
+    /** How many children one machine takes, for a rolled {@code u}. */
+    public static int netBranchWidth(double u) {
+        return NET_BRANCH_MIN + (int) (Math.clamp(u, 0.0d, 0.999_999d) * (NET_BRANCH_MAX - NET_BRANCH_MIN + 1));
+    }
 
     // ------------------------------------------------------------------ network: the home floor
 
@@ -1761,6 +1868,71 @@ public final class Balance {
     public static final int NET_SWEEP_BRIDGE_MIN_TIER = 2;
 
     /**
+     * How much of a machine's audibility survives being listened to from an unfavourable position.
+     *
+     * <h2>What this constant is, in one sentence</h2>
+     *
+     * The value a sweep's threshold is compared against used to be {@code HostState.detectRoll}
+     * alone — a property of the <b>machine</b>. It is now
+     * {@code detectRoll × (FLOOR + (1 − FLOOR) × hash(machine, vantage))} — a property of the
+     * <b>pair</b>. So the same machine is easier to hear from some positions than from others, and a
+     * contact a sweep missed from the rig can be picked up from a foothold next door.
+     *
+     * <h2>⚠ THE FOUR PROPERTIES THIS IS BUILT TO PRESERVE, none of which is optional</h2>
+     *
+     * <ol>
+     *   <li><b>Re-sweeping is still not a reroll.</b> The perturbation is <b>hashed, never drawn</b>
+     *       ({@code AddressHash}), so the same (machine, vantage, tier) gives the same answer forever.
+     *       {@code SweepDeterminismTest.resweepingIsNotAReroll} is untouched, and save-scumming still
+     *       buys nothing. <b>This is the whole reason it is a hash and not a die.</b>
+     *   <li><b>The home floor survives exactly.</b> {@code TopologyGenerator} forces three home
+     *       neighbours to {@code detectRoll = 0.0}, and the perturbation is a <b>multiply</b>, so zero
+     *       stays zero from every position in the world. An additive spread would have lifted those
+     *       three off the floor and broken the one guarantee a new player's first sweep rests on —
+     *       which is why it is not additive.
+     *   <li><b>A better instrument never loses a contact.</b> The factor does not depend on the tier,
+     *       so {@code detected(T1) ⊆ detected(T2) ⊆ detected(T3)} holds as before.
+     *   <li><b>Nothing is drawn, so no world is re-rolled.</b> {@code TopologyGenerator}'s draw count
+     *       is a pure function of the world's shape and is untouched; existing saves keep every
+     *       machine, name and document they had.
+     * </ol>
+     *
+     * <h2>⚠ 0.55 — AND THE SENSITIVITY LADDER IS WHAT SETS IT</h2>
+     *
+     * The factor is bounded below rather than running to zero, because at {@code [0, 1]} the
+     * multiply roughly <em>doubles</em> detection: a quiet machine at base tier would go from 35% to
+     * about 72%, and the gap between a base and a deep sweep — which is the thing ethecoin is
+     * actually buying (§1.1 step 4) — would collapse. At 0.55 the measured effect is a base sweep
+     * finding a quiet machine 35% → ~47% of the time and a deep one 72% → ~89%, so the T1→T3 ladder
+     * stays at very nearly its old 2.06×. {@code VantageDiscoveryTest} measures both rather than
+     * trusting this paragraph.
+     *
+     * <p>⚠ It is also what keeps a <b>quiet machine quiet</b>. Past about {@code detectRoll 0.64}
+     * nothing is audible at base tier from <em>any</em> position, so repositioning is a second way to
+     * find things and never a substitute for the instrument. Lowering this constant is what would
+     * make the sweep upgrades pointless, and it would do it silently — every screen still renders.
+     *
+     * <p><strong>[PROPOSAL]</strong>.
+     */
+    public static final double NET_SWEEP_VANTAGE_FLOOR = 0.55d;
+
+    /**
+     * The audibility of one machine from one position: {@code detectRoll}, scaled by where you stand.
+     *
+     * <p>⚠ <b>{@code unit} must be a HASH of the (machine, vantage) pair, never a draw</b> — see
+     * {@link #NET_SWEEP_VANTAGE_FLOOR}. It is taken as a parameter rather than computed here because
+     * {@code Balance} is a table of numbers and {@code AddressHash} lives with the network rules;
+     * passing it in keeps this method pure and testable at both ends.
+     *
+     * @param detectRoll the machine's own 0–1, drawn once at world generation
+     * @param unit a stable 0–1 for this machine <em>and this vantage</em>
+     */
+    public static double netSweepAudibility(double detectRoll, double unit) {
+        double u = Math.clamp(unit, 0.0d, 1.0d);
+        return detectRoll * (NET_SWEEP_VANTAGE_FLOOR + (1 - NET_SWEEP_VANTAGE_FLOOR) * u);
+    }
+
+    /**
      * How many machines one sweep may reveal, from one vantage, at one tier.
      *
      * <h2>⚠ A CEILING ON THE YIELD, NOT A ROLL — and it is absolute, not per attempt</h2>
@@ -1781,9 +1953,9 @@ public final class Balance {
      * <h2>The bands, and why home is generous</h2>
      *
      * <pre>
-     *   depth 0 (home)  5–7      depth 3   2–4
-     *   depth 1         4–6      depth 4+  1–3
-     *   depth 2         3–5
+     *   depth 0 (home)  7–11     depth 3   3–7
+     *   depth 1         6–10     depth 4+  1–5
+     *   depth 2         5–9
      * </pre>
      *
      * Home is where the game teaches, and a first sweep that returns one machine reads as a broken
@@ -1792,6 +1964,21 @@ public final class Balance {
      * volunteering: fewer machines per look is what makes depth expensive in <em>time</em>, alongside
      * {@link #netCounterHackChance} making it expensive in risk.
      *
+     * <h2>⚠ WIDENED 2026-08-08 from 1–7 to 1–11, on explicit direction, and the ceiling is the ask</h2>
+     *
+     * The requirement was a graph that keeps growing as a player works outward, with "1–11 at a time"
+     * named as the limit. So the extremes are exactly that: <b>11 is home at deep tier at the top of
+     * its band, 1 is four servers out at base tier at the bottom of its</b>. The shape between them is
+     * unchanged — a fixed floor per depth, a three-wide spread, plus the tier — because that shape is
+     * what makes depth cost time and the instrument buy breadth.
+     *
+     * <p>⚠ <b>Raising home's floor is nearly free and that is deliberate.</b> The home server seeds
+     * {@link #NET_HOME_SEED_NEIGHBOURS} (5) machines at one link, so at home the cap does not bind
+     * and detection is what limits a first sweep — the "something to miss, then find with a better
+     * instrument" property lives in the threshold, not here. Where the widening actually pays is
+     * <b>depth 1–3</b>, on the larger servers a player reaches by moving, which is exactly where the
+     * ask was pointed.
+     *
      * @param variation a stable 0–1 for the vantage — hashed, never drawn, so the same spot always
      *     yields the same number and no sweep is a reroll
      * <strong>[PROPOSAL]</strong>.
@@ -1799,18 +1986,29 @@ public final class Balance {
     public static int sweepYield(int depth, int sweepTier, double variation) {
         int floor =
                 switch (netDepth(depth)) {
-                    case 0 -> 5;
-                    case 1 -> 4;
-                    case 2 -> 3;
-                    case 3 -> 2;
+                    case 0 -> 7;
+                    case 1 -> 6;
+                    case 2 -> 5;
+                    case 3 -> 3;
                     default -> 1;
                 };
         // Three-wide band, so every depth has some spread without any of them overlapping into
         // "home might be worse than two servers out".
         int within = (int) (Math.clamp(variation, 0.0d, 1.0d) * 3);
         int tierBonus = Math.max(0, Math.min(3, sweepTier)) - 1;
-        return Math.max(1, Math.min(7, floor + Math.min(2, within) + tierBonus));
+        return Math.max(SWEEP_YIELD_MIN, Math.min(SWEEP_YIELD_MAX, floor + Math.min(2, within) + tierBonus));
     }
+
+    /**
+     * The published limits on one sweep's yield — "1–11 at a time".
+     *
+     * <p>⚠ Named rather than left as literals inside {@link #sweepYield}, because they are the part
+     * of that method somebody asked for by number: a test asserts the band and a re-tune of the
+     * per-depth floors must not be able to move it by accident.
+     */
+    public static final int SWEEP_YIELD_MIN = 1;
+
+    public static final int SWEEP_YIELD_MAX = 11;
 
     /**
      * How often a bridge on the <em>home</em> server carries somebody else's MonJob. Zero.
@@ -2320,12 +2518,30 @@ public final class Balance {
     }
 
     /**
-     * Difficulty tier for a rolled {@code u}, by depth. Means 1.30 / 1.85 / 2.80 / 3.80 / 4.55.
+     * Difficulty tier for a rolled {@code u}, by depth. Means 1.30 / 1.90 / 2.90 / 3.90 / 4.60.
      *
-     * <p>⚠ The bands do not merely shift, they <em>slide</em>: tier 1 is unreachable from depth 2
-     * and tier 5 unreachable below depth 3. That is the brief's "the more bridge hops from home, the
-     * harder on average" made a floor as well as an average — a player two bridges out cannot stumble
-     * onto a tutorial-grade machine, and a player at home cannot stumble onto a wall.
+     * <p>⚠ The bands do not merely shift, they <em>slide</em>: tier 1 is all but unreachable from
+     * depth 2 and tier 5 unreachable below depth 3. That is the brief's "the more bridge hops from
+     * home, the harder on average" made a floor as well as an average — a player two bridges out
+     * cannot stumble onto a tutorial-grade machine, and a player at home cannot stumble onto a wall.
+     *
+     * <h2>⚠ NARROWED 2026-08-08 — {@code design/18} §4.1: FLAT WITHIN A SERVER, STEPPED ACROSS A
+     * BRIDGE</h2>
+     *
+     * Each row used to spread across three tiers at roughly 40/40/20, so one server could hand a
+     * player a tier 2 and a tier 4 next door to each other and the difficulty of a *place* meant
+     * nothing. Each row now puts <b>55% on one tier and 40% one step below it</b>, with 5% spilling
+     * one step above — so a server reads as somewhere with a character, and the real step happens
+     * where the design wants it, at the bridge.
+     *
+     * <p>⚠ <b>The spill is kept rather than tidied away.</b> A perfectly uniform server is a server
+     * with nothing to find in it; one machine in twenty being harder than its neighbours is what
+     * makes the port scan's firewall reading worth paying for. Flat is the shape, not the rule.
+     *
+     * <p>⚠ <b>Depth is still the axis, and it is the SERVER's depth.</b> This function has always
+     * taken {@code depthFromHome} and never a machine's position within its server, which is what
+     * made §4.1 a narrowing rather than a rewrite — {@code design/18} §1 exists because those two
+     * were being called the same word.
      *
      * <p>Home tops out at tier 2 by the table and is clamped to 2 again by the home floor pass, so
      * the clamp is belt and braces on the one server where a bad roll is unrecoverable.
@@ -2336,10 +2552,10 @@ public final class Balance {
     public static int netTier(int depth, double u) {
         return switch (netDepth(depth)) {
             case 0 -> u < 0.70d ? 1 : 2;
-            case 1 -> u < 0.35d ? 1 : (u < 0.80d ? 2 : 3);
-            case 2 -> u < 0.40d ? 2 : (u < 0.80d ? 3 : 4);
-            case 3 -> u < 0.40d ? 3 : (u < 0.80d ? 4 : 5);
-            default -> u < 0.45d ? 4 : 5;
+            case 1 -> u < 0.55d ? 2 : (u < 0.95d ? 1 : 3);
+            case 2 -> u < 0.55d ? 3 : (u < 0.95d ? 2 : 4);
+            case 3 -> u < 0.55d ? 4 : (u < 0.95d ? 3 : 5);
+            default -> u < 0.60d ? 5 : 4;
         };
     }
 

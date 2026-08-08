@@ -739,6 +739,280 @@ with opened/updated dates.
   world is in the topology, so the old check was a check on nothing while the refusal claimed "no
   machine that a sweep has found".
 
+**SERVERS HAVE GENERATED NAMES AND THE MAP IS ONE TAB PER SERVER (2026-08-08).**
+`docs/design/18` §2.5–2.6. `NpcNames.{CHARACTERS,server,looksLikeServer}`, `ServerTabs`,
+`NetLayout` (layer rebase), `NetMapView`, `theme.css`; `ServerTabsTest`, `NpcNamesTest.Servers`.
+- ⚠ **`adjective-character`, 878 names**, hashed from the server id and de-collided by walking —
+  same scheme, same adjective pool and same no-draw rule as `adjective-pioneer`. Harvested across
+  the fifteen franchises named in the request by a 14-agent workflow, then filtered mechanically and
+  reviewed.
+- ⚠ **FICTIONAL WHERE `PIONEERS` IS REAL, AND THE BINDING RULE IS DIFFERENT.** That pool's hard rule
+  is "no demeaning adjective", because pairing a real name with an insult is a claim about a person.
+  This one's is: **no real person** (`blavatsky`, `zidane` — the footballer is what a hostname reads
+  as — `bohemond`), **no species** (`necron`, `pfhor`, `jjaro`: `wicked-necron` names a race, not a
+  person), **no ordinary given name or common word** (`wicked-sam` is not a Death Stranding
+  reference; Paul Atreides is in as `muaddib` and `atreides`, which are).
+- ⚠ **THE POOLS MUST NOT OVERLAP, AND `heisenberg` IS THE CASE THAT PROVES IT.** Resident Evil
+  Village has a Karl Heisenberg and `PIONEERS` has Werner — a name in both reads as the physicist
+  wherever it appears. Dropped by the collision check, not by review. Seven more went for colliding
+  with `OPERATORS`: a player who just met an operator called `magnus` will think `roguish-magnus` is
+  connected to them. `NpcNamesTest.poolsDoNotOverlap`.
+- ⚠ **BOTH WORKFLOW CRITICS HAD FALSE POSITIVES AND THE OUTPUT WAS NOT APPLIED BLIND.** The accuracy
+  critic flagged `ahzrak` and `amendiares` as invented — Prince Ahzrak is Doom: The Dark Ages and
+  Rogue Amendiares is Cyberpunk 2077, both correctly sourced by the harvest agent. Every flag was
+  applied anyway, because losing ~10 real names out of 933 costs nothing and shipping an invented one
+  costs credibility — but **the decision was made rather than inherited**.
+- ⚠ **The seven fixed server names were the SAME ON EVERY SEED IN EVERY WORLD** — `home-relay`,
+  `south-exchange` — with their own note conceding it on the grounds that "nobody replays a world for
+  its place names". True until servers became tabs and bridges advertised them by name. Hashing the
+  id was free the whole time.
+- ⚠ **`relabelLegacy` now renames servers too**, the same sanctioned exception as machine names and
+  for the same reason: `generate` returns early once a topology exists, so a character made before
+  this would carry the fixed seven forever and the only other remedy is "delete your character".
+  Idempotent by construction via `looksLikeServer` — no migrated flag to fall out of step.
+- ⚠ **LAYERS ARE REBASED ON THE SHALLOWEST MACHINE IN THE MAP**, not on the rig, or a foreign
+  server's tab opens with four or five empty columns and its content off the right-hand edge.
+  ⚠ **A no-op for the whole-world map** (the rig is always hop 0), which is what makes it safe inside
+  `NetLayout` rather than at the call site. ⚠ It does **not** rewrite the sightings — `hopsFromRig`
+  means what it says and other surfaces read it; a projection that edits its input to suit its own
+  axis is how two screens come to disagree about how far away something is.
+- ⚠ **THE FILTER DROPS A BRIDGE'S OWN EDGE, and the failure that prevents is not a crash.** One end
+  is off-grid, so `NetLayout.adjacency` would build a neighbour set containing a machine with no
+  sighting and the barycentre pass would arrange the layer around something invisible. Nothing is
+  lost: the bridge is still drawn and still names its far side.
+- ⚠ **An unexplored tab is DIMMED, never hidden and never disabled.** It is a server an identified
+  bridge has named and nothing more — real information, and the whole product of the bridge finding.
+  ⚠ `-es-dim-2`, not `-es-dim-3`: that is the greeble token, exempt from `ContrastTest`'s floor, and
+  the network map is where that mistake has already been made once.
+- ⚠ **`mvn -pl client exec:java` RESOLVES THE ENGINE FROM `~/.m2`, NOT THE REACTOR.** A render after
+  an engine change silently photographs the OLD engine — this cost a round here, showing `home-relay`
+  on a build that no longer contains the string. `mvn install -DskipTests` first, which CLAUDE.md
+  already says for `javafx:run` and which applies to every `-pl client` exec.
+- ⚠ **`DeckSnapshot` BUILDS A DIFFERENT WORLD EVERY RUN** — the character id is a random UUID — so
+  two renders are not comparable and "hosts seen 30" against "hosts seen 10" is variance, not a
+  regression. Worth knowing before diagnosing one.
+
+**A SERVER'S SHAPE IS CHOSEN NOW, NOT EMERGENT — `docs/design/18-network-topology.md` (2026-08-08).**
+Node depth **4–13**, branch **1–7**, at least **two** forks per server, difficulty flat within a
+server and stepped across a bridge. `Balance.{NET_NODE_DEPTH_*,NET_BRANCH_*,NET_MIN_BRANCHING_NODES,
+NET_SPINE_BUDGET_SHARE,netNodeDepth,netBranchWidth,netTier}`, `TopologyGenerator.buildServerTree`,
+`ServerShapeTest`. ⚠ **`design/18` §3 (the online half) is DESIGN ONLY** — noise-built maps, the
+depth/width split, the 24 overflow, the 34% quiet ceiling. Nothing of it exists.
+- ⚠ **THE OLD SHAPE WAS AN ACCIDENT AND HAD ALREADY BEEN MEASURED AND FILED.** Every machine attached
+  to a uniformly chosen predecessor — a random recursive tree — so depth was about `log(count)` and
+  the branch factor was whatever fell out. `client/09` §8: *"layers are 1–5 machines wide, maps are
+  4–10 columns deep… fan-out does not occur at reachable depth"*. The map's **stack fold was built
+  for a fan the generator could never produce**; it is no longer dormant.
+- ⚠ **ZERO NEW DRAWS, and the depth is paid for by THE RESERVED PADDING DRAW.** Its own note has said
+  since it was written that it exists "so a future per-server property can be added without shifting
+  every downstream host's stream" — a server's node depth is that property. **`nextInt(1)` and
+  `nextDouble()` both call `nextLong()` exactly once**, so the swap consumes the identical step and
+  nothing downstream moves. The spine costs the same `n − 1` values the random tree did: a spine host
+  consumes its draw and discards it, which is this generator's standing "draw unconditionally,
+  discard conditionally" rule.
+- ⚠ **BRANCH CAPACITY IS HASHED, NOT DRAWN** (`AddressHash`), for the same reason — a per-host width
+  draw would shift every host's property block and re-roll every existing world.
+- ⚠ **CHORDS HAD TO BECOME SAME-LAYER, and the argument was already written down.** The intra-server
+  chord pass runs AFTER the tree and adds ~22% more links; unconstrained, one chord from the gateway
+  to a deep host collapses the spine and **nothing in the save shows it**. That is the server-level
+  chord rule verbatim ("a depth-skipping chord re-depths a server after its machines were generated
+  against the old depth") — it simply had nothing to apply to until a spine existed. ⚠ **Same layer
+  EXACTLY, not "within one"**: preservation only needs `|Δ| ≤ 1`, but a chord to the layer below is
+  indistinguishable from a branch, so allowing it makes `NET_BRANCH_MAX` unobservable in the shipped
+  object — measured, a 7-wide fan plus one such chord reads as 8.
+- ⚠ **"LEAVE TWO MACHINES OVER" IS ARITHMETICALLY RIGHT AND MAKES A CORRIDOR.** A 13-machine home
+  rolled depth 11, the spine took eleven of the twelve non-gateway machines, and the server rendered
+  as an eleven-hop chain with one fork at the end — the exact shape `design/18` exists to prevent,
+  reached from the other side. `NET_SPINE_BUDGET_SHARE` (0.6) caps the spine instead. ⚠ The share is
+  of **`count − 1`**: the gateway is the root and is not on the spine, and that off-by-one is what
+  produced the corridor.
+- ⚠ **FLATNESS IS MEASURED OVER ORDINARY MACHINES, AND IN AGGREGATE.** Including infrastructure hid
+  the change completely — §4.1 keeps the +1 on gateways/bridges/relays, and a one-step lift cannot be
+  contained by any window, so the observed spread was identical before and after the table changed.
+  ⚠ And **per server it cannot be bounded**: a 5% tail on twenty-odd machines lands four times instead
+  of one on ~1 server in 20, and this fixture builds ~1500, so the worst is always extreme. Aggregate
+  per server depth.
+- ⚠ **Three negative tests, three different assertions**: the old tier table fires `flatWithinAServer`,
+  the old random tree fires `reachesTheFloor`/`twoForks`/`neverWiderThanTheBand`, unconstrained chords
+  fire `chordsArePreserving`.
+- ⚠ **A DEEPER SERVER COSTS MORE POSITIONS TO CROSS** — a real consequence, not a regression. With a
+  one-hop ceiling, walking twelve positions at base tier found **10.1** machines on the old bushy tree
+  and **7.7** on this one, because a spine machine has one parent and one child. `VantageDiscoveryTest`
+  records both; `design/18` **NT-6**. Rendered: `-Ddeck.reposition=6 -Ddeck.windows=NETMAP` goes from
+  HOSTS SEEN 17 to **30**.
+- ⚠ **Existing characters keep their world** — `generate` returns early when a topology exists, which
+  is what stops a player re-rolling. Only new characters get the new shape.
+
+**A SWEEP'S DETECTION IS A PROPERTY OF THE (MACHINE, VANTAGE) PAIR NOW, AND THE YIELD BAND IS 1–11
+(2026-08-08).** `docs/design/07` §5.1a. `Balance.{NET_SWEEP_VANTAGE_FLOOR,netSweepAudibility,
+sweepYield}`, `NetRules.audibility`, `VantageDiscoveryTest`. On explicit direction: repositioning
+should reveal what a sweep from the rig could not, and build a large graph over time.
+- ⚠ **THE OLD RULE IS WHY THAT DID NOT ALREADY HAPPEN.** `detectRoll` was the **machine's** and
+  nothing else, so a contact a base sweep missed from the rig was missed from *every* position at
+  that tier. Moving the vantage brought different machines inside the hop ceiling and never made an
+  in-range machine findable — repositioning bought reach and only reach. It is now
+  `detectRoll × (FLOOR + (1−FLOOR) × hash(machine, vantage))`.
+- ⚠ **A HASH, NEVER A DRAW — the single line that keeps save-scumming dead.** "Chance of discovery"
+  reads exactly like a per-sweep roll, and implemented as one it makes repetition the cheapest
+  strategy in the game and `SweepDeterminismTest.resweepingIsNotAReroll` a lie. Same spot + same
+  tier still answers identically forever; what changed is that a *different* spot is a second chance.
+- ⚠ **A MULTIPLY, NOT AN ADDITIVE SPREAD, and the home floor is why.** `TopologyGenerator` forces
+  three home neighbours to `detectRoll = 0` and the entire first-sweep guarantee rests on it; a
+  multiply keeps zero at zero from everywhere, an additive spread would lift them off the floor **on
+  some seeds only** — the worst available way for a new player's first sweep to break.
+- ⚠ **`FLOOR = 0.55` IS THE SENSITIVITY LADDER'S NUMBER, not a taste.** At 0 the multiply roughly
+  doubles detection and the base/deep gap collapses — the sweep upgrades still cost ethecoin and buy
+  almost nothing, silently, every screen still rendering. At 0.55 a quiet machine goes 35% → ~47% at
+  base and 72% → ~89% at deep, so the T1→T3 ratio is essentially unchanged, and past `detectRoll
+  0.64` nothing is audible at base tier from **any** position.
+- ⚠ **RANKING AND THRESHOLD MUST USE THE SAME FUNCTION.** The yield cap sorts the detected list and
+  truncates; sorting on `detectRoll` while detecting on audibility would cut it in an order unrelated
+  to the one that chose it, so a machine could be detected and then dropped by a number that played
+  no part in detecting it.
+- ⚠ **MEASURED, not asserted**: over 300 worlds and 12 positions — staying home **5.1** machines
+  however many times you sweep, walking **10.1** at base and **19.8** at wide; **35.2** at wide by 25
+  positions. Rendered too: `-Ddeck.reposition=6 -Ddeck.windows=NETMAP` goes from HOSTS SEEN 12 to 17.
+- ⚠ **THE FIRST VERSION OF THE WALK TEST MEASURED A BAD PLAYER, NOT THE RULES.** Taking whatever the
+  last sweep found as the next vantage bounces between two adjacent machines and re-sweeps positions
+  it has already exhausted; the graph plateaued at ~12 and it read as the feature not working. A
+  **frontier** — a discovered machine not yet swept from, bridges first — is what a player does.
+  ⚠ Also: `NetTestKit.sweep` commissions and settles but never releases the compute hold, which is
+  fine for one sweep and not for seven — a walking fixture runs out of rig and fails with "no
+  compute", which looks like a discovery bug and is not.
+- ⚠ **"A CLOSER position" BECAME "A DIFFERENT position"** in the sweep's own refusal note, in
+  `sweep(1)` and in `SweepReport`'s contract. The old wording is now false advice: a foothold the same
+  distance away is a genuine second chance, and a player told to get *closer* would read that as
+  pointless and stay put. That sentence is the only place the game teaches the traversal loop at the
+  moment it matters.
+- ⚠ **PER PLAYER FOR FREE** — a world is generated from the character id, so no two players share a
+  topology and nothing here has to agree across a server.
+- ⚠ **`NET_SWEEP_BRIDGE_MIN_TIER` IS UNTOUCHED AND IS NOW THE REAL CEILING.** A base sweep still
+  cannot see a bridge from anywhere, so a base-only player walks their home server and stops —
+  measured, ~10 machines forever. **`design/15` §2 NET-1** records the decision and its two
+  resolutions; do not re-tune that constant without reading it.
+
+**THE HEAT READOUT ON THE TOP STRIP IS LABELLED BY A DRAWN EYE, NOT THE WORDS `PERSONAL HEAT`
+(2026-08-08).** `ui/widgets/EyeMark`, `UiTokens.HEAT_MARK_{SIZE,STROKE}`, `DeckShell`, `theme.css`.
+On explicit direction. The cell keeps its anatomy — a key over a meter, like every other strip cell —
+and only the key changes from a word to a mark.
+- ⚠ **The symbol is the SUBJECT, not a picture of the widget.** Personal heat measures how much
+  attention **The Eye** is paying to you, and the faction's emblem is the one symbol here that means
+  exactly what the readout measures. A flame or a thermometer icon would restate the meter below it.
+- ⚠ **IT DEEPENS UI-8's KNOWING DEPARTURE and the strip now carries NO WORD about heat at all.**
+  `client/01` §2.2.4 wants a chip carrying the band name; UI-8 already moved that to a tooltip, and
+  this removes the readout's own name too. **Both of `client/07` §5.2's paths survive** — `ThermoMeter`
+  still sets heat + band + consequence as **accessible text**, and the mark carries a **tooltip** — so
+  the cost falls entirely on a **sighted player who does not hover**. Recorded under UI-8 in
+  `design/15` §2. Reverting is one line in `DeckShell`.
+- ⚠ **§9's icon-set ban is intact and the margin is now thin.** What it forbids is a *vocabulary*;
+  this is a fifth single-subject mark (`SecurityMark`, `SectionMark`, `MailMark`, `SocialMark`,
+  `EyeMark`) and **none is reused for a second subject — that is the test.** An eye means *this
+  readout*, never "surveillance" wherever surveillance appears. A sixth, or any reuse, is a set.
+- ⚠ **DRAWN, NEVER A GLYPH.** `U+1F441` is in neither bundled face and `GlyphCoverageTest` scans
+  **source** for literals; it has already rejected `U+26A0` twice and four block elements.
+- ⚠ **A QUADRATIC PASSES NOWHERE NEAR ITS CONTROL POINT — the first geometry was a flat slit.** A
+  quadratic's midpoint is `(P0 + 2C + P2)/4`, so lids controlled from the frame's own edge peak a
+  **quarter** of the way up. Solving for the control that puts the peak *on* the edge gives
+  `2·edge − cy`, which is **outside the frame** and correct: JavaFX bounds a `Shape` by its ink, not
+  its controls, so the `StackPane` still centres on what is drawn.
+- ⚠ **The pupil at 0.26 of the height FILLED THE INTERIOR** — the interior is the height less a stroke
+  top and bottom, so 0.26 left the ink touching both lids and the mark rendered as a blob. 0.17.
+- ⚠ **MATCHING THE LABEL'S TOKEN DOES NOT MATCH THE LABEL'S WEIGHT.** `-es-dim-2` is `.es-kv-key`'s
+  colour and was the obviously-neutral choice; rendered and zoomed, the mark came out visibly fainter
+  than the words beside it, because 8.5px type puts solid ink in whole pixels while a 1.2px curve
+  spreads the same colour across partial ones. `-es-text`, one step up. ⚠ **Amber and alarm are both
+  unavailable** — §2.1 spends amber on cycles doing work and rations alarm to loss, which is the
+  *meter's* job; and `-es-dim-3` is the greeble token, exempt from `ContrastTest`'s floor.
+- ⚠ **Two tooltips in one cell, deliberately.** The mark's is the **name** and is static; the meter's
+  is the **live band and its consequence**. Installing one on the whole cell would put a static
+  sentence over the meter, where the live one belongs.
+- ⚠ **Verified by rendering all eight palettes**, and the token pair inverts for free: a light eye on
+  the dark decks, a black one on uOS Classic and Liquid Light. Strip height and width are unchanged —
+  the cell was always as wide as the thermometer, never as wide as the words.
+
+**THE EYE LOOKS AROUND SLOWLY AND BLINKS RARELY (2026-08-08).** `EyeMark` is a `StackPane` with a
+state machine now; `EyeMarkTest` covers it headlessly. Twelve-second sweep, ~once-a-minute blink.
+- ⚠ **`Pulse.animate`, no `Timeline`, no `AnimationTimer`, nothing interpolated.** §5 permits no
+  easing and `UiContractTest` rations `AnimationTimer` to two files by name; §7.3 wants one shared
+  driver. Ticks are counted exactly as `DiskLamp` counts them.
+- ⚠ **REDUCE MOTION MUST RESET TO REST, NOT FREEZE — and freezing is a real bug, not a nicety.**
+  `Pulse.setReducedMotion` fires every decorative subscription **once** on the way in, so without an
+  explicit branch a player who turns it on during the 200ms the eye is shut gets a **permanently
+  closed eye** — the accessibility setting leaving the widget in the one state the animation never
+  rests in. Same shape as the carousel's defect, which also landed only on that path.
+- ⚠ **The resting phase is a QUARTER through the sweep, not zero.** Phase 0 is the far left, and
+  `Pulse.animate` invokes once immediately — so with a zero rest pose every synchronous render, and
+  every Reduce-motion client, would show an eye parked hard left. Starting mid-sweep makes the one
+  frame a harness ever captures an eye looking straight ahead.
+- ⚠ **THE DWELL AT EACH END IS AN OVERSHOOT, NOT AN EASE.** A pure triangle reverses on arrival and
+  reads as a pupil batted between two walls; easing the ends is what §5 forbids (`RingField`: "a
+  triangle envelope, never a sine"). The sweep stays linear and overshoots by 1.6, then clamps — so
+  the pupil reaches the end at 62% of each half-cycle and rests for the other 38%. Arithmetic, not a
+  tween. `EyeMarkTest.dwells` derives the expected share from the constant; negative-tested at 1.0.
+- ⚠ **The blink is a TABLE, not a function** — `SyncSpin`'s rule: a formula for "how open is an eye
+  mid-blink" is an easing function in the source whatever it is called. 3 ticks = 300ms, which is
+  also the floor: **Pulse quantises to its 100ms driver**, so asking for crisper silently rounds.
+- ⚠ **A RETRIGGERED BLINK JAMS THE EYE HALF-CLOSED, NOT SHUT — and the first regression test PASSED
+  against the broken build.** With a draw every tick, letting `wantsBlink` re-arm a running blink
+  pins it to the table's first entry forever. The test asserted "never shut on two consecutive
+  ticks", which is true of that build. The property that holds is that a blink **completes**: once
+  started, the eye is fully open again within the table's length whatever is asked in between.
+  **Third time in this repo that a new regression test had to be run against the unfixed code.**
+- ⚠ **Seeded `java.util.Random`, and NEVER `engine/breach/Rng`.** That stream is committed to the
+  save, so a draw taken for decoration would shift every later draw — a blink would silently change
+  which puzzle a breach generates. Not `Math.random()` either: two renders of one deck would differ
+  for no reproducible reason (`RingField` seeds its glitch for exactly this).
+- ⚠ **The path is rebuilt only when the OPENING changes**; gaze is a translate. At rest — which is
+  almost every tick — a tick costs one field assignment rather than re-parsing a path ten times a
+  second forever. ⚠ And the blink **redraws** rather than `setScaleY`: a scale would squash the
+  stroke with the lids, so a half-closed eye would be drawn in a thinner line and appear to fade.
+- ⚠ **`-Ddeck.eyePhase=N` / `-Ddeck.eyeBlink=N` on `DeckSnapshot`.** THREE independent reasons
+  guarantee an untouched render shows the resting pose — it rides `animate`, the harness sets Reduce
+  motion, and a synchronous render fires no Pulse tick — i.e. the one state indistinguishable from
+  the animation being absent. `EyeMark.wind` drives the **real** state machine rather than posing the
+  nodes, or the harness would agree with itself and prove nothing.
+- ⚠ **It subscribes in its constructor and never unsubscribes**, which is right here and a leak
+  anywhere else: the strip is built once and lives as long as the deck (`DiskLamp` is the same shape
+  for the same reason). A tool-window widget must not copy it — `CycleGrid`/`CoreCage` leaked a
+  subscription per open until they got a real `dispose`.
+
+⚠ **THE PORT SCANNER OFFERED THE TWO BRIDGE RUNGS ON EVERY MACHINE IN THE GAME (2026-08-08).**
+`PortScanTarget.appliesTo` has said since 2026-08-07 that `PEERS` and `MONITORED` exist on a
+**bridge** and nowhere else, and the engine honoured it on both sides — `PortScanRules.settle` answers
+`-1` for a rung a machine has no such thing for, `NodeReports.known` counts only the applicable ones —
+while `PortScanView` walked `values()` blind. So an ordinary desktop listed **Peers** and
+**Monitoring** with a real price (9 and 11 cycles), a real duration (45s, 60s) and a real detection
+risk (15%, 19%) against an answer that does not exist. ⚠ **Nothing failed and every figure rendered**:
+the panel was quoting a calibrated price for nothing, which is the shape of every defect in this file
+that survived a green build. `PortScanViewTest`, verified against the unfixed code (all five fired).
+- ⚠ **THE KIND IS THE PLAYER'S, NEVER THE TOPOLOGY'S.** `rungsFor` reads **`Sighting.kind`**, which
+  is `UNKNOWN` until something has typed the machine — a sweep sells existence and adjacency, the
+  15 EC Passive Sniffer sells identity (`design/07` §1). Filtering on ground truth would put those two
+  rows on an unidentified bridge **and nowhere else**, which hands the sniffer's whole product to
+  anyone who right-clicks. An unidentified bridge shows the ordinary eight; asking what is on its far
+  side costs identifying it first.
+- ⚠ **The findings block walks the SAME list**, passed in rather than re-derived. Two hand-written
+  lists drift silently in both directions — a row for a rung the ladder does not offer says "not
+  scanned for" forever about something nobody can scan for, and a rung with no row is a scan the
+  player pays for and never sees. **The second was live**: the two bridge findings had been reachable
+  and unrenderable since they landed.
+- ⚠ **`setWrapText(true)` on the rung caption**, because `PEERS`' does not fit the 300px column and
+  JavaFX **ellipsises rather than complaining** — it read *"how many machines are on the far side, and
+  what t..."*, cut on the half that says what you get. Invisible while that row appeared on every
+  machine as one truncated line among eight.
+- ⚠ **`PackageSnapshot` renders a BRIDGE now** (`portscan-bridge{,-done}.png`) — it only ever shot an
+  ordinary machine, where the fix working and the bug are one row apart. It must set
+  **`host.identified`**, not merely `discovered`: an untyped bridge correctly shows the eight, so a
+  shot without it photographs the state indistinguishable from the filter being absent.
+- ⚠ **STILL UNBUILT, and it is not this fix's fault** — `NodeReports.merge` has no arm for either
+  rung and `NodeReportState` no field, so a bridge's peer count and monitoring reading die with the
+  session, its recon file can never exceed **3 of 5**, and that fraction feeds
+  `Balance.breachProtocolShare`. `design/17` §8 **PS-4**.
+- ⚠ **`mvn -Pquality spotless:apply` REFORMATS 166 FILES ACROSS EVERY MODULE ON A CLEAN TREE** (JDK 25
+  / spotless-lib 4.8.0, measured here). It reflows to a wider column than the committed source, so
+  running it as a courtesy after a two-file change buries that change in ~1,050 lines of unrelated
+  churn. Format the files you touched, or check the collateral before committing.
+
 **THE NETWORK MAP'S GRAPH IS REBUILT: NOTHING IS HIDDEN, ARROWS REACH THEIR TARGETS, AND A WIDE FAN
 FOLDS (2026-08-08).** All five steps of `docs/client/09-network-map-graph.md` §7. `NetLayout`,
 `NetCanvas`, `NetGraph`, `NetGlyphs`, `UiTokens`, `theme.css`, `DeckSnapshot`.

@@ -40,20 +40,44 @@ class SweepYieldTest {
     class Curve {
 
         @Test
-        @DisplayName("never leaves 1..7, at any depth, tier or variation")
+        @DisplayName("never leaves 1..11, at any depth, tier or variation")
         void staysInRange() {
-            // The player-facing promise is "somewhere between 1 and 7". A band that could return 0
-            // would be a sweep that finds nothing and cannot say why; one that could return 12 would
-            // hand over a whole server on first contact.
+            // The player-facing promise is "1 to 11 at a time" — the limit the widening on 2026-08-08
+            // was asked for by number. A band that could return 0 would be a sweep that finds nothing
+            // and cannot say why; one that could exceed the ceiling would hand over a whole server on
+            // first contact. ⚠ Asserted against the published constants rather than literals, so a
+            // re-tune of the per-depth floors cannot move the band by accident.
             for (int depth = 0; depth <= 6; depth++) {
                 for (int tier = 1; tier <= 3; tier++) {
                     for (double v = 0.0; v <= 1.0; v += 0.05) {
                         assertThat(Balance.sweepYield(depth, tier, v))
                                 .as("depth %d tier %d variation %.2f", depth, tier, v)
-                                .isBetween(1, 7);
+                                .isBetween(Balance.SWEEP_YIELD_MIN, Balance.SWEEP_YIELD_MAX);
                     }
                 }
             }
+        }
+
+        @Test
+        @DisplayName("⚠ both ends of the published band are actually reachable")
+        void theBandIsNotJustAClamp() {
+            // ⚠ "Never leaves 1..11" passes just as happily for a curve that only ever returns 4.
+            // The number somebody asked for is a RANGE, so both ends have to be produced by some
+            // real (depth, tier, variation) — otherwise the clamp is the documentation and the
+            // documentation is wrong.
+            int lowest = Integer.MAX_VALUE;
+            int highest = Integer.MIN_VALUE;
+            for (int depth = 0; depth <= 6; depth++) {
+                for (int tier = 1; tier <= 3; tier++) {
+                    for (double v = 0.0; v <= 1.0; v += 0.05) {
+                        int yield = Balance.sweepYield(depth, tier, v);
+                        lowest = Math.min(lowest, yield);
+                        highest = Math.max(highest, yield);
+                    }
+                }
+            }
+            assertThat(lowest).isEqualTo(Balance.SWEEP_YIELD_MIN);
+            assertThat(highest).isEqualTo(Balance.SWEEP_YIELD_MAX);
         }
 
         @Test
@@ -62,8 +86,8 @@ class SweepYieldTest {
             // A first sweep that returned one machine would read as a broken tool rather than as a
             // quiet neighbourhood — the argument NET_COUNTER_HACK_HOME and MONJOB_DENSITY_HOME both
             // make for their own floors.
-            assertThat(Balance.sweepYield(0, 1, 0.0)).as("home floor").isGreaterThanOrEqualTo(5);
-            assertThat(Balance.sweepYield(4, 1, 0.0)).as("deep floor").isLessThanOrEqualTo(3);
+            assertThat(Balance.sweepYield(0, 1, 0.0)).as("home floor").isGreaterThanOrEqualTo(7);
+            assertThat(Balance.sweepYield(4, 1, 0.0)).as("deep floor").isLessThanOrEqualTo(1);
             assertThat(Balance.sweepYield(0, 1, 0.5)).isGreaterThan(Balance.sweepYield(4, 1, 0.5));
         }
 
@@ -130,16 +154,16 @@ class SweepYieldTest {
         }
 
         @Test
-        @DisplayName("no sweep ever hands over more than seven machines")
+        @DisplayName("no sweep ever hands over more than the published ceiling")
         void neverExceedsTheBand() {
-            // Weak on today's worlds — the natural find is already under seven — but it is the
+            // Weak on today's worlds — the natural find is well under the ceiling — but it is the
             // player-facing promise, and it is what would fire if the generator ever got denser.
             for (int i = 0; i < SAMPLE; i++) {
                 for (SweepTier tier : SweepTier.values()) {
                     SweepReport report = NetTestKit.sweep(equipped(seed(i)), tier, NetTestKit.T0);
                     assertThat(report.foundAddresses().size())
                             .as("world %d, %s", i, tier)
-                            .isLessThanOrEqualTo(7);
+                            .isLessThanOrEqualTo(Balance.SWEEP_YIELD_MAX);
                 }
             }
         }

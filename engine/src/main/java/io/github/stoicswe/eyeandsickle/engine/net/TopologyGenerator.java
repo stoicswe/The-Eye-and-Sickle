@@ -140,10 +140,20 @@ public final class TopologyGenerator {
             }
         }
 
+        // ⚠ ONE TAKEN-NAME SET FOR THE WHOLE WORLD, hoisted above the server loop so servers and
+        // machines de-collide against each other as well as among themselves. The two pools cannot
+        // actually overlap — game characters against scientists — so this buys nothing today; what it
+        // buys is that adding a name to either pool can never quietly produce a server and a machine
+        // that read as the same thing.
+        java.util.Set<String> takenNames = new java.util.HashSet<>();
+
         for (int s = 0; s < serverCount; s++) {
             ServerState server = new ServerState();
             server.serverId = HostArchetypes.serverId(s);
-            server.name = HostArchetypes.serverName(s);
+            // ⚠ Hashed from the server id, NOT drawn — the same rule machine names follow, and for
+            // the same reason: this loop has no draw slot and adding one would re-roll every world.
+            server.name = NpcNames.server(server.serverId, takenNames);
+            takenNames.add(server.name);
             server.depthFromHome = depth[s];
             server.home = s == 0;
             topology.servers.add(server);
@@ -160,20 +170,24 @@ public final class TopologyGenerator {
         // ── STEP 4: machines per server ──────────────── 1 + 1 + (n-1) + 2n draws for n machines
         List<List<HostState>> grid = new ArrayList<>();
         Map<String, HostState> byAddress = new HashMap<>();
-        // ⚠ Names take NO draws — see NpcNames. This set is what makes a machine name an identifier
-        // rather than a decoration: it is threaded across every server so the de-collision is global,
-        // and it is filled in the generator's canonical order (server ascending, then host ascending)
-        // so the assignment is a pure function of the world's shape, like the draw counts around it.
-        java.util.Set<String> takenNames = new java.util.HashSet<>();
+        // ⚠ Names take NO draws — see NpcNames. `takenNames` is declared above, with the servers,
+        // and is threaded across every server so the de-collision is global; it is filled in the
+        // generator's canonical order (server ascending, then host ascending) so the assignment is a
+        // pure function of the world's shape, like the draw counts around it.
         for (int s = 0; s < serverCount; s++) {
             int lo = Balance.netMachinesMin(depth[s]);
             int hi = Balance.netMachinesMax(depth[s]);
             int count = lo + rng.nextInt(hi - lo + 1);
 
-            // ⚠ The reserved padding draw. It buys room for a future per-server property without
-            // shifting every downstream host's stream, which would otherwise re-roll the whole world
-            // for everyone the moment anything is added here. Document it; do not remove it.
-            rng.nextInt(1);
+            // ⚠ THE RESERVED PADDING DRAW, SPENT AT LAST — and it was reserved for exactly this.
+            // Its note read: "it buys room for a future per-server property without shifting every
+            // downstream host's stream, which would otherwise re-roll the whole world for everyone
+            // the moment anything is added here". A server's NODE DEPTH is that property.
+            //
+            // ⚠ `nextInt(1)` and `nextDouble()` both call nextLong() exactly ONCE, so swapping them
+            // consumes the identical stream step and every draw after this one is untouched. That is
+            // the whole reason the slot was worth keeping empty for a year.
+            double uNodeDepth = rng.nextDouble();
 
             // A no-op against the published table, kept because the brief's cap is a hard promise and
             // a table edit is one line away from breaking it.
@@ -193,17 +207,40 @@ public final class TopologyGenerator {
             // Exactly one gateway per server, always host index 0, always the lowest address on it.
             hosts.getFirst().kind = HostKind.GATEWAY.name();
 
-            // A spanning tree over the machines: every host attaches to an already-placed one, so the
-            // server is connected by construction and never by a retry loop.
-            for (int j = 1; j < count; j++) {
-                link(hosts.get(j), hosts.get(rng.nextInt(j)));
-            }
+            // ⚠ A SPINE, THEN BRANCHES — docs/design/18-network-topology.md §2.2. This used to be a
+            // random recursive tree (every host attached to a uniformly chosen predecessor), which is
+            // connected and cheap and gives a shape NOBODY CHOSE: depth about log(count), branch
+            // factor whatever fell out. docs/client/09 §8 measured the result and filed it as a
+            // defect — "layers are 1–5 machines wide, maps are 4–10 columns deep, fan-out does not
+            // occur at reachable depth". Depth and width are both decided here now.
+            //
+            // ⚠ THE DRAW COUNT IS UNCHANGED AT n − 1, and that is deliberate rather than lucky.
+            // Every machine after the gateway still consumes exactly one value; what changed is what
+            // the value MEANS — a spine machine spends it on nothing (its parent is structural) and a
+            // branch machine spends it choosing which already-placed host to hang off. Keeping the
+            // count identical is what lets NetTestKit.expectedDraws stay as it is and keeps this from
+            // re-rolling anything downstream of it in the stream.
+            int[] nodeDepth = buildServerTree(hosts, Balance.netNodeDepth(count, uNodeDepth), rng);
             // Then the extra links, which are what make a foothold open more than one direction.
+            //
+            // ⚠ DEPTH-PRESERVING, AND THIS IS THE SERVER-LEVEL CHORD RULE ONE LEVEL DOWN. The class
+            // note above explains why a chord between servers at depths d and d+2 is forbidden: it
+            // "would shorten a BFS path and silently re-depth a server AFTER its machines had already
+            // been generated against the old depth". Exactly the same thing is true of machines — an
+            // unconstrained chord from the gateway to a deep host collapses the spine this server's
+            // whole shape was built around, and nothing in the save would show it. The argument was
+            // already written down; it simply had nothing to apply to until the spine existed.
             for (int j = 0; j < count; j++) {
                 double u = rng.nextDouble();
                 int v = rng.nextInt(count);
                 boolean wanted = u < Balance.NET_INTRA_CHORD_CHANCE;
-                if (wanted && v != j && !hosts.get(j).links.contains(hosts.get(v).address)) {
+                // ⚠ THE SAME LAYER EXACTLY, not "within one". Depth preservation only needs |Δ| ≤ 1 —
+                // but a chord to the layer BELOW is indistinguishable from a branch in the finished
+                // graph, so allowing one makes NET_BRANCH_MAX unobservable in the thing that ships:
+                // measured, a host with a 7-wide fan and one such chord reads as fanning 8. A rule
+                // nobody can check on the real object is a rule that will drift.
+                boolean sameLayer = nodeDepth[j] == nodeDepth[v];
+                if (wanted && sameLayer && v != j && !hosts.get(j).links.contains(hosts.get(v).address)) {
                     link(hosts.get(j), hosts.get(v));
                 }
             }
@@ -381,6 +418,32 @@ public final class TopologyGenerator {
                 taken.add(host.label);
             }
         }
+        for (ServerState server : save.topology.servers) {
+            if (NpcNames.looksLikeServer(server.name)) {
+                taken.add(server.name);
+            }
+        }
+
+        // ⚠ SERVERS TOO, as of 2026-08-08, and for the reason this method exists at all. Their names
+        // were a fixed list of seven — `home-relay`, `south-exchange` — the same on every seed and on
+        // every world, because the generation sequence has no draw slot for a server name. A
+        // character created before the pool landed would carry them FOREVER: `generate` returns early
+        // once a topology exists, which is the guard that stops a player re-rolling their world, so
+        // the only other remedy on offer is "delete your character".
+        //
+        // ⚠ Safe on the same grounds as the machine half: a name has no mechanical consequence, so
+        // rewriting one cannot change an outcome. And idempotent by construction rather than by a
+        // flag — after one pass every name satisfies `looksLikeServer`, so the second finds nothing.
+        boolean renamedServers = false;
+        for (ServerState server : save.topology.servers) {
+            if (NpcNames.looksLikeServer(server.name)) {
+                continue;
+            }
+            String fresh = NpcNames.server(server.serverId, taken);
+            taken.add(fresh);
+            server.name = fresh;
+            renamedServers = true;
+        }
 
         Map<String, String> renamed = new HashMap<>();
         for (HostState host : save.topology.hosts) {
@@ -393,7 +456,7 @@ public final class TopologyGenerator {
             host.label = fresh;
         }
         if (renamed.isEmpty()) {
-            return false;
+            return renamedServers;
         }
         if (save.nodeReports != null) {
             for (var report : save.nodeReports) {
@@ -641,6 +704,118 @@ public final class TopologyGenerator {
      */
     static String address(int server, int index) {
         return String.format(Locale.ROOT, "10.%d.%d.%d", server, index / 254, 2 + (index % 254));
+    }
+
+    /**
+     * One server's internal tree: a spine of the chosen depth, then branches hung off it.
+     *
+     * <h2>⚠ WHAT THIS REPLACED, and why the old shape was a defect rather than a simplification</h2>
+     *
+     * Every host used to attach to a uniformly chosen already-placed host — a <b>random recursive
+     * tree</b>. That is connected by construction, costs one draw per host, and produces a shape
+     * <em>nobody chose</em>: expected depth about {@code log(count)}, and a branch factor that is
+     * whatever the uniform parent choice happens to give. {@code docs/client/09} §8 measured the
+     * consequence over seven generated worlds and filed it: <b>"layers are 1–5 machines wide, maps
+     * are 4–10 columns deep… fan-out does not occur at reachable depth"</b>. The map's stack fold was
+     * built for a fan-out the generator was never going to produce.
+     *
+     * <h2>The construction — {@code docs/design/18-network-topology.md} §2</h2>
+     *
+     * <ol>
+     *   <li>A <b>spine</b> of {@code depth} machines from the gateway, which is what makes the depth
+     *       exact rather than emergent.
+     *   <li>Every remaining machine hangs off an already-placed host that still has room and is not
+     *       already at the depth limit.
+     *   <li>The first two surplus machines are forced onto <b>two different</b> spine hosts, so
+     *       {@code NET_MIN_BRANCHING_NODES} is a guarantee rather than a probability.
+     * </ol>
+     *
+     * <h2>⚠ EXACTLY {@code n − 1} DRAWS, one per host after the gateway, unconditionally</h2>
+     *
+     * The same count the random recursive tree took, so nothing downstream in the stream moves. A
+     * spine host consumes its draw and discards it — its parent is structural — which is this
+     * generator's standing "draw unconditionally, discard conditionally" rule and the reason a replay
+     * from a stored seed depends on the seed rather than on the code path.
+     *
+     * <h2>⚠ Branch capacity is HASHED, not drawn, for the same reason</h2>
+     *
+     * A per-host width draw would be a second value per host and would shift every host's property
+     * block downstream of it — re-rolling every existing world. {@code AddressHash} is fixed before
+     * the player arrives and cannot give two answers, which is the property the whole discovery
+     * system already rests on.
+     *
+     * @param depth the node depth this server was assigned, already clamped to its budget
+     * @return each host's depth from the gateway, which the chord pass needs to stay depth-preserving
+     */
+    private static int[] buildServerTree(List<HostState> hosts, int depth, Rng rng) {
+        int count = hosts.size();
+        int[] hostDepth = new int[count];
+        int[] children = new int[count];
+        int[] capacity = new int[count];
+        for (int j = 0; j < count; j++) {
+            capacity[j] = Balance.netBranchWidth(AddressHash.unitOf(hosts.get(j).address, "branch-width"));
+        }
+
+        // The spine. Host 0 is the gateway and is the root at depth 0.
+        int spine = Math.min(depth, count - 1);
+        for (int j = 1; j <= spine; j++) {
+            rng.nextInt(count); // consumed and discarded — the parent here is structural
+            attach(hosts, hostDepth, children, j, j - 1);
+        }
+
+        // ⚠ The two forced forks. Without them a server whose surplus all landed on one host would be
+        // a chain with a tail, which is the shape rule 3 exists to forbid — and "usually not a chain"
+        // is not a guarantee. They take their draw like everything else and ignore it.
+        int forced = 0;
+        for (int j = spine + 1; j < count && forced < Balance.NET_MIN_BRANCHING_NODES; j++) {
+            rng.nextInt(count);
+            // Two DIFFERENT spine hosts, each of which already has its spine child, so each becomes a
+            // real fork. Walking from the deep end keeps the forks away from the gateway, where a
+            // fan is least interesting because the player has not travelled to reach it.
+            int onto = Math.max(0, spine - 1 - forced);
+            attach(hosts, hostDepth, children, j, onto);
+            forced++;
+        }
+
+        for (int j = spine + 1 + forced; j < count; j++) {
+            int pick = rng.nextInt(count);
+            attach(hosts, hostDepth, children, j, parentFor(hostDepth, children, capacity, depth, j, pick));
+        }
+        return hostDepth;
+    }
+
+    /**
+     * Which already-placed host a branch machine hangs off.
+     *
+     * <p>⚠ <b>The fallback is not decoration.</b> Capacities are hashed, so a server whose hosts all
+     * hashed to 1 and spent it on the spine would have no eligible parent at all — vanishingly
+     * unlikely and perfectly possible, and a generator that threw there would be a world that cannot
+     * be created from some seeds. It falls back to the shallowest host with room in the depth budget,
+     * which is always the gateway at worst.
+     */
+    private static int parentFor(int[] hostDepth, int[] children, int[] capacity, int depth, int placed, int pick) {
+        List<Integer> eligible = new ArrayList<>();
+        for (int p = 0; p < placed; p++) {
+            if (hostDepth[p] < depth && children[p] < capacity[p]) {
+                eligible.add(p);
+            }
+        }
+        if (!eligible.isEmpty()) {
+            return eligible.get(pick % eligible.size());
+        }
+        int shallowest = 0;
+        for (int p = 0; p < placed; p++) {
+            if (hostDepth[p] < depth && hostDepth[p] < hostDepth[shallowest]) {
+                shallowest = p;
+            }
+        }
+        return shallowest;
+    }
+
+    private static void attach(List<HostState> hosts, int[] hostDepth, int[] children, int child, int parent) {
+        hostDepth[child] = hostDepth[parent] + 1;
+        children[parent]++;
+        link(hosts.get(child), hosts.get(parent));
     }
 
     /** Symmetric, and idempotent — the generator writes both sides and never writes one twice. */

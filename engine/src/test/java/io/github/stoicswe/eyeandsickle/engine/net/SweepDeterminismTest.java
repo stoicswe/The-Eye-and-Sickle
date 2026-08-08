@@ -20,13 +20,19 @@ import org.junit.jupiter.api.Test;
  * <h2>Save-scumming is defeated by construction, not by a cooldown</h2>
  *
  * {@link HostState#detectRoll} is drawn once, at world generation, and stored. A sweep makes
- * <em>no</em> detection draw — it compares that fixed number against a threshold set by the sweep
- * tier, the host's signal and the hop distance. So the same tier from the same vantage returns a
- * bit-identical candidate set, every time, forever. Quitting without saving changes nothing, because
- * the roll predates the sweep by the whole game.
+ * <em>no</em> detection draw — it compares a threshold set by the sweep tier, the host's signal and
+ * the hop distance against that fixed number, scaled by a <b>hash</b> of the host and the vantage. So
+ * the same tier from the same vantage returns a bit-identical candidate set, every time, forever.
+ * Quitting without saving changes nothing, because every input predates the sweep.
+ *
+ * <p>⚠ <b>The vantage term arrived on 2026-08-08 and it is a hash, not a die — which is the only
+ * reason this file still passes.</b> "What you can hear depends on where you are standing" is a
+ * feature that reads exactly like a per-sweep roll, and implemented as one it would have made
+ * re-sweeping a lottery and save-scumming profitable again. {@code VantageDiscoveryTest} owns the new
+ * behaviour; this file owns the thing it was not allowed to cost.
  *
  * <p>Only two things move the outcome, and both cost: a <b>higher sweep tier</b> (ethecoin, plus its
- * own compute, duration and noise) or a <b>closer vantage</b> (a breach, a foothold and a
+ * own compute, duration and noise) or a <b>different vantage</b> (a breach, a foothold and a
  * {@code connect}). This file is the proof of each.
  *
  * <h2>Monotonicity is the other half</h2>
@@ -80,7 +86,7 @@ class SweepDeterminismTest {
                 assertThat(second.inRange()).isEqualTo(first.inRange());
                 // ⚠ And it says WHY, in the player's language. A mechanic that punished repetition
                 // without explaining it would be indistinguishable from a bug.
-                assertThat(second.note()).contains("louder instrument or a closer position");
+                assertThat(second.note()).contains("louder instrument or a different position");
             }
         }
 

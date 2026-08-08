@@ -94,6 +94,36 @@ public final class UiTokens {
 
     public static final double BUFFER_CELL_HEIGHT = 10;
 
+    /**
+     * The Eye that labels the heat readout on the top strip — {@code ui/widgets/EyeMark}.
+     *
+     * <h2>⚠ Sized against the WORD it replaced, not against the meter under it</h2>
+     *
+     * The cell was {@code KeyValue.keyOnly("Personal heat")} over the thermometer, so this occupies
+     * the key row and has to weigh what a key row weighs: {@code .es-kv-key} is 8.5px type, which
+     * caps out around 11px of ink. A mark that filled the meter's width instead would make heat the
+     * loudest cell on a strip whose whole discipline is that it is quiet (§2.1).
+     *
+     * <p>⚠ The stroke is deliberately above {@link #HAIR}. A 1px hairline bent into a curve this
+     * small anti-aliases into a grey haze rather than a line; {@code MailMark} is called at 1.2 for
+     * the same reason at a comparable size.
+     */
+    public static final double HEAT_MARK_SIZE = 18;
+
+    public static final double HEAT_MARK_STROKE = 1.2;
+
+    /**
+     * The size a shell, port scanner or recon file opens at before the player has resized one.
+     *
+     * <p>⚠ Here rather than as a literal in {@code DeckShell.showShell}, where it was written twice —
+     * a size belongs in this file and nowhere else, and two copies of one number is one copy that
+     * gets edited. Not a {@code WindowSpec} default because these windows are deliberately not in the
+     * catalogue: a shell is an instance of a tool, created by an act in the game.
+     */
+    public static final double PER_MACHINE_WINDOW_WIDTH = 760;
+
+    public static final double PER_MACHINE_WINDOW_HEIGHT = 520;
+
     /** Left rail width (§3). Hidden below {@link #NARROW_WIDTH}. */
     public static final double RAIL_WIDTH = 34;
 

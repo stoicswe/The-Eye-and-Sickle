@@ -49,8 +49,12 @@ import java.util.Set;
  *       Traversal is repositioning: breach a host, take a foothold, {@link #connect} to it, sweep
  *       again from there. That is what makes a one-hop ceiling survivable across a seven-server
  *       world, and it is why position is earned rather than bought.
- *   <li><b>Detection is a roll made once, at world generation, and stored.</b> A sweep compares
- *       {@link HostState#detectRoll} against a threshold. Nothing here draws for detection, ever.
+ *   <li><b>Detection is never drawn at sweep time.</b> A sweep compares a threshold against
+ *       {@link HostState#detectRoll} — rolled once at world generation — scaled by a <b>hash of the
+ *       (machine, vantage) pair</b>. Both halves predate the question. Nothing here draws for
+ *       detection, ever. ⚠ The pair half arrived on 2026-08-08; before it the roll was the machine's
+ *       alone, so a contact missed from one position was missed from every position at that tier.
+ *       See {@code audibility}.
  *   <li><b>Undiscovered hosts do not exist in {@code knownNodes}, and the map draws nothing where
  *       they are.</b> No placeholder, no count, no "three contacts nearby". The single aggregate that
  *       may be published is {@link SweepReport#inRange} — how many machines were inside the ceiling,
@@ -61,12 +65,19 @@ import java.util.Set;
  *
  * <h2>Why repeated sweeps are not free rerolls</h2>
  *
- * Same tier plus same vantage yields a bit-identical candidate set, every time, forever — because the
- * roll predates the sweep by the whole game. Quitting without saving changes nothing. Only two things
- * move the outcome and both cost: a <b>higher sweep tier</b> (ethecoin, plus its own compute, duration
- * and noise) or a <b>closer vantage</b> (a breach, a foothold and a {@code connect}). When a sweep
+ * Same tier plus same vantage yields a bit-identical candidate set, every time, forever — because
+ * every input predates the sweep: the machine's roll by the whole game, and the vantage term by being
+ * a hash rather than a draw. Quitting without saving changes nothing. Only two things move the
+ * outcome and both cost: a <b>higher sweep tier</b> (ethecoin, plus its own compute, duration and
+ * noise) or a <b>different vantage</b> (a breach, a foothold and a {@code connect}). When a sweep
  * finds nothing new it says so in those words, because a mechanic that punishes without explaining is
  * indistinguishable from a bug.
+ *
+ * <p>⚠ <b>"Different", not merely "closer", since 2026-08-08.</b> A new position used to help only by
+ * bringing new machines inside the ceiling; it now also re-decides what is audible among the machines
+ * already in range, so two vantages at the same distance from a host are genuinely two chances at it.
+ * That is what lets a graph keep growing as a player works outward — and it costs a breach and a
+ * foothold every time, so it is still position earned rather than a button pressed twice.
  *
  * <h2>The whole sweep is rolled at begin and persisted</h2>
  *
@@ -400,7 +411,7 @@ public final class NetRules {
                             tier.tier(),
                             HostArchetypes.signalOf(host, hostsMiner).name())
                     * hopFactor(hops.get(host.address));
-            if (host.detectRoll < threshold) {
+            if (audibility(host, vantage) < threshold) {
                 detected.add(host);
             }
         }
@@ -409,19 +420,23 @@ public final class NetRules {
         // falling to 1–3 past a couple of bridges — so a first look at a new server is a foothold on
         // it rather than the whole thing at once.
         //
-        // ⚠ RANKED BY detectRoll, LOWEST FIRST, and that is what keeps every existing guarantee.
-        // The roll predates the sweep by the whole game, so the ranking is fixed too: the same
-        // vantage and tier cut at exactly the same place, every time, forever. Nothing here draws,
-        // and `SweepDeterminismTest.resweepingIsNotAReroll` still holds — the cap is absolute per
-        // (vantage, tier), not per attempt, so sweeping the same spot again finds nothing new. The
-        // rest of the server is reached by MOVING, which is what the vantage is for.
+        // ⚠ RANKED BY AUDIBILITY FROM THIS VANTAGE, LOWEST FIRST, and that is what keeps every
+        // existing guarantee. Both of its inputs predate the sweep — the machine's roll by the whole
+        // game, the vantage term by being a hash — so the ranking is fixed too: the same vantage and
+        // tier cut at exactly the same place, every time, forever. Nothing here draws, and
+        // `SweepDeterminismTest.resweepingIsNotAReroll` still holds — the cap is absolute per
+        // (vantage, tier), not per attempt, so sweeping the same spot again finds nothing new.
         //
-        // ⚠ Lowest roll first also means the cap keeps the LOUDEST machines rather than an arbitrary
-        // slice: detectRoll is what a threshold is compared against, so the ones a weaker instrument
-        // would also have heard are the ones that survive. A player upgrading their sweep therefore
-        // sees what they saw before plus more, never a different set.
+        // ⚠ IT MUST BE THE SAME FUNCTION THE THRESHOLD USED, not detectRoll. Ranking on the machine's
+        // own roll while detecting on its audibility would cut the list in an order unrelated to the
+        // one that chose it — so a machine could be detected, sorted below the cap by a number that
+        // played no part in detecting it, and dropped. Sorting on the same value is what preserves
+        // "a player upgrading their sweep sees what they saw before plus more, never a different set".
+        //
+        // ⚠ Lowest first also means the cap keeps the machines a WEAKER instrument would also have
+        // heard, rather than an arbitrary slice.
         int yield = Balance.sweepYield(deepestInRange, tier.tier(), AddressHash.unitOf(vantage, "sweep-yield"));
-        detected.sort(java.util.Comparator.comparingDouble((HostState host) -> host.detectRoll)
+        detected.sort(java.util.Comparator.comparingDouble((HostState host) -> audibility(host, vantage))
                 .thenComparing(host -> host.address));
         List<String> found = new ArrayList<>();
         for (HostState host : detected) {
@@ -565,8 +580,13 @@ public final class NetRules {
             return "Nothing within reach of this position. A foothold you can connect to is what "
                     + "moves reach; the instrument does not.";
         }
+        // ⚠ "A DIFFERENT position", not "a closer" one, since 2026-08-08. What a sweep can hear now
+        // depends on where it is standing rather than only on how far away the machine is, so a
+        // foothold the same distance away is a genuine second chance — and a player told to get
+        // "closer" would read that as pointless and stay put. The sentence is the only place the game
+        // teaches the traversal loop at the moment it matters, so it has to describe the real rule.
         return "Nothing at this sensitivity that you have not already seen. A louder instrument or a "
-                + "closer position is what changes this; running the same sweep again is not.";
+                + "different position is what changes this; running the same sweep again is not.";
     }
 
     /**
@@ -584,6 +604,39 @@ public final class NetRules {
     /** {@code 1.00} at one hop, {@code 0.60} at two — see {@code Balance.NET_HOP_FACTOR_2}. */
     private static double hopFactor(Integer hops) {
         return hops != null && hops >= 2 ? Balance.NET_HOP_FACTOR_2 : Balance.NET_HOP_FACTOR_1;
+    }
+
+    /**
+     * How audible one machine is <b>from one position</b> — what a sweep's threshold is compared to.
+     *
+     * <h2>⚠ THIS USED TO BE {@code host.detectRoll} AND THE DIFFERENCE IS THE WHOLE FEATURE</h2>
+     *
+     * A machine's own roll is fixed for the life of the world, so under the old rule a contact that a
+     * base sweep missed from the rig was missed from <em>everywhere</em> at that tier: moving the
+     * vantage brought different machines into range, and never made a machine already in range
+     * audible. Repositioning bought reach and nothing else.
+     *
+     * <p>Scaling by a hash of the <b>pair</b> makes "what you can hear depends on where you are
+     * standing" true, which is both the better physical model and the thing that makes working
+     * outward pay: sweep, move to a foothold, sweep again, and some of what the first look could not
+     * hear comes back. Over many positions that accumulates into a large graph, and because a world
+     * is generated per character it is already that player's own — nothing here has to match anybody
+     * else's ({@code docs/design/07-recon-tools.md} §1a).
+     *
+     * <h2>⚠ HASHED, NEVER DRAWN — the single line that keeps save-scumming dead</h2>
+     *
+     * {@code AddressHash} exists for exactly this: a value fixed before the player asks, that cannot
+     * give two answers to the same question. A {@code Rng} draw here would read as the same feature
+     * and would make re-sweeping one spot a lottery, which is what {@code SweepDeterminismTest} and
+     * the whole "only a louder instrument or a different position" contract forbid.
+     *
+     * <p>⚠ The key is composed with the salt {@code AddressHash} already requires, so this derivation
+     * is uncorrelated with the yield's variation, the machine's name and its MonJob — all of which
+     * hash the same addresses.
+     */
+    private static double audibility(HostState host, String vantage) {
+        double unit = AddressHash.unitOf(host.address + " from " + vantage, "sweep-audibility");
+        return Balance.netSweepAudibility(host.detectRoll, unit);
     }
 
     /**

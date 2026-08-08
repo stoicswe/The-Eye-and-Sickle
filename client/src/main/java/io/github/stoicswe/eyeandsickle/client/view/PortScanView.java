@@ -4,8 +4,11 @@ import io.github.stoicswe.eyeandsickle.client.session.GameSession;
 import io.github.stoicswe.eyeandsickle.client.ui.Pulse;
 import io.github.stoicswe.eyeandsickle.client.ui.Ui;
 import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
+import io.github.stoicswe.eyeandsickle.protocol.game.HostKind;
+import io.github.stoicswe.eyeandsickle.protocol.game.NetMap;
 import io.github.stoicswe.eyeandsickle.protocol.game.PortScanReport;
 import io.github.stoicswe.eyeandsickle.protocol.game.PortScanTarget;
+import io.github.stoicswe.eyeandsickle.protocol.game.Sighting;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -28,15 +31,36 @@ import javafx.scene.layout.VBox;
  *
  * <h2>The panel is a price list, and that is the whole design</h2>
  *
- * Seven rows, one per thing you could learn, each showing what it costs in <b>cycles</b>, in
- * <b>seconds</b>, and in <b>the chance the target notices</b>. The third column is the one that makes
- * this a decision rather than arithmetic, so it is shown before committing rather than discovered
- * afterwards — an interface that revealed the risk after the fact would be offering a gamble without
- * saying it was one.
+ * One row per thing you could learn, each showing what it costs in <b>cycles</b>, in <b>seconds</b>,
+ * and in <b>the chance the target notices</b>. The third column is the one that makes this a decision
+ * rather than arithmetic, so it is shown before committing rather than discovered afterwards — an
+ * interface that revealed the risk after the fact would be offering a gamble without saying it was
+ * one.
  *
  * <p>⚠ Rows are cumulative. Choosing the sixth answers the first five too, because a scan that
  * reached that far necessarily passed through them. The panel says so rather than letting a player
  * pay twice for something they already have.
+ *
+ * <h2>⚠ THE LADDER IS NOT THE SAME ON EVERY MACHINE, and this panel drew it as though it were</h2>
+ *
+ * {@code PortScanTarget.appliesTo} has said since 2026-08-07 that a bridge's findings are
+ * {@code IDENTITY}, {@code FIREWALL}, {@code OS_VERSION}, {@code PEERS} and {@code MONITORED}, and
+ * that everything else keeps the calibrated eight and gains nothing ({@code docs/design/17} §3.2).
+ * The engine has honoured that on both sides — {@code PortScanRules.settle} answers {@code -1} for a
+ * rung the machine has no such thing for, and {@code NodeReports.known} counts only the applicable
+ * ones — while this panel walked {@code values()} blind. So <b>every ordinary desktop offered "Peers"
+ * and "Monitoring"</b>: two rows a player could pay 9 and 11 cycles for, wait 45 and 60 seconds for,
+ * take a 15% and 19% detection risk for, and get nothing back from. Nothing failed and every figure
+ * rendered — the panel was quoting a real price for an answer that does not exist.
+ *
+ * <h2>⚠ THE KIND IS THE PLAYER'S, NEVER GROUND TRUTH</h2>
+ *
+ * {@link #rungsFor} reads {@link Sighting#kind()}, which is {@link HostKind#UNKNOWN} until something
+ * has typed the machine — a sweep sells existence and adjacency, the 15 EC Passive Sniffer sells
+ * identity ({@code docs/design/07} §1). Filtering on the topology's own kind instead would put the
+ * two bridge rows on an unidentified bridge and <b>nowhere else</b>, which hands the sniffer's whole
+ * product to anyone who right-clicks a machine. An unidentified bridge therefore shows the ordinary
+ * eight, and asking what is on its far side costs identifying it first.
  */
 public final class PortScanView {
 
@@ -71,12 +95,16 @@ public final class PortScanView {
         Runnable[] repaint = new Runnable[1];
 
         repaint[0] = () -> {
+            // ⚠ Read ONCE per repaint and used for both halves, so the ladder and the findings block
+            // cannot come to different conclusions about what this machine is. This panel repaints on
+            // a one-second clock, and a second read is a second answer.
+            List<PortScanTarget> rungs = rungsFor(session.net(), address);
             ladder.getChildren().clear();
             ladder.getChildren().add(header());
-            for (PortScanTarget rung : PortScanTarget.values()) {
+            for (PortScanTarget rung : rungs) {
                 ladder.getChildren().add(row(session, address, rung, report, repaint[0]));
             }
-            paintFindings(findings, session.portScanReport(address).orElse(null));
+            paintFindings(findings, session.portScanReport(address).orElse(null), rungs);
         };
         repaint[0].run();
 
@@ -90,6 +118,35 @@ public final class PortScanView {
         AutoCloseable clock = Pulse.shared().every(1_000, repaint[0]);
         Views.releaseOnDetach(root, onSession, clock);
         return Views.scrollable(root);
+    }
+
+    /**
+     * The rungs this machine actually has, in ladder order.
+     *
+     * <h2>⚠ Pure, package-private, and takes the map rather than the session — on purpose</h2>
+     *
+     * The same seam {@code SecurityCenterView.latestOf} and {@code Anchoring.horizontal} exist for,
+     * and for the same reason: the rule that shipped wrong was one living inside a method that builds
+     * nodes, so the only way to check it was to run the client and look. Taking a {@link NetMap}
+     * means a test hand-builds two sightings and needs no session, no save and no toolkit.
+     *
+     * <p>⚠ <b>A machine with no sighting is {@link HostKind#UNKNOWN}, not an error.</b> Map visibility
+     * keys on {@code knownNodes} and port scanning keys on {@code host.discovered} — two notions of
+     * "found" that agree only because a sweep sets both — so the honest reading of an absent sighting
+     * is "nobody has typed this", which is what {@code UNKNOWN} means and what gives the ordinary
+     * eight.
+     */
+    static List<PortScanTarget> rungsFor(NetMap net, String address) {
+        HostKind kind = net == null
+                ? HostKind.UNKNOWN
+                : net.at(address).map(Sighting::kind).orElse(HostKind.UNKNOWN);
+        List<PortScanTarget> rungs = new ArrayList<>();
+        for (PortScanTarget rung : PortScanTarget.values()) {
+            if (rung.appliesTo(kind)) {
+                rungs.add(rung);
+            }
+        }
+        return List.copyOf(rungs);
     }
 
     private static Region header() {
@@ -122,6 +179,12 @@ public final class PortScanView {
         Label what = new Label(rung.label());
         what.getStyleClass().addAll("es-mono", "es-portscan-what");
         Label detail = Ui.micro(rung.detail());
+        // ⚠ WRAPS, because one rung's caption does not fit the column and JavaFX ellipsises rather
+        // than complaining: PEERS rendered as "how many machines are on the far side, and what t...",
+        // cut mid-word on the half of the caption that says what the finding actually gives you. It
+        // survived because that row used to appear on every machine, where it was one truncated line
+        // among eight; it is now one of five on a bridge and nowhere else.
+        detail.setWrapText(true);
 
         Label risk = new Label(quote.riskPercent() + "%");
         risk.getStyleClass().addAll("es-mono", riskClass(quote.riskPercent()));
@@ -164,8 +227,16 @@ public final class PortScanView {
      * A panel that rendered "high-risk vault: 0" for a scan that never looked has told the player
      * something false about a machine they are deciding whether to rob. {@code PortScanReport.knows}
      * is the question, and every row asks it.
+     *
+     * <h2>⚠ It walks the SAME rung list the ladder above it does</h2>
+     *
+     * Two hand-written lists would drift the first time a rung moved, and the drift is silent in both
+     * directions: a row here for a rung the ladder does not offer is a line that says "not scanned
+     * for" forever about something nobody can scan for, and a rung the ladder offers with no row here
+     * is a scan the player pays for and never sees the answer to. That second one was live — the two
+     * bridge findings have been reachable and unrenderable since they landed.
      */
-    private static void paintFindings(VBox into, PortScanReport report) {
+    private static void paintFindings(VBox into, PortScanReport report, List<PortScanTarget> rungs) {
         into.getChildren().clear();
         if (report == null) {
             into.getChildren().add(Ui.micro("Nothing yet. A scan's findings appear here when it finishes."));
@@ -180,36 +251,9 @@ public final class PortScanView {
         }
 
         List<String> lines = new ArrayList<>();
-        // ⚠ The two halves are ONE finding and share one row, because that is what the rung sells.
-        // Splitting them into "name" and "operator" would put two "— not scanned for" lines on every
-        // unscanned machine for a single unpaid rung, which reads as two gaps rather than one.
-        // Rendered `operator@machine` — the order Hostname.prompt teaches and argues for: who you are,
-        // then where you are.
-        lines.add(line("identity", report.knows(PortScanTarget.IDENTITY) ? identityOf(report) : null));
-        lines.add(line("firewall", report.knows(PortScanTarget.FIREWALL) ? "tier " + report.firewallTier() : null));
-        lines.add(line("os", report.knows(PortScanTarget.OS_VERSION) ? report.osName() : null));
-        lines.add(line(
-                "capability", report.knows(PortScanTarget.CYCLE_CAPABILITY) ? report.cyclesTotal() + " cycles" : null));
-        lines.add(line(
-                "load",
-                report.knows(PortScanTarget.CYCLE_LOAD)
-                        ? report.cyclesUsed() + " used · " + report.cyclesFree() + " free   (a snapshot)"
-                        : null));
-        lines.add(line(
-                "downloads",
-                report.knows(PortScanTarget.DOWNLOADS)
-                        ? String.format(Locale.ROOT, "%.1f MB", report.downloadsBytes() / 1_000_000.0d)
-                        : null));
-        lines.add(
-                line("hot vault", report.knows(PortScanTarget.VAULT_HIGH) ? report.vaultHighCount() + " items" : null));
-        // ⚠ A RANGE, never a count. The middle tier is not readable from outside at any depth —
-        // that is what docs/design/01 §6 buys with the tier — so the panel reports the band the scan
-        // could narrow it to. Repeat deep scans tighten it and never close it.
-        lines.add(line(
-                "mid vault",
-                report.knows(PortScanTarget.VAULT_MEDIUM)
-                        ? report.vaultMediumLow() + "–" + report.vaultMediumHigh() + " items  (estimate)"
-                        : null));
+        for (PortScanTarget rung : rungs) {
+            lines.add(line(shortName(rung), report.knows(rung) ? valueOf(report, rung) : null));
+        }
 
         for (String line : lines) {
             Label label = new Label(line);
@@ -227,12 +271,91 @@ public final class PortScanView {
     }
 
     /**
+     * What a finding is called in the findings block.
+     *
+     * <h2>⚠ Short, lowercase, and NOT {@link PortScanTarget#label()}</h2>
+     *
+     * The ladder above is a price list and names each rung as a question ("Medium-risk vault"); this
+     * is a readout in a 14-character label column, and the labels do not fit it. Two vocabularies for
+     * one ladder is a cost — but the alternative is either a ragged column or a rung named "Peers" in
+     * a block every other line of which is lowercase.
+     *
+     * <p>⚠ An exhaustive switch, deliberately. A map or a default arm would file a rung added
+     * tomorrow under a blank name; this way the compiler names the omission at the point somebody
+     * adds one, which is the one place it is legible. Same reason {@code RigTab.columns()} is one.
+     */
+    private static String shortName(PortScanTarget rung) {
+        return switch (rung) {
+            case IDENTITY -> "identity";
+            case FIREWALL -> "firewall";
+            case OS_VERSION -> "os";
+            case CYCLE_CAPABILITY -> "capability";
+            case CYCLE_LOAD -> "load";
+            case DOWNLOADS -> "downloads";
+            case VAULT_HIGH -> "hot vault";
+            case VAULT_MEDIUM -> "mid vault";
+            case PEERS -> "peers";
+            case MONITORED -> "monitoring";
+        };
+    }
+
+    /**
+     * The finding itself, in words. Only ever called for a rung {@code report.knows}.
+     *
+     * <p>⚠ The vault line is a <b>RANGE, never a count</b>. The middle tier is not readable from
+     * outside at any depth — that is what {@code docs/design/01} §6 buys with the tier — so this
+     * reports the band the scan could narrow it to. Repeat deep scans tighten it and never close it.
+     *
+     * <p>⚠ {@code MONITORED} says <b>whether</b> and nothing else — never whose, never what tier.
+     * That restraint is the entire reason the finding is allowed to exist: a tier-1 MonJob's value is
+     * that the intruder does not learn they were seen, so naming the watcher here would make tier 1
+     * worthless and nobody would ever place one ({@code docs/design/17} §4.4).
+     */
+    private static String valueOf(PortScanReport report, PortScanTarget rung) {
+        return switch (rung) {
+            case IDENTITY -> identityOf(report);
+            case FIREWALL -> "tier " + report.firewallTier();
+            case OS_VERSION -> report.osName();
+            case CYCLE_CAPABILITY -> report.cyclesTotal() + " cycles";
+            case CYCLE_LOAD -> report.cyclesUsed() + " used · " + report.cyclesFree() + " free   (a snapshot)";
+            case DOWNLOADS -> String.format(Locale.ROOT, "%.1f MB", report.downloadsBytes() / 1_000_000.0d);
+            case VAULT_HIGH -> report.vaultHighCount() + " items";
+            case VAULT_MEDIUM -> report.vaultMediumLow() + "–" + report.vaultMediumHigh() + " items  (estimate)";
+            case PEERS -> peersOf(report);
+            case MONITORED -> report.monitored() == 1 ? "watched" : "nothing watching";
+        };
+    }
+
+    /**
+     * The peer finding: how much is through there, and what it is called.
+     *
+     * <p>⚠ A count and a name, and nothing that could be acted on — no addresses, no kinds, no tiers,
+     * no values. The far side is still outside the hop ceiling and still needs a breach, a foothold
+     * and a {@code connect}, which is what keeps this clear of Invariant <b>I2</b>
+     * ({@code docs/design/17} §3.1).
+     *
+     * <p>⚠ The server name may legitimately be blank — a bridge whose link goes nowhere — so it is
+     * appended rather than interpolated, or the row would read {@code "7 machines · "}.
+     */
+    static String peersOf(PortScanReport report) {
+        String count = report.peerCount() + (report.peerCount() == 1 ? " machine" : " machines");
+        String where = report.peerServerName() == null ? "" : report.peerServerName();
+        return where.isBlank() ? count : count + " · " + where;
+    }
+
+    /**
      * The identity finding as one string: {@code operator@machine}.
      *
      * <p>⚠ Either half may be missing and the row still has to read. A gateway has a name and no
      * account worth speaking of, so {@code PortScanReport.knows} counts the rung as answered when
      * <em>either</em> is present — and a naive {@code operator + "@" + name} would render a bare
      * {@code @bold-turing} or {@code dana@} for a scan that came back with everything there was.
+     *
+     * <p>⚠ The two halves are ONE finding and share one row, because that is what the rung sells.
+     * Splitting them into "name" and "operator" would put two "— not scanned for" lines on every
+     * unscanned machine for a single unpaid rung, which reads as two gaps rather than one. The order
+     * is {@code operator@machine} — the one {@code Hostname.prompt} teaches and argues for: who you
+     * are, then where you are.
      */
     static String identityOf(PortScanReport report) {
         String who = report.operatorName() == null ? "" : report.operatorName();

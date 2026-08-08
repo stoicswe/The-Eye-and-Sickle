@@ -505,6 +505,20 @@ public final class DeskManager {
         if (window == null) {
             return;
         }
+        // ⚠ Read BEFORE the frame leaves the desk. A WindowFrame off the scene graph still reports
+        // its last laid-out bounds today, which is precisely the kind of accident that works until it
+        // does not; capturing here makes the ordering explicit rather than lucky.
+        //
+        // ⚠ THE RESTORE POINT WHEN THE WINDOW IS EXPANDED, NOT THE GEOMETRY — and this is the whole
+        // difference between "the size the player chose" and "the size the desk computed". A
+        // maximised or edge-tiled window's geometry belongs to the DESK: closing one while it fills
+        // the screen would hand a handler the desk's own dimensions, and a handler that remembers
+        // sizes would then open that window full-desk forever after, on every later session, with no
+        // way for the player to work out what they had done. `saveLayout` already keeps both figures
+        // apart for exactly this reason; this is the same distinction at the moment of closing.
+        Geometry closing = window.isExpanded() && window.restorePoint() != null
+                ? window.restorePoint()
+                : window.geometry();
         desk.getChildren().remove(window.frame);
         // ⚠ The frame's own Pulse subscription, released here because nothing else will. Same defect
         // class as CycleGrid.dispose and CoreCage.dispose, which were written, correct, and called
@@ -517,7 +531,11 @@ public final class DeskManager {
         // now, so the second call finds nothing and returns; firing before the removal would
         // recurse. The rules' own close is idempotent for the same reason.
         if (window.onClosed != null) {
-            window.onClosed.run();
+            // ⚠ HANDED THE GEOMETRY, because by now the handler cannot go and look. The removal above
+            // is deliberate and must stay first (see the note on it), so a handler that tried to find
+            // its own window in `windows()` would find nothing — which is exactly what
+            // `DeckShell.rememberSize` did, silently, for every window a player closed by hand.
+            window.onClosed.accept(closing);
         }
         if (focused == window) {
             focused = null;
@@ -954,7 +972,14 @@ public final class DeskManager {
     /**
      * What to open.
      *
-     * @param onClosed run when the window is closed, for a window whose existence <em>is</em> game
+     * @param onClosed called when the window is closed, with <b>the size the player chose</b> — the
+     *     window's geometry, or its restore point when it was closed maximised or edge-tiled, because
+     *     an expanded window's geometry is the desk's rather than the player's. ⚠ It is
+     *     handed that rather than left to look it up: {@link DeskManager#close} removes the window
+     *     from the desk before firing this, deliberately, so a handler asking {@code windows()} for
+     *     its own window finds nothing. That is not hypothetical — {@code DeckShell.rememberSize} did
+     *     exactly that and silently recorded nothing for every window closed by hand. Also for a
+     *     window whose existence <em>is</em> game
      *     state. ⚠ Most windows have none and pass {@code null}: a tool window is a view onto state
      *     that exists whether or not it is on screen, so closing one must change nothing. A shell is
      *     the exception — it is an instance created by an act in the game, holding
@@ -969,7 +994,7 @@ public final class DeskManager {
             double width,
             double height,
             boolean closable,
-            Runnable onClosed) {
+            java.util.function.Consumer<Geometry> onClosed) {
 
         /** The ordinary window: a view onto state, with nothing to release when it goes. */
         public Spec(
@@ -990,7 +1015,7 @@ public final class DeskManager {
         private final String id;
         private final WindowFrame frame;
         private final boolean closable;
-        private final Runnable onClosed;
+        private final java.util.function.Consumer<Geometry> onClosed;
         private double x;
         private double y;
         private double width;
@@ -1000,7 +1025,8 @@ public final class DeskManager {
         private boolean expanded;
         private Geometry restoreGeometry;
 
-        private DeskWindow(String id, WindowFrame frame, boolean closable, Runnable onClosed) {
+        private DeskWindow(String id, WindowFrame frame, boolean closable,
+                java.util.function.Consumer<Geometry> onClosed) {
             this.id = id;
             this.frame = frame;
             this.closable = closable;

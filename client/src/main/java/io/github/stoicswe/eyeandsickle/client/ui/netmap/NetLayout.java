@@ -242,24 +242,40 @@ public final class NetLayout {
         }
         Set<String> open = expanded == null ? Set.of() : expanded;
 
-        Map<String, Sighting> byAddress = new LinkedHashMap<>();
-        int layers = 0;
+        // ⚠ LAYERS ARE REBASED ON THE SHALLOWEST MACHINE IN THE MAP, not on the rig, and this is
+        // what lets one server be laid out on its own.
+        //
+        // `hopsFromRig` is measured across the whole world, so on a map filtered to a foreign server
+        // (`ServerTabs.filter`) the nearest machine is four or five hops out and the first four or
+        // five columns would be EMPTY — a tab whose content starts off the right-hand edge of the
+        // panel, which reads as a broken view rather than as a distant server.
+        //
+        // ⚠ It is a NO-OP for the whole-world map, which is the reason it is safe to do here rather
+        // than at the call site: the rig is always at 0, so the base is 0 and every layer keeps the
+        // number it had. Nothing that was correct before changes.
+        //
+        // ⚠ And it does NOT rewrite the sightings. Constructing Sighting records with adjusted hop
+        // counts was the obvious alternative and it is a lie in the data — `hopsFromRig` means what
+        // it says, several other surfaces read it, and a projection that edits its input to suit its
+        // own axis is how two screens come to disagree about how far away something is.
+        int base = Integer.MAX_VALUE;
         for (Sighting sighting : map.sightings()) {
-            byAddress.put(sighting.address(), sighting);
-            layers = Math.max(layers, sighting.hopsFromRig() + 1);
+            base = Math.min(base, sighting.hopsFromRig());
         }
 
+        Map<String, Sighting> byAddress = new LinkedHashMap<>();
+        Map<String, Integer> layerOf = new HashMap<>();
         Map<Integer, List<Sighting>> byLayer = new HashMap<>();
+        int layers = 0;
         for (Sighting sighting : map.sightings()) {
-            byLayer.computeIfAbsent(sighting.hopsFromRig(), k -> new ArrayList<>())
-                    .add(sighting);
+            int layer = sighting.hopsFromRig() - base;
+            byAddress.put(sighting.address(), sighting);
+            layerOf.put(sighting.address(), layer);
+            byLayer.computeIfAbsent(layer, k -> new ArrayList<>()).add(sighting);
+            layers = Math.max(layers, layer + 1);
         }
 
         Map<String, Set<String>> neighbours = adjacency(map, byAddress);
-        Map<String, Integer> layerOf = new HashMap<>();
-        for (Sighting sighting : map.sightings()) {
-            layerOf.put(sighting.address(), sighting.hopsFromRig());
-        }
 
         // ── The fold, decided before a single row is assigned ────────────────────────────────────
         //

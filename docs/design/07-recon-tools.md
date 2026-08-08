@@ -69,6 +69,61 @@ The **tool** is bought once; **running** it spends cycles and exposure and nothi
 
 What the two purchasable tiers buy is **sensitivity within reach the player already has** — how quiet a machine can be and still be heard. Reach itself is the Topology Mapper's, schematic-gated, and no amount of ethecoin moves it (§2).
 
+### 5.1a What a sweep can hear depends on where it is standing — [PROPOSAL], 2026-08-08
+
+**A machine is not equally audible from every position on the network.** The value a sweep's threshold
+is compared against used to be the machine's own roll and nothing else, so a contact a base sweep
+missed from the rig was missed from *every* position at that tier: moving the vantage brought
+different machines inside the hop ceiling and never made an in-range machine findable. Repositioning
+bought reach and only reach.
+
+It is now a property of the **pair**:
+
+```
+audibility(machine, vantage) = detectRoll × (FLOOR + (1 − FLOOR) × hash(machine, vantage))
+```
+
+with `Balance.NET_SWEEP_VANTAGE_FLOOR` at **0.55**. So two footholds the same distance from a machine
+are two genuine chances at it, and a player who breaches outward keeps growing their graph rather than
+widening one circle. Measured over 300 worlds and 12 positions: staying home finds **5.1** machines
+however many times you sweep; walking finds **10.1** at base tier and **19.8** at wide.
+
+⚠ **Four properties this is built around, none of them optional.**
+
+1. **Re-sweeping is still not a re-roll.** The vantage term is **hashed, never drawn**, so the same
+   spot answers the same way forever and save-scumming still buys nothing. This is the whole reason
+   it is a hash and not a die — implemented as a per-sweep draw it would look like the same feature
+   and would make repetition the cheapest discovery strategy in the game.
+2. **The home floor survives exactly.** `TopologyGenerator` forces three home neighbours to
+   `detectRoll = 0`, and the perturbation is a **multiply**, so zero stays zero from everywhere. An
+   additive spread would have lifted those three off the floor on some seeds only — the worst
+   available way for a new player's first sweep to break.
+3. **A better instrument never loses a contact.** The factor does not depend on the tier, so
+   `detected(T1) ⊆ detected(T2) ⊆ detected(T3)` is unchanged; and since the factor is at most 1,
+   nothing findable under the old rule became unfindable.
+4. **`FLOOR` is what keeps the ladder worth buying.** At 0 the multiply roughly doubles detection and
+   the base/deep gap collapses; at 0.55 a quiet machine goes 35% → ~47% at base and 72% → ~89% at
+   deep, so the T1→T3 ratio is essentially unchanged — and past about `detectRoll 0.64` a machine is
+   inaudible at base tier from **every** position in the world, which is what leaves something for
+   the instrument to sell. `VantageDiscoveryTest` measures all four rather than asserting them.
+
+⚠ **Per player by construction, and that is free rather than designed.** A world is generated from the
+character id, so two players never share a topology — and even on one world the graph each builds
+depends on which positions they occupied, in what order, at which tier. Nothing here has to agree
+across a server.
+
+⚠ **The yield band is 1–11**, widened from 1–7 on the same day: `Balance.sweepYield`, 7–11 at home
+falling to 1–5 four servers out. Raising home's floor is nearly free — the home server seeds five
+machines at one link, so the cap does not bind there and detection is what limits a first sweep. The
+widening pays at depth 1–3, on the larger servers a player reaches by moving.
+
+⚠ **The bridge tier gate is what actually bounds a base-only player**, not any of the above.
+`NET_SWEEP_BRIDGE_MIN_TIER = 2` means a base sweep cannot see a `BRIDGE` at any distance, so a player
+who has not bought the wide sweep can walk their home server and no further: measured, their graph
+plateaus around ten machines however long they keep moving, where a wide-sweep player reaches 35 by
+twenty-five positions. That is §5.1's "what the two purchasable tiers buy" working as designed — but
+it is the number to re-read before anyone re-tunes that constant in either direction.
+
 ### 5.2 A sweep is cheap and loud, and those are two different numbers
 
 The compute column and the noise column are **not derived from each other**, and the split is deliberate.

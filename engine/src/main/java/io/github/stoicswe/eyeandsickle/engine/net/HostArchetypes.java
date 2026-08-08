@@ -61,16 +61,16 @@ public final class HostArchetypes {
      * the same on every seed while the shape, sizes and depths are not — which is the right trade:
      * nobody replays a world for its place names.
      */
-    private static final List<String> SERVER_NAMES = List.of(
-            "home-relay", "south-exchange", "north-yard", "west-depot", "east-annex", "lower-works", "outer-span");
-
-    /** The name for the server at {@code index}, wrapping if the pool is ever outgrown. */
-    public static String serverName(int index) {
-        int i = Math.max(0, index);
-        return i < SERVER_NAMES.size()
-                ? SERVER_NAMES.get(i)
-                : SERVER_NAMES.get(i % SERVER_NAMES.size()) + "-" + (i / SERVER_NAMES.size() + 1);
-    }
+    // ⚠ SERVER NAMES MOVED TO NpcNames.server, 2026-08-08. What lived here was a fixed list of
+    // seven — `home-relay`, `south-exchange`, `north-yard`, … — with its own note conceding that the
+    // SET was "the same on every seed while the shape, sizes and depths are not", on the grounds
+    // that "nobody replays a world for its place names".
+    //
+    // That stopped being the trade the moment servers became TABS on the network map. A tab is a
+    // place the player picks between, a bridge advertises its far side BY NAME, and seven names
+    // shared by every world in existence is a world that reads as furniture. `adjective-character`
+    // costs no draws for the same reason machine names cost none — the id is hashed, never rolled —
+    // so a different set per world was available the whole time at no price at all.
 
     public static String serverId(int index) {
         return "srv-" + Math.max(0, index);

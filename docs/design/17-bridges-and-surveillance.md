@@ -390,6 +390,24 @@ Logged in `15-open-questions.md`.
   was a live latent bug rather than a precaution: three existing tests fired on the change, including
   `BreachPuzzleWeightingTest`, which is exactly the silent game-wide re-weighting it was there to
   prevent. (§3.2)
+- ~~**PS-3** — the scanner offered the bridge rungs on every machine.~~ ✅ **Fixed 2026-08-08.**
+  `appliesTo` was honoured by the engine on both sides and ignored by `PortScanView`, which walked
+  `values()` blind — so every ordinary desktop listed **Peers** and **Monitoring** with a real price,
+  duration and detection risk against an answer that is `-1` on anything but a bridge. The panel now
+  filters on `Sighting.kind`, i.e. **what the player has established**, never the topology's own kind:
+  filtering on ground truth would put those two rows on unidentified bridges and nowhere else, which
+  hands the Passive Sniffer's whole product (`07` §1) to anyone who right-clicks a machine. An
+  unidentified bridge therefore shows the ordinary eight. `PortScanViewTest`. (§3.2)
+- **PS-4** *(new)* — **a bridge's two findings are never written to the recon file.**
+  `PortScanRules.settle` produces `peerCount`, `peerServerName` and `monitored`; `NodeReports.merge`
+  has no arm for either rung and `NodeReportState` has no field for them, so they live only in the
+  session's last-scan report and are gone on reload. Consequences today: a bridge's file can never
+  exceed **3 of 5** however deeply it is scanned — which is `known()`, which feeds
+  `Balance.breachProtocolShare`, so a bridge's breach draw is permanently weighted as though it were
+  three-fifths scouted — and `NodeReportView` renders the eight universal rows on a bridge, five of
+  which describe things a bridge does not have, while omitting the two it does. Three fields, two
+  `if` arms and the view's row list; wanted before
+  MonJobs land, since a monitoring reading nobody keeps is one the player has to re-buy every session.
 - **TR-2** — does a traced machine arrive inside or outside the hop ceiling? I2 turns on the answer.
   (§5.2)
 - **AT-1** — the anti-trace minigame and **I10**. A timed defence is the shape automation is best at,

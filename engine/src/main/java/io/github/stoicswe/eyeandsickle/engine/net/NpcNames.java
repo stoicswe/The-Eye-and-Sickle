@@ -508,6 +508,10 @@ public final class NpcNames {
         return PIONEERS;
     }
 
+    public static List<String> characters() {
+        return CHARACTERS;
+    }
+
     /**
      * The operator account on the machine at {@code address}.
      *
@@ -517,6 +521,209 @@ public final class NpcNames {
      */
     public static String operator(String address) {
         return OPERATORS.get((int) Math.floorMod(hash(address), (long) OPERATORS.size()));
+    }
+
+    /**
+     * The characters. What a SERVER is named after — {@code adjective-character}.
+     *
+     * <h2>Fictional on purpose, where the machines' pool is real on purpose</h2>
+     *
+     * {@link #PIONEERS} is scientists and mathematicians, and it carries a hard rule because those
+     * are real people: <b>no adjective may be demeaning</b>, because pairing a real name with an
+     * insult is a claim about a person the game has no business making. This pool is the other case
+     * entirely — every name here belongs to a character in a game or a novel — so the rule that binds
+     * it is a different one, and both halves of that difference matter.
+     *
+     * <p>⚠ <b>What is still forbidden: a REAL person's name.</b> The generated set was reviewed for
+     * exactly this and three were dropped — {@code blavatsky} (a historical occultist, not a game
+     * character), {@code zidane} (Final Fantasy IX's protagonist, and also a very famous living
+     * footballer, and it is the footballer a hostname would read as), and {@code bohemond} (a real
+     * crusader). ⚠ {@code heisenberg} was dropped by the collision check rather than by review, and
+     * the reason is worth keeping: Resident Evil Village has a Karl Heisenberg, {@link #PIONEERS} has
+     * Werner Heisenberg, and a name in both pools reads as the physicist wherever it appears.
+     *
+     * <p>⚠ <b>And a species is not a character.</b> {@code necron}, {@code pfhor} and {@code jjaro}
+     * were harvested and removed: {@code wicked-necron} names a race rather than a person, which is
+     * the one way this pool can read as something other than a name.
+     *
+     * <h2>⚠ ORDINARY GIVEN NAMES AND COMMON WORDS ARE OUT, and that is what makes the scheme work</h2>
+     *
+     * A hostname reads as a reference only if the second half is distinctive. {@code wicked-sam},
+     * {@code wicked-paul} and {@code wicked-storm} are not references to Death Stranding, Dune or
+     * anything else — they are an adjective and an ordinary word. So Sam Porter Bridges is absent and
+     * Paul Atreides appears as {@code muaddib} and as {@code atreides}, which are.
+     *
+     * <p>⚠ Seven more were dropped for colliding with {@link #OPERATORS} — {@code anya}, {@code
+     * magnus}, {@code vlad} and friends. An account name and a server name are different namespaces
+     * and would not actually be ambiguous, but a player who has just met an operator called
+     * {@code magnus} and then finds a server called {@code roguish-magnus} will reasonably think the
+     * two are connected, and they are not.
+     *
+     * <h2>How it was built</h2>
+     *
+     * Harvested across the fifteen franchises named in the request — Final Fantasy, Zelda, Cyberpunk
+     * 2077/Edgerunners, Cronos: The New Dawn, Marathon, Portal, Half-Life, Death Stranding, Tomb
+     * Raider, Resident Evil, Watch Dogs, Wolfenstein, Doom, Warhammer 40,000, Warhammer
+     * Fantasy/Age of Sigmar and Dune — then filtered mechanically (a–z only, 3–12 characters, one
+     * word, no collision with the other three pools) and reviewed for invented names, real people,
+     * species-not-characters and words that read as adjectives.
+     *
+     * <p>⚠ <b>3–12 characters, and the ceiling is a layout figure.</b> A server name reaches the
+     * map's tab strip and its header line, where {@link #OPERATORS}' much tighter seven-character
+     * rule does not apply — that one is the network map's 18-cell address line. Twelve is what keeps
+     * a row of tabs from wrapping at the panel's smallest usable width.
+     *
+     * <p>⚠ <b>Names, not text.</b> Nothing here reproduces anything from those works: a proper noun
+     * is not the work, and this pool states no fact about any of them — which is the same bar
+     * {@link #PIONEERS} clears by carrying surnames alone.
+     */
+    private static final List<String> CHARACTERS = List.of(
+            "abaddon", "abhorash", "abraxia", "adawong", "aenarion", "aeris", "aerith", "agahnim", "agatone",
+            "agemman", "agitha", "agrias", "ahriman", "aiden", "alarielle", "alberic", "alcina", "alexia", "alfonzo",
+            "alia", "alisaie", "alister", "alith", "alpharius", "alphinaud", "alrik", "alvarez", "alyx", "amarant",
+            "amaru", "amberley", "amelie", "angeal", "angelos", "angron", "anirul", "anjean", "anju", "anrakyr",
+            "apophas", "arachnotron", "arahan", "araloth", "aranea", "aranessa", "arasaka", "arbaal", "archaon",
+            "archvile", "ardbert", "ardyn", "argath", "arjac", "arkhan", "artemis", "aryll", "ashe", "ashei",
+            "ashford", "ashley", "asmodai", "astorath", "asurmen", "asuryan", "atreides", "auron", "auru", "avalenor",
+            "aventis", "aximand", "aymeric", "azhag", "azrael", "badrukk", "bagley", "bahamut", "baharroth",
+            "balthier", "banon", "baralai", "barbariccia", "barnabas", "barney", "barret", "barry", "barthandelus",
+            "bartmoss", "bartoli", "bartz", "basch", "batreaux", "beatrix", "becker", "beedle", "belakor", "belegar",
+            "belial", "bellonda", "bellum", "belthanos", "benedikta", "beneviento", "beowulf", "betruger",
+            "bhunivelze", "biggs", "bijaz", "birkin", "blackhand", "blazkowicz", "bludo", "bolson", "bombate",
+            "boneripper", "boone", "brahne", "brandt", "braska", "breen", "brenks", "bridget", "brigitte", "brokk",
+            "bugenhagen", "bugman", "burnside", "burzmali", "byrne", "cacodemon", "cagnazzo", "caius", "caledor",
+            "calgar", "calhoun", "campbell", "caradryan", "carstein", "carthalos", "cass", "cassius", "cawl", "cecil",
+            "cegorach", "celes", "celestine", "chakax", "chani", "chell", "cherubael", "ciaphas", "cid", "cidolfus",
+            "ciela", "cissnei", "clive", "corax", "corbulo", "corrino", "corswain", "coteaz", "cremia", "croft",
+            "cunningham", "curze", "cyberdemon", "cylostra", "dampe", "dante", "daphnes", "darbus", "darcy",
+            "darkstrider", "darmani", "daruk", "darunia", "davoth", "deadman", "deathshead", "dechala", "defalt",
+            "delamain", "delita", "desch", "dexter", "dhawan", "diabolos", "diehardman", "dimitrescu", "dion", "doga",
+            "dollman", "dominguez", "doomguy", "dorephan", "dorio", "dorn", "dracothion", "draigo", "drazhar",
+            "drycha", "duncan", "durandal", "durthu", "dusan", "dycedarg", "dysley", "eckhardt", "edea", "edric",
+            "egrimm", "eiko", "eisenhorn", "eldin", "eldrad", "eli", "elidibus", "ellone", "elmdor", "elspeth",
+            "eltharion", "emetselch", "engel", "ephrael", "epidemius", "epona", "erebus", "estinien", "eternus",
+            "ethan", "etzli", "eurodyne", "eveline", "evelyn", "excella", "exdeath", "ezekiel", "ezlo", "fabius",
+            "fado", "faris", "farok", "faron", "farore", "farsight", "feirros", "fenring", "fergus", "ferrus",
+            "festus", "feyd", "finubar", "firion", "fran", "franz", "freeman", "freya", "fuegan", "fulgrim", "fusoya",
+            "gabranth", "gaepora", "gafgarion", "galrauch", "galuf", "ganon", "ganondorf", "gardus", "garro", "gau",
+            "gelt", "genevieve", "gestahl", "ghanima", "ghazghkull", "ghirahim", "ghorros", "gilgamesh", "gilles",
+            "gippal", "gladio", "glados", "glossu", "glutos", "gman", "gobsprakk", "golbez", "golgfag", "gonarch",
+            "gorbad", "gordon", "gordrakk", "gorfang", "gork", "gorkamorka", "gorthor", "gotrek", "greasus", "greyfax",
+            "grigori", "grimaldus", "grimgor", "grimnar", "grimnir", "grom", "grombrindal", "groose", "grosse",
+            "grotsnik", "grungni", "grungsson", "guilliman", "haarken", "halleck", "hamilcar", "hanako", "hansen",
+            "harah", "harkon", "harkonnen", "hasimir", "hass", "haurchefant", "hawat", "hayden", "hayt", "heartman",
+            "heinrich", "helborg", "helbrecht", "helga", "hellebron", "helsnicht", "hesperax", "hestu", "hilda",
+            "himiko", "hojo", "holloway", "honsou", "horatio", "horstmann", "horus", "hraesvelgr", "hunnigan", "huron",
+            "huss", "hydaelyn", "hylia", "ibram", "ifrit", "ignis", "ikit", "ilia", "illic", "imotekh", "impa",
+            "impaz", "imrik", "ingo", "ingus", "ionus", "irulan", "irvine", "isabella", "isha", "ixion", "jabun",
+            "jackie", "jaghatai", "jainzar", "jamis", "jecht", "jenova", "jessica", "jonah", "jonson", "jordi",
+            "junith", "jurgen", "kaepora", "kafei", "kain", "kairos", "kantor", "karamazov", "karanak", "karandras",
+            "karazai", "kass", "katakros", "katarin", "kayvaan", "keeler", "kefka", "kelley", "kelly", "kemmler",
+            "kennedy", "kenney", "khaine", "khalida", "kharn", "khatep", "khazrak", "kholek", "khorne", "kilton",
+            "kimahri", "kiros", "kleiner", "kohga", "koltin", "komali", "konrad", "konstantin", "korba", "korhil",
+            "kostaltyn", "kotake", "koume", "kouran", "kragg", "kragnos", "krauser", "krell", "kreutz", "krile",
+            "kroak", "krondys", "kryptman", "kuja", "kurdoss", "kurnous", "kurtis", "kushinada", "kynes", "laguna",
+            "lahabrea", "lanayru", "lara", "larkin", "larsa", "larsen", "larson", "laruto", "leela", "leila",
+            "leitdorf", "lelith", "leman", "lemartes", "lenna", "lenne", "lenni", "leoncoeur", "leonhart", "leontus",
+            "leto", "levias", "liebwitz", "lille", "linebeck", "lizzy", "locke", "lockne", "loken", "lokhir", "lorgar",
+            "lotann", "lotara", "lucius", "lucyna", "ludenhof", "lulu", "lunafreya", "luneth", "lysander", "lyse",
+            "macharius", "maduin", "magnusson", "maiava", "maiko", "majora", "makaisson", "makar", "makari", "malagor",
+            "malcador", "malekith", "malerion", "malik", "malladus", "maloghurst", "malon", "malys", "manann",
+            "mancubus", "mannfred", "mapes", "marbo", "marcus", "marguerite", "marin", "marneus", "mateus", "mathias",
+            "maykr", "mazdamundi", "mcneil", "medli", "meliadoul", "mendez", "mephiston", "meredith", "merlwyb",
+            "meteion", "midna", "mido", "mikau", "mineru", "minfilia", "minwu", "mipha", "miranda", "mkoll", "mog",
+            "mohiam", "moira", "moneo", "morathi", "moreau", "morghur", "morgiana", "morgwaeth", "mork", "mortarion",
+            "morvenn", "mossman", "muaddib", "murbella", "mustadio", "muzu", "nabooru", "naestra", "nagash", "nakai",
+            "namri", "nanaki", "natla", "navi", "nayl", "nayla", "nayru", "nazdreg", "neave", "neferata", "nekaph",
+            "nemec", "nidhogg", "nihilanth", "nikolai", "nishimura", "nivans", "noctilus", "noctis", "nooj", "nurgle",
+            "nurglitch", "obyron", "odrade", "olivia", "oliwa", "ollanius", "olynder", "omegon", "ondore", "onox",
+            "ooccoo", "ordona", "orikan", "orlandeau", "oshus", "ostankya", "otheym", "ovelia", "paine", "palom",
+            "panam", "papalymo", "paya", "pearce", "penelo", "peralez", "perturabo", "pilar", "piter", "placide",
+            "porom", "prishe", "prompto", "purah", "qruze", "queek", "quina", "quinn", "quistis", "rabban", "radukar",
+            "rakarth", "ralis", "ramallo", "ramuh", "ramza", "rattmann", "raubahn", "rauru", "ravenor", "ravio",
+            "ravus", "rawne", "rebecca", "reddas", "redfield", "refia", "regis", "reikenor", "relm", "renado", "reno",
+            "repanse", "revali", "reyes", "rhoam", "riju", "rikku", "rinoa", "robbie", "rosalind", "roth", "rotigus",
+            "royce", "rubicante", "rudi", "rufus", "rusl", "rutela", "ruto", "rydia", "rylanor", "ryne", "sabaoth",
+            "sabiha", "sabin", "sabine", "saburo", "saddler", "sahaal", "sahasrahla", "salazar", "sammael", "samur",
+            "sandayu", "sanguinius", "sanguinor", "saria", "sarthorael", "sauchak", "sazh", "scarmiglione", "schabbs",
+            "schaeffer", "schwangyu", "schwarzhelm", "scyla", "scytale", "seifer", "selphie", "sephiroth", "serah",
+            "settra", "setzer", "sevatar", "seymour", "shaddam", "shadowsun", "shalaxi", "shallya", "shantotto",
+            "sheeana", "sheik", "shephard", "sherawat", "sheva", "shuyin", "sicarius", "sidon", "sigismund", "sigmar",
+            "sigrun", "sigvald", "silverhand", "sindermann", "siona", "sitara", "skarbrand", "skarsnik", "skrag",
+            "skragrott", "skreech", "skrolk", "skullkid", "skulltaker", "slaanesh", "smasher", "snagla", "snikch",
+            "snikrot", "snorri", "solomon", "sonon", "sotek", "spencer", "spesh", "steiner", "stilgar", "strago",
+            "straken", "strasse", "strauss", "stronos", "swann", "sylandri", "szarekh", "szeras", "tael", "takemura",
+            "talos", "tancred", "taraza", "tarin", "tarman", "tarvitz", "tatl", "taurox", "tbone", "teba", "teclis",
+            "teg", "tehenhauin", "telion", "tellah", "telma", "terra", "tetra", "tfear", "thancred", "thanquol",
+            "thorek", "thorgrim", "thostos", "thraka", "throgg", "throt", "thufir", "tidus", "tifa", "tigurius",
+            "titus", "todbringer", "torgaddon", "torgal", "trajann", "traxus", "trazyn", "tretch", "trevor", "trugg",
+            "tseng", "tuek", "tulin", "tullaris", "twinrova", "tycho", "tyekanik", "typhus", "tyrion", "tzeentch",
+            "ulric", "ulrika", "ultima", "ultimecia", "ultros", "umaro", "unei", "ungrim", "unuratu", "urbosa",
+            "urianger", "ursarkar", "ursun", "ushoran", "usul", "vaan", "vaati", "valaya", "valdor", "valefor",
+            "valen", "valentine", "valkia", "valoo", "valten", "vance", "vandire", "vandus", "vanille", "varis",
+            "vashtorr", "vayne", "vect", "vega", "venat", "ventris", "veran", "viktor", "vilitch", "vincent", "vivi",
+            "voldus", "volkmar", "volturnos", "volvagia", "vulkan", "waff", "wakako", "wakka", "walach", "wazdakka",
+            "wensicia", "wesker", "wheatley", "whitman", "wiegraf", "wulfhart", "wulfrik", "wurrzag", "wyatt", "xande",
+            "yarrick", "yeul", "yndrasta", "ynnead", "yojimbo", "yona", "yorinobu", "yotsuyu", "yriel", "yshtola",
+            "yueh", "yuffie", "yuga", "yunalesca", "yunobo", "yvraine", "zacharias", "zagstruk", "zahndrekh",
+            "zalbaag", "zant", "zargabaath", "zeid", "zelda", "zell", "zemus", "zenos", "zeromus", "zodiark");
+
+    /**
+     * The name of a <b>server</b>: {@code adjective-character}.
+     *
+     * <h2>Why servers have their own pool</h2>
+     *
+     * A server name is the one place in this world a player reads a <em>place</em> rather than a
+     * machine. It reaches them on the map's tab strip, on the header line, and — most importantly —
+     * out of a <b>bridge</b>, which advertises the network on its far side and nothing else
+     * ({@code docs/design/17} §3.1). So it wants to sound like somewhere to go, and the machines'
+     * pool of scientists does not: {@code wicked-turing} is a box, and a player who saw it on a tab
+     * would reasonably think a tab was a machine.
+     *
+     * <p>⚠ <b>The scheme is deliberately identical.</b> {@code adjective-noun}, hashed from the id,
+     * de-collided by walking — the same shape as {@link #machine}, so the world reads as one naming
+     * convention with two vocabularies rather than as two conventions. The adjectives are shared, and
+     * they are shared on purpose: they have already been through the "not demeaning" rule, and a
+     * second adjective list is a second place for that rule to be forgotten.
+     *
+     * <h2>⚠ The names it replaced were a fixed list of seven, and that was the whole world's</h2>
+     *
+     * {@code HostArchetypes.SERVER_NAMES} was {@code home-relay, south-exchange, north-yard …} — the
+     * same seven places, in the same order, on every seed, because the generation sequence has no
+     * draw slot for a server name. Two players comparing worlds found identical place names attached
+     * to different shapes. Hashing the id gives a different set per world at no cost in draws.
+     *
+     * @param serverId the id to derive from — stable, unique, and already the join key
+     * @param taken names already handed out; never modified here
+     */
+    public static String server(String serverId, Set<String> taken) {
+        long h = hash(serverId);
+        int adjective = (int) Math.floorMod(h, (long) ADJECTIVES.size());
+        int character = (int) Math.floorMod(h >>> 32, (long) CHARACTERS.size());
+
+        for (int c = 0; c < CHARACTERS.size(); c++) {
+            for (int a = 0; a < ADJECTIVES.size(); a++) {
+                String candidate = ADJECTIVES.get((adjective + a) % ADJECTIVES.size())
+                        + "-"
+                        + CHARACTERS.get((character + c) % CHARACTERS.size());
+                if (taken == null || !taken.contains(candidate)) {
+                    return candidate;
+                }
+            }
+        }
+        return "net-" + Long.toUnsignedString(h, 36);
+    }
+
+    /** Whether {@code name} is a server name this class could have produced. */
+    public static boolean looksLikeServer(String name) {
+        if (name == null) {
+            return false;
+        }
+        int split = name.indexOf('-');
+        if (split <= 0 || split == name.length() - 1) {
+            return false;
+        }
+        return ADJECTIVES.contains(name.substring(0, split)) && CHARACTERS.contains(name.substring(split + 1));
     }
 
     /**

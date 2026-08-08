@@ -1448,6 +1448,46 @@
 
 .es-netmap .es-netmap-edge     { -fx-text-fill: -es-rule-hi; }
 .es-netmap .es-netmap-lateral  { -fx-text-fill: -es-rule; }
+/* THE SERVER TABS — one per server the player has heard of, home first (ServerTabs).
+ *
+ * ⚠ A TAB IS A FOLDER TAB, so it is open on the bottom edge: three borders and none underneath, with
+ * the open one carrying the panel's own ground so it reads as continuous with the map below it. That
+ * is the whole of the affordance and it costs no colour, which matters because §4.4 keeps this panel
+ * on the cold ramp — a network host is not earning, so there is no amber available here to lean on.
+ *
+ * ⚠ THE OPEN TAB IS A GROUND CHANGE, NOT A TEXT-FILL CHANGE. A strip whose only signal is a brighter
+ * word is invisible in a greyscale capture and says nothing to a screen reader; the accessibleText on
+ * each chip carries the same facts down the other path.
+ *
+ * ⚠ Descendant selectors throughout: theme.css's late `.label { -fx-text-fill: -es-text; }` beats a
+ * one-class rule at equal specificity, so a bare `.es-netmap-tab` would paint in body grey while
+ * every other property in the block applied — the trap this file already records twice. */
+.es-netmap-tab {
+    -fx-padding: 3 10 3 10;
+    -fx-border-color: -es-rule-hi -es-rule-hi transparent -es-rule-hi;
+    -fx-border-width: 1 1 0 1;
+    -fx-background-color: -es-void;
+}
+.es-netmap .es-netmap-tab      { -fx-text-fill: -es-dim-1; }
+.es-netmap .es-netmap-tab:hover { -fx-text-fill: -es-text; }
+/* The open tab takes the panel's ground and the bright fill. Two-class, so it wins on specificity
+   over the base rule above whatever order they end up in. */
+.es-netmap .es-netmap-tab.es-netmap-tab-open {
+    -fx-background-color: -es-panel;
+    -fx-text-fill: -es-text-hi;
+}
+/* ⚠ Home is marked by WEIGHT, not by a hue. It is the one tab that is always there and always means
+   the same thing, and §4.4 wants that legible in greyscale. */
+.es-netmap .es-netmap-tab-home { -fx-font-weight: 700; }
+/* ⚠ A server an identified bridge has NAMED and nothing more. Dimmed, never hidden and never
+   disabled — "there is a door there and you have not been through it" is real information and the
+   entire product of the bridge finding (design/07 §5.1a).
+   ⚠ -es-dim-2, NOT -es-dim-3: that is the greeble token, exempt from ContrastTest's 3:1 floor because
+   it draws texture. The network map is where that mistake has already been made once, drawing
+   CONTACT/LOCKED at 1.77:1. */
+.es-netmap .es-netmap-tab-unseen { -fx-text-fill: -es-dim-2; }
+.es-netmap .es-netmap-tab-unseen.es-netmap-tab-open { -fx-text-fill: -es-text; }
+
 .es-netmap .es-netmap-server   { -fx-text-fill: -es-dim-2; }
 .es-netmap .es-netmap-layer    { -fx-text-fill: -es-dim-2; }
 /* The key. A COLUMN on the left of the data area rather than a strip under it — ten entries did not
@@ -2319,6 +2359,36 @@
    `-es-tool` is the well colour and inverts correctly — dark on the dark palettes, light on Classic
    — so an empty cell contrasts with every band on both ramps. The border makes the empty part read
    as a container waiting to be filled rather than as absence. */
+/* The Eye that labels the heat readout, in place of the words PERSONAL HEAT (2026-08-08).
+ *
+ * ⚠ -es-text, ONE STEP BRIGHTER THAN THE KEY LABEL IT REPLACED, and that is a measurement rather
+ * than a preference. `.es-kv-key` is -es-dim-2, and taking the same token looked like the obviously
+ * neutral choice — rendered and zoomed, it is not: 8.5px type puts solid ink in whole pixels, while
+ * a 1.2px curve spreads the same colour across partial ones, so the mark came out visibly fainter
+ * than the words beside it. Matching the LABEL's token does not match the label's weight.
+ *
+ * ⚠ Amber is not available — §2.1 spends it on cycles doing work and income — and -es-alarm is
+ * rationed to loss and hostile state, which is the METER's job directly below. An eye painted in the
+ * loss colour would claim the readout means something bad before anyone has read it.
+ *
+ * ⚠ -es-dim-3 is NOT available however much quieter it looks: that is the greeble token, exempt from
+ * ContrastTest's 3:1 floor precisely because it draws texture. The network map made that mistake once
+ * and drew CONTACT/LOCKED at 1.77:1.
+ *
+ * ⚠ Both classes move together. The lens is stroked and the pupil is filled, so they cannot be one
+ * node — a rule that changed one and not the other leaves a pupil floating in a lens of a different
+ * colour. */
+.es-eye-mark {
+    -fx-stroke: -es-text;
+    -fx-fill: transparent;
+    -fx-stroke-line-join: round;
+}
+.es-eye-mark-pupil { -fx-fill: -es-text; }
+/* Hovering the cell says the mark is the thing to hover — with the word gone it is the only cue on
+   the strip that there is an explanation behind this readout at all. */
+.es-top-cell:hover .es-eye-mark { -fx-stroke: -es-text-hi; }
+.es-top-cell:hover .es-eye-mark-pupil { -fx-fill: -es-text-hi; }
+
 .es-thermo-cell {
     -fx-background-color: -es-tool;
     -fx-border-color: -es-rule;

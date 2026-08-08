@@ -5,6 +5,7 @@ import io.github.stoicswe.eyeandsickle.client.ui.Ui;
 import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
 import io.github.stoicswe.eyeandsickle.client.ui.netmap.NetGraph;
 import io.github.stoicswe.eyeandsickle.client.ui.netmap.NetLegend;
+import io.github.stoicswe.eyeandsickle.client.ui.netmap.ServerTabs;
 import io.github.stoicswe.eyeandsickle.client.ui.widgets.KeyValue;
 import io.github.stoicswe.eyeandsickle.protocol.game.NetDocument;
 import io.github.stoicswe.eyeandsickle.protocol.game.NetFolder;
@@ -223,6 +224,64 @@ public final class NetMapView {
         String[] selected = {""};
         Runnable[] repaint = new Runnable[1];
 
+        // ── The server tab strip ─────────────────────────────────────────────────────────────────
+        //
+        // ⚠ SESSION-SCOPED AND NOT PERSISTED, the same call NM-1 made for the graph's expanded folds
+        // and for the same reason: a sweep can change which servers exist at any moment, and a tab
+        // restored from a save could name a server this character has never heard of.
+        //
+        // ⚠ REBUILT ON EVERY REPAINT rather than kept and patched. The strip is a pure function of
+        // the map, so rebuilding it cannot drift from it — and the alternative, diffing chips against
+        // the previous list, is the shape that leaves a stale tab on screen for a server a player has
+        // just lost sight of.
+        String[] openServer = {""};
+        HBox tabStrip = Ui.row(UiTokens.SPACE_2);
+        tabStrip.getStyleClass().add("es-netmap-tabs");
+        tabStrip.setAlignment(Pos.BOTTOM_LEFT);
+        java.util.function.Consumer<java.util.List<ServerTabs.Tab>> paintTabs = tabs -> {
+            tabStrip.getChildren().clear();
+            for (ServerTabs.Tab tab : tabs) {
+                Label chip = new Label(Ui.upper(tab.label()));
+                chip.getStyleClass().add("es-netmap-tab");
+                if (tab.serverId().equals(openServer[0])) {
+                    chip.getStyleClass().add("es-netmap-tab-open");
+                }
+                // ⚠ HOME IS MARKED, and it is marked by a WORD rather than by a colour. §4.4 — the
+                // one tab that always exists and always means the same thing should say so to a
+                // reader and in greyscale, not only to somebody who can see an accent.
+                if (tab.home()) {
+                    chip.getStyleClass().add("es-netmap-tab-home");
+                }
+                // ⚠ An unexplored tab is DIMMED, never hidden and never disabled. It is a server an
+                // identified bridge has named and nothing more, which is a real thing to know and the
+                // whole product of the bridge finding — and a disabled control still asks to be
+                // understood, when the thing to understand is "go and cross that bridge".
+                if (!tab.explored()) {
+                    chip.getStyleClass().add("es-netmap-tab-unseen");
+                }
+                chip.setAccessibleText(tab.label()
+                        + (tab.home() ? ", your own server" : "")
+                        + (tab.current() ? ", where you are operating" : "")
+                        + (tab.explored() ? ", " + tab.machines() + " machines found" : ", nothing found yet"));
+                Tooltip.install(
+                        chip,
+                        new Tooltip(Ui.upper(tab.label()) + "\n"
+                                + (tab.explored()
+                                        ? tab.machines() + " machines found here."
+                                        : "Named by a bridge. Nothing on it has been swept yet.")
+                                + (tab.current() ? "\nYou are operating from this server." : "")));
+                chip.setOnMouseClicked(event -> {
+                    openServer[0] = tab.serverId();
+                    // ⚠ The selection is dropped, not carried. It is an address on the server being
+                    // left, and a selection row naming a machine that is not on the grid would leave
+                    // CONNECT and BREACH pointing somewhere the player cannot see.
+                    selected[0] = "";
+                    repaint[0].run();
+                });
+                tabStrip.getChildren().add(chip);
+            }
+        };
+
         // Declared before either view is built, because NetGraph takes its node handler at
         // construction and there is no setter to add one afterwards. `repaint[0]` is not read until
         // something is clicked, by which time it is assigned.
@@ -411,7 +470,12 @@ public final class NetMapView {
         HBox.setHgrow(area, Priority.ALWAYS);
         VBox.setVgrow(data, Priority.ALWAYS);
 
-        root.getChildren().addAll(strip, controls, selectionRow, folderRow, detail, activity, data, reader);
+        // ⚠ THE TAB STRIP SITS ABOVE THE HEADER, and the order is the sketch's. A tab names the
+        // place; the header describes the place the tab named — server, depth from home, hosts seen,
+        // where the sweep runs from. Below the header it would read as a filter on the numbers rather
+        // than as which of several places they are about.
+        root.getChildren()
+                .addAll(tabStrip, strip, controls, selectionRow, folderRow, detail, activity, data, reader);
 
         // ---------------------------------------------------------------- wiring
         Runnable applyDisplay = () -> {
@@ -553,7 +617,26 @@ public final class NetMapView {
         folderName.setOnAction(event -> create.run());
 
         repaint[0] = () -> {
-            NetMap map = session.net();
+            NetMap world = session.net();
+
+            // ── The server tabs ──────────────────────────────────────────────────────────────────
+            //
+            // ⚠ THE OPEN TAB IS CHOSEN HERE, NOT REMEMBERED BLINDLY. A tab is keyed on a server id
+            // and the set of known servers grows as the player sweeps — so a remembered id can be one
+            // the map has not heard of yet on a fresh load, and falling through to "show everything"
+            // or to an empty grid would both read as the map having lost the world.
+            java.util.List<ServerTabs.Tab> tabs = ServerTabs.of(world);
+            boolean known = tabs.stream().anyMatch(tab -> tab.serverId().equals(openServer[0]));
+            if (!known) {
+                openServer[0] = ServerTabs.initial(world);
+            }
+            paintTabs.accept(tabs);
+
+            // ⚠ Every surface below takes the FILTERED map, and that is what makes a tab a tab. The
+            // graph, the list and the folder tree all showed the whole world before this, layered by
+            // distance from the rig — truthful, and unreadable past the first bridge, because each
+            // crossing adds a whole server's depth to the right-hand end of one grid.
+            NetMap map = ServerTabs.filter(world, openServer[0]);
 
             // One read, one instance, both views. The two surfaces cannot disagree about what has
             // been discovered because there is nothing for them to disagree from.

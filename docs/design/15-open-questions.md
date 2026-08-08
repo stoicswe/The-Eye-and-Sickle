@@ -444,6 +444,34 @@ Two closed on implementation; what survives is below, plus what the implementati
   slightly soft. A 64px image would be a physically double-sized pointer, which is worse. If this
   turns out to matter, the fix is a per-skin size setting rather than a bigger bitmap.
 
+- **NET-1 (new, 2026-08-08): can a BASE sweep ever see a bridge, and should it?** The request that
+  produced §3's vantage-audibility change asked for repositioning to reveal *"machines **and
+  bridges** that were otherwise hidden when doing a base sweep from the user's rig"*. The machines
+  half is built. The bridges half is only half true, and the gap is worth stating rather than
+  quietly resolving either way:
+
+  `Balance.NET_SWEEP_BRIDGE_MIN_TIER = 2` gates a bridge's **candidacy** on the tier, before any
+  audibility rule applies. So a bridge is now findable from one position and not another **at wide
+  tier or better**, and remains invisible to a base sweep from every position in the world.
+
+  ⚠ **Measured, because the consequence is larger than it sounds.** A bridge is the only way off a
+  server, so a base-only player can walk their home server and no further: over 300 worlds their
+  graph plateaus at about **ten** machines however many positions they occupy, where a wide-sweep
+  player reaches **35** by twenty-five. That is either the sensitivity ladder doing exactly its job
+  (`07` §5.1's "what the two purchasable tiers buy") or the ceiling the request meant to lift.
+
+  **The two resolutions, and what each costs.** Leaving it is free and keeps `07` §5.1a's argument
+  that WIDE is what "knowing what is out there" is for — the position this shipped in. Setting the
+  constant to 1 is a one-line change that makes bridges audible to a base sweep and lets the
+  vantage rule carry them, at the price of the argument `NET_SWEEP_BRIDGE_MIN_TIER`'s own note makes
+  at length: bridges are `SignalStrength.HIGH`, so at tier 1 they were found 85% of the time and
+  *finding the exit was easier than finding anything worth taking*. A third option is a bridge-only
+  audibility penalty, which keeps them findable at base tier and rare — more moving parts, and not
+  designed.
+
+  ⚠ **I2 is not the question.** None of the three moves reach: `hopCeiling` takes no sweep tier in
+  any of them, and a bridge you can see is still a bridge you must breach, hold and `connect` to.
+
 - **UI-8: heat is now a banded thermometer, which extends a contract document's rule.**
   `../client/01-visual-language.md` §2.2.4 states flatly: *"Heat renders as a banded chip carrying
   the band name, **never as a continuous meter**."* A thermometer was requested, and the two are
@@ -475,6 +503,49 @@ Two closed on implementation; what survives is below, plus what the implementati
   reads the coloured bulb and the lit cell count. That second half is a **knowing stretch of §5.2**,
   recorded here rather than smoothed over. Reverting it is one line: `KeyValue.of("Personal heat",
   band.label())`.
+
+  ⚠ **AMENDED 2026-08-08 ON EXPLICIT DIRECTION — the strip now carries NO WORD about heat at all.**
+  The key label `PERSONAL HEAT` is replaced by a drawn **eye** (`client/ui/widgets/EyeMark`), so the
+  cell is a mark over a meter. The argument for the symbol is that it is the **subject**, not a
+  picture of the widget: personal heat measures how much attention **The Eye** is paying to you, and
+  the faction's own emblem is the one symbol in this game that means exactly what the readout
+  measures. A flame or a thermometer icon would restate the meter under it.
+
+  ⚠ **What this spends, stated plainly.** §2.2.4 wanted the band name and UI-8 already moved it to a
+  tooltip; this removes the *readout's own name* from the strip as well. The two paths `../client/07`
+  §5.2 is satisfied through are unchanged — `ThermoMeter` still sets heat, band and consequence as
+  **accessible text**, and the mark carries a **tooltip** naming the readout and where heat comes from
+  — so assistive technology loses nothing. **The cost falls entirely on a sighted player who does not
+  hover**, who now meets an unfamiliar symbol instead of an unfamiliar-but-readable phrase. That is a
+  deeper stretch of §5.2 than UI-8's, in the same direction, and it is recorded rather than smoothed
+  over. Reverting is still one line in `DeckShell`.
+
+  ⚠ **§9's icon-set ban is not breached and the margin is now thin.** What §9 forbids is a
+  *vocabulary* of symbols standing in for words across the interface; this is a fifth single-subject
+  mark (`SecurityMark`, `SectionMark`, `MailMark`, `SocialMark`, `EyeMark`), none of which is reused
+  for a second subject. **That is the test, and it is the one to apply next time**: an eye means this
+  readout, not "surveillance" wherever surveillance appears. A sixth mark, or any reuse of one of the
+  five, is a set being assembled and should reopen this.
+
+  ⚠ **It moves, as of the same day and on explicit direction: a twelve-second look left and right,
+  and a blink roughly once a minute.** Both are decoration in `Pulse`'s strict sense — `Pulse.animate`,
+  ticks counted, nothing interpolated, no `Timeline` and no `AnimationTimer` (§5, §7.3) — so **both
+  stop dead under Reduce motion**. That is only acceptable because *nothing the readout says is
+  carried by the movement*: the heat, the band and its consequence are the thermometer's, and a
+  player who never sees the mark move has lost nothing. **That is the test for whether a flourish may
+  be suppressible**, and it is the same one `SecurityMark`'s sweep passes and the carousel's
+  auto-advance did not. ⚠ Under Reduce motion it **resets to rest** rather than freezing — freezing
+  mid-blink would leave a permanently closed eye, the accessibility path getting the one state the
+  animation never rests in. ⚠ The dwell at each end is a **clamped overshoot of a linear sweep**, not
+  an eased curve: `RingField`'s "a triangle envelope, never a sine", one widget along.
+
+  ⚠ **Two things were found only by rendering and zooming**, both invisible to a green build. The
+  first geometry drew the lids from control points on the frame's own edge — a quadratic's midpoint
+  is `(P0 + 2C + P2)/4`, so the lids peaked a *quarter* of the way and the mark came out a flat slit;
+  and the pupil at 0.26 of the height filled the interior, so at strip size it read as a blob. The
+  colour is `-es-text`, one step brighter than the `-es-dim-2` of the label it replaced, because
+  **matching the label's token does not match the label's weight**: 8.5px type puts solid ink in whole
+  pixels and a 1.2px curve spreads the same colour across partial ones.
 
 - **UI-9 (new, found by rendering UI-8): the thermometer's five-band fill ramp is non-monotonic in
   luminance in every theme.** Measured with the WCAG relative-luminance formula over the
@@ -521,6 +592,16 @@ Two closed on implementation; what survives is below, plus what the implementati
 ## 3. Resolution log
 
 Record resolutions here when they land (date — question — outcome — where it moved).
+
+- 2026-08-08 — **Servers have generated names, and the network map is one tab per server** — on explicit direction, from the same sketch. [`18-network-topology.md`](18-network-topology.md) §2.5–2.6. `NpcNames.{CHARACTERS,server,looksLikeServer}`, `ServerTabs`, `NetLayout`, `NetMapView`; `ServerTabsTest`, `NpcNamesTest.Servers`. ⚠ **`adjective-character`**, 878 names across the fifteen franchises named in the request, hashed from the server id and de-collided by walking — no RNG draws, the same rule machine names follow. ⚠ **The pool that replaced it was seven names shared by every world in existence**, with its own note conceding it because "nobody replays a world for its place names" — true until a server became a **tab** the player picks between and a thing a bridge advertises by name. ⚠ **Fictional where `PIONEERS` is real, so the binding rule differs**: no real person (`zidane` reads as the footballer), no species (`wicked-necron` names a race), no ordinary given name (`wicked-sam` is not a Death Stranding reference), and no collision with the other three pools — Resident Evil's Karl **Heisenberg** was dropped because `PIONEERS` has Werner and a name in both reads as the physicist. ⚠ **Layers rebase on the shallowest machine in the filtered map**, a no-op for the whole-world map, so a foreign server's tab does not open with five empty columns. ⚠ **An unexplored tab is dimmed, never hidden**: a bridge naming its far side is the entire product of the bridge finding (`07` §5.1a).
+
+- 2026-08-08 — **A server has a chosen shape: node depth 4–13, branch 1–7, at least two forks, and flat difficulty** — on explicit direction, from a sketch. [`18-network-topology.md`](18-network-topology.md) is the design, solo and online; the solo half is built. `Balance.{NET_NODE_DEPTH_*,NET_BRANCH_*,NET_MIN_BRANCHING_NODES,NET_SPINE_BUDGET_SHARE,netNodeDepth,netBranchWidth,netTier}`, `TopologyGenerator.buildServerTree`, `ServerShapeTest`. ⚠ **The shape was an ACCIDENT before this**: every machine attached to a uniformly chosen predecessor, so depth was about `log(count)` and the branch factor was whatever fell out — `../client/09` §8 had already measured it and filed it ("fan-out does not occur at reachable depth"), and the map's stack fold was built for a fan the generator could never produce. ⚠ **Zero new draws.** The spine costs the same `n − 1` values the random tree did, and the depth is paid for by **the reserved padding draw** whose own note has said since it was written that it exists "so a future per-server property can be added without shifting every downstream host's stream" — `nextInt(1)` and `nextDouble()` both step the stream once. ⚠ **Chords had to become same-layer**, or a single one collapses the spine after it is built — the server-level chord rule one level down, and it had nothing to apply to until a spine existed. ⚠ **Difficulty narrowed to 55/40/5 within a depth row** (§4.1), measured over ordinary machines because infrastructure keeps its +1. ⚠ Three negative tests run: the old table, the old tree and unconstrained chords each fire a different assertion.
+
+- 2026-08-08 — **A sweep's detection is a property of the (machine, vantage) PAIR, and the yield band is 1–11** — on explicit direction. [`07-recon-tools.md`](07-recon-tools.md) §5.1a is the design; `Balance.{NET_SWEEP_VANTAGE_FLOOR,netSweepAudibility,sweepYield}`, `NetRules.audibility`, `VantageDiscoveryTest`. The ask was that repositioning reveal machines and bridges a sweep from the rig could not, building a large graph over time. ⚠ **The rule it replaces was the reason that did not already happen**: `detectRoll` was the machine's alone, so a contact missed from one position was missed from *every* position at that tier and moving bought reach and only reach. ⚠ **It is a HASH, not a draw**, which is the single line that keeps `SweepDeterminismTest.resweepingIsNotAReroll` true — "chance of discovery" reads exactly like a per-sweep roll and implemented as one it would have made repetition the cheapest strategy in the game. ⚠ **A multiply, not an additive spread**, so the home floor's forced `detectRoll = 0` stays zero from everywhere. ⚠ Measured over 300 worlds and 12 positions: staying home 5.1 machines, walking 10.1 at base and 19.8 at wide. ⚠ **Still open**: `NET_SWEEP_BRIDGE_MIN_TIER` is untouched, so a base-only player still cannot see a bridge from anywhere and their graph plateaus on the home server — see §2 **NET-1**.
+
+- 2026-08-08 — **The top strip's heat readout is labelled by a drawn eye instead of the words `PERSONAL HEAT`** — on explicit direction. `client/ui/widgets/EyeMark` (+ `EyeMarkTest`), `DeckShell`, `UiTokens.HEAT_MARK_*`, `theme.css`, `DeckSnapshot`. The cell keeps its anatomy — something over the meter, as every other strip cell is a key over a value — and only the key changes from a word to a mark. The reasoning, what it spends against `../client/01` §2.2.4 and `../client/07` §5.2, and the test that keeps `ui-design-language.md` §9's icon-set ban intact are recorded under **UI-8** in §2, which this amends rather than replaces.
+
+- 2026-08-08 — **The port scanner offered the two bridge rungs on every machine in the game** — `client/view/PortScanView`, `PortScanViewTest`. `PortScanTarget.appliesTo` has said since 2026-08-07 that `PEERS` and `MONITORED` exist on a **bridge** and nowhere else, and the engine honoured it on both sides while the panel walked `values()` blind: an ordinary desktop listed *Peers* and *Monitoring* with a calibrated price, duration and detection risk against an answer that is `-1` on anything but a bridge. ⚠ **The filter reads `Sighting.kind` — what the player has established — never the topology's own kind**, or the two rows would appear on unidentified bridges *and nowhere else*, which hands the Passive Sniffer's whole product (`07` §1) to anyone who right-clicks a machine. An unidentified bridge shows the ordinary eight. ⚠ The findings block below walks the **same list**, which closed a live gap in the other direction — the two bridge findings had been reachable and unrenderable since they landed. ⚠ What is still unbuilt is their **storage**: see `17-bridges-and-surveillance.md` §8 **PS-4**.
 
 - 2026-08-08 — **The network map's graph is rebuilt: the clamp is gone, forward edges reach their targets, and a wide fan folds into a stack** — [`../client/09-network-map-graph.md`](../client/09-network-map-graph.md), all five steps of its §7. `NetLayout`, `NetCanvas`, `NetGraph`, `NetGlyphs`, `UiTokens`, `theme.css`, `DeckSnapshot`.
 

@@ -140,7 +140,7 @@ class ShellWindowClosesSessionTest {
                     760,
                     520,
                     true,
-                    () -> session.closeSession(ADDRESS)));
+                    geometry -> session.closeSession(ADDRESS)));
             desk.close("shell:" + ADDRESS);
 
             assertThat(heldCycles(session))
@@ -165,7 +165,7 @@ class ShellWindowClosesSessionTest {
             DeskManager desk = new DeskManager();
             AtomicInteger runs = new AtomicInteger();
             desk.open(new DeskManager.Spec(
-                    "shell:loop", "Shell", "loop", new javafx.scene.layout.Pane(), 760, 520, true, () -> {
+                    "shell:loop", "Shell", "loop", new javafx.scene.layout.Pane(), 760, 520, true, geometry -> {
                         runs.incrementAndGet();
                         desk.close("shell:loop");
                     }));

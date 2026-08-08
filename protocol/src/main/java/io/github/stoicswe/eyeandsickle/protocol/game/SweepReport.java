@@ -28,11 +28,14 @@ import java.util.List;
  *
  * <h2>Why the same sweep, run twice, is not a re-roll</h2>
  *
- * Detection is settled once, when the world is generated, and compared against the instrument's
- * sensitivity — so the same tier from the same position returns the same machines forever, and quitting
- * without saving changes nothing because the decision predates the sweep. Only two things move it, and
- * both cost: a better sweep (ethecoin, plus its compute and its noise) or a closer position (a breach, a
- * foothold, and moving the vantage). {@code note} is where a producer says that in the player's language
+ * Detection is never drawn at sweep time: it compares the instrument's sensitivity against a value fixed
+ * before the player asked — the machine's own roll, settled when the world was generated, scaled by a
+ * hash of the machine and the position it is being heard from. So the same tier from the same position
+ * returns the same machines forever, and quitting without saving changes nothing. Only two things move
+ * it, and both cost: a better sweep (ethecoin, plus its compute and its noise) or a <b>different</b>
+ * position (a breach, a foothold, and moving the vantage). ⚠ "Different", not merely "closer", since
+ * 2026-08-08 — a position the same distance away hears a different subset, which is what makes working
+ * outward build a graph rather than merely widen a circle. {@code note} is where a producer says that in the player's language
  * when a sweep finds nothing new, so the mechanic teaches rather than merely disappointing — the prose
  * belongs to the side that knows why the sweep came back empty, never to the renderer.
  *

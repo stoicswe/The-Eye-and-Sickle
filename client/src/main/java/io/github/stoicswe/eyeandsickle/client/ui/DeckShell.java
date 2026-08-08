@@ -222,7 +222,33 @@ public final class DeckShell {
      */
     private String operatorFaceKey;
 
-    private final KeyValue heat = KeyValue.keyOnly("Personal heat");
+    /**
+     * The Eye, where the words {@code PERSONAL HEAT} used to be (2026-08-08).
+     *
+     * <h2>⚠ This deepens UI-8's knowing departure from two contracts — read before "fixing" it</h2>
+     *
+     * {@code docs/client/01-visual-language.md} §2.2.4 wants heat as a chip <b>carrying the band
+     * name</b>; UI-8 already spent that, putting the band name in the tooltip and the accessible text
+     * and leaving the strip with a key label and a meter. This removes the key label too, so the
+     * strip now carries <b>no word about heat at all</b>. {@code docs/client/07-accessibility.md}
+     * §5.2 forbids meaning resting on appearance alone, and the two paths that satisfy it are
+     * unchanged and both still present: {@code ThermoMeter} sets the full sentence — heat, band and
+     * consequence — as its <b>accessible text</b>, and the mark carries a <b>tooltip</b>. What is
+     * newly spent is the sighted player who never hovers, who now has an unfamiliar symbol instead of
+     * an unfamiliar-but-readable phrase. Logged in {@code design/15} §2 under UI-8 rather than
+     * smoothed over. Reverting is one line: {@code KeyValue.keyOnly("Personal heat")}.
+     *
+     * <h2>Why the mark is legitimate rather than decoration</h2>
+     *
+     * Personal heat measures <b>how much attention the Eye is paying to you</b>, and The Eye is a
+     * faction in this game with a name and an emblem. The symbol is the subject, not a picture of the
+     * widget — a flame or a thermometer icon would restate the meter under it, which already looks
+     * like a thermometer and would say nothing about what is being measured.
+     */
+    private final io.github.stoicswe.eyeandsickle.client.ui.widgets.EyeMark heatMark =
+            new io.github.stoicswe.eyeandsickle.client.ui.widgets.EyeMark(
+                    UiTokens.HEAT_MARK_SIZE, UiTokens.HEAT_MARK_STROKE);
+
     private final ThermoMeter thermo = new ThermoMeter();
     private final NoiseMeter noise = new NoiseMeter();
     private final Sparkline load = new Sparkline("Load");
@@ -244,6 +270,23 @@ public final class DeckShell {
 
     /** The four times, only two of which are on the strip. Rebuilt on the one-second tick. */
     private final Tooltip clockTip = new Tooltip();
+
+    /**
+     * What the Eye on the strip means. Static, so it is built once rather than on the tick.
+     *
+     * <p>⚠ It names the readout and says where heat comes <b>from</b>, and stops there. The current
+     * band, the number and the consequence are {@code ThermoMeter}'s tooltip, over the meter itself —
+     * a live figure repeated here would be a second place for it to be wrong.
+     *
+     * <p>⚠ The last sentence is <b>Invariant I4 and I9 on the strip</b>, and it is the one thing a
+     * player most needs to know about this readout: heat comes from acting outward, so the income
+     * floor and defending your own rig cost nothing. Without it an unfamiliar eye reads as a threat
+     * meter that rises no matter what you do.
+     */
+    private final Tooltip heatTip = new Tooltip(Ui.upper("personal heat")
+            + "\nHow much attention the Eye is paying to you."
+            + "\n\nHeat comes from acting outward. Self-mining, defending your own rig "
+            + "and scanning it are all free.");
 
     /**
      * Local wall-clock time, 24-hour, from the engine's clock. See GameSession#now.
@@ -426,59 +469,121 @@ public final class DeckShell {
 
     /** Opens a tool window, or raises it if it is already on the desk. */
     public void show(WindowSpec spec) {
+        openTool(spec).ifPresent(window -> Motion.reveal(window.frame(), 0));
+    }
+
+    /**
+     * The ONE place a catalogue window is opened.
+     *
+     * <h2>⚠ Three call sites used to build their own {@code Spec}, and two of them forgot the
+     * callback</h2>
+     *
+     * {@code show} attached the size-remembering handler; {@code openStartingWindows} and
+     * {@code restoreLayout} used the seven-argument convenience constructor, which omits it. So a
+     * window that arrived on the desk at startup — which is most of them, most sessions — could never
+     * record its size however it was closed, and the feature appeared to work only for a window the
+     * player had opened by hand in that same session. Three call sites, one of them correct, and
+     * nothing anywhere to say which.
+     *
+     * <p>One opener means the handler cannot be forgotten by a fourth.
+     */
+    private java.util.Optional<DeskManager.DeskWindow> openTool(WindowSpec spec) {
         Function<WindowSpec, Region> factory = factories.get(spec);
         if (factory == null) {
-            return;
+            return java.util.Optional.empty();
         }
-        // ⚠ THE SIZE THE PLAYER LAST LEFT IT AT, not the catalogue default. `deskLayout` records only
-        // OPEN windows — a closed one is absent from it by design, because that absence is what stops
-        // it reopening next session — so closing a window used to throw its size away with it, and
-        // every resize a player made was undone the first time they closed the thing.
+        DeskManager.Geometry size = openSizeFor(spec, profile.settings().windowSizes.get(spec.id()));
+        return desk.open(new DeskManager.Spec(
+                spec.id(),
+                Text.current().title(spec),
+                designator(spec),
+                content(spec, factory),
+                size.width(),
+                size.height(),
+                spec.closable(),
+                geometry -> rememberSize(spec.id(), geometry)));
+    }
+
+    /**
+     * How big a tool window opens: the size the player last left it at, or the catalogue default.
+     *
+     * <h2>⚠ Pure and static on purpose</h2>
+     *
+     * The same seam {@code SecurityCenterView.latestOf} and {@code DirectView.state} exist for. The
+     * rule is two lines and it is exactly where a defect hides — a zero, a negative, a half-written
+     * entry from an interrupted save — and every one of those failures is invisible except by opening
+     * the window and looking at it.
+     *
+     * <p>⚠ <b>A remembered size is used only when BOTH dimensions are positive.</b> Zero is what an
+     * entry written before the window had ever been laid out would carry, and a window opened at
+     * 0 × 0 is a window that is not there. Defaulting is the recoverable failure.
+     *
+     * <p>⚠ Size only, never position — see {@link #rememberSize}.
+     *
+     * @param remembered the stored entry, or {@code null} when the window has never been closed
+     */
+    public static DeskManager.Geometry openSizeFor(WindowSpec spec, ClientProfile.DeskWindowState remembered) {
         double width = spec.defaultWidth() * UiTokens.WINDOW_OPEN_SCALE;
         double height = spec.defaultHeight() * UiTokens.WINDOW_OPEN_SCALE;
-        var remembered = profile.settings().windowSizes.get(spec.id());
         if (remembered != null && remembered.width > 0 && remembered.height > 0) {
             width = remembered.width;
             height = remembered.height;
         }
-        desk.open(new DeskManager.Spec(
-                        spec.id(),
-                        Text.current().title(spec),
-                        designator(spec),
-                        content(spec, factory),
-                        width,
-                        height,
-                        spec.closable(),
-                        // ⚠ Captured ON CLOSE, at the moment the geometry still exists. Reading it
-                        // afterwards is not an option: the window is off the desk by then, which is
-                        // exactly why this callback is passed the way `DeskManager.Spec` documents.
-                        () -> rememberSize(spec.id())))
-                .ifPresent(window -> Motion.reveal(window.frame(), 0));
+        return new DeskManager.Geometry(0, 0, width, height);
     }
 
     /**
-     * Records a window's current size so reopening it brings it back the same size.
+     * Records a window's size so reopening it brings it back the same size.
      *
-     * <p>⚠ Size only — never position. A closed window's <em>place</em> is a fact about a desk
+     * <h2>⚠ HANDED the geometry, because it cannot go and look for it</h2>
+     *
+     * This used to find the window in {@code desk.windows()}, with a comment claiming the read
+     * happened "at the moment the geometry still exists". It did not. {@code DeskManager.close}
+     * removes the window from its map <b>before</b> firing this callback — deliberately, and with its
+     * own comment explaining why: the shell's handler ends the session, which closes the window
+     * again, and firing first would recurse. So the lookup found nothing, {@code ifPresent} did
+     * nothing, and <b>a window closed by hand never recorded its size</b>. Two correct comments
+     * describing incompatible orderings, and no test between them.
+     *
+     * <p>⚠ <b>Size only — never position.</b> A closed window's <em>place</em> is a fact about a desk
      * arrangement that no longer includes it, and restoring one into the exact spot it used to hold
      * would drop it on top of whatever the player has put there since. Reopening tiles it and sizes
      * it, which is the combination that reads as "my window, where there is room for it".
+     *
+     * <p>⚠ Nothing is written for a degenerate geometry. A window closed before it was ever laid out
+     * reports zero, and storing that would make the next open 0 × 0 — a window that is not there,
+     * permanently, with no way for the player to tell what happened.
      */
-    private void rememberSize(String id) {
-        desk.windows().stream()
-                .filter(window -> window.id().equals(id))
-                .findFirst()
-                .ifPresent(window -> {
-                    DeskManager.Geometry geometry = window.geometry();
-                    if (geometry.width() <= 0 || geometry.height() <= 0) {
-                        return;
-                    }
-                    var state = profile.settings()
-                            .windowSizes
-                            .computeIfAbsent(id, key -> new ClientProfile.DeskWindowState());
-                    state.width = geometry.width();
-                    state.height = geometry.height();
-                });
+    private void rememberSize(String id, DeskManager.Geometry geometry) {
+        if (geometry == null || geometry.width() <= 0 || geometry.height() <= 0) {
+            return;
+        }
+        var state = profile.settings()
+                .windowSizes
+                .computeIfAbsent(sizeKey(id), key -> new ClientProfile.DeskWindowState());
+        state.width = geometry.width();
+        state.height = geometry.height();
+        // ⚠ Written through to disk here rather than left to the autosave. A player who resizes a
+        // window, closes it and quits within the next thirty seconds is the ordinary case, not the
+        // edge one — and the whole promise of this feature is that it survives a restart.
+        profile.save();
+    }
+
+    /**
+     * The key a window's size is stored under.
+     *
+     * <h2>⚠ PER-MACHINE WINDOWS SHARE ONE ENTRY, and that is what keeps the map bounded</h2>
+     *
+     * A shell's id carries an address ({@code shell:10.4.0.7}), as do the port scanner's and the
+     * recon file's. Keying on the id would grow {@code windowSizes} once per machine a player ever
+     * opened a shell on — and the field's own note promises the opposite: "ids are a closed set, so
+     * it cannot grow without bound". Keying on the <b>prefix</b> keeps that true and gives the better
+     * behaviour anyway: resize one shell and every shell opens that size, which is what a player who
+     * has just made a terminal the right shape actually wants.
+     */
+    private static String sizeKey(String id) {
+        int colon = id.indexOf(':');
+        return colon > 0 ? id.substring(0, colon) : id;
     }
 
     /**
@@ -505,11 +610,25 @@ public final class DeckShell {
         // straight to the window manager — the frame vanished and the cycles stayed reserved, with
         // nothing left on screen to give them back. The rig monitor showed compute held by a shell
         // the player could not see, and only a restart cleared it.
+        // ⚠ The size a shell was last left at, shared by every shell — see sizeKey. A terminal is
+        // the window a player is most likely to reshape and least likely to want to reshape twice.
+        var remembered = profile.settings().windowSizes.get(sizeKey(id));
+        double width = remembered != null && remembered.width > 0 ? remembered.width : UiTokens.PER_MACHINE_WINDOW_WIDTH;
+        double height = remembered != null && remembered.height > 0 ? remembered.height : UiTokens.PER_MACHINE_WINDOW_HEIGHT;
+        // ⚠ The caller's own handler is WRAPPED rather than replaced. It releases the session's
+        // cycles, which is the thing this window's existence costs; dropping it to add a size write
+        // would put back the exact bug the callback was added to fix.
+        java.util.function.Consumer<DeskManager.Geometry> closed = geometry -> {
+            rememberSize(id, geometry);
+            if (onClosed != null) {
+                onClosed.run();
+            }
+        };
         if (desk.find(id).isPresent()) {
-            desk.open(new DeskManager.Spec(id, title, address, content, 760, 520, true, onClosed));
+            desk.open(new DeskManager.Spec(id, title, address, content, width, height, true, closed));
             return;
         }
-        desk.open(new DeskManager.Spec(id, title, address, content, 760, 520, true, onClosed))
+        desk.open(new DeskManager.Spec(id, title, address, content, width, height, true, closed))
                 .ifPresent(window -> Motion.reveal(window.frame(), 0));
     }
 
@@ -565,13 +684,22 @@ public final class DeckShell {
         operatorSlot.getStyleClass().add("es-focusable");
         operatorSlot.setOnMouseClicked(event -> toggleOperatorPanel(operatorSlot));
         topStrip.add(operatorSlot);
-        // The thermometer and the band name together. §2.2.4 requires the name; the thermometer
-        // adds "how close to the next band", which the name cannot carry.
-        // ⚠ Stacked, not side by side, since the meter turned horizontal on 2026-07-27. `heat` is
-        // KeyValue.keyOnly — the label with no value — so this is label over meter, which is the
-        // anatomy every other cell in the strip already has (KeyValue is a key over a value). Beside
-        // each other, heat was the one cell built differently from its neighbours.
-        topStrip.add(cell(stacked(heat, thermo)));
+        // ⚠ Stacked, not side by side, since the meter turned horizontal on 2026-07-27. The mark sits
+        // where `KeyValue.keyOnly` sat, so this is still label over meter — the anatomy every other
+        // cell in the strip has (KeyValue is a key over a value). Beside each other, heat would again
+        // be the one cell built differently from its neighbours.
+        //
+        // ⚠ THE TOOLTIP GOES ON THE MARK, NOT THE CELL, and the two are different tooltips on
+        // purpose. This one is the NAME — what the readout measures — and it is static, so it is
+        // installed once here. `ThermoMeter` installs its own on itself with the live band and its
+        // consequence. One cell, two hover targets, two questions: "what is this" over the mark and
+        // "what does it say" over the meter. Installing this on the cell instead would put a static
+        // sentence over the meter as well, where the live one belongs.
+        heatTip.setWrapText(true);
+        heatTip.setMaxWidth(300);
+        heatTip.setShowDelay(javafx.util.Duration.millis(220));
+        Tooltip.install(heatMark, heatTip);
+        topStrip.add(cell(stacked(heatMark, thermo)));
         topStrip.add(cell(noise));
         topStrip.add(cell(load));
         topStrip.add(cell(thermal));
@@ -1448,19 +1576,7 @@ public final class DeckShell {
         List<WindowSpec> ordered = new ArrayList<>(specs);
         List<DeskManager.DeskWindow> opened = new ArrayList<>();
         for (WindowSpec spec : ordered) {
-            Function<WindowSpec, Region> factory = factories.get(spec);
-            if (factory == null) {
-                continue;
-            }
-            desk.open(new DeskManager.Spec(
-                            spec.id(),
-                            Text.current().title(spec),
-                            designator(spec),
-                            content(spec, factory),
-                            spec.defaultWidth() * UiTokens.WINDOW_OPEN_SCALE,
-                            spec.defaultHeight() * UiTokens.WINDOW_OPEN_SCALE,
-                            spec.closable()))
-                    .ifPresent(opened::add);
+            openTool(spec).ifPresent(opened::add);
         }
 
         // Deferred: the desk has no width until the Scene has laid out at least once, and tiling
@@ -1503,19 +1619,10 @@ public final class DeckShell {
                 // right failure: the rest of the layout still comes back.
                 continue;
             }
-            WindowSpec target = spec;
-            desk.open(new DeskManager.Spec(
-                            spec.id(),
-                            Text.current().title(spec),
-                            designator(spec),
-                            content(target, factory),
-                            spec.defaultWidth() * UiTokens.WINDOW_OPEN_SCALE,
-                            spec.defaultHeight() * UiTokens.WINDOW_OPEN_SCALE,
-                            spec.closable()))
-                    .ifPresent(window -> {
-                        opened.add(window);
-                        states.add(entry.getValue());
-                    });
+            openTool(spec).ifPresent(window -> {
+                opened.add(window);
+                states.add(entry.getValue());
+            });
         }
 
         javafx.application.Platform.runLater(() -> {

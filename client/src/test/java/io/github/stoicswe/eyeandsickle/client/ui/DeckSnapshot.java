@@ -716,6 +716,22 @@ public final class DeckSnapshot {
             if (System.getProperty("deck.operator") != null) {
                 deck.openOperatorPanel();
             }
+            // ⚠ `-Ddeck.eyePhase=N` / `-Ddeck.eyeBlink=N` move the heat mark's eye. It rides
+            // Pulse.animate, THIS HARNESS SETS REDUCE MOTION, and a synchronous render fires no Pulse
+            // tick — so all three reasons independently guarantee that an untouched render shows the
+            // eye open and looking straight ahead, which is the one state indistinguishable from the
+            // animation being absent. Same trap and same remedy as `-Ddeck.glitchPhase`.
+            // Winding drives the widget's real state machine rather than posing its nodes.
+            javafx.scene.Node eye = deck.root().lookup(".es-eye");
+            if (eye instanceof io.github.stoicswe.eyeandsickle.client.ui.widgets.EyeMark mark) {
+                if (System.getProperty("deck.eyePhase") != null) {
+                    mark.wind(Integer.parseInt(System.getProperty("deck.eyePhase")), false);
+                }
+                // 1 is closing, 2 is shut, 3 is opening again.
+                if (System.getProperty("deck.eyeBlink") != null) {
+                    mark.wind(Integer.parseInt(System.getProperty("deck.eyeBlink")), true);
+                }
+            }
             deck.desk().frostNow();
             deck.root().layout();
             // ⚠ `-Ddeck.frostBench=N` times N full re-frosts and prints the cost. The frost is the

@@ -144,7 +144,9 @@ public final class NetCommands {
                         "only for a schematic, and no amount of ethecoin changes it. What does change is",
                         "how quiet a machine can be and still be heard. If a sweep finds nothing new,",
                         "running the same one again will find nothing new again — a louder instrument or",
-                        "a closer position is what moves it. See connect(1).")
+                        "a DIFFERENT position is what moves it. What a sweep can hear depends on where it",
+                        "is standing, so a foothold the same distance away is a second chance at the same",
+                        "machine. See connect(1).")
                 .runs(inv -> {
                     boolean wide = inv.stage().hasFlag("wide");
                     boolean deep = inv.stage().hasFlag("deep");
