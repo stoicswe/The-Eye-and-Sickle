@@ -1,5 +1,6 @@
 package io.github.stoicswe.eyeandsickle.client.ui.netmap;
 
+import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
 import io.github.stoicswe.eyeandsickle.client.ui.breach.AsciiCanvas;
 import io.github.stoicswe.eyeandsickle.protocol.game.NetLink;
 import io.github.stoicswe.eyeandsickle.protocol.game.NetMap;
@@ -10,6 +11,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -68,13 +70,29 @@ import java.util.Set;
  * ever dropped. A silently mis-routed edge is worse than a missing one on a map whose entire job is to
  * tell the player what is next to what.
  *
- * <h2>Row assignment: one barycentre pass, never iterated</h2>
+ * <h2>⚠ NOTHING IS HIDDEN ANY MORE — the "+N MORE" clamp is gone (2026-08-08)</h2>
  *
- * Layer 0 is the player's own rig, at row 0. Each subsequent layer sorts its nodes by the mean row of their
- * already-placed neighbours one layer back, ties broken by address, and takes rows {@code 0, 1, 2, …}
- * in that order. One pass rather than iterating to convergence, because the layout has to be
- * <b>identical on every repaint</b>: the packet animation repaints on a timer, and a layout that
- * settles differently between two frames would make the whole map crawl.
+ * A layer wider than sixty rows used to draw the first sixty and put the remainder in a header count.
+ * The machines past the cut were on the map's data and absent from its picture, which is the one thing
+ * a map may not do — {@code docs/client/09-network-map-graph.md} §1.1. What replaces it is
+ * {@link Stack}: a fold of machines the player <em>has</em> found, always marked, always counted
+ * exactly, and always openable. There is no row cap left, so a layer nothing folds simply gets tall
+ * and the panel scrolls.
+ *
+ * <h2>Row assignment: two barycentre passes, and never a third</h2>
+ *
+ * Layer 0 is the player's own rig, at row 0. A <b>forward</b> pass orders each layer by the mean row
+ * of its already-placed neighbours one layer back; a <b>backward</b> pass then reorders each layer by
+ * the mean row of its neighbours one layer <em>on</em>. Two passes, not "until stable": the packet
+ * animation repaints on a timer and the layout has to be identical on every repaint, so an iteration
+ * count that depended on the graph would make the whole map shimmer.
+ *
+ * <p>The backward pass is what removes a single forward pass's characteristic failure — a parent
+ * sitting at the top of its column with all its children at the bottom, dragging one long edge
+ * diagonally across every other edge in the corridor.
+ *
+ * <p>⚠ Ties break on <b>address</b>, never on anything derived. A tiebreak on tier, kind or name would
+ * put a recon finding into the row order and would reshuffle the map the moment a scan landed.
  *
  * <p>The one reference to {@link AsciiCanvas} here is to its {@code BULLET} constant, and it costs
  * nothing: a {@code static final char} initialised from a literal is a compile-time constant, so
@@ -86,15 +104,20 @@ public final class NetLayout {
     private NetLayout() {}
 
     /**
-     * What a clamped layer's header puts in front of its {@code "+N MORE"} count.
+     * What a stack's synthetic key begins with.
      *
-     * <p>Shared with {@link NetCanvas} rather than written out twice: the canvas has to fit a header
-     * into a fixed column and must protect this suffix while it shortens everything else, so the two
-     * classes have to agree on where the marker starts. A separator that drifted apart between them
-     * would fail by <em>silently dropping the marker</em> — the exact case a player needs it, a column
-     * of fifty machines showing ten.
+     * <p>⚠ A {@link Routed} carries addresses, and a collapsed group has none — so the edge into a
+     * stack names the stack. The prefix is what keeps that key out of the address space: no address
+     * the generator can produce contains a colon, and {@link #stackId} is the only thing that mints
+     * one, so a renderer looking a key up in its address table gets a clean miss rather than the
+     * wrong machine.
      */
-    static final String CLAMP_MARK = " " + AsciiCanvas.BULLET + " +";
+    public static final String STACK_PREFIX = "stack:";
+
+    /** The key a stack is expanded and collapsed by. Derived from the parent, so it is stable. */
+    public static String stackId(String parentAddress) {
+        return STACK_PREFIX + parentAddress;
+    }
 
     /**
      * A machine, and where it is drawn.
@@ -105,62 +128,119 @@ public final class NetLayout {
     public record Placed(Sighting sighting, int layer, int row) {}
 
     /**
+     * A fold of machines behind one parent: one box, one edge, an exact count.
+     *
+     * <h2>⚠ EVERY MEMBER IS A MACHINE THE PLAYER HAS ALREADY FOUND</h2>
+     *
+     * {@code docs/client/09-network-map-graph.md} §3.1, and it is the invariant most easily broken
+     * here. {@code NetRules} is explicit that undiscovered hosts do not exist in {@code knownNodes}
+     * and that the map draws nothing where they are — "<b>no placeholder, no count</b>, no three
+     * contacts nearby". A stack is therefore a folding of what is already on the map and never a hint
+     * about what is not: {@code ×7} means seven discovered machines are collapsed behind this
+     * machine, and it may never mean "this node has seven links, of which you have found two".
+     *
+     * <p>The bridge peer count ({@code PortScanTarget.PEERS}) stays the sanctioned exception and stays
+     * where it was decided — a port-scan finding on a machine the player paid to scan, shown in its
+     * report, not on the graph.
+     *
+     * @param id the key expansion is tracked by; see {@link #stackId}
+     * @param parentAddress the one machine in layer {@code layer - 1} every member hangs off
+     * @param row where the box is drawn, or — when {@code expanded} — where its first member is
+     * @param members every folded machine, ordered by address. Never empty
+     * @param expanded whether the player has opened it. An expanded stack draws no box of its own;
+     *     it is still reported so a member can be collapsed again from the keyboard, which is the
+     *     only route back once the box the player clicked is no longer on screen
+     */
+    public record Stack(
+            String id, String parentAddress, int layer, int row, List<Sighting> members, boolean expanded) {
+
+        public int count() {
+            return members.size();
+        }
+
+        /** Whether this fold holds {@code address}. */
+        public boolean holds(String address) {
+            for (Sighting member : members) {
+                if (member.address().equals(address)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    /**
      * An edge that may be drawn, oriented so the renderer never has to think about direction.
      *
      * <p>{@code fromAddress} is always the shallower endpoint for a forward edge, and the upper one
      * for a lateral edge. {@code bridge} is carried through from {@link NetLink} so the renderer can
      * treat a cross-server link as the structural fact it is rather than inferring it from the two
      * endpoints' server ids.
+     *
+     * <p>⚠ {@code toAddress} is a {@link #stackId} when the far end is a collapsed group. That is the
+     * only case either field is not an address, and {@link #STACK_PREFIX} is what makes it legible as
+     * one rather than as a machine nobody can find.
      */
     public record Routed(String fromAddress, String toAddress, boolean lateral, boolean bridge) {}
 
     /**
      * The finished layout.
      *
-     * @param layerHeaders one per layer, e.g. {@code "H1 · home-relay"}. A layer that had to clamp
-     *     carries its own {@code "· +N MORE"} suffix here — see {@link #of} for why the marker lives in
-     *     the header rather than in a node row
+     * @param layerHeaders one per layer, e.g. {@code "H1 · home-relay"}
      * @param rowsPerLayer the tallest layer, which is what sizes the character grid
-     * @param overflowInLastVisibleLayer how many machines the deepest layer could not draw
      */
     public record Result(
             List<Placed> placed,
+            List<Stack> stacks,
             List<Routed> routed,
             List<String> layerHeaders,
             int layers,
-            int rowsPerLayer,
-            int overflowInLastVisibleLayer) {
+            int rowsPerLayer) {
 
         /** Nothing discovered. A view renders this as an instruction, never as a blank panel. */
         public static Result empty() {
-            return new Result(List.of(), List.of(), List.of(), 0, 0, 0);
+            return new Result(List.of(), List.of(), List.of(), List.of(), 0, 0);
         }
+
+        /** How many machines this layout has folded out of sight right now. */
+        public int foldedMachines() {
+            int total = 0;
+            for (Stack stack : stacks) {
+                if (!stack.expanded()) {
+                    total += stack.count();
+                }
+            }
+            return total;
+        }
+
+        /** The fold holding {@code address}, or {@code null} — what a collapse keystroke acts on. */
+        public Stack foldHolding(String address) {
+            for (Stack stack : stacks) {
+                if (stack.holds(address)) {
+                    return stack;
+                }
+            }
+            return null;
+        }
+    }
+
+    /** Lays out the discovered network with every stack collapsed. */
+    public static Result of(NetMap map) {
+        return of(map, Set.of());
     }
 
     /**
      * Lays out the discovered network.
      *
-     * <h2>Clamping, and where the "+N MORE" marker went</h2>
-     *
-     * A server may hold up to fifty machines, and the graph is the <em>legible</em> surface while the
-     * list is the exhaustive one — so a layer wider than {@code maxRows} draws the first
-     * {@code maxRows} and says so. The spec puts that marker in the column's last row; it is emitted
-     * here as a suffix on the layer <b>header</b> instead, for one structural reason: {@link Result} is
-     * a normative signature with no per-layer overflow field, so a renderer handed only a {@code
-     * Result} cannot tell <em>which</em> column clamped. Encoding it in that column's own header is the
-     * only placement that keeps the information attached to the column it describes, it carries the
-     * same {@code .es-netmap-layer} style class the spec asks the marker to have, and it cannot shear
-     * the four-line cell rhythm the way an odd-height row would. {@code overflowInLastVisibleLayer}
-     * reports the deepest layer's omission, which is the number a panel note quotes.
-     *
      * @param map the player's visible network; {@code null} and empty both yield {@link Result#empty()}
-     * @param maxRows the tallest column this renderer will draw, {@code UiTokens.NET_MAX_ROWS}
+     * @param expanded the {@link #stackId}s the player has opened. Unknown ids are ignored, which is
+     *     what a set held across a sweep needs — the grouping can change underneath it
      */
-    public static Result of(NetMap map, int maxRows) {
+    public static Result of(NetMap map, Set<String> expanded) {
         if (map == null || map.sightings().isEmpty()) {
             return Result.empty();
         }
-        int rowCap = Math.max(1, maxRows);
+        Set<String> open = expanded == null ? Set.of() : expanded;
 
         Map<String, Sighting> byAddress = new LinkedHashMap<>();
         int layers = 0;
@@ -176,73 +256,310 @@ public final class NetLayout {
         }
 
         Map<String, Set<String>> neighbours = adjacency(map, byAddress);
-
-        List<Placed> placed = new ArrayList<>();
-        Map<String, Integer> rowOf = new HashMap<>();
         Map<String, Integer> layerOf = new HashMap<>();
-        int[] omitted = new int[layers];
+        for (Sighting sighting : map.sightings()) {
+            layerOf.put(sighting.address(), sighting.hopsFromRig());
+        }
+
+        // ── The fold, decided before a single row is assigned ────────────────────────────────────
+        //
+        // ⚠ Order first, expand second. Everything below arranges COLLAPSED units, so opening a stack
+        // cannot change what the barycentre sees and therefore cannot move a machine the player was
+        // looking at — §3.4. Expansion is applied at the very end, as an insertion into the row
+        // numbering of one layer.
+        Map<String, Stack> folds = folds(byLayer, neighbours, layerOf, layers);
+        Map<String, String> foldedInto = new HashMap<>();
+        for (Stack fold : folds.values()) {
+            for (Sighting member : fold.members()) {
+                foldedInto.put(member.address(), fold.id());
+            }
+        }
+
+        List<List<Unit>> ordered = arrange(byLayer, neighbours, layerOf, folds, foldedInto, layers);
+
+        // ── Rows ─────────────────────────────────────────────────────────────────────────────────
+        List<Placed> placed = new ArrayList<>();
+        List<Stack> stacks = new ArrayList<>();
+        Map<String, Integer> rowOf = new HashMap<>();
         int rowsPerLayer = 0;
 
         for (int layer = 0; layer < layers; layer++) {
-            List<Sighting> here = new ArrayList<>(byLayer.getOrDefault(layer, List.of()));
-            here.sort(order(layer, neighbours, rowOf, layerOf));
-
-            int drawn = Math.min(here.size(), rowCap);
-            omitted[layer] = here.size() - drawn;
-            rowsPerLayer = Math.max(rowsPerLayer, drawn);
-            for (int row = 0; row < drawn; row++) {
-                Sighting sighting = here.get(row);
-                placed.add(new Placed(sighting, layer, row));
-                rowOf.put(sighting.address(), row);
-                layerOf.put(sighting.address(), layer);
+            int row = 0;
+            for (Unit unit : ordered.get(layer)) {
+                if (unit.fold() == null) {
+                    placed.add(new Placed(unit.sighting(), layer, row));
+                    rowOf.put(unit.key(), row);
+                    row++;
+                    continue;
+                }
+                Stack fold = unit.fold();
+                boolean isOpen = open.contains(fold.id());
+                stacks.add(new Stack(fold.id(), fold.parentAddress(), layer, row, fold.members(), isOpen));
+                if (isOpen) {
+                    // §3.4: members occupy rows INSERTED at the stack's own row. Rows above keep
+                    // their index; rows below shift by members - 1, which is exactly what emitting
+                    // them in place produces.
+                    for (Sighting member : fold.members()) {
+                        placed.add(new Placed(member, layer, row));
+                        rowOf.put(member.address(), row);
+                        row++;
+                    }
+                } else {
+                    rowOf.put(fold.id(), row);
+                    row++;
+                }
             }
+            rowsPerLayer = Math.max(rowsPerLayer, row);
+        }
+
+        Map<String, Integer> keyLayer = new HashMap<>(layerOf);
+        for (Stack fold : folds.values()) {
+            keyLayer.put(fold.id(), fold.layer());
         }
 
         return new Result(
                 List.copyOf(placed),
-                routes(map, layerOf),
-                headers(map, byLayer, omitted, layers),
+                List.copyOf(stacks),
+                routes(map, keyLayer, foldedInto, open),
+                headers(map, byLayer, layers),
                 layers,
-                rowsPerLayer,
-                layers == 0 ? 0 : omitted[layers - 1]);
+                rowsPerLayer);
+    }
+
+    // ── Folding ──────────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Which parents fold their children, and which children go in.
+     *
+     * <h2>⚠ A MEMBER MAY HAVE NO EDGE THAT LEAVES THE GROUP</h2>
+     *
+     * {@code 09} §3.2's criterion for grouping by parent is that "the collapsed edge is a single
+     * honest edge rather than a bundle", and that is only true if every member's drawn edges go to the
+     * parent or to another member. A child with a second parent, a lateral link to a machine outside
+     * the group, or a child of its own in the next layer is therefore <b>not eligible</b>: folding it
+     * would leave an edge hanging off a box that cannot say which of seven machines it belongs to,
+     * which is the same lie §3.2 rejects grouping-by-kind for.
+     *
+     * <p>⚠ That makes §3.4's "an expanded member that is itself a stack parent renders as a stack"
+     * vacuous rather than unimplemented — a member with children is not a member. Stated here because
+     * a later change that loosens eligibility has to answer the hanging-edge question first.
+     *
+     * <p>⚠ The eligible set is a <b>fixpoint</b>, not one filtering pass. Whether a child's neighbour
+     * is "outside the group" depends on whether that neighbour is itself in the group, so removing one
+     * child can disqualify another. Peeling until nothing changes converges on the unique maximal set,
+     * which is deterministic — the layout has to be identical on every repaint and a "largest set"
+     * that depended on iteration order would not be.
+     */
+    private static Map<String, Stack> folds(
+            Map<Integer, List<Sighting>> byLayer,
+            Map<String, Set<String>> neighbours,
+            Map<String, Integer> layerOf,
+            int layers) {
+        Map<String, Stack> folds = new LinkedHashMap<>();
+        for (int layer = Math.max(1, UiTokens.NET_STACK_MIN_LAYER); layer < layers; layer++) {
+            Map<String, List<Sighting>> byParent = new LinkedHashMap<>();
+            for (Sighting sighting : byLayer.getOrDefault(layer, List.of())) {
+                String parent = soleParent(sighting.address(), layer, neighbours, layerOf);
+                if (parent != null) {
+                    byParent.computeIfAbsent(parent, k -> new ArrayList<>()).add(sighting);
+                }
+            }
+            for (Map.Entry<String, List<Sighting>> entry : byParent.entrySet()) {
+                String parent = entry.getKey();
+                List<Sighting> eligible = peel(parent, entry.getValue(), neighbours);
+                if (eligible.size() <= UiTokens.NET_STACK_THRESHOLD) {
+                    continue;
+                }
+                eligible.sort(Comparator.comparing(Sighting::address, NetLayout::compareAddresses));
+                // Row and expansion are settled later, once the layer has been arranged — this pass
+                // decides membership and nothing else.
+                folds.put(stackId(parent), new Stack(stackId(parent), parent, layer, 0, List.copyOf(eligible), false));
+            }
+        }
+        return folds;
     }
 
     /**
-     * Sorts one layer by barycentre.
+     * The one machine a layer back this child hangs off, or {@code null} if it has none or several.
      *
-     * <p>Layer 0 sorts by address alone, which puts the vantage at row 0 in every map the rules can
-     * produce — it is the only machine at hop zero. Nodes with no already-placed neighbour one layer
-     * back sort last ({@link Double#POSITIVE_INFINITY}); they are reachable only laterally, and
-     * hanging them off the bottom keeps them next to the lateral strip that will join them.
+     * <p>Several is disqualifying rather than resolvable: assigning a two-parent child to, say, its
+     * lower-addressed parent would delete the other edge from the picture, and a map that quietly
+     * drops an adjacency is worse than a map that draws one more box.
      */
-    private static Comparator<Sighting> order(
-            int layer, Map<String, Set<String>> neighbours, Map<String, Integer> rowOf, Map<String, Integer> layerOf) {
-        Map<String, Double> desired = new HashMap<>();
-        return Comparator.<Sighting, Double>comparing(sighting -> desired.computeIfAbsent(
-                        sighting.address(), address -> barycentre(address, layer, neighbours, rowOf, layerOf)))
-                .thenComparing(sighting -> sighting.address(), NetLayout::compareAddresses);
-    }
-
-    private static double barycentre(
-            String address,
-            int layer,
-            Map<String, Set<String>> neighbours,
-            Map<String, Integer> rowOf,
-            Map<String, Integer> layerOf) {
-        if (layer == 0) {
-            return 0;
-        }
-        double total = 0;
-        int count = 0;
+    private static String soleParent(
+            String address, int layer, Map<String, Set<String>> neighbours, Map<String, Integer> layerOf) {
+        String parent = null;
         for (String peer : neighbours.getOrDefault(address, Set.of())) {
             Integer peerLayer = layerOf.get(peer);
-            Integer peerRow = rowOf.get(peer);
-            if (peerLayer != null && peerRow != null && peerLayer == layer - 1) {
-                total += peerRow;
-                count++;
+            if (peerLayer != null && peerLayer == layer - 1) {
+                if (parent != null) {
+                    return null;
+                }
+                parent = peer;
             }
         }
-        return count == 0 ? Double.POSITIVE_INFINITY : total / count;
+        return parent;
+    }
+
+    /** Removes candidates with a neighbour outside {@code {parent} ∪ candidates}, until stable. */
+    private static List<Sighting> peel(String parent, List<Sighting> candidates, Map<String, Set<String>> neighbours) {
+        Set<String> inside = new LinkedHashSet<>();
+        for (Sighting candidate : candidates) {
+            inside.add(candidate.address());
+        }
+        boolean changed = true;
+        while (changed) {
+            changed = false;
+            for (String address : List.copyOf(inside)) {
+                for (String peer : neighbours.getOrDefault(address, Set.of())) {
+                    if (!peer.equals(parent) && !inside.contains(peer)) {
+                        inside.remove(address);
+                        changed = true;
+                        break;
+                    }
+                }
+            }
+        }
+        List<Sighting> out = new ArrayList<>();
+        for (Sighting candidate : candidates) {
+            if (inside.contains(candidate.address())) {
+                out.add(candidate);
+            }
+        }
+        return out;
+    }
+
+    // ── Arrangement ──────────────────────────────────────────────────────────────────────────────
+
+    /**
+     * One drawable slot: a machine, or a fold standing in for several.
+     *
+     * <p>The barycentre passes never see the difference, which is {@code 09} §4.3's point — a stack is
+     * one row and one edge, so the widths this heuristic has to arrange are bounded by the number of
+     * parents rather than by the number of machines.
+     */
+    private record Unit(String key, Sighting sighting, Stack fold) {
+
+        static Unit of(Sighting sighting) {
+            return new Unit(sighting.address(), sighting, null);
+        }
+
+        static Unit of(Stack fold) {
+            return new Unit(fold.id(), null, fold);
+        }
+    }
+
+    private static List<List<Unit>> arrange(
+            Map<Integer, List<Sighting>> byLayer,
+            Map<String, Set<String>> neighbours,
+            Map<String, Integer> layerOf,
+            Map<String, Stack> folds,
+            Map<String, String> foldedInto,
+            int layers) {
+
+        List<List<Unit>> ordered = new ArrayList<>(layers);
+        Map<String, Set<String>> unitNeighbours = unitAdjacency(neighbours, foldedInto);
+        Map<String, Integer> unitLayer = new HashMap<>(layerOf);
+        for (Stack fold : folds.values()) {
+            unitLayer.put(fold.id(), fold.layer());
+        }
+
+        for (int layer = 0; layer < layers; layer++) {
+            List<Unit> units = new ArrayList<>();
+            Set<String> seen = new HashSet<>();
+            for (Sighting sighting : byLayer.getOrDefault(layer, List.of())) {
+                String fold = foldedInto.get(sighting.address());
+                if (fold == null) {
+                    units.add(Unit.of(sighting));
+                } else if (seen.add(fold)) {
+                    units.add(Unit.of(folds.get(fold)));
+                }
+            }
+            ordered.add(units);
+        }
+
+        Map<String, Integer> rowOf = new HashMap<>();
+        // Forward: each layer takes the shape of the one before it.
+        for (int layer = 0; layer < layers; layer++) {
+            sortByNeighbours(ordered.get(layer), unitNeighbours, unitLayer, rowOf, layer - 1, false);
+            record(ordered.get(layer), rowOf);
+        }
+        // Backward: and then of the one after it, which is what stops a parent hanging at the top of
+        // its column while every one of its children sits at the bottom.
+        for (int layer = layers - 2; layer >= 0; layer--) {
+            sortByNeighbours(ordered.get(layer), unitNeighbours, unitLayer, rowOf, layer + 1, true);
+            record(ordered.get(layer), rowOf);
+        }
+        return ordered;
+    }
+
+    private static void record(List<Unit> units, Map<String, Integer> rowOf) {
+        for (int row = 0; row < units.size(); row++) {
+            rowOf.put(units.get(row).key(), row);
+        }
+    }
+
+    /**
+     * Sorts one layer by the mean row of its neighbours in {@code against}.
+     *
+     * @param holdPlace what a unit with no neighbour in {@code against} does. On the forward pass it
+     *     sorts <b>last</b> — it is reachable only laterally, and hanging it off the bottom keeps it
+     *     next to the strip that will join it. On the backward pass it <b>keeps its current row</b>:
+     *     pushing childless machines to the bottom of every column would undo the forward pass for
+     *     the whole of the last layer but one, which is most of a shallow map
+     */
+    private static void sortByNeighbours(
+            List<Unit> units,
+            Map<String, Set<String>> neighbours,
+            Map<String, Integer> unitLayer,
+            Map<String, Integer> rowOf,
+            int against,
+            boolean holdPlace) {
+        if (units.size() < 2 || against < 0) {
+            return;
+        }
+        Map<String, Double> desired = new HashMap<>();
+        for (int row = 0; row < units.size(); row++) {
+            Unit unit = units.get(row);
+            double total = 0;
+            int count = 0;
+            for (String peer : neighbours.getOrDefault(unit.key(), Set.of())) {
+                Integer peerLayer = unitLayer.get(peer);
+                Integer peerRow = rowOf.get(peer);
+                if (peerLayer != null && peerRow != null && peerLayer == against) {
+                    total += peerRow;
+                    count++;
+                }
+            }
+            desired.put(unit.key(), count == 0 ? (holdPlace ? row : Double.POSITIVE_INFINITY) : total / count);
+        }
+        // ⚠ Ties break on ADDRESS and on nothing derived. A tiebreak on tier, kind or name would put a
+        // recon finding into the row order — and would reshuffle the map the moment a scan landed.
+        units.sort(Comparator.<Unit, Double>comparing(unit -> desired.get(unit.key()))
+                .thenComparing(Unit::key, NetLayout::compareAddresses));
+    }
+
+    /** Adjacency with every folded member replaced by the stack it went into. */
+    private static Map<String, Set<String>> unitAdjacency(
+            Map<String, Set<String>> neighbours, Map<String, String> foldedInto) {
+        if (foldedInto.isEmpty()) {
+            return neighbours;
+        }
+        Map<String, Set<String>> out = new HashMap<>();
+        for (Map.Entry<String, Set<String>> entry : neighbours.entrySet()) {
+            String from = foldedInto.getOrDefault(entry.getKey(), entry.getKey());
+            for (String peer : entry.getValue()) {
+                String to = foldedInto.getOrDefault(peer, peer);
+                if (from.equals(to)) {
+                    // An edge between two members of the same fold. It is inside the box now, and it
+                    // is not lost: expanding the stack draws it.
+                    continue;
+                }
+                out.computeIfAbsent(from, k -> new HashSet<>()).add(to);
+                out.computeIfAbsent(to, k -> new HashSet<>()).add(from);
+            }
+        }
+        return out;
     }
 
     /**
@@ -294,6 +611,9 @@ public final class NetLayout {
                 // instead of as an exception thrown from inside a repaint on the FX thread.
                 continue;
             }
+            if (link.fromAddress().equals(link.toAddress())) {
+                continue;
+            }
             neighbours.computeIfAbsent(link.fromAddress(), k -> new HashSet<>()).add(link.toAddress());
             neighbours.computeIfAbsent(link.toAddress(), k -> new HashSet<>()).add(link.fromAddress());
         }
@@ -301,20 +621,19 @@ public final class NetLayout {
     }
 
     /**
-     * Every drawable edge, de-duplicated and oriented.
+     * Every drawable edge, de-duplicated, oriented, and folded where its far end is a stack.
      *
      * <p>Links arrive symmetrically from the rules, so an unordered-pair key is what stops every edge
      * being drawn twice — harmless for a merged junction table, but it would double-count the lane
      * assignment and push edges into lanes that hold nothing.
      */
-    private static List<Routed> routes(NetMap map, Map<String, Integer> layerOf) {
+    private static List<Routed> routes(
+            NetMap map, Map<String, Integer> keyLayer, Map<String, String> foldedInto, Set<String> open) {
         Map<Pair, Boolean> bridging = new LinkedHashMap<>();
         for (NetLink link : map.links()) {
-            Integer from = layerOf.get(link.fromAddress());
-            Integer to = layerOf.get(link.toAddress());
+            Integer from = keyLayer.get(link.fromAddress());
+            Integer to = keyLayer.get(link.toAddress());
             if (from == null || to == null) {
-                // One endpoint was clamped out of its column. Its edges go with it: an edge drawn to
-                // a cell that is not there is a line into empty space.
                 continue;
             }
             if (Math.abs(from - to) > 1) {
@@ -322,29 +641,35 @@ public final class NetLayout {
                 // rather than drawn wrong if the rules ever hand us one.
                 continue;
             }
-            // A forward edge is oriented shallow-first so the renderer never has to re-decide
-            // direction; a lateral one is oriented by address, because which of two same-layer
-            // machines is "upper" is a row fact the renderer owns and this class has not finished
-            // computing when the edge list is built.
-            boolean firstIsLow =
-                    from.equals(to) ? compareAddresses(link.fromAddress(), link.toAddress()) <= 0 : from < to;
-            Pair pair = firstIsLow
-                    ? new Pair(link.fromAddress(), link.toAddress())
-                    : new Pair(link.toAddress(), link.fromAddress());
+            // ⚠ A member of a COLLAPSED stack is not drawn, so its edges are re-pointed at the stack —
+            // the parent edge becomes THE edge, and an edge between two members disappears into the
+            // box. Expanded, the fold is transparent and every one of them is drawn as it always was.
+            String fromKey = key(link.fromAddress(), foldedInto, open);
+            String toKey = key(link.toAddress(), foldedInto, open);
+            if (fromKey.equals(toKey)) {
+                continue;
+            }
+            boolean firstIsLow = from.equals(to) ? compareAddresses(fromKey, toKey) <= 0 : from < to;
+            Pair pair = firstIsLow ? new Pair(fromKey, toKey) : new Pair(toKey, fromKey);
             bridging.merge(pair, link.bridge(), (a, b) -> a || b);
         }
 
         List<Routed> routed = new ArrayList<>();
         for (Map.Entry<Pair, Boolean> entry : bridging.entrySet()) {
             Pair pair = entry.getKey();
-            boolean lateral = layerOf.get(pair.low()).equals(layerOf.get(pair.high()));
+            boolean lateral = keyLayer.get(pair.low()).equals(keyLayer.get(pair.high()));
             routed.add(new Routed(pair.low(), pair.high(), lateral, entry.getValue()));
         }
-        // Deterministic order: the lane a forward edge takes is its index within its gap, so an
+        // Deterministic order: the lane a forward edge takes is its index within its corridor, so an
         // unstable iteration order would shuffle the lanes between repaints.
         routed.sort(Comparator.comparing(Routed::fromAddress, NetLayout::compareAddresses)
                 .thenComparing(Routed::toAddress, NetLayout::compareAddresses));
         return List.copyOf(routed);
+    }
+
+    private static String key(String address, Map<String, String> foldedInto, Set<String> open) {
+        String fold = foldedInto.get(address);
+        return fold == null || open.contains(fold) ? address : fold;
     }
 
     /**
@@ -355,7 +680,7 @@ public final class NetLayout {
      * looking at", which the brief requires the graph to answer <em>always</em> — and a layer really
      * can span two servers, one bridge out, so they are listed comma-separated, busiest first.
      */
-    private static List<String> headers(NetMap map, Map<Integer, List<Sighting>> byLayer, int[] omitted, int layers) {
+    private static List<String> headers(NetMap map, Map<Integer, List<Sighting>> byLayer, int layers) {
         Map<String, String> names = new HashMap<>();
         for (ServerRef server : map.knownServers()) {
             names.put(server.serverId(), server.name().isEmpty() ? server.serverId() : server.name());
@@ -390,9 +715,6 @@ public final class NetLayout {
                     }
                     head.append(names.getOrDefault(ordered.get(i), ordered.get(i)));
                 }
-            }
-            if (omitted[layer] > 0) {
-                head.append(CLAMP_MARK).append(omitted[layer]).append(" MORE");
             }
             headers.add(head.toString());
         }

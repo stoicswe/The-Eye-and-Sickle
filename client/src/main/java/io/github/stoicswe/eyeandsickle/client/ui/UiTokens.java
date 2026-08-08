@@ -544,48 +544,75 @@ public final class UiTokens {
      */
     public static final int NET_NODE_LINES = 5;
 
-    /** Columns reserved between hop layers for edge routing. */
+    /**
+     * The strip on the left of a layer's node boxes. Forward edges cross it to reach those boxes.
+     *
+     * <h2>⚠ It is NOT the lateral edges' private property, and treating it as such cost ten columns</h2>
+     *
+     * The name is historical: lateral edges live at the <em>far end</em> of it
+     * ({@link #NET_LATERAL_BUS_COLS}) and everything to the left of that is the run a forward edge
+     * takes on its approach. Before 2026-08-08 a forward edge stopped at the end of
+     * {@link #NET_GAP_COLS} and this whole strip sat empty between the arrowhead and the machine it
+     * pointed at — every forward arrow on the map aimed into blank space, and every lateral edge
+     * stopped eight columns short of its own box. {@code docs/client/09-network-map-graph.md} §1.3.
+     */
     public static final int NET_LATERAL_COLS = 10;
 
-    /** Blank columns between adjacent node boxes in the same layer. */
+    /**
+     * Columns between one layer's node boxes and the next layer's lateral strip.
+     *
+     * <p>Where a forward edge does its <em>vertical</em> travel. The horizontal approach continues
+     * across {@link #NET_LATERAL_COLS}, so the drawn run is the two added together — see
+     * {@code NetCanvas.CORRIDOR_COLS}.
+     */
     public static final int NET_GAP_COLS = 3;
 
     /**
-     * How many parallel routing lanes an edge may pick, so parallel edges do not overdraw.
+     * The columns at the right-hand end of a lateral strip that belong to same-layer edges.
      *
-     * <h2>⚠ DERIVED FROM THE GAP, because a literal here shipped wrong</h2>
+     * <h2>⚠ TWO, AND THEY SIT AGAINST THE NODE BOX RATHER THAN AGAINST THE GAP</h2>
      *
-     * This was a literal {@code 3}, written when {@link #NET_GAP_COLS} was 7 — {@code NetCanvas
-     * .forward}'s own note still says edges are "drawn in the seven-column gap". The gap was later
-     * narrowed to 3 and this was never revisited, so lanes 1 and 2 turned at columns 3 and 5 in a gap
-     * that ends at 2: outside it, on the next layer's node box, where every write was refused by
-     * {@code occupied}. Two thirds of every fan-out reached the screen as a source stub with no
-     * vertical, no destination run and <b>no arrowhead</b> — loose ticks against the node boxes, with
-     * no way to read which machine connects to which.
+     * A lateral edge is a bracket: a vertical channel and a one-column stub into the box. Putting
+     * that pair at the <em>start</em> of the strip — where it was until 2026-08-08 — had two costs at
+     * once. The stub ended eight columns from the box it was joining, so a same-layer link visibly
+     * connected to nothing; and the pair sat in the middle of the forward corridor, so extending
+     * forward edges across the strip would have run every one of them through both columns.
      *
-     * <p>Nothing failed. The map drew, the nodes were right, the numbers were right; it was only
-     * wrong to look at, and there is no automated way here to look. That is the whole argument for
-     * deriving it: the relationship is now unbreakable rather than merely documented, and widening
-     * the gap restores the lanes for free.
-     *
-     * <p>⚠ The arithmetic: {@code forward} turns at {@code 1 + lane * 2} and needs the turn strictly
-     * inside the run, leaving the last column for the arrowhead — so the deepest usable turn is
-     * {@code width - 2}, giving {@code (width - 1) / 2} lanes. Floored at one, because a run too
-     * narrow for any lane still has to route its edges somewhere. {@code EdgeLaneFitTest} holds both
-     * halves.
-     *
-     * <p>⚠ Derived from the GAP ALONE, which is not the full distance between two node boxes — the
-     * next layer's ten-column lateral strip also sits between them, so a forward edge's arrowhead
-     * currently stops ten columns short of the machine it points at. That is a real defect (reported
-     * as "there is still a space") and it is NOT fixed here. Widening the run to cross the strip was
-     * tried and reverted: it routes through the two columns lateral edges use, merging their arcs
-     * into junctions and breaking the shape distinction {@code NetCanvas} relies on to tell a
-     * same-layer edge from a hop. The fix has to route AROUND those two columns; see the handover.
+     * <p>Against the box, the bracket touches what it joins and the forward corridor crosses only the
+     * <b>channel</b> column — one cell, at one line per edge, which {@code NetCanvas} yields on rather
+     * than merging. That is the "route around those two columns" §1.3 asks for, arrived at by moving
+     * them somewhere a forward run barely has to touch.
      */
-    public static final int NET_LANES = Math.max(1, (NET_GAP_COLS - 1) / 2);
+    public static final int NET_LATERAL_BUS_COLS = 2;
 
-    /** The tallest a rendered column may get before the view scrolls rather than shrinking. */
-    public static final int NET_MAX_ROWS = 60;
+    /**
+     * A parent with more than this many collapsible children in the next layer draws them as a stack.
+     *
+     * <h2>⚠ "More than", not "at least" — and four is not measured</h2>
+     *
+     * {@code docs/client/09-network-map-graph.md} §3.3: two or three children are more legible drawn
+     * than counted, and a stack that appeared at two would make the common case require a click to see
+     * anything. Open as <b>NM-2</b>: the figure should be set against real generated worlds, which is
+     * what {@code DeckSnapshot}'s swept fixture now makes possible.
+     */
+    public static final int NET_STACK_THRESHOLD = 4;
+
+    /**
+     * The shallowest layer a stack may form in.
+     *
+     * <h2>⚠ ONE, so the player's own neighbours are NEVER collapsed</h2>
+     *
+     * Layer 1 is what the panel is <em>for</em> — {@code NetGraph}'s own charter is "the answer to
+     * what is next to me" — and with a one-hop ceiling it is the entire map a new character has.
+     * Measured on a generated world: every machine a fresh sweep finds hangs off the rig and links
+     * only to the rig or to its siblings, so a rule that looked at eligibility alone folded the whole
+     * neighbourhood into a single box and left the headline surface reading {@code rig → ×7}.
+     *
+     * <p>The pressure {@code 09} §2 describes is fan-out <em>times</em> depth, and this is the half of
+     * it the threshold cannot express: a machine in layer 1 is not "behind" anything except the
+     * player.
+     */
+    public static final int NET_STACK_MIN_LAYER = 2;
 
     /** A packet steps one cell along its edge on this period. Step timing (§5), never a tween. */
     public static final double NET_PACKET_MS = 240;

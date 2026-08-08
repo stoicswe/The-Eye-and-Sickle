@@ -2,12 +2,14 @@ package io.github.stoicswe.eyeandsickle.client.ui.netmap;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
 import io.github.stoicswe.eyeandsickle.protocol.game.HostKind;
 import io.github.stoicswe.eyeandsickle.protocol.game.NetMap;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -23,8 +25,6 @@ import org.junit.jupiter.api.Test;
  * for a graph shaped slightly differently.
  */
 class NetLayoutTest {
-
-    private static final int MAX_ROWS = 10;
 
     private static Map<String, NetLayout.Placed> bySlot(NetLayout.Result result) {
         Map<String, NetLayout.Placed> out = new HashMap<>();
@@ -42,7 +42,7 @@ class NetLayoutTest {
         @DisplayName("no edge spans more than one column — the theorem the router depends on")
         void noEdgeSpansTwoLayers() {
             for (NetMap map : List.of(NetFixtures.opening(), NetFixtures.twoHops(), NetFixtures.crowded(30))) {
-                NetLayout.Result result = NetLayout.of(map, MAX_ROWS);
+                NetLayout.Result result = NetLayout.of(map);
                 Map<String, NetLayout.Placed> placed = bySlot(result);
                 for (NetLayout.Routed routed : result.routed()) {
                     int from = placed.get(routed.fromAddress()).layer();
@@ -64,13 +64,13 @@ class NetLayoutTest {
             // failure, and it would also hide a broken hop metric behind a picture that still looks
             // plausible — so the count is checked rather than trusted.
             NetMap map = NetFixtures.twoHops();
-            assertThat(NetLayout.of(map, MAX_ROWS).routed()).hasSize(map.links().size());
+            assertThat(NetLayout.of(map).routed()).hasSize(map.links().size());
         }
 
         @Test
         @DisplayName("the vantage is alone in column zero, at row zero")
         void vantageIsTheOrigin() {
-            NetLayout.Result result = NetLayout.of(NetFixtures.twoHops(), MAX_ROWS);
+            NetLayout.Result result = NetLayout.of(NetFixtures.twoHops());
             List<NetLayout.Placed> first = result.placed().stream()
                     .filter(placed -> placed.layer() == 0)
                     .toList();
@@ -91,7 +91,7 @@ class NetLayoutTest {
                             NetFixtures.sighting("10.0.0.2", HostKind.UNKNOWN, 1, false, false, false, "")),
                     List.of(NetFixtures.link("10.0.0.1", "10.0.0.2"), NetFixtures.link("10.0.0.2", "10.0.0.1")),
                     1);
-            assertThat(NetLayout.of(map, MAX_ROWS).routed()).hasSize(1);
+            assertThat(NetLayout.of(map).routed()).hasSize(1);
         }
     }
 
@@ -105,13 +105,13 @@ class NetLayoutTest {
             // The packet repaints on a timer. A layout that settled differently between two frames
             // would make the whole map crawl, and it would do it only in the running client.
             NetMap map = NetFixtures.twoHops();
-            assertThat(NetLayout.of(map, MAX_ROWS)).isEqualTo(NetLayout.of(map, MAX_ROWS));
+            assertThat(NetLayout.of(map)).isEqualTo(NetLayout.of(map));
         }
 
         @Test
         @DisplayName("rows within a column are a contiguous run from zero")
         void rowsAreContiguous() {
-            NetLayout.Result result = NetLayout.of(NetFixtures.twoHops(), MAX_ROWS);
+            NetLayout.Result result = NetLayout.of(NetFixtures.twoHops());
             Map<Integer, List<Integer>> rows = new HashMap<>();
             for (NetLayout.Placed placed : result.placed()) {
                 rows.computeIfAbsent(placed.layer(), k -> new ArrayList<>()).add(placed.row());
@@ -142,40 +142,210 @@ class NetLayoutTest {
     }
 
     @Nested
-    @DisplayName("a column wider than the panel clamps, and says so")
-    class Clamping {
+    @DisplayName("nothing is hidden: a wide fan folds into a stack, and the stack opens")
+    class Stacking {
 
-        @Test
-        @DisplayName("fifty machines in one column draw ten and report the other forty")
-        void clampsAndCounts() {
-            // A server holds up to fifty machines. The graph is the legible surface and the list is
-            // the exhaustive one; what is not acceptable is drawing forty of them off the panel and
-            // saying nothing.
-            NetLayout.Result result = NetLayout.of(NetFixtures.crowded(50), MAX_ROWS);
-            assertThat(result.rowsPerLayer()).isEqualTo(MAX_ROWS);
-            assertThat(result.placed()).hasSize(MAX_ROWS + 1);
-            assertThat(result.overflowInLastVisibleLayer()).isEqualTo(40);
-            assertThat(result.layerHeaders().get(1)).contains("+40 MORE");
+        private static NetLayout.Stack only(NetLayout.Result result) {
+            assertThat(result.stacks()).hasSize(1);
+            return result.stacks().get(0);
         }
 
         @Test
-        @DisplayName("an edge to a machine that was clamped out is dropped with it")
-        void clampedEdgesGo() {
-            // An arrow into empty space is worse than a missing arrow: it asserts an adjacency the
-            // player cannot see either end of.
-            NetLayout.Result result = NetLayout.of(NetFixtures.crowded(50), MAX_ROWS);
-            Map<String, NetLayout.Placed> placed = bySlot(result);
-            for (NetLayout.Routed routed : result.routed()) {
-                assertThat(placed).containsKeys(routed.fromAddress(), routed.toAddress());
+        @DisplayName("no machine is ever dropped, however wide the layer")
+        void nothingIsEverDropped() {
+            // ⚠ The rule the whole feature exists to restore. The old renderer drew the first sixty
+            // rows of a layer and put the rest in a header count, so machines the player had found
+            // were on the map's data and absent from its picture — docs/client/09 §1.1. Every machine
+            // is now either drawn or inside a stack that names its exact count.
+            for (NetMap map : List.of(NetFixtures.crowded(50), NetFixtures.estate(20), NetFixtures.twoHops())) {
+                NetLayout.Result result = NetLayout.of(map);
+                int folded = 0;
+                for (NetLayout.Stack stack : result.stacks()) {
+                    folded += stack.count();
+                }
+                assertThat(result.placed().size() + folded)
+                        .as("every sighting is drawn or folded")
+                        .isEqualTo(map.sightings().size());
+                assertThat(result.layerHeaders()).noneMatch(header -> header.contains("MORE"));
             }
         }
 
         @Test
-        @DisplayName("a column that fits carries no marker")
-        void noMarkerWhenNothingIsHidden() {
-            NetLayout.Result result = NetLayout.of(NetFixtures.opening(), MAX_ROWS);
-            assertThat(result.overflowInLastVisibleLayer()).isZero();
-            assertThat(result.layerHeaders()).noneMatch(header -> header.contains("MORE"));
+        @DisplayName("a fan wider than the threshold folds, and the count is exact")
+        void wideFansFold() {
+            NetLayout.Stack stack = only(NetLayout.of(NetFixtures.estate(7)));
+            assertThat(stack.count()).isEqualTo(7);
+            assertThat(stack.parentAddress()).isEqualTo("10.0.0.2");
+            assertThat(stack.layer()).isEqualTo(2);
+            assertThat(stack.expanded()).isFalse();
+            // The other neighbour's single child is drawn, not folded: two or three children are more
+            // legible drawn than counted, which is what the threshold is for.
+            assertThat(bySlot(NetLayout.of(NetFixtures.estate(7)))).containsKey("10.0.2.5");
+        }
+
+        @Test
+        @DisplayName("a fan at the threshold is drawn, not folded")
+        void theThresholdIsAnExclusiveBound() {
+            assertThat(NetLayout.of(NetFixtures.estate(UiTokens.NET_STACK_THRESHOLD))
+                            .stacks())
+                    .isEmpty();
+            assertThat(NetLayout.of(NetFixtures.estate(UiTokens.NET_STACK_THRESHOLD + 1))
+                            .stacks())
+                    .hasSize(1);
+        }
+
+        @Test
+        @DisplayName("the player's own neighbours are never folded, however many there are")
+        void layerOneIsNeverFolded() {
+            // ⚠ Layer 1 is what the panel is FOR. With a one-hop ceiling it is the entire map a new
+            // character has, and every machine in it hangs off the rig — so a rule that looked at
+            // eligibility alone folded the whole neighbourhood into one box and left the headline
+            // surface reading "rig, times fifty".
+            assertThat(NetLayout.of(NetFixtures.crowded(50)).stacks()).isEmpty();
+            assertThat(NetLayout.of(NetFixtures.crowded(50)).placed()).hasSize(51);
+        }
+
+        @Test
+        @DisplayName("no adjacency is lost to a fold — every link is still drawn, or is inside one box")
+        void noAdjacencyIsLost() {
+            // ⚠ THE GENERAL FORM OF WHAT FOLDING MAY COST, and the assertion the two eligibility
+            // rules exist to satisfy. A folded machine's edges are re-pointed at its stack; the only
+            // edge allowed to vanish is one whose BOTH endpoints went into the same box, because then
+            // it is inside the box rather than missing from the picture.
+            //
+            // ⚠ Asserted over every fixture rather than against one shape. The specific cases below
+            // are each caught by one of the two rules, and which one catches which is an
+            // implementation detail — this is the property neither is allowed to break.
+            for (NetMap map : List.of(
+                    NetFixtures.twoHops(),
+                    NetFixtures.estate(7),
+                    NetFixtures.estateWithASharedChild(7),
+                    NetFixtures.estateWithSiblingLink(7),
+                    NetFixtures.estateWithAGrandchild(7))) {
+                NetLayout.Result result = NetLayout.of(map);
+                Map<String, String> foldOf = new HashMap<>();
+                for (NetLayout.Stack stack : result.stacks()) {
+                    for (var member : stack.members()) {
+                        foldOf.put(member.address(), stack.id());
+                    }
+                }
+                Set<String> drawn = new java.util.HashSet<>();
+                for (NetLayout.Routed routed : result.routed()) {
+                    drawn.add(routed.fromAddress() + "|" + routed.toAddress());
+                    drawn.add(routed.toAddress() + "|" + routed.fromAddress());
+                }
+                for (var link : map.links()) {
+                    String from = foldOf.getOrDefault(link.fromAddress(), link.fromAddress());
+                    String to = foldOf.getOrDefault(link.toAddress(), link.toAddress());
+                    if (from.equals(to)) {
+                        continue;
+                    }
+                    assertThat(drawn)
+                            .as("%s ↔ %s is neither drawn nor inside one box", link.fromAddress(), link.toAddress())
+                            .contains(from + "|" + to);
+                }
+            }
+        }
+
+        @Test
+        @DisplayName("a machine with a second parent is not folded — its other edge would be a lie")
+        void aSharedChildStaysDrawn() {
+            NetLayout.Result result = NetLayout.of(NetFixtures.estateWithASharedChild(7));
+            assertThat(only(result).count()).isEqualTo(6);
+            assertThat(bySlot(result))
+                    .as("the shared machine is drawn, so both of its edges can be")
+                    .containsKey("10.0.1.10");
+        }
+
+        @Test
+        @DisplayName("a machine with a child of its own is not folded — the child's edge would hang")
+        void aParentIsNotAMember() {
+            // ⚠ The case only the eligibility FIXPOINT catches. `soleParent` is what rejects a machine
+            // with two parents; this one has exactly one, so it looks foldable right up until you ask
+            // what happens to the edge leaving it. §3.4's "an expanded member that is itself a stack
+            // parent renders as a stack" is vacuous for the same reason — a member with children is
+            // not a member.
+            NetLayout.Result result = NetLayout.of(NetFixtures.estateWithAGrandchild(7));
+            assertThat(only(result).count()).isEqualTo(6);
+            Map<String, NetLayout.Placed> rows = bySlot(result);
+            assertThat(rows).containsKeys("10.0.1.10", "10.0.3.7");
+            assertThat(result.routed())
+                    .as("its child's edge is drawn from the machine itself, never from a fold")
+                    .anyMatch(routed -> routed.fromAddress().equals("10.0.1.10")
+                            && routed.toAddress().equals("10.0.3.7"));
+        }
+
+        @Test
+        @DisplayName("an edge between two members stays inside the fold")
+        void siblingLinksDoNotDisqualify() {
+            // Both endpoints are in the box, so the collapsed edge into the parent is still the only
+            // edge crossing the boundary — which is the criterion, not "the member has no edges".
+            NetLayout.Result result = NetLayout.of(NetFixtures.estateWithSiblingLink(7));
+            assertThat(only(result).count()).isEqualTo(7);
+            for (NetLayout.Routed routed : result.routed()) {
+                assertThat(routed.fromAddress()).isNotEqualTo("10.0.1.10");
+                assertThat(routed.toAddress()).isNotEqualTo("10.0.1.11");
+            }
+        }
+
+        @Test
+        @DisplayName("a collapsed fan is one edge from its parent, not a bundle")
+        void oneEdgePerStack() {
+            NetLayout.Result result = NetLayout.of(NetFixtures.estate(7));
+            List<NetLayout.Routed> intoStack = result.routed().stream()
+                    .filter(routed -> routed.toAddress().startsWith(NetLayout.STACK_PREFIX))
+                    .toList();
+            assertThat(intoStack).hasSize(1);
+            assertThat(intoStack.get(0).fromAddress()).isEqualTo("10.0.0.2");
+            assertThat(intoStack.get(0).lateral()).isFalse();
+        }
+
+        @Test
+        @DisplayName("expanding inserts rows at the stack's own row and shifts nothing above it")
+        void expansionInserts() {
+            // ⚠ The half of §3.4 the obvious implementation gets wrong. Re-running the arrangement
+            // with the members present would re-sort the whole layer, so opening one stack would move
+            // machines the player was not looking at — the vantage-re-rooting defect, one level down.
+            Set<String> open = Set.of(NetLayout.stackId("10.0.0.2"));
+            Map<String, NetLayout.Placed> before = bySlot(NetLayout.of(NetFixtures.estate(7)));
+            NetLayout.Result after = NetLayout.of(NetFixtures.estate(7), open);
+            Map<String, NetLayout.Placed> rows = bySlot(after);
+
+            int stackRow = NetLayout.of(NetFixtures.estate(7)).stacks().get(0).row();
+            for (Map.Entry<String, NetLayout.Placed> entry : before.entrySet()) {
+                NetLayout.Placed was = entry.getValue();
+                if (was.layer() != 2 || was.row() >= stackRow) {
+                    continue;
+                }
+                assertThat(rows.get(entry.getKey()).row())
+                        .as("%s sat above the stack and must not move", entry.getKey())
+                        .isEqualTo(was.row());
+            }
+            assertThat(after.stacks().get(0).expanded()).isTrue();
+            assertThat(after.placed()).hasSize(NetFixtures.estate(7).sightings().size());
+            assertThat(after.foldedMachines()).isZero();
+        }
+
+        @Test
+        @DisplayName("an expanded fold draws every edge it was hiding")
+        void expansionRestoresEdges() {
+            NetMap map = NetFixtures.estateWithSiblingLink(7);
+            NetLayout.Result open = NetLayout.of(map, Set.of(NetLayout.stackId("10.0.0.2")));
+            assertThat(open.routed()).hasSize(map.links().size());
+            assertThat(open.routed())
+                    .as("the edge that was inside the box is drawn again")
+                    .anyMatch(routed -> routed.lateral()
+                            && routed.fromAddress().equals("10.0.1.10")
+                            && routed.toAddress().equals("10.0.1.11"));
+        }
+
+        @Test
+        @DisplayName("an expansion id that no longer names a fold is ignored, not an error")
+        void staleExpansionIsHarmless() {
+            // A sweep can change the grouping under the player at any moment. A set that threw or
+            // reset on a stale id would turn a routine discovery into a collapsed map.
+            assertThat(NetLayout.of(NetFixtures.estate(7), Set.of("stack:10.9.9.9", "nonsense")))
+                    .isEqualTo(NetLayout.of(NetFixtures.estate(7)));
         }
     }
 
@@ -186,7 +356,7 @@ class NetLayoutTest {
         @Test
         @DisplayName("one per column, naming the hop and the server")
         void headersNameHopAndServer() {
-            NetLayout.Result result = NetLayout.of(NetFixtures.twoHops(), MAX_ROWS);
+            NetLayout.Result result = NetLayout.of(NetFixtures.twoHops());
             assertThat(result.layerHeaders()).hasSize(result.layers());
             assertThat(result.layerHeaders().get(0)).startsWith("H0").contains(NetFixtures.HOME.name());
             assertThat(result.layerHeaders().get(1)).startsWith("H1");
@@ -202,11 +372,11 @@ class NetLayoutTest {
         void emptyIsEmpty() {
             // Not a placeholder and not a count. An undiscovered machine has no Sighting, so there is
             // nothing here that could leak even by accident.
-            NetLayout.Result result = NetLayout.of(NetMap.empty(), MAX_ROWS);
+            NetLayout.Result result = NetLayout.of(NetMap.empty());
             assertThat(result.layers()).isZero();
             assertThat(result.placed()).isEmpty();
             assertThat(result.routed()).isEmpty();
-            assertThat(NetLayout.of(null, MAX_ROWS)).isEqualTo(NetLayout.Result.empty());
+            assertThat(NetLayout.of(null)).isEqualTo(NetLayout.Result.empty());
         }
     }
 }

@@ -8,9 +8,11 @@ import io.github.stoicswe.eyeandsickle.protocol.game.Sighting;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The network map as a character grid: the whole picture, computed with no scene graph.
@@ -43,20 +45,35 @@ import java.util.Map;
  * table — so routing across a cell holding {@code █}, {@code ·}, {@code ╪} or a label character would
  * silently replace it with a bare stub. {@code LatticeMap} gets away without a mask only because its
  * lanes can never cross a node cell; ours can, because a bridge stub is placed into a column the
- * layout did not allocate. Hence {@link #occupied}: every cell written by a header, a node cell, a
- * stub or a destination arrow is closed to routing, and {@link #merge} refuses rather than overwrites.
+ * layout did not allocate. Hence {@link Canvas#occupied}: every cell written by a header, a node cell,
+ * a stub or a destination arrow is closed to routing, and {@link Canvas#merge} refuses rather than
+ * overwrites.
+ *
+ * <h2>⚠ THE CORRIDOR IS THIRTEEN COLUMNS, NOT THREE — fixed 2026-08-08</h2>
+ *
+ * The distance from one layer's node box to the next is {@link UiTokens#NET_GAP_COLS} <b>plus</b> the
+ * next layer's {@link UiTokens#NET_LATERAL_COLS}. A forward edge used to stop at the end of the gap,
+ * which left its arrowhead pointing into ten blank columns — reported as "there is still a space", and
+ * true of every forward arrow the map has ever drawn
+ * ({@code docs/client/09-network-map-graph.md} §1.3). Lateral edges had the mirror-image defect: their
+ * bracket sat at the <em>start</em> of the strip and stopped eight columns short of the box it joined.
+ *
+ * <p>Both are fixed by moving the lateral bracket to the far end of the strip, against the box
+ * ({@link UiTokens#NET_LATERAL_BUS_COLS}), and running forward edges the full corridor. A forward run
+ * then crosses lateral ink at exactly <b>one column</b>, and it <b>yields</b> there rather than merging
+ * — see {@link Canvas#merge}. That is what "route around those two columns" comes to in a grid where
+ * everything going left to right necessarily crosses every column: not a detour, but a single cell the
+ * horizontal declines to claim, so the arc underneath survives intact and §1.2's shape distinction
+ * holds by construction rather than by luck.
  *
  * <h2>Two edge classes, told apart by shape</h2>
  *
- * A <b>forward</b> edge crosses into the next hop layer and is drawn in the seven-column gap with
- * sharp junctions and a {@code →} at the destination. A <b>lateral</b> edge stays inside a layer and
- * is drawn in the two-column strip on the left of the column, with <em>rounded</em> corners. The
- * distinction is carried by the glyph, not by the ink: the map has to survive greyscale, and the two
- * kinds of edge mean genuinely different things — one is a hop the ceiling counts, the other is not.
- *
- * <p>Three lanes rather than one bus column. {@code LatticeMap}'s single {@code BUS_COL} saturates
- * into a solid vertical run the moment a node has more than four children, and a layer here can hold
- * ten.
+ * A <b>forward</b> edge crosses into the next hop layer and is drawn along the corridor with sharp
+ * junctions and a {@code →} against the destination box. A <b>lateral</b> edge stays inside a layer
+ * and is drawn in the two-column bracket on the left of its own boxes, with <em>rounded</em> corners.
+ * The distinction is carried by the glyph, not by the ink: the map has to survive greyscale, and the
+ * two kinds of edge mean genuinely different things — one is a hop the ceiling counts, the other is
+ * not.
  */
 public final class NetCanvas {
 
@@ -67,6 +84,61 @@ public final class NetCanvas {
 
     /** Layer start to layer start. */
     private static final int PITCH = LAYER_COLS + UiTokens.NET_GAP_COLS;
+
+    /**
+     * How far a forward edge runs: from one layer's node box to the next layer's node box.
+     *
+     * <p>The gap, then the whole of the next layer's lateral strip. The arrowhead lands on the last of
+     * them, which is the column immediately left of the box it points at.
+     */
+    static final int CORRIDOR_COLS = UiTokens.NET_GAP_COLS + UiTokens.NET_LATERAL_COLS;
+
+    /** Corridor-relative column of the arrowhead, and of a lateral edge's stub into its box. */
+    static final int ARROW_COL = CORRIDOR_COLS - 1;
+
+    /**
+     * Corridor-relative column of the next layer's lateral channel — the one cell a forward run yields
+     * at. Strip-relative, it is {@code NET_LATERAL_COLS - NET_LATERAL_BUS_COLS}.
+     */
+    static final int BUS_COL = CORRIDOR_COLS - UiTokens.NET_LATERAL_BUS_COLS;
+
+    /**
+     * Where each routing lane turns, corridor-relative.
+     *
+     * <h2>⚠ DERIVED, because a literal here shipped wrong once already</h2>
+     *
+     * The turn column was {@code 1 + lane * 2} with three lanes, written when the gap was seven columns
+     * wide. The gap was later narrowed to three and this was never revisited, so lanes 1 and 2 turned
+     * at columns 3 and 5 in a run that ended at 2 — outside it, on the next layer's node box, where
+     * every write was refused by {@code occupied}. Two thirds of every fan-out reached the screen as a
+     * source stub with no vertical, no destination run and <b>no arrowhead</b>. Nothing failed; the map
+     * drew, the nodes were right, the numbers were right. It was only wrong to look at.
+     *
+     * <p>Odd columns so no two lanes share a vertical, strictly inside the run so the arrowhead's
+     * column is never a turn, and <b>never the lateral channel</b> — a vertical there would be
+     * indistinguishable from a same-layer edge, which is the one distinction this map cannot afford to
+     * blur. {@code EdgeLaneFitTest} re-derives all three properties from the tokens rather than asking
+     * this array for its own answer.
+     */
+    private static final int[] TURNS = turnColumns();
+
+    static int[] turnColumns() {
+        List<Integer> turns = new ArrayList<>();
+        for (int col = 1; col < ARROW_COL; col += 2) {
+            if (col != BUS_COL) {
+                turns.add(col);
+            }
+        }
+        if (turns.isEmpty()) {
+            // A corridor too narrow for any lane still has to route its edges somewhere.
+            turns.add(0);
+        }
+        int[] out = new int[turns.size()];
+        for (int i = 0; i < out.length; i++) {
+            out[i] = turns.get(i);
+        }
+        return out;
+    }
 
     /** The kind field inside a node cell. Every {@code HostKind} name fits; {@code UNKNOWN} does not print. */
     /**
@@ -84,13 +156,25 @@ public final class NetCanvas {
     private static final String UNTYPED = "-".repeat(KIND_COLS);
 
     /**
+     * How many offset plates a stack draws behind its right edge.
+     *
+     * <p>They are drawn <b>inside</b> {@link UiTokens#NET_NODE_COLS}, not beyond it: a box that grew
+     * to carry its own decoration would shear every column to its right, which is the failure that
+     * constant exists to make impossible. So a stack's body is two columns narrower than a machine's
+     * and the plates take the difference.
+     */
+    private static final int PLATE_COLS = 2;
+
+    /**
      * One drawn box.
      *
-     * @param address the machine's address, or {@code ""} for a bridge stub, which has none the
-     *     player is allowed to see
+     * @param address the machine's address, or {@code ""} for a bridge stub or a stack, neither of
+     *     which has one the player is allowed to act on
      * @param peerServerName set only on a stub: the name of the server on the far side, and the one
      *     fact a bridge is licensed to publish
      * @param text exactly {@code NET_NODE_LINES} lines of {@code NET_NODE_COLS} characters
+     * @param stackId set only on a stack: the key {@code NetLayout} expands and collapses it by
+     * @param stackCount how many machines a stack holds; zero on anything else
      */
     public record Piece(
             String address,
@@ -100,18 +184,28 @@ public final class NetCanvas {
             String styleClass,
             String text,
             boolean stub,
-            boolean selected) {}
+            boolean selected,
+            String stackId,
+            int stackCount) {
+
+        /** A folded group rather than a machine. */
+        public boolean stack() {
+            return !stackId.isEmpty();
+        }
+    }
 
     /**
      * The finished picture.
      *
      * @param lines the whole grid, one string per line, every line the same width
-     * @param pieces node cells and stubs, in column-then-row order
+     * @param pieces node cells, stacks and stubs, in column-then-row order
      * @param strips one per layer: the lateral strip, body lines only (the header line is excluded,
      *     because it is drawn once across the whole map rather than per column)
      * @param gaps one per inter-layer gap, body lines only
      * @param header the layer-header line, full width
      * @param serverStrip the always-present "which network am I on" line, drawn above the graph
+     * @param folded how many machines are inside collapsed stacks right now — never a count of
+     *     anything undiscovered
      * @param packetCells how many cells the travelling packet has to walk; zero means hold still
      */
     public record Painted(
@@ -123,7 +217,7 @@ public final class NetCanvas {
             String serverStrip,
             int layers,
             int rowsPerLayer,
-            int overflow,
+            int folded,
             int packetCells) {}
 
     // ── Painting ─────────────────────────────────────────────────────────────────────────────────
@@ -132,11 +226,10 @@ public final class NetCanvas {
      * Draws the whole map.
      *
      * @param map the player's visible network; {@code null} and empty both draw nothing at all
-     * @param maxRows the tallest column, {@code UiTokens.NET_MAX_ROWS}
      * @param packetPhase the animation step; only ever moves the one {@code ·}
      */
-    public static Painted paint(NetMap map, int maxRows, int packetPhase) {
-        return paint(map, maxRows, packetPhase, "");
+    public static Painted paint(NetMap map, int packetPhase) {
+        return paint(map, packetPhase, "", Set.of());
     }
 
     /**
@@ -146,27 +239,28 @@ public final class NetCanvas {
      *     for none. An address that is not on the map marks nothing and is not an error — a
      *     selection outlives the sighting that produced it by a repaint or two, and a renderer that
      *     threw on that would crash on the frame after a machine went out of view
+     * @param expanded the stacks the player has opened; see {@link NetLayout#of(NetMap, Set)}
      */
-    public static Painted paint(NetMap map, int maxRows, int packetPhase, String selectedAddress) {
+    public static Painted paint(NetMap map, int packetPhase, String selectedAddress, Set<String> expanded) {
         NetMap safe = map == null ? NetMap.empty() : map;
         String strip = serverStrip(safe);
-        NetLayout.Result layout = NetLayout.of(safe, maxRows);
+        NetLayout.Result layout = NetLayout.of(safe, expanded);
         if (layout.layers() == 0) {
             return new Painted(List.of(), List.of(), List.of(), List.of(), "", strip, 0, 0, 0, 0);
         }
         String selected = selectedAddress == null ? "" : selectedAddress;
-        return new Canvas(safe, layout, Math.max(1, maxRows), packetPhase, strip, selected).paint();
+        return new Canvas(safe, layout, packetPhase, strip, selected).paint();
     }
 
     /** The grid as text, one line per row. The seam every geometric test reads. */
-    public static String frame(NetMap map, int maxRows, int packetPhase) {
-        return frame(map, maxRows, packetPhase, "");
+    public static String frame(NetMap map, int packetPhase) {
+        return frame(map, packetPhase, "", Set.of());
     }
 
     /** The grid as text with one machine marked — the seam the selection tests read. */
-    public static String frame(NetMap map, int maxRows, int packetPhase, String selectedAddress) {
+    public static String frame(NetMap map, int packetPhase, String selectedAddress, Set<String> expanded) {
         StringBuilder out = new StringBuilder();
-        for (String line : paint(map, maxRows, packetPhase, selectedAddress).lines()) {
+        for (String line : paint(map, packetPhase, selectedAddress, expanded).lines()) {
             out.append(line).append('\n');
         }
         return out.toString();
@@ -208,7 +302,6 @@ public final class NetCanvas {
 
         private final NetMap map;
         private final NetLayout.Result layout;
-        private final int maxRows;
         private final int packetPhase;
         private final String serverStrip;
         private final String selected;
@@ -230,22 +323,20 @@ public final class NetCanvas {
         /** A bridge's far side: where it is drawn, and the only fact it carries. */
         private record Stub(String bridgeAddress, String peerServerName, int layer, int row) {}
 
-        private Canvas(
-                NetMap map,
-                NetLayout.Result layout,
-                int maxRows,
-                int packetPhase,
-                String serverStrip,
-                String selected) {
+        private Canvas(NetMap map, NetLayout.Result layout, int packetPhase, String serverStrip, String selected) {
             this.map = map;
             this.layout = layout;
-            this.maxRows = maxRows;
             this.packetPhase = packetPhase;
             this.serverStrip = serverStrip;
             this.selected = selected;
 
             for (NetLayout.Placed placed : layout.placed()) {
                 slotOf.put(placed.sighting().address(), new int[] {placed.layer(), placed.row()});
+            }
+            for (NetLayout.Stack stack : layout.stacks()) {
+                if (!stack.expanded()) {
+                    slotOf.put(stack.id(), new int[] {stack.layer(), stack.row()});
+                }
             }
             planStubs();
 
@@ -271,21 +362,20 @@ public final class NetCanvas {
         /**
          * Where each bridge's far side hangs.
          *
-         * <p>One column further out than the bridge itself, in the first row slot no machine and no
-         * other stub is using — which is what makes it read as "the network continues that way"
+         * <p>One column further out than the bridge itself, in the first row slot no machine, stack
+         * or other stub is using — which is what makes it read as "the network continues that way"
          * rather than as a machine the player has mapped. A bridge in the outermost layer therefore
          * grows the picture by exactly one column, and never by more, because a stub is only ever
          * placed one layer beyond a machine that <em>is</em> placed.
-         *
-         * <p>If the target column is already full to {@code maxRows}, the stub is dropped. The peer
-         * server is still named — in the bridge cell's own accessible text and tooltip, and in the
-         * list's NOTE column — so nothing the player is entitled to know is lost with it.
          */
         private void planStubs() {
-            boolean[][] taken = new boolean[layout.layers() + 2][maxRows];
+            Set<Long> taken = new HashSet<>();
             for (NetLayout.Placed placed : layout.placed()) {
-                if (placed.row() < maxRows) {
-                    taken[placed.layer()][placed.row()] = true;
+                taken.add(slot(placed.layer(), placed.row()));
+            }
+            for (NetLayout.Stack stack : layout.stacks()) {
+                if (!stack.expanded()) {
+                    taken.add(slot(stack.layer(), stack.row()));
                 }
             }
             for (NetLayout.Placed placed : layout.placed()) {
@@ -295,9 +385,8 @@ public final class NetCanvas {
                     continue;
                 }
                 int target = placed.layer() + 1;
-                for (int row = 0; row < maxRows; row++) {
-                    if (!taken[target][row]) {
-                        taken[target][row] = true;
+                for (int row = 0; ; row++) {
+                    if (taken.add(slot(target, row))) {
                         stubs.add(new Stub(sighting.address(), sighting.bridgePeerServerName(), target, row));
                         break;
                     }
@@ -305,9 +394,14 @@ public final class NetCanvas {
             }
         }
 
+        private static long slot(int layer, int row) {
+            return ((long) layer << 32) | (row & 0xFFFFFFFFL);
+        }
+
         private Painted paint() {
             drawHeader();
             drawCells();
+            drawStacks();
             drawStubs();
             drawEdges();
             drawPacket();
@@ -325,7 +419,7 @@ public final class NetCanvas {
                     serverStrip,
                     layers,
                     rows,
-                    layout.overflowInLastVisibleLayer(),
+                    layout.foldedMachines(),
                     packetCells);
         }
 
@@ -357,7 +451,34 @@ public final class NetCanvas {
                         styleFor(sighting, vantage),
                         block,
                         false,
-                        picked));
+                        picked,
+                        "",
+                        0));
+            }
+        }
+
+        private void drawStacks() {
+            for (NetLayout.Stack stack : layout.stacks()) {
+                if (stack.expanded()) {
+                    // Its members are ordinary cells now. It is still reported by the layout so a
+                    // keystroke can close it again; there is nothing to draw for it.
+                    continue;
+                }
+                String block = stackText(stack.count());
+                blit(stack.layer(), stack.row(), block);
+                pieces.add(new Piece(
+                        "",
+                        "",
+                        stack.layer(),
+                        stack.row(),
+                        "es-netmap-stack",
+                        block,
+                        false,
+                        // A stack is never the selection: CONNECT, DOWNLOAD and a breach all act on
+                        // one address and a fold has none. Opening it is the action it offers.
+                        false,
+                        stack.id(),
+                        stack.count()));
             }
         }
 
@@ -375,11 +496,13 @@ public final class NetCanvas {
                         true,
                         // A stub is never the selection. It has no address the player has been sold,
                         // so there is nothing for CONNECT or a breach to act on and nothing to mark.
-                        false));
+                        false,
+                        "",
+                        0));
             }
         }
 
-        /** Writes a four-line block into a column slot and closes those cells to routing. */
+        /** Writes a block into a column slot and closes those cells to routing. */
         private void blit(int layer, int row, String block) {
             int top = 1 + row * UiTokens.NET_NODE_LINES;
             int left = layer * PITCH + UiTokens.NET_LATERAL_COLS;
@@ -399,98 +522,127 @@ public final class NetCanvas {
 
         // ── Edges ────────────────────────────────────────────────────────────────────────────────
 
+        /**
+         * ⚠ <b>Lateral edges are drawn first, and the order is load-bearing.</b> A forward run crosses
+         * the lateral channel at one cell and {@link #merge} yields there to whatever is already in
+         * it — which only works if the lateral edge got there first. Drawn the other way round, the
+         * forward run would claim an empty cell and the arc would be refused instead, inverting the
+         * rule and losing exactly the distinction it exists to protect.
+         */
         private void drawEdges() {
-            int[] lanes = new int[Math.max(1, layers)];
             for (NetLayout.Routed routed : layout.routed()) {
-                int[] from = slotOf.get(routed.fromAddress());
-                int[] to = slotOf.get(routed.toAddress());
-                if (from == null || to == null) {
+                if (!routed.lateral()) {
                     continue;
                 }
-                if (routed.lateral()) {
+                int[] from = slotOf.get(routed.fromAddress());
+                int[] to = slotOf.get(routed.toAddress());
+                if (from != null && to != null) {
                     lateral(from[0], Math.min(from[1], to[1]), Math.max(from[1], to[1]));
-                } else {
-                    forward(from[0], from[1], to[1], lanes[from[0]]++);
+                }
+            }
+            int[] lanes = new int[Math.max(1, layers)];
+            for (NetLayout.Routed routed : layout.routed()) {
+                if (routed.lateral()) {
+                    continue;
+                }
+                int[] from = slotOf.get(routed.fromAddress());
+                int[] to = slotOf.get(routed.toAddress());
+                if (from != null && to != null && forward(from[0], from[1], to[1], lanes[from[0]])) {
+                    lanes[from[0]]++;
                 }
             }
             // Stub edges last, so a real machine always gets the low lanes: the lane a reader follows
             // first should lead somewhere they can act on.
             for (Stub stub : stubs) {
                 int[] from = slotOf.get(stub.bridgeAddress());
-                if (from != null) {
-                    forward(from[0], from[1], stub.row(), lanes[from[0]]++);
+                if (from != null && forward(from[0], from[1], stub.row(), lanes[from[0]])) {
+                    lanes[from[0]]++;
                 }
             }
         }
 
         /**
-         * A forward edge, drawn in the gap to the right of {@code layer}.
+         * A forward edge, drawn along the corridor to the right of {@code layer}.
          *
-         * <p>Source stub, a run to this edge's turn column, the turn, a run to the destination and an
-         * arrowhead. The turn column is {@code 1 + lane * 2}, so the three lanes never share a
-         * vertical and a fan-out stays legible where a single bus would go solid.
+         * <p>Source run, a turn, a destination run and an arrowhead against the next box. The turn
+         * column comes from {@link #TURNS}, so the lanes never share a vertical and a fan-out stays
+         * legible where a single bus would go solid.
          */
-        private void forward(int layer, int fromRow, int toRow, int index) {
+        private boolean forward(int layer, int fromRow, int toRow, int index) {
             if (layer + 1 >= layers) {
-                return;
+                return false;
             }
-            int gap = layer * PITCH + LAYER_COLS;
-            int last = UiTokens.NET_GAP_COLS - 1;
+            int corridor = layer * PITCH + LAYER_COLS;
             int source = cellLine(fromRow);
             int destination = cellLine(toRow);
 
             if (source == destination) {
-                for (int col = 0; col < last; col++) {
-                    merge(source, gap + col, AsciiCanvas.LEFT | AsciiCanvas.RIGHT);
+                for (int col = 0; col < ARROW_COL; col++) {
+                    merge(source, corridor + col, AsciiCanvas.LEFT | AsciiCanvas.RIGHT);
                 }
+                // ⚠ It took no lane, so it must not spend one. An edge between two machines on the
+                // same row is a straight run with no vertical at all, and counting it pushed every
+                // turning edge in the fan one lane further along — which on a five-lane corridor is
+                // the difference between five distinguishable branches and four plus a collision.
+                put(destination, corridor + ARROW_COL, AsciiCanvas.ARROW_RIGHT);
+                close(destination, corridor + ARROW_COL);
+                return false;
             } else {
-                int turn = 1 + (index % UiTokens.NET_LANES) * 2;
+                int turn = TURNS[Math.floorMod(index, TURNS.length)];
                 int away = destination > source ? AsciiCanvas.DOWN : AsciiCanvas.UP;
                 int back = destination > source ? AsciiCanvas.UP : AsciiCanvas.DOWN;
                 for (int col = 0; col < turn; col++) {
-                    merge(source, gap + col, AsciiCanvas.LEFT | AsciiCanvas.RIGHT);
+                    merge(source, corridor + col, AsciiCanvas.LEFT | AsciiCanvas.RIGHT);
                 }
-                merge(source, gap + turn, AsciiCanvas.LEFT | away);
+                merge(source, corridor + turn, AsciiCanvas.LEFT | away);
                 int step = destination > source ? 1 : -1;
                 for (int line = source + step; line != destination; line += step) {
-                    merge(line, gap + turn, AsciiCanvas.UP | AsciiCanvas.DOWN);
+                    merge(line, corridor + turn, AsciiCanvas.UP | AsciiCanvas.DOWN);
                 }
-                merge(destination, gap + turn, back | AsciiCanvas.RIGHT);
-                for (int col = turn + 1; col < last; col++) {
-                    merge(destination, gap + col, AsciiCanvas.LEFT | AsciiCanvas.RIGHT);
+                merge(destination, corridor + turn, back | AsciiCanvas.RIGHT);
+                for (int col = turn + 1; col < ARROW_COL; col++) {
+                    merge(destination, corridor + col, AsciiCanvas.LEFT | AsciiCanvas.RIGHT);
                 }
             }
             // ⚠ Written, never merged. The arrowhead is not in the junction table, so OR-ing bits
             // into it would hand back a stub and the edge would lose the one mark that says which way
-            // it runs. It closes its cell afterwards so nothing else can take it back — today no
-            // merge reaches this column anyway (every run stops at `last`), but the invariant the
-            // reader needs is "the arrowhead survives", and that must not depend on a loop bound in
-            // another method staying exclusive.
-            put(destination, gap + last, AsciiCanvas.ARROW_RIGHT);
-            close(destination, gap + last);
+            // it runs. It closes its cell afterwards so nothing else can take it back.
+            //
+            // ⚠ It shares its column with a lateral edge's stub, and winning there is correct: both
+            // mean "this joins the box on the right", and an arrowhead says it more precisely. The
+            // lateral's own corner is in the column before, so nothing about that edge is lost.
+            put(destination, corridor + ARROW_COL, AsciiCanvas.ARROW_RIGHT);
+            close(destination, corridor + ARROW_COL);
+            return true;
         }
 
         /**
-         * A lateral edge, drawn in the two-column strip on the left of its own layer.
+         * A lateral edge, drawn in the bracket at the right-hand end of its own layer's strip.
          *
          * <p>Rounded corners, so a reader can tell a same-layer edge from a hop <em>by shape</em>. The
          * arcs still merge: two lateral edges that overlap produce {@code ├}, which is the honest
          * reading — a branch — rather than one silently erasing the other.
+         *
+         * <p>⚠ The stub reaches the box. Until 2026-08-08 the bracket sat at the far side of a
+         * ten-column strip and stopped eight columns short of the machine it joined, so a same-layer
+         * link visibly connected to nothing.
          */
         private void lateral(int layer, int upperRow, int lowerRow) {
             if (upperRow == lowerRow) {
                 return;
             }
-            int strip = layer * PITCH;
+            int channel = layer * PITCH + UiTokens.NET_LATERAL_COLS - UiTokens.NET_LATERAL_BUS_COLS;
             int upper = cellLine(upperRow);
             int lower = cellLine(lowerRow);
-            arc(upper, strip, AsciiCanvas.DOWN | AsciiCanvas.RIGHT);
-            arc(upper, strip + 1, AsciiCanvas.LEFT | AsciiCanvas.RIGHT);
+            arc(upper, channel, AsciiCanvas.DOWN | AsciiCanvas.RIGHT);
+            arc(lower, channel, AsciiCanvas.UP | AsciiCanvas.RIGHT);
             for (int line = upper + 1; line < lower; line++) {
-                arc(line, strip, AsciiCanvas.UP | AsciiCanvas.DOWN);
+                arc(line, channel, AsciiCanvas.UP | AsciiCanvas.DOWN);
             }
-            arc(lower, strip, AsciiCanvas.UP | AsciiCanvas.RIGHT);
-            arc(lower, strip + 1, AsciiCanvas.LEFT | AsciiCanvas.RIGHT);
+            for (int col = channel + 1; col < layer * PITCH + UiTokens.NET_LATERAL_COLS; col++) {
+                arc(upper, col, AsciiCanvas.LEFT | AsciiCanvas.RIGHT);
+                arc(lower, col, AsciiCanvas.LEFT | AsciiCanvas.RIGHT);
+            }
         }
 
         // ── Motion ───────────────────────────────────────────────────────────────────────────────
@@ -506,6 +658,10 @@ public final class NetCanvas {
          * <p>{@link Painted#packetCells} is how {@link NetGraph} knows whether there is anything to
          * animate. An idle instrument holds still — a map that keeps pulsing with no vantage and no
          * exits is a screensaver.
+         *
+         * <p>⚠ It walks the whole <b>corridor</b>, which crosses a strip Label as well as a gap one.
+         * {@link NetGraph#advance} repaints both for that reason, and never a node cell — a replaced
+         * cell is one that has lost keyboard focus.
          */
         private void drawPacket() {
             int[] slot = vantageSlot();
@@ -518,8 +674,8 @@ public final class NetCanvas {
             }
             char run = AsciiCanvas.junction(AsciiCanvas.LEFT | AsciiCanvas.RIGHT);
             List<Integer> lane = new ArrayList<>();
-            int gap = slot[0] * PITCH + LAYER_COLS;
-            for (int col = gap; col < gap + UiTokens.NET_GAP_COLS && col < cols; col++) {
+            int corridor = slot[0] * PITCH + LAYER_COLS;
+            for (int col = corridor; col < corridor + CORRIDOR_COLS && col < cols; col++) {
                 if (grid[line][col] == run) {
                     lane.add(col);
                 }
@@ -551,6 +707,11 @@ public final class NetCanvas {
             return 1 + row * UiTokens.NET_NODE_LINES + 1;
         }
 
+        /** Whether a column is a layer's lateral channel — the one cell a forward run yields at. */
+        private static boolean lateralChannel(int col) {
+            return Math.floorMod(col, PITCH) == UiTokens.NET_LATERAL_COLS - UiTokens.NET_LATERAL_BUS_COLS;
+        }
+
         private void write(int line, int col, String text, boolean close) {
             for (int i = 0; i < text.length(); i++) {
                 put(line, col + i, text.charAt(i));
@@ -573,9 +734,22 @@ public final class NetCanvas {
             }
         }
 
-        /** OR-s direction bits into a cell, refusing anything a piece has already claimed. */
+        /**
+         * OR-s direction bits into a cell, refusing anything a piece has already claimed.
+         *
+         * <p>⚠ And <b>yielding</b> at a lateral channel that already carries ink. A forward run
+         * crossing there would turn {@code ╰} into {@code ┴} — honest, and still a loss: the arc is
+         * how a same-layer edge is told from a hop in greyscale, and this map has no second signal for
+         * it. Skipping the cell leaves the horizontal reading as though it passes behind the vertical,
+         * which is the older and better convention anyway. This is the whole of "route around those
+         * two columns" from {@code 09} §1.3 — in a grid, the only way around a column is to decline
+         * one cell of it.
+         */
         private void merge(int line, int col, int add) {
             if (line < 0 || line >= lines || col < 0 || col >= cols || occupied[line][col]) {
+                return;
+            }
+            if (lateralChannel(col) && bits[line][col] != 0) {
                 return;
             }
             bits[line][col] |= add;
@@ -722,6 +896,42 @@ public final class NetCanvas {
     }
 
     /**
+     * A stack: one box carrying an exact count of machines folded behind one parent.
+     *
+     * <pre>
+     * ┌──────────────┐┐        ┌────────────────┐
+     * │ ▚▚ ×7        │││       │ ▒▒ TERM    [#] │
+     * └──────────────┘┘        └────────────────┘
+     *  7 MACHINES               10.0.0.7
+     *  [+] OPEN                 quiet-hopper
+     * </pre>
+     *
+     * <p>⚠ <b>No heavy frame.</b> That is the vantage's, and the map has exactly one. A stack reads as
+     * a stack by its <b>offset plates</b> — a shape nothing else on this surface uses — which is the
+     * distinction {@code 09} §5 asks for and the one that survives greyscale.
+     *
+     * <p>⚠ The count is exact and it counts <b>machines the player has found</b>. It is never a hint
+     * about anything undiscovered; see {@link NetLayout.Stack}.
+     *
+     * <p>⚠ The state is in the text as well as in the shape — {@code [+] OPEN} in the deck's existing
+     * bracket idiom, the same one the lock markers use. §4.4: a state carried by a shape alone is
+     * invisible to a screen reader, and {@link NetGraph} says it in words a third time.
+     */
+    static String stackText(int count) {
+        int body = UiTokens.NET_NODE_COLS - PLATE_COLS;
+        String rule = String.valueOf(AsciiCanvas.LIGHT_H).repeat(body - 2);
+        String plateTop = String.valueOf(AsciiCanvas.LIGHT_TR).repeat(PLATE_COLS);
+        String plateMid = String.valueOf(AsciiCanvas.LIGHT_V).repeat(PLATE_COLS);
+        String plateLow = String.valueOf(AsciiCanvas.LIGHT_BR).repeat(PLATE_COLS);
+        String interior = blank(1) + NetGlyphs.NODE_STACK + blank(1) + padRight("×" + count, body - 5);
+        return AsciiCanvas.LIGHT_TL + rule + AsciiCanvas.LIGHT_TR + plateTop
+                + "\n" + AsciiCanvas.LIGHT_V + clip(interior, body - 2) + AsciiCanvas.LIGHT_V + plateMid
+                + "\n" + AsciiCanvas.LIGHT_BL + rule + AsciiCanvas.LIGHT_BR + plateLow
+                + "\n" + padRight(blank(1) + count + (count == 1 ? " MACHINE" : " MACHINES"), UiTokens.NET_NODE_COLS)
+                + "\n" + padRight(blank(1) + NetGlyphs.STACK_OPEN + " OPEN", UiTokens.NET_NODE_COLS);
+    }
+
+    /**
      * A bridge stub: the far side, unframed.
      *
      * <p>Deliberately without a box. A frame is this map's mark for "a machine you have found", and
@@ -832,63 +1042,27 @@ public final class NetCanvas {
     // ── Text helpers ─────────────────────────────────────────────────────────────────────────────
 
     /**
-     * Fits a layer header into its column without losing the clamp marker.
+     * Fits a layer header into its column.
      *
-     * <p>⚠ The naive version of this is a plain {@code clip}, and it fails in precisely the case the
-     * marker exists for. A server holds up to fifty machines and the deepest column is the one most
-     * likely to hold them, but the deepest column is also the <b>only</b> one with no gap to borrow
-     * width from — so {@code "H1 · home-relay · +40 MORE"} clipped to sixteen columns comes out as
-     * {@code "H1 · home-relay "}, and a player looking at ten of fifty machines is told nothing at all.
-     * A middle column is worse rather than better: it clips to {@code "… · +40 "}, which is a mangled
-     * number where an exact one was meant.
+     * <p>A server name too wide for its column is shortened with an {@link NetGlyphs#ELLIPSIS} rather
+     * than simply cut: a header truncated without a mark reads as a machine whose name is wrong, which
+     * is the kind of thing a player learns to distrust the whole instrument over. The full text stays
+     * available — {@link NetLayout.Result#layerHeaders} is unclipped and the list view names every
+     * server in full.
      *
-     * <p>So the marker is protected and the server name gives way, marked with an
-     * {@link NetGlyphs#ELLIPSIS} so a shortened name reads as shortened rather than as a machine whose
-     * name is wrong. The full text stays available: {@link NetLayout.Result#layerHeaders} is unclipped,
-     * and {@link Painted#overflow} carries the same count to the panel note underneath the graph.
+     * <p>⚠ This used to have a second job: protecting a {@code "· +N MORE"} clamp marker while the
+     * name gave way. That marker is gone with the clamp it described — see {@link NetLayout} — because
+     * a map that draws ten of fifty machines and puts the rest in a header count is a map with
+     * machines missing from it. Nothing is hidden without a box and a number now.
      *
      * @param header one of {@link NetLayout.Result#layerHeaders}
      * @param span how many columns this header may occupy
      */
     static String fit(String header, int span) {
-        if (header.length() <= span) {
+        if (header.length() <= span || span < 2) {
             return header;
         }
-        int at = header.lastIndexOf(NetLayout.CLAMP_MARK);
-        if (at < 0) {
-            // No marker to protect: an ordinary long header, and clip's truncation is the whole story.
-            return header;
-        }
-        String marker = header.substring(at);
-        // Two columns is the floor for a legible remainder: one character and the ellipsis. Below it
-        // there is nothing to save, and the marker alone is the more useful half of the line.
-        int room = span - marker.length();
-        if (room < 2) {
-            return marker;
-        }
-        return trimSeparators(header.substring(0, room - 1)) + NetGlyphs.ELLIPSIS + marker;
-    }
-
-    /**
-     * Drops trailing spaces and separator bullets, so an elision mark never follows a separator.
-     *
-     * <p>⚠ Found by rendering rather than by reading, and in the commonest case the game produces:
-     * the outermost column is the one with no gap to borrow width from <em>and</em> the one most
-     * likely to be holding fifty machines. Without this, {@code "H1 · home-relay · +40 MORE"} fitted
-     * into sixteen columns came out as {@code "H1 ·… · +40 MORE"} — a dangling separator, an
-     * ellipsis, then a second separator, which reads as a corrupted string rather than a shortened
-     * one. Trimming gives {@code "H1… · +40 MORE"}: same information, said once.
-     *
-     * <p>The stem can never trim away to nothing. Its first character is the {@code H} of the hop
-     * number, which is neither a space nor a bullet, and {@link #fit} has already refused a
-     * {@code room} small enough to produce an empty stem.
-     */
-    private static String trimSeparators(String stem) {
-        int end = stem.length();
-        while (end > 0 && (stem.charAt(end - 1) == ' ' || stem.charAt(end - 1) == AsciiCanvas.BULLET)) {
-            end--;
-        }
-        return stem.substring(0, end);
+        return header.substring(0, span - 1) + NetGlyphs.ELLIPSIS;
     }
 
     static String blank(int width) {

@@ -110,7 +110,7 @@ final class NetFixtures {
         return map(sightings, links, 2);
     }
 
-    /** One vantage and {@code count} one-hop contacts: a column far wider than the graph draws. */
+    /** One vantage and {@code count} one-hop contacts: a very tall first column. */
     static NetMap crowded(int count) {
         List<Sighting> sightings = new ArrayList<>();
         List<NetLink> links = new ArrayList<>();
@@ -121,5 +121,63 @@ final class NetFixtures {
             links.add(link("10.0.0.1", address));
         }
         return map(sightings, links, 1);
+    }
+
+    /**
+     * A gateway two hops out with a wide fan of machines behind it — the shape stacking exists for.
+     *
+     * <p>{@code 10.0.0.2} is the rig's neighbour and every one of the {@code children} hangs off it
+     * alone, so the whole fan is eligible to fold. {@code 10.0.0.3} is a second neighbour with one
+     * child of its own, which is what keeps the fixture honest: a layer where <em>some</em> of the
+     * machines fold and some do not is the case a threshold has to get right.
+     */
+    static NetMap estate(int children) {
+        List<Sighting> sightings = new ArrayList<>();
+        List<NetLink> links = new ArrayList<>();
+        sightings.add(self("10.0.0.1"));
+        sightings.add(sighting("10.0.0.2", HostKind.GATEWAY, 1, false, true, false, ""));
+        sightings.add(sighting("10.0.0.3", HostKind.TERMINAL, 1, false, false, false, ""));
+        links.add(link("10.0.0.1", "10.0.0.2"));
+        links.add(link("10.0.0.1", "10.0.0.3"));
+        for (int i = 0; i < children; i++) {
+            String address = "10.0.1." + (10 + i);
+            sightings.add(sighting(address, HostKind.UNKNOWN, 2, false, false, false, ""));
+            links.add(link("10.0.0.2", address));
+        }
+        sightings.add(sighting("10.0.2.5", HostKind.STORE, 2, false, false, false, ""));
+        links.add(link("10.0.0.3", "10.0.2.5"));
+        return map(sightings, links, 2);
+    }
+
+    /** {@link #estate} with one of the fan also linked to the other neighbour. */
+    static NetMap estateWithASharedChild(int children) {
+        NetMap base = estate(children);
+        List<NetLink> links = new ArrayList<>(base.links());
+        links.add(link("10.0.0.3", "10.0.1.10"));
+        return map(base.sightings(), links, 2);
+    }
+
+    /** {@link #estate} with two of the fan linked to each other — an edge that stays inside the fold. */
+    static NetMap estateWithSiblingLink(int children) {
+        NetMap base = estate(children);
+        List<NetLink> links = new ArrayList<>(base.links());
+        links.add(link("10.0.1.10", "10.0.1.11"));
+        return map(base.sightings(), links, 2);
+    }
+
+    /**
+     * {@link #estate} with one of the fan holding a machine of its own, one layer further out.
+     *
+     * <p>The case only the eligibility fixpoint catches: {@code 10.0.1.10} has exactly one parent, so
+     * it looks foldable, and folding it would leave its child's edge hanging off a box that cannot say
+     * which of seven machines it belongs to.
+     */
+    static NetMap estateWithAGrandchild(int children) {
+        NetMap base = estate(children);
+        List<Sighting> sightings = new ArrayList<>(base.sightings());
+        List<NetLink> links = new ArrayList<>(base.links());
+        sightings.add(sighting("10.0.3.7", HostKind.TERMINAL, 3, false, false, false, ""));
+        links.add(link("10.0.1.10", "10.0.3.7"));
+        return map(sightings, links, 3);
     }
 }

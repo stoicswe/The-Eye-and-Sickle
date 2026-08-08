@@ -82,6 +82,153 @@ public final class DeckSnapshot {
         Platform.exit();
     }
 
+    /**
+     * A clock the harness can wind forward.
+     *
+     * <h2>⚠ The alternative was reaching into the rules, and it would have proved less</h2>
+     *
+     * A sweep's whole design is that its outcome is decided at commission and applied at completion —
+     * {@code NetRules.beginSweep} freezes it precisely so quitting cannot re-roll it. Calling
+     * {@code settleSweep} by hand would skip the task, the compute hold and the recovery, so the
+     * render would be of a state the game cannot actually reach. Winding the clock exercises the real
+     * path and costs one class.
+     */
+    private static final class Advancing extends Clock {
+
+        private java.time.Instant at;
+
+        private Advancing(java.time.Instant at) {
+            this.at = at;
+        }
+
+        void advance(java.time.Duration by) {
+            at = at.plus(by);
+        }
+
+        @Override
+        public java.time.ZoneId getZone() {
+            return java.time.ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(java.time.ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public java.time.Instant instant() {
+            return at;
+        }
+    }
+
+    /**
+     * Gives the harness a network to draw.
+     *
+     * <h2>⚠ WITHOUT THIS, NO RENDER THIS PROJECT CAN PRODUCE CONTAINS A SINGLE EDGE</h2>
+     *
+     * {@code docs/client/09-network-map-graph.md} §1.3 records it as the prerequisite for every visual
+     * decision in that document, and it is the sharper of the two defects there: a fresh character
+     * knows one machine — their own — so the map photographed as one box on an empty field. Routing,
+     * lane assignment, merging, arcs, arrowheads, bridge stubs and stacks were all invisible to the
+     * only tool this project has for looking at itself, which is how two of three routing lanes came
+     * to render as stubs silently for as long as the lane token was wrong.
+     *
+     * <p>The topology mapper is granted so the ceiling is two hops rather than one: at one hop every
+     * machine is a child of the rig and the picture has no second column, so nothing about depth,
+     * forward edges or stacking would be on screen. A deep sweep because bridges need tier 2 or better
+     * to be found at all ({@code Balance.NET_SWEEP_BRIDGE_MIN_TIER}) and the bridge stub is a piece of
+     * the picture in its own right.
+     *
+     * <p>⚠ Nothing here fakes a discovery. The sweep is commissioned through the session, held for its
+     * real duration, and settled by the engine's own tick — so what the map draws is a world the rules
+     * produced, and a change that broke discovery would show up here as an empty map rather than as a
+     * render that still looked right.
+     */
+    private static void sweepTheNeighbourhood(GameEngine game, LocalGameSession session, Advancing clock) {
+        game.state().schematics.add(io.github.stoicswe.eyeandsickle.engine.net.NetRules.TOPOLOGY_MAPPER);
+        for (String owned : List.of("net-sweep-wide", "net-sweep-deep")) {
+            io.github.stoicswe.eyeandsickle.engine.Catalogue.byId(owned).ifPresent(offering -> {
+                var item = new io.github.stoicswe.eyeandsickle.engine.state.ItemState();
+                item.itemType = offering.id();
+                item.displayName = offering.name();
+                item.tier = io.github.stoicswe.eyeandsickle.protocol.game.StorageTier.VAULT.name();
+                game.state().items.add(item);
+            });
+        }
+        session.sweep("--deep");
+        settleASweep(session, clock);
+
+        // ⚠ `-Ddeck.reposition=N` walks the traversal loop N times: take a foothold on the deepest
+        // machine found, `connect` to it, sweep again. That is the ONLY way a map grows past two
+        // columns — the hop ceiling is two and reach is never bought (I2) — so without it the harness
+        // can never photograph a deep map, and the pressure docs/client/09 §2 describes is fan-out
+        // TIMES depth. It is opt-in because a repositioned vantage is a different picture from the one
+        // the other fourteen windows are set up for.
+        //
+        // ⚠ It is also how NM-2 gets an answer. Measured over four generated worlds at N=1: layers run
+        // 1–5 machines wide, so a threshold of 4 never fires at that depth. Any calibration of it has
+        // to be done out here, several repositions from home, which is the only place the fan-out the
+        // design is written against actually exists.
+        int hops = Integer.getInteger("deck.reposition", 0);
+        for (int step = 0; step < hops; step++) {
+            var hopsFromRig = io.github.stoicswe.eyeandsickle.engine.net.NetRules.hopsFrom(
+                    game.state(), game.state().topology.playerAddress);
+            String deepest = "";
+            int furthest = -1;
+            for (var host : game.state().topology.hosts) {
+                // ⚠ Never the machine already stood on. Without that the loop re-connects to the
+                // current vantage and sweeps from the same place, and a sweep's outcome is frozen at
+                // world generation — so every step after the first found nothing and the map stopped
+                // growing at three columns while the flag said six.
+                if (!host.discovered
+                        || host.address.equals(game.state().topology.playerAddress)
+                        || host.address.equals(game.state().topology.vantageAddress)) {
+                    continue;
+                }
+                int distance = hopsFromRig.getOrDefault(host.address, -1);
+                if (distance > furthest) {
+                    furthest = distance;
+                    deepest = host.address;
+                }
+            }
+            if (deepest.isEmpty()) {
+                break;
+            }
+            // ⚠ The foothold is planted rather than breached, and that is the one shortcut here. It
+            // stands in for the puzzle, not for the rule: `connect` still refuses or accepts on the
+            // rules' own terms, and the sweep that follows is a real sweep from the new position.
+            for (var host : game.state().topology.hosts) {
+                if (host.address.equals(deepest)) {
+                    host.foothold = true;
+                }
+            }
+            io.github.stoicswe.eyeandsickle.engine.net.NetRules.connect(game.state(), deepest, game.now());
+            session.sweep("--deep");
+            settleASweep(session, clock);
+        }
+
+        // ⚠ `-Ddeck.netdump=1` prints the map as text. The grid IS the rendering, so this is the
+        // cheapest and most exact way to look at one — and it is what NM-2 needs: the stack threshold
+        // is proposed rather than measured, and measuring it means reading real layer widths off real
+        // generated worlds rather than off a hand-built fixture.
+        if (System.getProperty("deck.netdump") != null) {
+            System.out.println(io.github.stoicswe.eyeandsickle.client.ui.netmap.NetCanvas.frame(session.net(), 0));
+        }
+    }
+
+    /** Lets a commissioned sweep run to completion, and its compute finish recovering afterwards. */
+    private static void settleASweep(LocalGameSession session, Advancing clock) {
+        // Past the sweep, and past the compute recovery that follows it, so the cycles the rest of
+        // this fixture allocates are actually free. A sweep still running would also render the rig
+        // monitor with a second task in it, which is a different picture from the one the other
+        // windows are set up for.
+        clock.advance(java.time.Duration.ofSeconds(
+                io.github.stoicswe.eyeandsickle.engine.Balance.NET_SWEEP_DEEP_SECONDS + 1));
+        session.tick();
+        clock.advance(java.time.Duration.ofMinutes(10));
+        session.tick();
+    }
+
     private static void render(Path outputDir, double width, double height) throws Exception {
         Path profileDir = outputDir.resolve("profile");
         profileDir.toFile().mkdirs();
@@ -112,14 +259,33 @@ public final class DeckSnapshot {
         }
         ThemeManager themes = new ThemeManager(profile);
 
-        var game = GameEngine.open(
+        // ⚠ ADVANCEABLE, because a sweep is a TASK and the harness has to be able to let one finish.
+        // See sweepTheNeighbourhood: the engine's own clock is the only way to settle work whose whole
+        // design is that its outcome was frozen at commission and applied at completion.
+        Advancing clock = new Advancing(Clock.systemUTC().instant());
+        // ⚠ `TestSaves.bare`, NOT `GameEngine.open` — the rig has to be at the top of the compute
+        // ladder or most of this fixture is silently refused. A starting rig is 24 cycles as of
+        // 2026-08-06 and this harness was written against 100: measured on the render before it was
+        // changed, `allocateSelfMining(30)` and `scan("thorough")` (35) were both refusals, so the
+        // deck photographed with an idle grid and a SECURITY CENTER reading "Unaudited — no audit has
+        // ever run on this rig". Both are states indistinguishable from those features being broken,
+        // which is the exact failure a render harness exists to prevent.
+        var game = io.github.stoicswe.eyeandsickle.client.support.TestSaves.bare(
                 io.github.stoicswe.eyeandsickle.engine.save.TestSaves.at(profileDir.resolve("save.json")),
                 "halflight",
-                Clock.systemUTC());
+                clock);
         LocalGameSession session = new LocalGameSession(game);
+        sweepTheNeighbourhood(game, session, clock);
         // A rig doing something. An empty rig renders an empty grid, which would prove nothing about
         // the component the whole design language calls its signature.
-        session.allocateSelfMining(30);
+        //
+        // ⚠ TEN, NOT THIRTY, and the budget is the reason. A 64-cycle rig has to carry self-mining,
+        // an armed firewall, a canary, a shell and — the expensive one — a THOROUGH scan at 35, which
+        // is what gives the activity panel a long-running task with a real countdown. At thirty this
+        // fixture spent its way past the ceiling and the scan was refused, so the render showed a rig
+        // that had never been audited. Written against a 100-cycle rig, and nothing re-checked it when
+        // the ladder landed.
+        session.allocateSelfMining(10);
         // ⚠ ARMING NOW REQUIRES OWNING (2026-08-06), so the harness has to grant what it arms. It
         // did not, and both calls below silently became refusals — the FIREWALL panel photographed
         // with nothing armed, which is the state indistinguishable from the switches not working.

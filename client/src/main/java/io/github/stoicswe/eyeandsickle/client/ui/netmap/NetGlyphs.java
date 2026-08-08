@@ -71,6 +71,30 @@ public final class NetGlyphs {
     /** An identified cross-server link. It advertises the server on its far side and nothing else. */
     public static final String NODE_BRIDGE = "╪╪";
 
+    /**
+     * A stack: several machines the player has found, folded behind one parent.
+     *
+     * <h2>⚠ NOT A RUNG ON THE INK LADDER, and that is why it is a chequer rather than a shade</h2>
+     *
+     * {@link #NODE_VANTAGE} through {@link #NODE_CONTACT} are one scale — how much is known about
+     * <em>one</em> machine — and a stack is not a point on it. It is a container, and its members may
+     * sit anywhere on that scale at once. A fifth shade of block would read as a fifth degree of
+     * knowledge, which is the one thing it must not say. The quadrant pattern is in the same range
+     * (Block Elements is the one range complete in IBM Plex Mono, which is why every marker here comes
+     * from it) and reads as "more than one thing" rather than as "this much light".
+     */
+    public static final String NODE_STACK = "▚▚";
+
+    /**
+     * The affordance on a collapsed stack, in the deck's bracket idiom.
+     *
+     * <p>⚠ ASCII, for {@link #LOCK_SHUT}'s reasons: §9 bans icon fonts and {@code GlyphCoverageTest}
+     * fails the build on any literal outside the two bundled faces, which have no disclosure triangle.
+     * It also carries the collapsed state <b>a second time</b>, after the offset plates — §4.4, and a
+     * shape is silent to a screen reader, which is why {@code NetGraph} says it in words as well.
+     */
+    public static final String STACK_OPEN = "[+]";
+
     // ── Lock markers. Three cells each, in the deck's bracket idiom. ─────────────────────────────
     //
     // ⚠ ASCII, and that is a constraint rather than a style choice. §9 bans icon fonts outright —

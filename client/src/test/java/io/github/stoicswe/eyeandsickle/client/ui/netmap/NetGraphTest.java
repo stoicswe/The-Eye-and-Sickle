@@ -37,8 +37,6 @@ import org.junit.jupiter.api.Test;
  */
 class NetGraphTest {
 
-    private static final int MAX_ROWS = 10;
-
     /**
      * Layer start to layer start, derived rather than written out.
      *
@@ -49,7 +47,7 @@ class NetGraphTest {
     private static final int PITCH = UiTokens.NET_LATERAL_COLS + UiTokens.NET_NODE_COLS + UiTokens.NET_GAP_COLS;
 
     private static List<String> lines(NetMap map, int phase) {
-        return NetCanvas.paint(map, MAX_ROWS, phase).lines();
+        return NetCanvas.paint(map, phase).lines();
     }
 
     private static char at(List<String> grid, int line, int col) {
@@ -95,7 +93,7 @@ class NetGraphTest {
         void fanOutMerges() {
             // Four edges leaving one node share the source row. Without merging, three of them would
             // be invisible and the map would report the vantage as having one neighbour.
-            String frame = NetCanvas.frame(NetFixtures.opening(), MAX_ROWS, 0);
+            String frame = NetCanvas.frame(NetFixtures.opening(), 0);
             assertThat(frame)
                     .contains(String.valueOf(
                             AsciiCanvas.junction(AsciiCanvas.LEFT | AsciiCanvas.RIGHT | AsciiCanvas.DOWN)));
@@ -110,7 +108,7 @@ class NetGraphTest {
             // can never reach a cell; ours can, since a bridge stub is placed into a column the layout
             // did not allocate.
             for (NetMap map : List.of(NetFixtures.opening(), NetFixtures.twoHops(), NetFixtures.crowded(30))) {
-                NetCanvas.Painted painted = NetCanvas.paint(map, MAX_ROWS, 0);
+                NetCanvas.Painted painted = NetCanvas.paint(map, 0);
                 for (NetCanvas.Piece piece : painted.pieces()) {
                     String[] expected = piece.text().split("\n", -1);
                     for (int i = 0; i < expected.length; i++) {
@@ -131,7 +129,7 @@ class NetGraphTest {
             // The map has to survive greyscale — the palette reserves its one accent for live/earning
             // data and a network node is not earning — so the two edge classes cannot be distinguished
             // by ink. Arcs versus sharp junctions is the distinction that survives.
-            String frame = NetCanvas.frame(NetFixtures.twoHops(), MAX_ROWS, 0);
+            String frame = NetCanvas.frame(NetFixtures.twoHops(), 0);
             assertThat(frame).contains(String.valueOf(NetGlyphs.ROUND_TL));
             assertThat(frame).contains(String.valueOf(NetGlyphs.ROUND_BL));
         }
@@ -164,7 +162,7 @@ class NetGraphTest {
             // Naming the type would be the sweep answering the Passive Sniffer's question for free,
             // and 07 §1 prices that at 15 EC. Printing the literal word would be worse than either: it
             // looks like a type. Dashes look like an empty field, which is what it is.
-            String frame = NetCanvas.frame(NetFixtures.opening(), MAX_ROWS, 0);
+            String frame = NetCanvas.frame(NetFixtures.opening(), 0);
             assertThat(frame).contains(NetGlyphs.NODE_CONTACT).doesNotContain("UNKNOWN");
         }
 
@@ -173,7 +171,7 @@ class NetGraphTest {
         void bridgeStubNamesItsPeer() {
             // The one fact a bridge exists to publish. Never a peer address, never a host count,
             // never anything about what is over there.
-            String frame = NetCanvas.frame(NetFixtures.twoHops(), MAX_ROWS, 0);
+            String frame = NetCanvas.frame(NetFixtures.twoHops(), 0);
             assertThat(frame).contains(NetGlyphs.NODE_BRIDGE);
             assertThat(frame).contains(NetGlyphs.NODE_DARK);
             assertThat(frame).contains(NetFixtures.SOUTH.name());
@@ -191,7 +189,7 @@ class NetGraphTest {
             // dot on a ┬ and silently deleted a branch from the map the player was deducing on. The
             // headless harness caught it; a screenshot would not have.
             NetMap map = NetFixtures.twoHops();
-            int cells = NetCanvas.paint(map, MAX_ROWS, 0).packetCells();
+            int cells = NetCanvas.paint(map, 0).packetCells();
             assertThat(cells).isPositive();
 
             List<String> base = lines(map, 0);
@@ -216,17 +214,22 @@ class NetGraphTest {
         }
 
         @Test
-        @DisplayName("a step changes nothing outside a gap column")
-        void packetStaysInsideItsGap() {
+        @DisplayName("a step never changes a node cell")
+        void packetNeverTouchesACell() {
             // What NetGraph's partial repaint rests on. It advances the animation by setting the text
-            // of the gap Labels alone, because rebuilding the columns three times a second would
-            // replace every node cell — and a replaced Label has lost keyboard focus, so a player
-            // tabbing across the map would be thrown back to the start of the traversal order before
-            // they could press SPACE. That optimisation is only correct while this holds, and it is
-            // the kind of coupling that rots silently: nothing in NetCanvas would fail if a future
-            // change let a phase touch a node cell, and nothing on screen would look wrong either.
-            for (NetMap map : List.of(NetFixtures.opening(), NetFixtures.twoHops())) {
-                NetCanvas.Painted painted = NetCanvas.paint(map, MAX_ROWS, 0);
+            // of the gap and lateral-strip Labels, because rebuilding the columns three times a second
+            // would replace every node cell — and a replaced Label has lost keyboard focus, so a
+            // player tabbing across the map would be thrown back to the start of the traversal order
+            // before they could press SPACE. That optimisation is only correct while this holds, and
+            // it is the kind of coupling that rots silently: nothing in NetCanvas would fail if a
+            // future change let a phase touch a node cell, and nothing on screen would look wrong.
+            //
+            // ⚠ It used to require every change to be inside a GAP column. The packet now walks the
+            // whole corridor, which spans a gap and the next layer's strip — both of them siblings of
+            // the node cells rather than parents of them, so the guarantee that actually matters is
+            // this one: never a cell.
+            for (NetMap map : List.of(NetFixtures.opening(), NetFixtures.twoHops(), NetFixtures.estate(7))) {
+                NetCanvas.Painted painted = NetCanvas.paint(map, 0);
                 List<String> base = painted.lines();
                 for (int phase = 1; phase < painted.packetCells() + 3; phase++) {
                     List<String> next = lines(map, phase);
@@ -237,8 +240,9 @@ class NetGraphTest {
                             }
                             int within = col % PITCH;
                             assertThat(within)
-                                    .as("phase %d changed (%d,%d), which is not in a gap", phase, line, col)
-                                    .isGreaterThanOrEqualTo(UiTokens.NET_LATERAL_COLS + UiTokens.NET_NODE_COLS);
+                                    .as("phase %d changed (%d,%d), which is inside a node cell", phase, line, col)
+                                    .matches(at -> at < UiTokens.NET_LATERAL_COLS
+                                            || at >= UiTokens.NET_LATERAL_COLS + UiTokens.NET_NODE_COLS);
                         }
                     }
                 }
@@ -269,7 +273,7 @@ class NetGraphTest {
             // An instrument that keeps moving with nothing happening is a screensaver. NetGraph.advance
             // reads exactly this number to decide whether to repaint at all.
             NetMap alone = NetFixtures.map(List.of(NetFixtures.self("10.0.0.1")), List.of(), 1);
-            assertThat(NetCanvas.paint(alone, MAX_ROWS, 0).packetCells()).isZero();
+            assertThat(NetCanvas.paint(alone, 0).packetCells()).isZero();
         }
     }
 
@@ -293,18 +297,18 @@ class NetGraphTest {
         @DisplayName("the same map paints the same frame twice")
         void stable() {
             NetMap map = NetFixtures.twoHops();
-            assertThat(NetCanvas.frame(map, MAX_ROWS, 0)).isEqualTo(NetCanvas.frame(map, MAX_ROWS, 0));
-            assertThat(NetCanvas.frame(NetFixtures.twoHops(), MAX_ROWS, 0))
+            assertThat(NetCanvas.frame(map, 0)).isEqualTo(NetCanvas.frame(map, 0));
+            assertThat(NetCanvas.frame(NetFixtures.twoHops(), 0))
                     .as("two equal maps paint the same picture")
-                    .isEqualTo(NetCanvas.frame(map, MAX_ROWS, 0));
+                    .isEqualTo(NetCanvas.frame(map, 0));
         }
 
         @Test
         @DisplayName("nothing discovered draws no cells and throws nothing")
         void emptyDrawsNothing() {
-            assertThat(NetCanvas.frame(NetMap.empty(), MAX_ROWS, 0)).isEmpty();
-            assertThat(NetCanvas.frame(null, MAX_ROWS, 0)).isEmpty();
-            assertThat(NetCanvas.paint(NetMap.empty(), MAX_ROWS, 0).pieces()).isEmpty();
+            assertThat(NetCanvas.frame(NetMap.empty(), 0)).isEmpty();
+            assertThat(NetCanvas.frame(null, 0)).isEmpty();
+            assertThat(NetCanvas.paint(NetMap.empty(), 0).pieces()).isEmpty();
         }
 
         @Test
@@ -312,36 +316,152 @@ class NetGraphTest {
         void serverStripIsAlwaysPresent() {
             // The brief requires the graph to name the server the player is connected to at all times.
             // It is chrome inside the panel, so it has no z-order to lose and no tab to hide behind.
-            assertThat(NetCanvas.paint(NetFixtures.opening(), MAX_ROWS, 0).serverStrip())
+            assertThat(NetCanvas.paint(NetFixtures.opening(), 0).serverStrip())
                     .contains(NetFixtures.HOME.name())
                     .contains("HOSTS SEEN 5")
                     .contains("CEILING 1 HOP");
-            assertThat(NetCanvas.paint(NetMap.empty(), MAX_ROWS, 0).serverStrip())
+            assertThat(NetCanvas.paint(NetMap.empty(), 0).serverStrip())
                     .contains("HOSTS SEEN 0");
         }
 
         @Test
-        @DisplayName("a clamped column is reported to the panel, not silently truncated")
-        void overflowReaches() {
-            assertThat(NetCanvas.paint(NetFixtures.crowded(50), MAX_ROWS, 0).overflow())
-                    .isEqualTo(40);
+        @DisplayName("a wide column draws every machine in it — nothing is clamped away")
+        void nothingIsClampedAway() {
+            // ⚠ This replaces the assertion that fifty machines drew ten and reported forty. That
+            // behaviour is gone with the "+N MORE" header it lived in — docs/client/09 §3.3 — because
+            // a map that draws ten of fifty and puts the rest in a count has machines missing from
+            // it, which is the one thing a map may not do.
+            NetCanvas.Painted painted = NetCanvas.paint(NetFixtures.crowded(50), 0);
+            assertThat(painted.rowsPerLayer()).isEqualTo(50);
+            assertThat(painted.pieces()).hasSize(51);
+            assertThat(painted.folded()).isZero();
+            assertThat(painted.header()).doesNotContain("MORE");
+        }
+    }
+
+    @Nested
+    @DisplayName("a stack is a fold of machines the player has already found")
+    class Stacks {
+
+        private static NetCanvas.Piece stack(NetCanvas.Painted painted) {
+            List<NetCanvas.Piece> stacks =
+                    painted.pieces().stream().filter(NetCanvas.Piece::stack).toList();
+            assertThat(stacks).hasSize(1);
+            return stacks.get(0);
         }
 
         @Test
-        @DisplayName("a clamped column's drawn header keeps its exact count")
-        void clampedHeaderSurvivesTheColumnWidth() {
-            // ⚠ Found by rendering. The outermost column is the only one with no gap to borrow width
-            // from and the one most likely to be holding fifty machines, so a plain truncation loses
-            // the marker in precisely the case it exists for — the header came out as `H1 ·… · +40
-            // MORE`, a dangling separator followed by an ellipsis followed by a second separator.
-            // A middle column failed worse: it clipped mid-number, showing a count that was wrong
-            // rather than absent.
-            String header =
-                    NetCanvas.paint(NetFixtures.crowded(50), MAX_ROWS, 0).header();
-            assertThat(header).contains("+40 MORE");
-            assertThat(header)
-                    .as("an elision mark never follows a separator")
-                    .doesNotContain(AsciiCanvas.BULLET + String.valueOf(NetGlyphs.ELLIPSIS));
+        @DisplayName("its box is the same size as a machine's, so the grid cannot shear")
+        void aStackIsACellLikeAnyOther() {
+            String[] lines = NetCanvas.stackText(7).split("\n", -1);
+            assertThat(lines).hasSize(UiTokens.NET_NODE_LINES);
+            for (String line : lines) {
+                assertThat(line).hasSize(UiTokens.NET_NODE_COLS);
+            }
+        }
+
+        @Test
+        @DisplayName("it carries the exact count, and says how to open it")
+        void theCountIsExactAndTheStateIsInTheText() {
+            // §6: the count and the state both go in the text. The offset plates are a shape, and a
+            // shape is invisible to a screen reader and to a greyscale capture alike.
+            NetCanvas.Piece piece = stack(NetCanvas.paint(NetFixtures.estate(7), 0));
+            assertThat(piece.stackCount()).isEqualTo(7);
+            assertThat(piece.text()).contains("×7").contains("7 MACHINES").contains(NetGlyphs.STACK_OPEN);
+            assertThat(piece.address()).as("a fold has no address to act on").isEmpty();
+            assertThat(piece.selected()).isFalse();
+        }
+
+        @Test
+        @DisplayName("it wears no heavy frame — that is the vantage's, and there is one of those")
+        void theVantageKeepsTheOnlyHeavyFrame() {
+            List<String> grid = lines(NetFixtures.estate(7), 0);
+            long heavy = grid.stream()
+                    .flatMapToInt(String::chars)
+                    .filter(c -> c == AsciiCanvas.HEAVY_TL)
+                    .count();
+            assertThat(heavy).isEqualTo(1);
+            assertThat(NetCanvas.stackText(7)).doesNotContain(String.valueOf(AsciiCanvas.HEAVY_TL));
+        }
+
+        @Test
+        @DisplayName("expanding it draws every member and leaves no stack box behind")
+        void expandingDrawsTheMembers() {
+            NetCanvas.Painted open =
+                    NetCanvas.paint(NetFixtures.estate(7), 0, "", Set.of(NetLayout.stackId("10.0.0.2")));
+            assertThat(open.pieces()).noneMatch(NetCanvas.Piece::stack);
+            assertThat(open.folded()).isZero();
+            assertThat(open.pieces()).hasSize(NetFixtures.estate(7).sightings().size());
+        }
+
+        @Test
+        @DisplayName("the panel is told how many machines are folded, and it is never a guess")
+        void theFoldedCountReaches() {
+            assertThat(NetCanvas.paint(NetFixtures.estate(7), 0).folded()).isEqualTo(7);
+        }
+    }
+
+    @Nested
+    @DisplayName("a forward edge reaches the machine it points at")
+    class Corridor {
+
+        /**
+         * ⚠ The defect this pins shipped and was reported as "there is still a space". A forward run
+         * stopped at the end of the three-column gap while the next layer's node box did not start for
+         * another ten columns, so every arrowhead on the map aimed into blank space. Nothing failed;
+         * the picture drew, and it was only wrong to look at.
+         */
+        @Test
+        @DisplayName("its arrowhead sits against the next layer's box, not ten columns short of it")
+        void arrowheadsTouchTheirTarget() {
+            List<String> grid = lines(NetFixtures.twoHops(), 0);
+            int boxLeft = PITCH + UiTokens.NET_LATERAL_COLS;
+            long touching = grid.stream()
+                    .filter(line -> line.length() > boxLeft)
+                    .filter(line -> line.charAt(boxLeft - 1) == AsciiCanvas.ARROW_RIGHT)
+                    .count();
+            assertThat(touching)
+                    .as("arrowheads in the column immediately left of layer 1's boxes")
+                    .isPositive();
+            assertThat(grid).allSatisfy(line -> assertThat(line.indexOf(AsciiCanvas.ARROW_RIGHT))
+                    .as("no arrowhead is left stranded inside the gap")
+                    .isNotEqualTo(UiTokens.NET_LATERAL_COLS + UiTokens.NET_NODE_COLS + UiTokens.NET_GAP_COLS - 1));
+        }
+
+        @Test
+        @DisplayName("a lateral edge's bracket reaches its own box too")
+        void lateralBracketsTouchTheirBox() {
+            // The mirror-image defect: the bracket sat at the FAR side of a ten-column strip and
+            // stopped eight columns short of the machine it joined, so a same-layer link visibly
+            // connected to nothing.
+            //
+            // ⚠ Asserted as an unbroken run of ink from the channel to the box, not as one expected
+            // character in the stub column. That column is shared with the forward arrowhead, and in
+            // any fixture where a machine has both a parent and a sibling the arrowhead is what is in
+            // it — which is correct, and which the obvious assertion reads as a failure.
+            List<String> grid = lines(NetFixtures.twoHops(), 0);
+            int channel = PITCH + UiTokens.NET_LATERAL_COLS - UiTokens.NET_LATERAL_BUS_COLS;
+            int boxLeft = PITCH + UiTokens.NET_LATERAL_COLS;
+            List<String> corners = List.of(String.valueOf(NetGlyphs.ROUND_TL), String.valueOf(NetGlyphs.ROUND_BL));
+            assertThat(grid.stream()
+                            .filter(line -> line.length() > boxLeft)
+                            .filter(line -> corners.contains(String.valueOf(line.charAt(channel))))
+                            .filter(line -> line.substring(channel, boxLeft).chars().noneMatch(c -> c == ' '))
+                            .count())
+                    .as("lateral corners whose bracket runs unbroken to the node box")
+                    .isEqualTo(2);
+        }
+
+        @Test
+        @DisplayName("a forward run yields at the lateral channel rather than flattening an arc")
+        void forwardRunsYieldToArcs() {
+            // ⚠ The whole of "route around those two columns". A horizontal merged into `╰` gives `┴`
+            // — honest, and still a loss: the arc is how a same-layer edge is told from a hop in
+            // greyscale, and this map has no second signal for it. Both arcs survive in a fixture
+            // where forward runs cross the channel at the same rows the laterals turn in.
+            String frame = NetCanvas.frame(NetFixtures.twoHops(), 0);
+            assertThat(frame).contains(String.valueOf(NetGlyphs.ROUND_TL));
+            assertThat(frame).contains(String.valueOf(NetGlyphs.ROUND_BL));
         }
     }
 }

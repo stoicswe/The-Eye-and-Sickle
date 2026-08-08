@@ -9,9 +9,11 @@ import io.github.stoicswe.eyeandsickle.protocol.game.NetMap;
 import io.github.stoicswe.eyeandsickle.protocol.game.Sighting;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import javafx.geometry.Pos;
 import javafx.scene.control.Label;
@@ -72,7 +74,7 @@ public final class NetGraph extends VBox {
     private final Label note = Ui.micro("");
 
     /**
-     * The gap Labels, in layer order — the only ones an animation step is allowed to touch.
+     * The gap and lateral-strip Labels, in layer order — the only ones an animation step may touch.
      *
      * <p>⚠ Held so {@link #advance} can repaint the packet <b>without rebuilding the scene graph</b>.
      * A full rebuild every {@code NET_PACKET_MS} replaces every node cell three times a second, and a
@@ -80,10 +82,32 @@ public final class NetGraph extends VBox {
      * would be thrown back to the start of the traversal order before they could press SPACE, and a
      * screen reader would be re-announcing a cell that never moved. §4.8 requires per-node keyboard
      * focus; decoration does not get to take it away, which is the same rule that keeps the packet off
-     * a junction glyph. The packet only ever lands inside a gap (see {@code NetCanvas.drawPacket}), so
-     * repainting the gaps is the whole of the animation.
+     * a junction glyph.
+     *
+     * <p>⚠ <b>Both lists, since the corridor got its missing ten columns (2026-08-08).</b> The packet
+     * walks the whole run from one box to the next, which spans a gap Label <em>and</em> the next
+     * layer's strip Label. Repainting only the gaps froze the dot two thirds of the way along its
+     * travel — and both are siblings of the node cells rather than parents of them, so neither
+     * repaint costs a cell its focus.
      */
     private final List<Label> gaps = new ArrayList<>();
+
+    private final List<Label> strips = new ArrayList<>();
+
+    /**
+     * The stacks the player has opened, by {@code NetLayout.stackId}.
+     *
+     * <h2>⚠ Client-side, per window, session-scoped — {@code 09} §3.5</h2>
+     *
+     * Not in the save and not in {@code deskLayout}. It is not game state: the engine does not know a
+     * stack exists, and nothing here changes what the player owns, knows or can reach. It is
+     * <em>exploration</em> rather than arrangement, so a window reopened is a fresh look.
+     *
+     * <p>⚠ Ids that no longer name a fold are ignored rather than pruned. A sweep can change the
+     * grouping under the player at any moment, and a set that threw or reset on a stale id would turn
+     * a routine discovery into a collapsed map. {@code NetLayout.of} treats an unknown id as closed.
+     */
+    private final Set<String> expanded = new HashSet<>();
 
     private final Consumer<String> onNode;
 
@@ -213,8 +237,8 @@ public final class NetGraph extends VBox {
             return;
         }
         packet++;
-        NetCanvas.Painted painted = NetCanvas.paint(current, UiTokens.NET_MAX_ROWS, packet, selected);
-        if (painted.gaps().size() != gaps.size()) {
+        NetCanvas.Painted painted = NetCanvas.paint(current, packet, selected, expanded);
+        if (painted.gaps().size() != gaps.size() || painted.strips().size() != strips.size()) {
             // The picture changed shape under us, which a phase step alone cannot do. Rebuilding is
             // the only safe answer: painting half of one map over half of another is how a renderer
             // ends up showing an edge to a machine that is no longer on the panel.
@@ -226,22 +250,26 @@ public final class NetGraph extends VBox {
         for (int index = 0; index < gaps.size(); index++) {
             gaps.get(index).setText(painted.gaps().get(index));
         }
+        for (int index = 0; index < strips.size(); index++) {
+            strips.get(index).setText(painted.strips().get(index));
+        }
     }
 
     private void render() {
-        NetCanvas.Painted painted = NetCanvas.paint(current, UiTokens.NET_MAX_ROWS, packet, selected);
+        NetCanvas.Painted painted = NetCanvas.paint(current, packet, selected, expanded);
         lines = painted.lines();
         packetCells = painted.packetCells();
         serverStrip.setText(painted.serverStrip());
         header.setText(painted.header());
 
-        Map<Integer, NetCanvas.Piece> bySlot = new HashMap<>();
+        Map<Long, NetCanvas.Piece> bySlot = new HashMap<>();
         for (NetCanvas.Piece piece : painted.pieces()) {
-            bySlot.put(piece.layer() * UiTokens.NET_MAX_ROWS + piece.row(), piece);
+            bySlot.put(slot(piece.layer(), piece.row()), piece);
         }
 
         columns.getChildren().clear();
         gaps.clear();
+        strips.clear();
         for (int layer = 0; layer < painted.layers(); layer++) {
             columns.getChildren().add(column(layer, painted, bySlot));
             if (layer < painted.gaps().size()) {
@@ -255,21 +283,32 @@ public final class NetGraph extends VBox {
         setAccessibleText(describe(painted));
     }
 
+    /**
+     * A slot key.
+     *
+     * <p>⚠ Packed rather than {@code layer * SOME_CAP + row}. That form was keyed on the old row
+     * clamp, so it was only ever correct while no column could be taller than the clamp — and the
+     * clamp is gone, which would have made two different slots collide silently and drawn one
+     * machine's cell where another belongs.
+     */
+    private static long slot(int layer, int row) {
+        return ((long) layer << 32) | (row & 0xFFFFFFFFL);
+    }
+
     /** One hop column: its lateral strip, then its stack of cells. */
-    private HBox column(int layer, NetCanvas.Painted painted, Map<Integer, NetCanvas.Piece> bySlot) {
+    private HBox column(int layer, NetCanvas.Painted painted, Map<Long, NetCanvas.Piece> bySlot) {
         VBox stack = new VBox(0);
         stack.setAlignment(Pos.TOP_LEFT);
         for (int row = 0; row < painted.rowsPerLayer(); row++) {
-            NetCanvas.Piece piece = bySlot.get(layer * UiTokens.NET_MAX_ROWS + row);
+            NetCanvas.Piece piece = bySlot.get(slot(layer, row));
             stack.getChildren().add(piece == null ? blank() : cell(piece));
         }
-        HBox column = new HBox(
-                0,
-                text(
-                        layer < painted.strips().size() ? painted.strips().get(layer) : "",
-                        "es-netmap-cell",
-                        "es-netmap-lateral"),
-                stack);
+        Label strip = text(
+                layer < painted.strips().size() ? painted.strips().get(layer) : "",
+                "es-netmap-cell",
+                "es-netmap-lateral");
+        strips.add(strip);
+        HBox column = new HBox(0, strip, stack);
         column.setAlignment(Pos.TOP_LEFT);
         return column;
     }
@@ -293,13 +332,18 @@ public final class NetGraph extends VBox {
         return text(out.toString(), "es-netmap-cell");
     }
 
-    /** A drawn box: a machine the player can act on, or a bridge's far side, which they cannot. */
+    /** A drawn box: a machine, a fold of machines, or a bridge's far side. */
     private Label cell(NetCanvas.Piece piece) {
         Label label = text(piece.text(), "es-netmap-cell", piece.styleClass());
-        String words = piece.stub()
-                ? "The network continues on " + piece.peerServerName()
-                        + ". Beyond your reach from here — cross the bridge to see it."
-                : describe(current.at(piece.address()).orElse(null));
+        String words;
+        if (piece.stub()) {
+            words = "The network continues on " + piece.peerServerName()
+                    + ". Beyond your reach from here — cross the bridge to see it.";
+        } else if (piece.stack()) {
+            words = describeStack(piece);
+        } else {
+            words = describe(current.at(piece.address()).orElse(null));
+        }
 
         if (piece.selected()) {
             // The third signal, after the double frame and the pointer at the address. Colour alone
@@ -325,6 +369,23 @@ public final class NetGraph extends VBox {
         label.getStyleClass().add("es-focusable");
         label.setFocusTraversable(true);
         Cursors.shared().clickable(label);
+
+        if (piece.stack()) {
+            // ⚠ Keyboard-complete, and the arrows are the point. §6: a fold that could only be opened
+            // with a pointer would put machines the player has already found behind a mouse. SPACE and
+            // ENTER open it too, because that is what they do to everything else on this panel and a
+            // stack that ignored them would read as broken.
+            label.setOnMouseClicked(event -> setExpanded(piece.stackId(), true));
+            label.setOnKeyPressed(event -> {
+                KeyCode code = event.getCode();
+                if (code == KeyCode.RIGHT || code == KeyCode.SPACE || code == KeyCode.ENTER) {
+                    setExpanded(piece.stackId(), true);
+                    event.consume();
+                }
+            });
+            return label;
+        }
+
         label.setOnMouseClicked(event -> onNode.accept(piece.address()));
         label.setOnContextMenuRequested(event -> {
             onNodeMenu.accept(piece.address(), event);
@@ -334,9 +395,31 @@ public final class NetGraph extends VBox {
             if (event.getCode() == KeyCode.SPACE || event.getCode() == KeyCode.ENTER) {
                 onNode.accept(piece.address());
                 event.consume();
+            } else if (event.getCode() == KeyCode.LEFT && closeFoldHolding(piece.address())) {
+                // ⚠ The only route back once a fold is open: the box the player clicked is gone, so
+                // LEFT on any member closes the fold it came out of. Without it, opening a stack with
+                // the keyboard would be one-way.
+                event.consume();
             }
         });
         return label;
+    }
+
+    /** Opens or closes a fold and repaints. Unknown ids are harmless — see {@link #expanded}. */
+    private void setExpanded(String stackId, boolean open) {
+        if (open ? expanded.add(stackId) : expanded.remove(stackId)) {
+            render();
+        }
+    }
+
+    /** Closes the fold {@code address} came out of, if it came out of one. */
+    private boolean closeFoldHolding(String address) {
+        NetLayout.Stack fold = NetLayout.of(current, expanded).foldHolding(address);
+        if (fold == null || !fold.expanded()) {
+            return false;
+        }
+        setExpanded(fold.id(), false);
+        return true;
     }
 
     private static Label text(String value, String... styleClasses) {
@@ -360,11 +443,31 @@ public final class NetGraph extends VBox {
         if (painted.layers() == 0) {
             return "Nothing discovered. sweep is how you find out what is next to you.";
         }
-        if (painted.overflow() > 0) {
-            return "+" + painted.overflow() + " more in the outermost column than the graph draws. "
-                    + "The graph is the legible view; the list is the exhaustive one.";
+        if (painted.folded() > 0) {
+            // ⚠ "Folded", never "hidden", and the count is exact. Every one of these is a machine the
+            // player has already found and can open in one click — which is the whole difference
+            // between this and the "+N MORE" clamp it replaced, where the machines past the cut were
+            // simply not in the picture.
+            return painted.folded() + " machines are folded into stacks. "
+                    + "Click a stack, or press the right arrow on it, to open it in place.";
         }
         return "";
+    }
+
+    /** A fold, in words. The count and the state both go in — a shape is silent to a reader. */
+    private String describeStack(NetCanvas.Piece piece) {
+        NetLayout.Stack fold = null;
+        for (NetLayout.Stack candidate : NetLayout.of(current, expanded).stacks()) {
+            if (candidate.id().equals(piece.stackId())) {
+                fold = candidate;
+                break;
+            }
+        }
+        String parent = fold == null ? "" : fold.parentAddress();
+        return "Stack of " + piece.stackCount() + (piece.stackCount() == 1 ? " machine" : " machines")
+                + (parent.isEmpty() ? "" : " behind " + parent)
+                + ", collapsed. Right arrow to expand. "
+                + "Every one of them is a machine you have already found.";
     }
 
     /** One machine, in words, for the tooltip and for a screen reader. */
@@ -426,6 +529,7 @@ public final class NetGraph extends VBox {
                 + current.sightings().size() + " machines discovered across "
                 + painted.layers() + (painted.layers() == 1 ? " hop column" : " hop columns")
                 + ". Reach ceiling " + current.hopCeiling()
-                + (current.hopCeiling() == 1 ? " hop." : " hops.");
+                + (current.hopCeiling() == 1 ? " hop." : " hops.")
+                + (painted.folded() == 0 ? "" : " " + painted.folded() + " of them are folded into stacks.");
     }
 }

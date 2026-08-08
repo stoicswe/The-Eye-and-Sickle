@@ -2,7 +2,6 @@ package io.github.stoicswe.eyeandsickle.client.ui.netmap;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import io.github.stoicswe.eyeandsickle.client.ui.UiTokens;
 import io.github.stoicswe.eyeandsickle.protocol.game.NetMap;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
@@ -22,16 +21,16 @@ import org.junit.jupiter.api.Test;
 class NetSelectionTest {
 
     private static String frame(NetMap map, String selected) {
-        return NetCanvas.frame(map, UiTokens.NET_MAX_ROWS, 0, selected);
+        return NetCanvas.frame(map, 0, selected, java.util.Set.of());
     }
 
     @Test
     @DisplayName("selecting a machine changes no line's width and no line's count")
     void geometryIsUntouched() {
         NetMap map = NetFixtures.twoHops();
-        List<String> plain = NetCanvas.paint(map, UiTokens.NET_MAX_ROWS, 0).lines();
+        List<String> plain = NetCanvas.paint(map, 0).lines();
         List<String> picked =
-                NetCanvas.paint(map, UiTokens.NET_MAX_ROWS, 0, "10.0.0.17").lines();
+                NetCanvas.paint(map, 0, "10.0.0.17", java.util.Set.of()).lines();
 
         assertThat(picked).hasSameSizeAs(plain);
         for (int line = 0; line < plain.size(); line++) {
@@ -95,7 +94,7 @@ class NetSelectionTest {
     void stubsAreNotSelectable() {
         // A stub carries a peer server's NAME and no address the player has been sold, so it has
         // nothing CONNECT or a breach could take. It is drawn unframed for the same reason.
-        assertThat(NetCanvas.paint(NetFixtures.twoHops(), UiTokens.NET_MAX_ROWS, 0, "10.0.0.12").pieces().stream()
+        assertThat(NetCanvas.paint(NetFixtures.twoHops(), 0, "10.0.0.12", java.util.Set.of()).pieces().stream()
                         .filter(NetCanvas.Piece::stub)
                         .filter(NetCanvas.Piece::selected))
                 .isEmpty();
@@ -105,7 +104,7 @@ class NetSelectionTest {
     @DisplayName("exactly one piece reports itself selected, and it is the one asked for")
     void oneSelectedPiece() {
         List<NetCanvas.Piece> selected =
-                NetCanvas.paint(NetFixtures.twoHops(), UiTokens.NET_MAX_ROWS, 0, "10.0.0.9").pieces().stream()
+                NetCanvas.paint(NetFixtures.twoHops(), 0, "10.0.0.9", java.util.Set.of()).pieces().stream()
                         .filter(NetCanvas.Piece::selected)
                         .toList();
         assertThat(selected).hasSize(1);

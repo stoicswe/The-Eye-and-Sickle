@@ -739,6 +739,72 @@ with opened/updated dates.
   world is in the topology, so the old check was a check on nothing while the refusal claimed "no
   machine that a sweep has found".
 
+**THE NETWORK MAP'S GRAPH IS REBUILT: NOTHING IS HIDDEN, ARROWS REACH THEIR TARGETS, AND A WIDE FAN
+FOLDS (2026-08-08).** All five steps of `docs/client/09-network-map-graph.md` §7. `NetLayout`,
+`NetCanvas`, `NetGraph`, `NetGlyphs`, `UiTokens`, `theme.css`, `DeckSnapshot`.
+
+- ⚠ **`NET_MAX_ROWS` AND `+N MORE` ARE DELETED.** A layer wider than sixty rows drew sixty and put the
+  rest in a header count — machines the player had **found** were in the map's data and absent from
+  its picture. What replaces it is a **stack**: a fold of already-discovered machines, always marked,
+  always counted exactly, always openable. `NetLayoutTest.nothingIsEverDropped` asserts drawn + folded
+  == sightings, over every fixture. ⚠ `NET_MAX_ROWS` also keyed `NetGraph`'s slot map as
+  `layer * NET_MAX_ROWS + row`; packed into a `long` now, or two slots collide silently once a column
+  can exceed it.
+- ⚠ **A STACK COUNTS ONLY MACHINES ALREADY FOUND.** `NetRules` forbids publishing a count of
+  undiscovered hosts — *"no placeholder, no count"* — so `×7` is a fold of what is on the map and
+  never a hint about what is not. **I2**-adjacent and easy to break: the moment a stack counts links
+  rather than sightings it is a free sweep.
+- ⚠ **THE TEN-COLUMN SPACE IS FIXED, AND SO IS THE MIRROR IMAGE NOBODY REPORTED.** Every forward arrow
+  pointed into blank space (run stopped at the 3-column gap, box was ten columns on); every lateral
+  bracket stopped **eight columns short** of the box it joined, from the other side. Both fixed by
+  moving the bracket **against the box** (`NET_LATERAL_BUS_COLS`) and running forward edges the whole
+  **13-column corridor** (`NetCanvas.CORRIDOR_COLS`).
+- ⚠ **"ROUTE AROUND THOSE TWO COLUMNS" IS ONE CELL DECLINED.** In a grid, anything going left to right
+  crosses every column — there is no detour. A forward run **yields** at the lateral channel when it
+  already carries ink, so the arc survives; merging gives `┴`, which is honest and still a loss,
+  because the arc is the only thing distinguishing a same-layer edge from a hop in greyscale.
+  ⚠ **Laterals draw FIRST and the order is load-bearing** — reversed, the forward run claims the empty
+  cell and the *arc* is refused, inverting the rule.
+- ⚠ **The arrowhead and the lateral stub SHARE the last column, and the arrowhead wins.** Both mean
+  "joins the box on the right". This is why "the stub column holds `─`" reads a correct render as a
+  failure; assert an **unbroken run of ink** from channel to box instead.
+- ⚠ **`NET_STACK_MIN_LAYER` = 2 IS A BOUND THE DESIGN DOC DID NOT HAVE, found by rendering.** At a
+  one-hop ceiling every machine a sweep finds hangs off the rig, so eligibility alone folded the
+  player's **entire neighbourhood** into one box and the headline surface read `rig → ×7`. Layer 1 is
+  what the panel is for.
+- ⚠ **A MEMBER MAY HAVE NO EDGE LEAVING THE GROUP** — no second parent, no outside lateral, no child
+  of its own — or the collapsed edge stops being one honest edge. The eligible set is a **fixpoint**,
+  not one pass. ⚠ Two rules enforce it and **each masked the other** in negative testing, so the
+  property is asserted in general form: `noAdjacencyIsLost`.
+- ⚠ **EXPANSION CANNOT REACH THE ARRANGEMENT.** Both barycentre passes run over **collapsed** units
+  whatever is open, which is what makes opening a fold *insert* rows rather than re-sort the layer —
+  the vantage-re-rooting defect one level down. ⚠ On the **backward** pass a node with no children
+  **keeps its row**; pushing them to the bottom (the symmetric implementation) undoes the forward pass
+  for most of the map.
+- ⚠ **Expansion state is per window and session-scoped** (NM-1), and unknown ids are **ignored** — a
+  sweep can change the grouping at any moment and a set that reset on a stale id would collapse the
+  map under someone mid-read.
+- ⚠ **`DeckSnapshot` NOW SWEEPS, and that was the prerequisite for all of it.** It ran no sweep, so
+  **no render this project could produce contained a single edge**. It grants the Topology Mapper
+  (ceiling 2) and a deep sweep (bridges need tier 2+), commissions a real sweep and settles it by
+  winding an advanceable `Clock`. `-Ddeck.reposition=N` walks the traversal loop; `-Ddeck.netdump=1`
+  prints the grid as text. ⚠ Reposition **must exclude the current vantage**, or every step after the
+  first reconnects where it already is and sweeps from the same place — and a sweep's outcome is
+  frozen at generation, so it finds nothing.
+- ⚠ **TWO PRE-EXISTING HARNESS DEFECTS SURFACED ON THE FIRST REAL RENDER.** It used `GameEngine.open`
+  rather than `TestSaves.bare`, so the rig was a **24-cycle** starting rig and `allocateSelfMining(30)`
+  and `scan("thorough")` (35) were both silently **refused** — the deck photographed with an idle
+  compute grid and a SECURITY CENTER reading *"Unaudited"*. Written against a 100-cycle rig; nothing
+  re-checked it when the compute ladder landed 2026-08-06. Self-mining is 10 now, because 64 has to
+  carry the scan too.
+- ⚠ **THE MEASUREMENT INVERTS THE DESIGN'S OWN PRIORITY, and this is the finding to carry forward.**
+  Over seven generated worlds: layers are **1–5 machines wide**, maps are **4–10 columns deep**.
+  Fan-out — the pressure `09` §2 lists first and the one stacks relieve — **does not occur at reachable
+  depth**, because the ceiling is 2 hops and a sweep sees only a machine's surroundings. Depth is what
+  grows, past any window. Stacks are built, correct and **dormant**; `NET_STACK_THRESHOLD` stays at 4
+  rather than being tuned down on three samples. **NM-5** in `09` §8 is the open one now: the map's
+  real unreadability is horizontal and nothing addresses it.
+
 ⚠ **NEVER anchor a `ContextMenu` to the node that fired the event when the handler repaints first.**
 The map's node menu selected the machine before showing — correctly, so the entries are about what the
 pointer is over — but selecting repaints, repainting rebuilds the graph, and the label the player

@@ -1419,6 +1419,15 @@
 .es-netmap .es-netmap-dark       { -fx-text-fill: -es-dim-1; }
 /* THE ONE ALARM IN THE FEATURE. A suspected honeypot is the only thing here worth a warning. */
 .es-netmap .es-netmap-trap       { -fx-text-fill: -es-alarm; }
+/* A fold of machines behind one parent — docs/client/09 §5.
+   ⚠ NOT AMBER. §2.1 spends the accent on cycles doing work and on income, and a count of machines
+   is neither; the design doc says so in as many words. It is not a rung on the discovery ramp
+   either, so it takes -es-text rather than a shade between contact and vantage — a stack holds
+   machines at every one of those states at once, and colouring it as one of them would claim
+   something about its members that is not true of all of them.
+   ⚠ The state that matters — collapsed — is carried by the offset plates, by `[+] OPEN` in the box
+   and by the accessible text, so nothing here is colour alone (§4.4). */
+.es-netmap .es-netmap-stack      { -fx-text-fill: -es-text; }
 
 /* The machine the player has picked — what CONNECT, DOWNLOAD and a breach act on.
  *
