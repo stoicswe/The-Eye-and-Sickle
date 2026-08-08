@@ -739,6 +739,80 @@ with opened/updated dates.
   world is in the topology, so the old check was a check on nothing while the refusal claimed "no
   machine that a sweep has found".
 
+**EVERY CLICKABLE THING HAS A HOVER RESPONSE (2026-08-08).** `ui/widgets/HoverGlitch` + the
+`.es-hovered` block at the END of `theme.css`; `HoverGlitchTest`. Two layers: an **outline** (CSS, no
+motion, on while the pointer is) and a **tear** (a few frames of displacement as the pointer lands).
+- ⚠ **APPLICATION-WIDE THROUGH `Cursors.clickable`, WITH ZERO CALL-SITE CHANGES.** That method is
+  already the client's one registry of "this node is a control" — 36 call sites plus a subtree walker
+  — so hooking it reaches every button, chip, tab, row and legend entry. A second registry would be a
+  second list to forget to add something to.
+- ⚠ **THE OUTLINE IS THE AFFORDANCE; THE TEAR IS DECORATION.** The test for any flourish here is "if
+  it stopped forever, would the player still know what it says" — an outline present the whole time
+  passes outright. Under Reduce motion the tear never runs and nothing is lost. Reversing that would
+  put "can I click this" behind an accessibility setting.
+- ⚠ **LAYOUT-NEUTRAL BY CONSTRUCTION: a border COLOUR, never a width.** A node that already declares
+  `-fx-border-width: 1` lights up; one that declares none draws nothing **and does not grow**. A hover
+  state that added a pixel would reflow the row under the pointer and move the control away from the
+  click.
+- ⚠ **THE BLOCK IS LAST IN `theme.css` ON PURPOSE.** The late `.label { -fx-text-fill: -es-text; }`
+  beats a one-class rule at equal specificity, and every chip in this client IS a Label — declared
+  anywhere above, `.es-hovered` would set the border and not the text. Position, not a selector trick.
+- ⚠ **Neither amber nor alarm.** §2.1 spends amber on cycles doing work and rations alarm to loss;
+  "you may click this" is neither. A brightness STEP survives greyscale and inverts for free on uOS
+  Classic, where `-es-text-hi` is black — verified by rendering both.
+- ⚠ **A TABLE, NOT A FUNCTION** (`SyncSpin`'s rule) and **a transient, not a loop**: the tear runs
+  once on arrival and rests. A control that jittered continuously would demand attention it has not
+  earned, on a deck that can show a dozen at once.
+- ⚠ **THE TABLE MUST END AT ZERO.** The offset is left on the node between ticks, so a table stopping
+  anywhere else parks every control the player ever hovered a pixel off its own layout — permanently,
+  and only for the ones they touched.
+- ⚠ **REDUCE MOTION IS ASKED EVERY TICK, not at subscribe time.** Turned on mid-tear, `Pulse` stops
+  calling immediately — so that tick is the only chance to put the node back. Without it the
+  accessibility path leaves a button permanently askew, which is this repo's recurring shape.
+- ⚠ **ONE SUBSCRIPTION FOR THE WHOLE APP**, because a pointer is over one control at a time (§7.3).
+  Installing costs two event handlers and no state. ⚠ **A fast pointer can deliver the second ENTER
+  before the first EXIT**, so an enter releases the previous control explicitly.
+- ⚠ **`private static final INSTANCE` HAD TO MOVE BELOW THE TABLES.** Static initialisers run in
+  declaration order and the instance initialiser reads `TEAR.length`; with the singleton at the top —
+  where a singleton conventionally goes — the class failed to initialise, and **every test in the file
+  reported `NoClassDefFoundError` at its own constructor**, pointing at the wrong file entirely.
+- ⚠ **The Pulse subscription is guarded.** `Pulse`'s constructor builds a `Timeline` and throws
+  "Toolkit not initialized" headlessly; swallowing it costs the tear and keeps the outline, which
+  needs no clock. `Cursors.build` makes the same call for the same reason.
+- ⚠ **`-Ddeck.hover=N` / `-Ddeck.hoverTear=N` on `DeckSnapshot`.** THREE independent reasons an
+  untouched render shows the resting frame — no pointer, the harness sets Reduce motion, and no Pulse
+  frame fires synchronously — i.e. the one state indistinguishable from the feature being absent.
+
+**THE RIG MONITOR'S LEGEND HAS A RIGHT-CLICK "FREE" (2026-08-08).** `CycleGrid.Slice` carries the
+action; `RigMonitorView.free` maps each consumer to the stop verb the rules already have;
+`RigFreeActionTest`. Self-mining → unallocate, defences → disarm, a shell → end the session **and**
+unmount the window.
+- ⚠ **THE ACTION RIDES ON THE SLICE, NOT ON THE `Owner` — a `Consumer<Owner>` CANNOT WORK.** An owner
+  is a **colour**, and two consumers deliberately share one: `SHELL_SESSION` and `ACTIVE_TOOL` are
+  both `Owner.ACTIVE_TOOL`. A handler told only the owner would unmount a machine when the player
+  meant to cancel a port scan. Carrying the action also keeps `CycleGrid` knowing nothing about
+  compute, sessions or rules.
+- ⚠ **FREEING IS THE CONSUMER'S OWN STOP VERB, never a new one.** Every branch calls a rule the player
+  could reach another way, so the menu is a shortcut rather than a second route to reclaiming cycles —
+  a second route would need its own answer to the Thermal Budget question and would eventually give a
+  different one. The recovery curve is untouched: held cycles release, spent ones come back on the
+  curve, exactly as they already did.
+- ⚠ **NOT OFFERED IS NOT REFUSED.** A sweep's control channel, a running tool, a bot frame, a relay
+  hop and a parasite get **no menu**, not a disabled one — they have no stop verb in the rules, and a
+  deployed miner's cycles are the HOST's by **I6**. A greyed "Free" on the unattributed band would
+  invite the exact reading the grid works to prevent.
+- ⚠ **A SHELL IS TWO ACTS.** The rules end the session; the desk closes the window. `RigMonitorView`
+  has never known what a desk is (it works unchanged against a home server), so the second half is a
+  `Consumer<String> unmount` seam from `EyeAndSickleClient` — `NodeActions`' pattern. CLAUDE.md
+  already records the inverse shipping once; this is the same join from the other side.
+- ⚠ **The menu anchors to the WINDOW, never the row.** The panel repaints on the one-second tick and
+  `relayoutLegend` rebuilds every row, so the label the player right-clicked is detached by the time
+  a popup anchored to it would show — `NetMapView` and `NotesView` both record the throw.
+- ⚠ **`-fx-cursor` IS BUILD-BLOCKING IN EVERY STYLESHEET** (`UiContractTest.noCursorInCss`), which a
+  `.es-legend-freeable { -fx-cursor: hand; }` discovered immediately. A CSS cursor beats the Scene's
+  inherited one, so one declaration punches a system-cursor hole through the player's chosen pointer
+  skin. Set it from Java or not at all.
+
 **A CLOSED WINDOW REMEMBERS ITS SIZE, AND THE FEATURE WAS THERE AND BROKEN (2026-08-08).**
 `ClientProfile.Settings.windowSizes`, `DeckShell.{openTool,openSizeFor,rememberSize,sizeKey}`,
 `DeskManager.Spec.onClosed`, `UiTokens.PER_MACHINE_WINDOW_*`; `ClosedWindowRemembersItsSizeTest`.

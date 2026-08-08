@@ -14,6 +14,7 @@ import io.github.stoicswe.eyeandsickle.client.view.RigMonitorView;
 import io.github.stoicswe.eyeandsickle.client.view.SecurityCenterView;
 import io.github.stoicswe.eyeandsickle.client.view.TerminalView;
 import io.github.stoicswe.eyeandsickle.client.view.Views;
+import io.github.stoicswe.eyeandsickle.client.ui.widgets.HoverGlitch;
 import io.github.stoicswe.eyeandsickle.client.window.WindowSpec;
 import io.github.stoicswe.eyeandsickle.engine.GameEngine;
 import java.awt.image.BufferedImage;
@@ -713,6 +714,25 @@ public final class DeckSnapshot {
             // ⚠ `-Ddeck.operator=1` slides the operator profile out of the strip. It opens on a
             // click, and a synchronous render never delivers one — so without this flag the panel
             // photographs as absent, which is the state indistinguishable from it being broken.
+            // ⚠ `-Ddeck.hover=<n>` lights the nth clickable control as if the pointer were on it, and
+            // optionally winds the tear. NOTHING ELSE CAN PHOTOGRAPH IT: a hover state needs a real
+            // pointer, this harness has none, and the tear additionally rides Pulse.animate under a
+            // harness that sets Reduce motion — three independent reasons an untouched render shows
+            // the resting state, which is the one frame indistinguishable from the feature's absence.
+            String hover = System.getProperty("deck.hover");
+            if (hover != null) {
+                var lit = deck.root().lookupAll("." + HoverGlitch.HOVERABLE).stream()
+                        .filter(node -> node.getScene() != null)
+                        .toList();
+                int index = Math.min(Integer.parseInt(hover), Math.max(0, lit.size() - 1));
+                if (!lit.isEmpty()) {
+                    HoverGlitch.shared().hover(lit.get(index));
+                    for (int i = 0; i < Integer.getInteger("deck.hoverTear", 0); i++) {
+                        HoverGlitch.shared().advance();
+                    }
+                    System.out.println("hovered " + index + " of " + lit.size() + " clickables");
+                }
+            }
             if (System.getProperty("deck.operator") != null) {
                 deck.openOperatorPanel();
             }

@@ -107,6 +107,24 @@ public final class RigMonitorView {
             TermDatabase terms,
             ClientProfile profile,
             io.github.stoicswe.eyeandsickle.client.shell.Shell shell) {
+        return create(session, terms, profile, shell, address -> {});
+    }
+
+    /**
+     * Builds the panel with a way to take a shell window off the desk.
+     *
+     * <p>⚠ The seam exists because freeing a shell's cycles is <b>two acts</b>: the rules end the
+     * session and the desk closes the window. This view holds a {@link GameSession} and has never
+     * known what a desk is — which is the property that lets it work unchanged against a home server
+     * — so the second half arrives as a handler from whoever has both, exactly as {@code NodeActions}
+     * does for the map. It defaults to doing nothing, which is right for a render harness.
+     */
+    public static Region create(
+            GameSession session,
+            TermDatabase terms,
+            ClientProfile profile,
+            io.github.stoicswe.eyeandsickle.client.shell.Shell shell,
+            java.util.function.Consumer<String> unmount) {
         VBox root = new VBox(UiTokens.SPACE_6);
         root.getStyleClass().add("es-body-pad");
 
@@ -280,7 +298,7 @@ public final class RigMonitorView {
             // it — the trap `ChainState.networkHashrate` records.
             RigStatus status = RigStatus.of(session);
 
-            grid.show(slices(budget, session.miningChain()));
+            grid.show(slices(budget, session.miningChain(), free(session, unmount)));
             cage.show(session.mining().selfMiningCycles(), total, status.load(), session.personalHeat());
             activity.refresh();
 
@@ -322,7 +340,23 @@ public final class RigMonitorView {
      * Thermal Budget curve" is a state the player can act on and the consumer they came from is not.
      * Everything else keeps its owner.
      */
+    /**
+     * The bands, with no free actions — every test, and any caller that is only drawing.
+     */
     static List<CycleGrid.Slice> slices(ComputeBudget budget, MiningSnapshot mining) {
+        return slices(budget, mining, consumer -> null);
+    }
+
+    /**
+     * The bands, each carrying what freeing it would do.
+     *
+     * @param free given a consumer, the menu entry that releases it — or {@code null} for a consumer
+     *     whose cycles cannot be handed back on demand
+     */
+    static List<CycleGrid.Slice> slices(
+            ComputeBudget budget,
+            MiningSnapshot mining,
+            java.util.function.Function<ComputeConsumer, CycleGrid.Slice> free) {
         Map<ComputeConsumer, Long> active = new EnumMap<>(ComputeConsumer.class);
         long recovering = 0;
         for (ComputeAllocation allocation : budget.allocations()) {
@@ -338,7 +372,9 @@ public final class RigMonitorView {
             long cycles = active.getOrDefault(consumer, 0L);
             if (cycles > 0) {
                 slices.add(
-                        new CycleGrid.Slice(owner(consumer), (int) cycles, label(consumer), detail(consumer, mining)));
+                        withFree(
+                                new CycleGrid.Slice(owner(consumer), (int) cycles, label(consumer), detail(consumer, mining)),
+                                free.apply(consumer)));
             }
         }
         if (recovering > 0) {
@@ -370,6 +406,96 @@ public final class RigMonitorView {
         return slices;
     }
 
+
+    /** Copies a slice, attaching the free action from {@code carrier} when there is one. */
+    private static CycleGrid.Slice withFree(CycleGrid.Slice slice, CycleGrid.Slice carrier) {
+        return carrier == null
+                ? slice
+                : new CycleGrid.Slice(
+                        slice.owner(), slice.cells(), slice.label(), slice.detail(),
+                        carrier.freeText(), carrier.onFree());
+    }
+
+    /**
+     * What "Free" does to each kind of consumer, and which kinds it is not offered for.
+     *
+     * <h2>Freeing is the consumer's own stop verb, never a new one</h2>
+     *
+     * Each branch below calls the same rule the player could have reached another way — stopping
+     * self-mining, disarming a measure, ending a session — so the menu is a <b>shortcut to an
+     * existing act</b> rather than a second way to take cycles back. That matters because the second
+     * way would need its own answer to the Thermal Budget question, and would eventually give a
+     * different one.
+     *
+     * <p>⚠ <b>The recovery curve is untouched and applies exactly as it already does.</b> Self-mining
+     * and a shell RELEASE their cycles — they were held, not spent — while anything that was spent
+     * comes back on the curve. Nothing here decides that; the rules do, and they decide it the same
+     * way whether the player used this menu or the panel it shortcuts.
+     *
+     * <h2>⚠ Not offered is not the same as refused</h2>
+     *
+     * A running scan, a sweep's control channel, a bot frame, a relay hop and a parasite's cycles
+     * have no stop verb in the rules — a sweep in flight is not cancellable, and a deployed miner's
+     * cycles are the HOST's by <b>I6</b> and are not the player's to hand back at all. Those bands
+     * get no menu rather than a menu that refuses: {@code docs/client/05} §5 wants a gate to say what
+     * it is, and a disabled "Free" on a parasite would invite exactly the reading the grid works to
+     * prevent — that unattributed capacity is something the player can simply dismiss.
+     *
+     * @param unmount takes the shell WINDOW off the desk; ending the session is the rules' half and
+     *     is done here, but a window left behind on a session that no longer exists is a shell that
+     *     answers nothing
+     */
+    static java.util.function.Function<ComputeConsumer, CycleGrid.Slice> free(
+            GameSession session, java.util.function.Consumer<String> unmount) {
+        return consumer -> switch (consumer) {
+            case SELF_MINING -> new CycleGrid.Slice(
+                    null, 0, "", "",
+                    Views.t("ui.rig-monitor.free-mining", "Free — stop self-mining"),
+                    () -> session.allocateSelfMining(0));
+
+            // ⚠ Every armed measure, because the band is every armed measure. The legend aggregates
+            // by consumer, so a row reading "11c" may be two defences, and freeing "the row" has to
+            // mean the row. The count is in the menu text so the player is told before they click.
+            case DEFENSIVE_ARRAY -> {
+                var armed = session.defenses();
+                yield armed.isEmpty()
+                        ? null
+                        : new CycleGrid.Slice(
+                                null, 0, "", "",
+                                Views.t("ui.rig-monitor.free-defences", "Free — disarm ")
+                                        + armed.size()
+                                        + (armed.size() == 1 ? " measure" : " measures"),
+                                () -> armed.forEach(defence -> session.disarm(defence.kind())));
+            }
+
+            // ⚠ Ending the session is the rules' half; taking the window off the desk is the desk's,
+            // and both have to happen. CLAUDE.md records the inverse of this bug shipping once — a
+            // window closed without the session ending left cycles held by a shell the player could
+            // not see. This is the same join from the other side: a session ended without the window
+            // closing leaves a terminal on screen that no longer answers.
+            case SHELL_SESSION -> {
+                var open = session.sessions().stream()
+                        .filter(remote -> !remote.self())
+                        .toList();
+                yield open.isEmpty()
+                        ? null
+                        : new CycleGrid.Slice(
+                                null, 0, "", "",
+                                Views.t("ui.rig-monitor.free-shells", "Free — unmount ")
+                                        + open.size()
+                                        + (open.size() == 1 ? " machine" : " machines"),
+                                () -> open.forEach(remote -> {
+                                    session.closeSession(remote.address());
+                                    unmount.accept(remote.address());
+                                }));
+            }
+
+            // No stop verb in the rules — see the note above. An exhaustive switch, so a consumer
+            // added later has to be decided about here rather than defaulting into silence.
+            case CONTROL_CHANNEL, BOT_FRAME, DEPLOYED_MINER, ACTIVE_TOOL, RELAY_HOP -> null;
+        };
+    }
+
     private static CycleGrid.Owner owner(ComputeConsumer consumer) {
         return switch (consumer) {
             case SELF_MINING -> CycleGrid.Owner.SELF_MINING;
@@ -389,7 +515,7 @@ public final class RigMonitorView {
         };
     }
 
-    private static String label(ComputeConsumer consumer) {
+    static String label(ComputeConsumer consumer) {
         return switch (consumer) {
             case SELF_MINING -> "Self-mining";
             case CONTROL_CHANNEL -> "Control channels";

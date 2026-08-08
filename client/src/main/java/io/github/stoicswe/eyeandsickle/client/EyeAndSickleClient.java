@@ -1343,7 +1343,11 @@ public class EyeAndSickleClient extends Application {
      */
     private javafx.scene.Node contentFor(WindowSpec spec) {
         return switch (spec) {
-            case RIG_MONITOR -> RigMonitorView.create(session, terms, profile);
+            // ⚠ The unmount handler is what makes the rig monitor's "Free" complete for a shell:
+            // the view ends the session through the port, and this takes the window off the desk.
+            // Both halves, or a terminal stays on screen answering nothing.
+            case RIG_MONITOR -> RigMonitorView.create(
+                    session, terms, profile, null, address -> deck.closeShell(address));
             case TERMINAL -> TerminalView.create(shell);
             case NETMAP ->
                 io.github.stoicswe.eyeandsickle.client.view.NetworkView.create(

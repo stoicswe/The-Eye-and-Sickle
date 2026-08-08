@@ -165,6 +165,12 @@ public final class Cursors {
      * built before it.
      */
     public Node clickable(Node node) {
+        // ⚠ THE HOVER RESPONSE RIDES HERE, and this method is why it can be application-wide at all.
+        // `clickable` is already the client's one registry of "this node is a control" — 36 call
+        // sites plus the subtree walker below — so hooking it gives every button, chip, tab, row and
+        // legend entry the same hover affordance without touching a single call site. A second
+        // registry would be a second list to forget to add something to.
+        io.github.stoicswe.eyeandsickle.client.ui.widgets.HoverGlitch.shared().install(node);
         if (node != null && !clickables.contains(node)) {
             clickables.add(node);
         }

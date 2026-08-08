@@ -1462,6 +1462,12 @@
  * ⚠ Descendant selectors throughout: theme.css's late `.label { -fx-text-fill: -es-text; }` beats a
  * one-class rule at equal specificity, so a bare `.es-netmap-tab` would paint in body grey while
  * every other property in the block applied — the trap this file already records twice. */
+/* A legend row that can be freed carries this class and NO cursor declaration.
+   ⚠ `-fx-cursor` is build-blocking in every stylesheet — UiContractTest.noCursorInCss — because a CSS
+   cursor on a node beats the Scene's inherited one, so one `hand` here punches a system-cursor hole
+   through whichever custom pointer skin the player chose. The class exists for the hover affordance
+   to hang off; the cursor, if it is ever wanted, is set from Java like every other one on this deck. */
+
 .es-netmap-tab {
     -fx-padding: 3 10 3 10;
     -fx-border-color: -es-rule-hi -es-rule-hi transparent -es-rule-hi;
@@ -4019,3 +4025,42 @@
 }
 .es-anon-detail { -fx-max-width: 460px; }
 .es-anon-watchlist { -fx-padding: 5 7 5 7; }
+
+/* ══ HOVER — every clickable thing in the client ════════════════════════════════════════════════
+ *
+ * Installed by `Cursors.clickable`, which is the client's one registry of "this node is a control",
+ * so this reaches every button, chip, tab, table row and legend entry without a call site knowing.
+ *
+ * ⚠ THIS BLOCK IS LAST IN THE FILE ON PURPOSE. theme.css carries a late `.label { -fx-text-fill:
+ * -es-text; }`, and a one-class rule cannot beat it at equal specificity — the later rule wins. Every
+ * chip in this client IS a Label, so a `.es-hovered` declared anywhere above would set its border
+ * correctly and its text not at all: the exact split this file already records twice, and the reason
+ * the fix is position rather than a two-class selector nobody would think to write here.
+ *
+ * ⚠ LAYOUT-NEUTRAL BY CONSTRUCTION. It sets a border COLOUR and never a width. A node that already
+ * declares `-fx-border-width: 1` — every chip, action and tab — lights up; a node that declares none
+ * draws nothing and, crucially, does not grow. A hover state that added a pixel of border would
+ * reflow the row under the pointer and make the control move away from the click.
+ *
+ * ⚠ NEITHER AMBER NOR ALARM. §2.1 spends amber on cycles doing work and income and rations alarm to
+ * loss and hostile state; "you may click this" is neither, and borrowing either would make the
+ * accent mean two things. The brightest neutral is the whole vocabulary available here, and it is
+ * enough because it is a STEP — which survives greyscale and inverts for free on uOS Classic, where
+ * `-es-text-hi` is black. */
+.es-hovered {
+    -fx-border-color: -es-text-hi;
+    -fx-text-fill: -es-text-hi;
+}
+/* Descendants too, so a control built as a row of labels lights as one thing rather than as its
+   frame. Two classes, which beats the late `.label` rule outright. */
+.es-hovered .label { -fx-text-fill: -es-text-hi; }
+
+/* The tear's cut frames — see HoverGlitch.CUT. Displacement alone reads as a wobble; the outline
+   dropping out on the frames the shape is furthest from where it belongs is what makes it read as a
+   signal losing lock. Back to the panel's own rule colour rather than to transparent, so the control
+   does not appear to vanish for a frame. */
+.es-hovered.es-hover-cut {
+    -fx-border-color: -es-rule;
+    -fx-text-fill: -es-dim-1;
+}
+.es-hovered.es-hover-cut .label { -fx-text-fill: -es-dim-1; }

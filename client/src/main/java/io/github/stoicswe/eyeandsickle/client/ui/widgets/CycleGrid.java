@@ -7,6 +7,8 @@ import java.util.ArrayList;
 import java.util.List;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
+import javafx.scene.control.ContextMenu;
+import javafx.scene.control.MenuItem;
 import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Pane;
@@ -212,6 +214,27 @@ public final class CycleGrid extends VBox {
         // mine?" — and an animated answer would be slower than the question.
         row.setOnMouseEntered(e -> isolate(slice.owner()));
         row.setOnMouseExited(e -> isolate(null));
+
+        if (slice.freeText() != null && slice.onFree() != null) {
+            row.getStyleClass().add("es-legend-freeable");
+            ContextMenu menu = new ContextMenu();
+            MenuItem free = new MenuItem(slice.freeText());
+            free.setOnAction(event -> slice.onFree().run());
+            menu.getItems().add(free);
+            // ⚠ ANCHORED TO THE WINDOW, NEVER TO THE ROW. This panel repaints on the one-second data
+            // tick and `relayoutLegend` clears and rebuilds every row, so the Label the player
+            // right-clicked is detached from the scene by the time a popup anchored to it would show
+            // — JavaFX throws "The owner node needs to be associated with a window" on the FX thread,
+            // on every right-click. NetMapView and NotesView both record this exact failure; screen
+            // coordinates make it identical on screen either way.
+            row.setOnContextMenuRequested(event -> {
+                if (row.getScene() == null || row.getScene().getWindow() == null) {
+                    return;
+                }
+                menu.show(row.getScene().getWindow(), event.getScreenX(), event.getScreenY());
+                event.consume();
+            });
+        }
         return row;
     }
 
@@ -271,7 +294,31 @@ public final class CycleGrid extends VBox {
     }
 
     /** One contiguous run of cells with the same owner, plus what the legend says about it. */
-    public record Slice(Owner owner, int cells, String label, String detail) {}
+    /**
+     * One band of the grid, and its legend row.
+     *
+     * <h2>⚠ THE FREE ACTION RIDES ON THE SLICE, not on the {@link Owner}</h2>
+     *
+     * The obvious design is a {@code Consumer<Owner>} on the widget, and it cannot work: the owner is
+     * a <b>colour</b>, and two different consumers deliberately share one. {@code SHELL_SESSION} and
+     * {@code ACTIVE_TOOL} are both {@link Owner#ACTIVE_TOOL} — "the player's own work reaching
+     * outward" — so a handler told only the owner could not tell an open shell from a running scan,
+     * and would unmount a machine when the player meant to cancel a port scan.
+     *
+     * <p>Carrying the action instead keeps this widget knowing nothing about compute, sessions or the
+     * rules. It draws bands and rows; whoever built the slice decided what freeing it means.
+     *
+     * @param freeText what the menu item reads, or {@code null} for a band that cannot be freed —
+     *     in which case no menu appears at all
+     * @param onFree what to run; ignored when {@code freeText} is {@code null}
+     */
+    public record Slice(Owner owner, int cells, String label, String detail, String freeText, Runnable onFree) {
+
+        /** A band nothing can be done to — every caller that is not offering a free action. */
+        public Slice(Owner owner, int cells, String label, String detail) {
+            this(owner, cells, label, detail, null, null);
+        }
+    }
 
     /**
      * Who is holding a cycle.

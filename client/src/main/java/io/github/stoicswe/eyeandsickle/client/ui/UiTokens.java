@@ -124,6 +124,17 @@ public final class UiTokens {
 
     public static final double PER_MACHINE_WINDOW_HEIGHT = 520;
 
+    /**
+     * How far a control's hover tear actually travels, as a multiplier on {@code HoverGlitch}'s table.
+     *
+     * <p>⚠ One number, here, so the effect can be turned down across the whole application without
+     * re-authoring a table — and so the table stays a shape rather than a set of magnitudes. At 1.0
+     * the largest throw is three pixels, which is a tear on a 22px control and a twitch on a 300px
+     * one; that asymmetry is deliberate, because a displacement proportional to the control would
+     * make a wide button lurch.
+     */
+    public static final double HOVER_TEAR_SCALE = 1.0;
+
     /** Left rail width (§3). Hidden below {@link #NARROW_WIDTH}. */
     public static final double RAIL_WIDTH = 34;
 
