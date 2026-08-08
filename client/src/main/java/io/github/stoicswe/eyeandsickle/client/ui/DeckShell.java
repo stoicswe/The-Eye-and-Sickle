@@ -563,10 +563,24 @@ public final class DeckShell {
                 .computeIfAbsent(sizeKey(id), key -> new ClientProfile.DeskWindowState());
         state.width = geometry.width();
         state.height = geometry.height();
-        // ⚠ Written through to disk here rather than left to the autosave. A player who resizes a
-        // window, closes it and quits within the next thirty seconds is the ordinary case, not the
-        // edge one — and the whole promise of this feature is that it survives a restart.
-        profile.save();
+        // ⚠ IN MEMORY ONLY — no profile.save() here, and an earlier version of this method had one.
+        //
+        // Two reasons, and the first is serious. `ClientProfile.save` logs and RETHROWS an
+        // UncheckedIOException ("the throw is the caller's problem to handle"), and this runs inside
+        // a close handler that `DeskManager.close` invokes unguarded. On a full or read-only volume
+        // the throw would escape before the shell's own handler released its compute — reviving,
+        // exactly, the bug CLAUDE.md already records: cycles held by a shell the player cannot see,
+        // clearable only by a restart. It would also skip the focus reassignment and the listener
+        // notification at the end of `close`, and abort `closeAll`'s loop partway through a quit.
+        //
+        // The second is cost: closing fourteen windows on quit would be fourteen full
+        // serialise-and-atomic-move cycles of settings.json on the FX thread, and fourteen flashes
+        // of the drive lamp, where it used to be none.
+        //
+        // ⚠ Nothing is lost. `saveEverything` writes the profile on the 30-second autosave, on the
+        // pause menu's Save, on returning to the menu and on quit — and quit runs it BEFORE
+        // `dispose()` closes the windows, so a window still open then is already covered by
+        // `saveLayout`. A size recorded here reaches disk within thirty seconds either way.
     }
 
     /**
@@ -618,11 +632,15 @@ public final class DeckShell {
         // ⚠ The caller's own handler is WRAPPED rather than replaced. It releases the session's
         // cycles, which is the thing this window's existence costs; dropping it to add a size write
         // would put back the exact bug the callback was added to fix.
+        // ⚠ THE CALLER'S HANDLER RUNS FIRST, and the order is load-bearing rather than arbitrary.
+        // It releases the shell's compute; remembering a size is a preference. If anything here ever
+        // throws, the thing that must already have happened is the one that costs the player
+        // something they cannot get back without a restart.
         java.util.function.Consumer<DeskManager.Geometry> closed = geometry -> {
-            rememberSize(id, geometry);
             if (onClosed != null) {
                 onClosed.run();
             }
+            rememberSize(id, geometry);
         };
         if (desk.find(id).isPresent()) {
             desk.open(new DeskManager.Spec(id, title, address, content, width, height, true, closed));
@@ -1708,9 +1726,17 @@ public final class DeckShell {
             // ⚠ Also into windowSizes, so a window that was OPEN at quit reopens at its size in a
             // later session even if the player closes it first. Without this, only windows closed by
             // hand were remembered — which is the less common way to leave one.
+            //
+            // ⚠ THROUGH sizeKey, LIKE EVERY OTHER READER AND WRITER. This used the raw id, and the
+            // raw id of a per-machine window carries an address: a player who left a shell up across
+            // one 30-second autosave got `shell:10.4.0.7` written to settings.json, one entry per
+            // machine they ever visited, growing without bound — the exact thing sizeKey exists to
+            // prevent, and its javadoc claims to have prevented. Worse, nothing ever read those
+            // entries back, because both readers look up the prefix. Two writers disagreeing about a
+            // map's key is the state the scheme was introduced to eliminate.
             var size = profile.settings()
                     .windowSizes
-                    .computeIfAbsent(window.id(), key -> new ClientProfile.DeskWindowState());
+                    .computeIfAbsent(sizeKey(window.id()), key -> new ClientProfile.DeskWindowState());
             size.width = geometry.width();
             size.height = geometry.height();
         }

@@ -535,7 +535,18 @@ public final class DeskManager {
             // is deliberate and must stay first (see the note on it), so a handler that tried to find
             // its own window in `windows()` would find nothing — which is exactly what
             // `DeckShell.rememberSize` did, silently, for every window a player closed by hand.
-            window.onClosed.accept(closing);
+            //
+            // ⚠ AND IT IS GUARDED, because everything after it is the desk's own bookkeeping. An
+            // unguarded throw here leaves `focused` pointing at a window already off the desk, skips
+            // `notifyListeners` so the rail keeps advertising a window that is gone, and — worst —
+            // aborts `closeAll`'s loop partway through a quit, so every window after the failing one
+            // is never closed and whatever it was holding is never released. A handler is somebody
+            // else's code; the window manager finishes closing the window either way.
+            try {
+                window.onClosed.accept(closing);
+            } catch (RuntimeException handlerFailed) {
+                LOG.log(java.util.logging.Level.WARNING, "close handler for " + id + " threw", handlerFailed);
+            }
         }
         if (focused == window) {
             focused = null;

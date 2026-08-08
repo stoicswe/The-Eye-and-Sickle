@@ -739,6 +739,47 @@ with opened/updated dates.
   world is in the topology, so the old check was a check on nothing while the refusal claimed "no
   machine that a sweep has found".
 
+**A CLOSED WINDOW REMEMBERS ITS SIZE, AND THE FEATURE WAS THERE AND BROKEN (2026-08-08).**
+`ClientProfile.Settings.windowSizes`, `DeckShell.{openTool,openSizeFor,rememberSize,sizeKey}`,
+`DeskManager.Spec.onClosed`, `UiTokens.PER_MACHINE_WINDOW_*`; `ClosedWindowRemembersItsSizeTest`.
+- ⚠ **WRITTEN, READ, AND NEVER CONNECTED — the join, again.** `rememberSize` recorded a closing
+  window's size by looking it up in `desk.windows()`, with a comment saying the read happened "at the
+  moment the geometry still exists". **`DeskManager.close` removes the window from its map BEFORE
+  firing `onClosed`**, deliberately, with its own comment explaining why (the shell's handler ends
+  the session, which closes the window again; firing first recurses). So the lookup found nothing,
+  `ifPresent` did nothing, and **a window closed by hand never recorded anything**. Two correct
+  comments describing incompatible orderings. `windowSizes` was only ever populated by `saveLayout`,
+  which covers windows still OPEN at quit — the other case entirely.
+- ⚠ **AND TWO OF THE THREE OPEN PATHS NEVER ATTACHED THE HANDLER.** `openStartingWindows` and
+  `restoreLayout` used the 7-arg convenience constructor, which omits it — so a window that arrived
+  on the desk at startup, which is most of them most sessions, could not record its size however it
+  was closed. One `openTool` now, so a fourth call site cannot forget.
+- ⚠ **`onClosed` is `Consumer<Geometry>`**: the handler is HANDED the size, because the only party
+  that can still see it is the one doing the removal.
+- ⚠ **THE RESTORE POINT WHEN EXPANDED, NEVER THE GEOMETRY.** A maximised or edge-tiled window's
+  geometry is the DESK's. Recording it would reopen that tool full-desk **forever after**, every
+  session, with nothing on screen to say why. `saveLayout` has always kept the two apart; the close
+  path had to learn the same distinction.
+- ⚠ **NO `profile.save()` ON THE CLOSE PATH — an earlier version of this change had one, and an
+  adversarial review found it.** `ClientProfile.save` rethrows `UncheckedIOException` ("the throw is
+  the caller's problem"), and `DeskManager.close` fired the handler unguarded — so on a full or
+  read-only volume the throw escaped **before the shell released its compute**, reviving the exact
+  bug this callback was added to fix. It also skipped the focus reassignment and `notifyListeners`,
+  and aborted `closeAll`'s loop partway through a quit. Cost, separately: 14 windows closing on quit
+  meant 14 full serialise-and-atomic-move cycles on the FX thread. In-memory now; `saveEverything`
+  reaches disk within 30s either way.
+- ⚠ **The caller's handler runs FIRST in `showShell`'s wrapper**, and `close` **guards** the handler:
+  releasing compute is something the player cannot get back without a restart; remembering a size is
+  a preference.
+- ⚠ **`sizeKey` — per-machine windows share ONE entry.** A shell's id carries an address, so keying
+  on the id grows the map once per machine ever visited; the field's own note promises it "cannot
+  grow without bound". ⚠ **`saveLayout` was the second writer and still used the raw id**, so a shell
+  left up across one 30-second autosave wrote `shell:10.4.0.7` to settings.json — entries nothing
+  ever read back, since both readers look up the prefix. Two writers disagreeing about a map's key is
+  the state the scheme existed to remove. Found by review, not by the tests.
+- ⚠ **A degenerate remembered size falls back to the catalogue default.** Zero is what an entry
+  written before the window was ever laid out carries, and a 0 × 0 window is invisible permanently.
+
 **SERVERS HAVE GENERATED NAMES AND THE MAP IS ONE TAB PER SERVER (2026-08-08).**
 `docs/design/18` §2.5–2.6. `NpcNames.{CHARACTERS,server,looksLikeServer}`, `ServerTabs`,
 `NetLayout` (layer rebase), `NetMapView`, `theme.css`; `ServerTabsTest`, `NpcNamesTest.Servers`.

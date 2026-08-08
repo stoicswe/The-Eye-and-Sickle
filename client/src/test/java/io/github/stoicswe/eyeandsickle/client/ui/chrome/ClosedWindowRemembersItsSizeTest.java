@@ -171,6 +171,29 @@ class ClosedWindowRemembersItsSizeTest {
         }
 
         @Test
+        @DisplayName("⚠ a handler that throws does not strand the desk")
+        void aThrowingHandlerIsContained() throws Exception {
+            // ⚠ EVERYTHING AFTER THE CALLBACK IS THE DESK'S OWN BOOKKEEPING. An unguarded throw here
+            // leaves `focused` pointing at a window already off the desk, skips notifyListeners so
+            // the rail keeps advertising a window that is gone, and aborts closeAll's loop partway
+            // through a quit — so every window after the failing one is never closed and whatever it
+            // held is never released. A handler is somebody else's code.
+            onFxThread(() -> {
+                DeskManager desk = new DeskManager();
+                desk.open(spec("bad", geometry -> {
+                    throw new IllegalStateException("the handler blew up");
+                }));
+                desk.open(spec("good", geometry -> {}));
+
+                desk.closeAll();
+
+                assertThat(desk.windows())
+                        .as("closeAll finished despite the first handler throwing")
+                        .isEmpty();
+            });
+        }
+
+        @Test
         @DisplayName("a window with no handler closes without complaint")
         void handlerIsOptional() throws Exception {
             onFxThread(() -> {
